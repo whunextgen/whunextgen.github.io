@@ -3,8 +3,8 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  // 把 "/" 改成了你的仓库名，注意前后都要有斜杠
-  base: "/clain-whu.github.io/", 
+  // 必须是根路径 "/"
+  base: "/", 
   build: {
     outDir: "dist",
     assetsDir: "assets",
