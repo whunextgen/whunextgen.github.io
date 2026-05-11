@@ -34,7 +34,6 @@ const Navbar: React.FC = () => {
     { name: t("nav.people"), path: "/people" },
     { name: t("nav.news"), path: "/news" },
     { name: t("nav.publications"), path: "/publications" },
-    { name: t("nav.projects"), path: "/projects" },
     { name: t("nav.contact"), path: "/contact" },
   ];
 
@@ -103,7 +102,7 @@ const Navbar: React.FC = () => {
                 className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-brand-dark transition-colors uppercase tracking-wider"
               >
                 <Languages size={16} />
-                {language === "en" ? "EN" : "中文"}
+                {language === "en" ? "中文" : "EN"}
               </button>
             </div>
           </div>
@@ -115,7 +114,7 @@ const Navbar: React.FC = () => {
               className="flex items-center gap-1 text-xs font-bold text-slate-500"
             >
               <Languages size={18} />
-              {language === "en" ? "EN" : "中文"}
+              {language === "en" ? "中文" : "EN"}
             </button>
             <button
               onClick={() => setIsOpen(!isOpen)}

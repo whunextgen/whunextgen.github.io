@@ -93,7 +93,7 @@ const TeacherCard: React.FC<{ person: Person }> = ({ person }) => {
                   href={person.homepage}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:text-white hover:bg-brand-tech transition-colors"
+                  className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:text-white hover:bg-blue-600 transition-colors"
                   title={t("common.website")}
                 >
                   <Globe size={16} />
@@ -149,7 +149,7 @@ const TeacherCard: React.FC<{ person: Person }> = ({ person }) => {
               {projects && projects.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-2 text-brand-dark font-medium">
-                    <Briefcase size={16} className="text-brand-tech" />
+                    <Briefcase size={16} className="text-blue-600" />
                     <h4 className="text-sm font-bold">
                       {t("people.profile.projects")}
                     </h4>
@@ -216,6 +216,9 @@ const CompactPersonCard: React.FC<{ person: Person }> = ({ person }) => {
   const name = isZh ? person.nameZh || person.name : person.name;
   const title = isZh ? person.titleZh || person.title : person.title;
   const bio = isZh ? person.bioZh || person.bio : person.bio;
+  const position = isZh
+    ? person.teacherProfile?.positionZh || person.teacherProfile?.position
+    : person.teacherProfile?.position;
 
   const Wrapper = person.homepage ? "a" : "div";
   const props = person.homepage
@@ -247,6 +250,11 @@ const CompactPersonCard: React.FC<{ person: Person }> = ({ person }) => {
               <p className="text-xs uppercase text-slate-400 font-medium truncate">
                 {title}
               </p>
+              {position && (
+                <p className="text-xs text-slate-500 mt-1 leading-snug line-clamp-2">
+                  {position}
+                </p>
+              )}
               {person.grade && (
                 <span className="inline-block mt-1 text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
                   {person.grade}
@@ -345,8 +353,7 @@ const People: React.FC = () => {
             {t("nav.people")}
           </h1>
           <p className="text-lg text-slate-500 font-light max-w-2xl">
-            Meet the faculty, researchers, students, and staff of the Center for
-            Language and Information Research.
+            {t("people.subtitle")}
           </p>
         </header>
 

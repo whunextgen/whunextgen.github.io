@@ -2,22 +2,16 @@ import React, { useEffect, useState } from "react";
 import { fetchContact } from "../lib/dataStore";
 import { ContactInfo } from "../types";
 import { useLanguage } from "../contexts/LanguageContext";
-import { Mail, MapPin, Briefcase } from "lucide-react";
+import { Mail, MapPin, GraduationCap, Users, Github } from "lucide-react";
 
 const Contact: React.FC = () => {
   const { language, t } = useLanguage();
   const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await fetchContact();
-        setContactInfo(data);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    load();
+    fetchContact()
+      .then(setContactInfo)
+      .catch(console.error);
   }, []);
 
   if (!contactInfo)
@@ -28,134 +22,157 @@ const Contact: React.FC = () => {
     );
 
   const isZh = language === "zh";
-  const intro = isZh ? contactInfo.introZh : contactInfo.introEn;
-  const address = isZh ? contactInfo.addressZh : contactInfo.addressEn;
+  const address  = isZh ? contactInfo.addressZh  : contactInfo.addressEn;
   const hiringText = isZh ? contactInfo.hiringTextZh : contactInfo.hiringTextEn;
 
-  // Helper to render multiple emails
-  const renderEmails = (emailString: string) => {
-    if (!emailString) return null;
-    return emailString.split(/[\n,;]+/).map((email, index) => {
-      const cleanEmail = email.trim();
-      if (!cleanEmail) return null;
-      return (
-        <a
-          key={index}
-          href={`mailto:${cleanEmail}`}
-          className="block text-lg text-slate-700 font-serif hover:text-brand-tech transition-colors break-all"
-        >
-          {cleanEmail}
-        </a>
-      );
-    });
-  };
+  const parseEmails = (raw: string) =>
+    raw
+      .split(/[\n,;]+/)
+      .map((e) => e.trim())
+      .filter(Boolean);
+
+  const generalEmails    = parseEmails(contactInfo.emailGeneral    || "");
+  const admissionEmails  = parseEmails(contactInfo.emailAdmissions || "");
 
   return (
     <div className="bg-white min-h-screen pt-24 pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header Section */}
-        <header className="mb-20 pt-10 text-center md:text-left">
-          <h1 className="text-5xl md:text-6xl font-serif text-brand-dark mb-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        {/* ── Header ── */}
+        <header className="pt-12 mb-16">
+          <h1 className="text-5xl md:text-6xl font-serif text-brand-dark mb-4">
             {t("nav.contact")}
           </h1>
-          {/* Added whitespace-pre-line to preserve line breaks from textarea inputs */}
-          <p className="text-xl md:text-2xl text-slate-500 font-light leading-relaxed max-w-3xl whitespace-pre-line">
-            {intro}
+          <p className="text-lg text-slate-500 font-light max-w-2xl leading-relaxed">
+            {isZh
+              ? "我们欢迎来自全球的研究者、学生和机构开展交流与合作。"
+              : "We welcome researchers, prospective students, and institutions worldwide to connect and collaborate."}
           </p>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-24">
-          {/* Left Column: Information */}
-          <div className="lg:col-span-5 space-y-16 animate-fade-in-up stagger-1">
-            {/* Address */}
-            <div className="group">
-              <div className="flex items-center gap-2 mb-4 text-brand-red">
-                <MapPin size={18} />
-                <h3 className="text-xs font-bold uppercase tracking-widest">
-                  {t("common.address")}
-                </h3>
-              </div>
-              <div className="pl-6 border-l border-slate-200 group-hover:border-brand-red transition-colors duration-300">
-                <address className="not-italic text-lg text-slate-700 font-serif leading-relaxed whitespace-pre-line">
-                  {address}
-                </address>
-              </div>
-            </div>
+        {/* ── Three contact blocks ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-slate-100 rounded-xl overflow-hidden border border-slate-100 mb-20">
 
-            {/* Inquiries */}
-            <div className="group">
-              <div className="flex items-center gap-2 mb-4 text-brand-red">
-                <Mail size={18} />
-                <h3 className="text-xs font-bold uppercase tracking-widest">
-                  {t("contact.inquiries")}
-                </h3>
-              </div>
-              <div className="pl-6 border-l border-slate-200 group-hover:border-brand-red transition-colors duration-300 space-y-6">
-                {contactInfo.emailGeneral && (
-                  <div>
-                    <span className="block text-xs uppercase text-slate-400 font-bold mb-1">
-                      {t("contact.general")}
-                    </span>
-                    {renderEmails(contactInfo.emailGeneral)}
-                  </div>
-                )}
-                {contactInfo.emailAdmissions && (
-                  <div>
-                    <span className="block text-xs uppercase text-slate-400 font-bold mb-1">
-                      {t("contact.admissions")}
-                    </span>
-                    {renderEmails(contactInfo.emailAdmissions)}
-                  </div>
-                )}
-              </div>
+          {/* Block 1: Research Collaboration */}
+          <div className="bg-white p-8 flex flex-col gap-4">
+            <div className="flex items-center gap-2 text-brand-red">
+              <Users size={16} />
+              <h2 className="text-[11px] font-bold uppercase tracking-widest">
+                {isZh ? "学术合作" : "Research Collaboration"}
+              </h2>
             </div>
-
-            {/* Hiring */}
-            <div className="group">
-              <div className="flex items-center gap-2 mb-4 text-brand-red">
-                <Briefcase size={18} />
-                <h3 className="text-xs font-bold uppercase tracking-widest">
-                  {t("contact.joinUs")}
-                </h3>
-              </div>
-              <div className="pl-6 border-l border-slate-200 group-hover:border-brand-red transition-colors duration-300">
-                {/* Added whitespace-pre-line here as well */}
-                <p className="text-slate-600 font-light leading-relaxed whitespace-pre-line">
-                  {hiringText}
-                </p>
-              </div>
+            <p className="text-sm text-slate-500 font-light leading-relaxed flex-grow">
+              {isZh
+                ? "如您希望探讨科研合作、项目提案或访问学者事宜，欢迎通过以下方式联系我们。"
+                : "For research partnerships, project proposals, or visiting researcher arrangements, please reach out via email."}
+            </p>
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              {generalEmails.map((email) => (
+                <a
+                  key={email}
+                  href={`mailto:${email}`}
+                  className="flex items-center gap-2 text-sm text-slate-700 hover:text-brand-red transition-colors font-mono break-all"
+                >
+                  <Mail size={13} className="flex-shrink-0 text-slate-400" />
+                  {email}
+                </a>
+              ))}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <a
+                href="https://github.com/CLAIN-WHU"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors uppercase tracking-wider"
+              >
+                <Github size={13} /> GitHub
+              </a>
+              <a
+                href="https://huggingface.co/NextGenWhu"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors uppercase tracking-wider"
+              >
+                <span className="text-sm leading-none">🤗</span> HuggingFace
+              </a>
             </div>
           </div>
 
-          {/* Right Column: Map */}
-          <div className="lg:col-span-7 animate-fade-in-up stagger-2">
-            {/* 
-                Styled to look "Hardcoded": 
-                - Grayscale filter
-                - High contrast border
-                - Internal shadow
-             */}
-            <div className="w-full h-[500px] bg-slate-100 relative overflow-hidden rounded-sm border-2 border-slate-100 shadow-inner group">
-              <iframe
-                width="100%"
-                height="100%"
-                title="map"
-                className="absolute inset-0 w-full h-full grayscale hover:grayscale-0 transition-all duration-700 ease-in-out mix-blend-multiply opacity-90 hover:opacity-100"
-                frameBorder="0"
-                marginHeight={0}
-                marginWidth={0}
-                scrolling="no"
-                src={contactInfo.mapEmbedUrl}
-                loading="lazy"
-              ></iframe>
+          {/* Block 2: Graduate Admissions */}
+          <div className="bg-white p-8 flex flex-col gap-4">
+            <div className="flex items-center gap-2 text-brand-red">
+              <GraduationCap size={16} />
+              <h2 className="text-[11px] font-bold uppercase tracking-widest">
+                {isZh ? "研究生招募" : "Graduate Admissions"}
+              </h2>
+            </div>
+            <p className="text-sm text-slate-500 font-light leading-relaxed flex-grow">
+              {hiringText || (isZh
+                ? "我们长期招募博士生、硕士生及博士后，欢迎有志于 AI 与 NLP 研究的同学联系。"
+                : "We are recruiting PhD students, master's students, and postdoctoral researchers passionate about AI and NLP.")}
+            </p>
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              {admissionEmails.map((email) => (
+                <a
+                  key={email}
+                  href={`mailto:${email}`}
+                  className="flex items-center gap-2 text-sm text-slate-700 hover:text-brand-red transition-colors font-mono break-all"
+                >
+                  <Mail size={13} className="flex-shrink-0 text-slate-400" />
+                  {email}
+                </a>
+              ))}
+              {contactInfo.hiringLink && (
+                <a
+                  href={contactInfo.hiringLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-block text-xs font-bold uppercase tracking-widest text-brand-red hover:underline mt-1"
+                >
+                  {isZh ? "学院官网 →" : "School Website →"}
+                </a>
+              )}
+            </div>
+          </div>
 
-              {/* Decorative Overlay for "Tech" feel */}
-              <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 text-[10px] font-mono uppercase tracking-widest border border-slate-200 text-slate-500 pointer-events-none">
-                Lat: 30.54 • Long: 114.36
-              </div>
+          {/* Block 3: Location */}
+          <div className="bg-white p-8 flex flex-col gap-4">
+            <div className="flex items-center gap-2 text-brand-red">
+              <MapPin size={16} />
+              <h2 className="text-[11px] font-bold uppercase tracking-widest">
+                {t("common.address")}
+              </h2>
+            </div>
+            <address className="not-italic text-sm text-slate-600 font-light leading-relaxed flex-grow whitespace-pre-line">
+              {address}
+            </address>
+            <div className="pt-2 border-t border-slate-100 space-y-1">
+              <p className="text-xs text-slate-400">{t("common.schoolName")}</p>
+              <p className="text-xs text-slate-400">{t("common.location")}</p>
             </div>
           </div>
         </div>
+
+        {/* ── Map ── */}
+        {contactInfo.mapEmbedUrl && (
+          <div className="rounded-xl overflow-hidden border border-slate-100 shadow-sm h-80 md:h-96 relative">
+            <iframe
+              width="100%"
+              height="100%"
+              title="map"
+              className="absolute inset-0 w-full h-full grayscale hover:grayscale-0 transition-all duration-700 opacity-90 hover:opacity-100"
+              frameBorder="0"
+              scrolling="no"
+              src={contactInfo.mapEmbedUrl}
+              loading="lazy"
+            />
+            <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm pointer-events-none">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">
+                {isZh ? "武汉大学 · 人工智能学院" : "Wuhan University · School of AI"}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

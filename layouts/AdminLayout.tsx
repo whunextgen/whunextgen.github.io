@@ -8,7 +8,6 @@ import {
   Flame,
   BookOpen,
   MapPin,
-  Box,
   ShieldAlert,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -71,10 +70,6 @@ const AdminLayout: React.FC = () => {
           <NavLink to="/admin/publications" className={navClass}>
             <BookOpen size={18} />
             Publications
-          </NavLink>
-          <NavLink to="/admin/projects" className={navClass}>
-            <Box size={18} />
-            Projects
           </NavLink>
         </nav>
 

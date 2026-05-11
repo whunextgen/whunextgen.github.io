@@ -32,7 +32,7 @@ const Events: React.FC = () => {
                   <p className="text-sm font-mono text-slate-400 mt-1">
                     {event.time}
                   </p>
-                  <p className="text-xs font-bold uppercase tracking-wider text-brand-tech mt-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-600 mt-4">
                     {event.location}
                   </p>
                 </div>

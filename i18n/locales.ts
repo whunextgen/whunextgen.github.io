@@ -56,6 +56,7 @@ export const translations = {
       category: "Category",
     },
     people: {
+      subtitle: "Meet the faculty, researchers, students, and staff of the Center for Language and Information Research.",
       categories: {
         Teachers: "Faculty",
         "Visiting Scholars": "Visiting Scholars",
@@ -82,8 +83,11 @@ export const translations = {
       title: "Publications",
       subtitle:
         "Selected research papers, conference proceedings, and technical reports.",
-      filterYear: "Filter Year",
-      noPubs: "No publications found for the selected year.",
+      filterYear: "Year",
+      filterType: "Type",
+      filterAll: "All",
+      noPubs: "No publications found for the selected filters.",
+      papers: "papers",
     },
     projects: {
       title: "Projects",
@@ -184,6 +188,7 @@ export const translations = {
       category: "分类",
     },
     people: {
+      subtitle: "认识语言与信息研究中心的教师、研究人员、学生和工作人员。",
       categories: {
         Teachers: "指导教师",
         "Visiting Scholars": "访问学者",
@@ -209,8 +214,11 @@ export const translations = {
     publications: {
       title: "论文发表",
       subtitle: "精选研究论文、会议论文集及技术报告。",
-      filterYear: "筛选年份",
-      noPubs: "该年份暂无论文数据。",
+      filterYear: "年份",
+      filterType: "类型",
+      filterAll: "全部",
+      noPubs: "暂无符合筛选条件的论文。",
+      papers: "篇",
     },
     projects: {
       title: "项目展示",

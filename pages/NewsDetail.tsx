@@ -170,7 +170,7 @@ const NewsDetail: React.FC = () => {
             prose-headings:font-serif prose-headings:font-medium prose-headings:text-brand-dark
             prose-p:font-light prose-p:leading-relaxed prose-p:text-slate-600
             prose-img:rounded-lg prose-img:shadow-md prose-img:w-full prose-img:cursor-zoom-in prose-img:my-8
-            prose-a:text-brand-tech prose-a:no-underline hover:prose-a:underline
+            prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
             [&>table]:w-full [&>table]:text-sm [&>table]:text-left [&>table]:border-collapse [&>table]:my-8 [&>table]:block [&>table]:overflow-x-auto
             [&>table_th]:border-b [&>table_th]:border-slate-300 [&>table_th]:pb-2 [&>table_th]:font-bold [&>table_th]:min-w-[100px]
             [&>table_td]:border-b [&>table_td]:border-slate-100 [&>table_td]:py-3 [&>table_td]:text-slate-500

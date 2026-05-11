@@ -2401,7 +2401,7 @@ export const STATIC_DATA = {
     hiringLink: "https://sai.whu.edu.cn/",
     mapEmbedUrl:
       "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3390.990!2d114.359!3d30.540!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3617490000000001%3A0x0!2sWuhan+University!5e0!3m2!1sen!2sus!4v1700000000000",
-    heroImages: [" ./assets/img_2d9804b84e7e.jpg"],
+    heroImages: ["./assets/index-0.jpeg", "./assets/index-1.jpeg", "./assets/index-2.jpeg"],
     createdAt: "2025-12-10T09:43:15.316Z",
     updatedAt: "2026-01-20T04:20:22.758Z",
     partners: [

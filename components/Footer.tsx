@@ -28,7 +28,7 @@ const Footer: React.FC = () => {
                   href="https://huggingface.co/NextGenWhu"
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-2 hover:text-brand-tech transition-colors"
+                  className="flex items-center gap-2 hover:text-blue-600 transition-colors"
                 >
                   <span className="text-lg">🤗</span> HuggingFace
                 </a>
@@ -38,7 +38,7 @@ const Footer: React.FC = () => {
                   href="https://github.com/CLAIN-WHU"
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-2 hover:text-brand-tech transition-colors"
+                  className="flex items-center gap-2 hover:text-blue-600 transition-colors"
                 >
                   <Github size={16} /> GitHub
                 </a>

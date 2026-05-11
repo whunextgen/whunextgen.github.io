@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchNews } from "../lib/dataStore"; // Correct import source
+import { fetchNews } from "../lib/dataStore";
 import { useLanguage } from "../contexts/LanguageContext";
 import { NewsItem } from "../types";
+import SmartImage from "../components/SmartImage";
 
 const News: React.FC = () => {
   const { t, language } = useLanguage();
@@ -74,23 +75,38 @@ const News: React.FC = () => {
                       {item.category}
                     </span>
                   </div>
-                  <div className="md:col-span-3 space-y-4">
-                    <Link to={`/news/${item.id}`}>
-                      <h2 className="text-2xl font-serif font-medium text-brand-dark group-hover:text-brand-red transition-colors cursor-pointer">
-                        {displayTitle}
-                      </h2>
-                    </Link>
-                    <p className="text-slate-600 leading-relaxed font-light text-lg line-clamp-3">
-                      {displaySummary}
-                    </p>
-                    <div className="pt-2">
+                  <div className="md:col-span-3 flex gap-5 items-start">
+                    <div className="flex-grow space-y-4 min-w-0">
+                      <Link to={`/news/${item.id}`}>
+                        <h2 className="text-2xl font-serif font-medium text-brand-dark group-hover:text-brand-red transition-colors cursor-pointer">
+                          {displayTitle}
+                        </h2>
+                      </Link>
+                      <p className="text-slate-600 leading-relaxed font-light text-lg line-clamp-3">
+                        {displaySummary}
+                      </p>
+                      <div className="pt-2">
+                        <Link
+                          to={`/news/${item.id}`}
+                          className="text-blue-600 text-sm font-bold uppercase tracking-widest hover:underline decoration-2 underline-offset-4"
+                        >
+                          {t("common.readMore")}
+                        </Link>
+                      </div>
+                    </div>
+                    {item.coverImage && (
                       <Link
                         to={`/news/${item.id}`}
-                        className="text-brand-tech text-sm font-bold uppercase tracking-widest hover:underline decoration-2 underline-offset-4"
+                        className="hidden md:block flex-shrink-0 w-36 h-24 rounded-lg overflow-hidden bg-slate-100 border border-slate-100"
                       >
-                        {t("common.readMore")}
+                        <SmartImage
+                          src={item.coverImage}
+                          alt={displayTitle}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                        />
                       </Link>
-                    </div>
+                    )}
                   </div>
                 </article>
               );
