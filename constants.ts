@@ -95,7 +95,7 @@ export const STATIC_DATA = {
       bio: "Prof. Qianqian Xie is a Professor at the School of Artificial Intelligence, Wuhan University, and the Deputy Director of the Center for Language and Information (CLAIN). She has long been engaged in research on natural language processing, medical AI, intelligent finance, model interpretability/controllability and reasoning, and multimodal fusion. She previously served as an Associate Research Scientist at Yale University, and has worked or conducted academic visits at Cornell University, the University of Manchester, and the University of Montreal. She has published over 70 papers in top conferences and journals such as NeurIPS, ACL, KDD, Nature Communications, and TKDE. She has led the NIH K99/R00 Pathway to Independence Award, NIH Early-Stage Researcher Grant (USD 830K), and the 2025 CCF–Tencent Rhino-Bird Fund. She is a recipient of the National High-level Young Talent Program (Overseas). Her honors include the Hubei Provincial Science and Technology Progress Award (2nd Class) and the CCL Outstanding English Paper Award. She serves as Senior Area Chair of EACL 2025 and Area Chair for ACL 2023/2025, EMNLP 2023/2025, NeurIPS 2025, COLING 2025, LREC 2026, and as Co-chair of the COLING 2025 Workshop.",
       bioZh:
         "谢倩倩，武汉大学人工智能学院教授、博士生导师，武汉大学语言与信息研究中心副主任。长期从事自然语言处理、医疗人工智能、智能金融、模型可解释性/可控性与推理、多模态融合等方向研究。曾任耶鲁大学副研究员，并在康奈尔大学、曼彻斯特大学和蒙特利尔大学工作与访问。在 NeurIPS、ACL、KDD、Nature Communications、TKDE 等国际顶级会议与期刊发表论文 70 余篇；主持美国国立卫生研究院（NIH）青年研究基金项目（约 83 万美元）、NIH K99/R00 青年独立研究者基金，以及 2025 年 CCF-腾讯犀牛鸟科研基金项目。国家高层次海外优青获得者；曾获湖北省科技进步二等奖、CCL 亮点英文论文奖等。担任 EACL 2025 资深领域主席，ACL 2023/2025、EMNLP 2023/2025、NeurIPS 2025、COLING 2025、LREC 2026 等领域主席，并任 COLING-2025 Workshop 大会联合主席。",
-      order: 1,
+      order: 2,
       createdAt: "2025-12-10T09:51:25.351Z",
       updatedAt: "2025-12-10T09:51:25.351Z",
     },
@@ -170,7 +170,7 @@ export const STATIC_DATA = {
       bio: "Sophia Ananiadou is a Professor in Computer Science at the University of Manchester and Director of the National Centre for Text Mining (NaCTeM), the world's first publicly funded text mining centre, and an adjunct professor at Wuhan University. She is a leading expert in biomedical text mining and natural language processing, with interdisciplinary contributions to knowledge discovery, automated systematic reviews, and AI applications in biomedicine. She is a Turing Fellow, ELLIS Fellow, and has been ranked #1 internationally in text mining.",
       bioZh:
         "Sophia Ananiadou 是英国曼彻斯特大学计算机科学系教授；National Centre for Text Mining (NaCTeM) 主任；该中心是世界上首个公共资助的文本挖掘中心，同时担任武汉大学兼职教授。她是生物医学文本挖掘与自然语言处理领域的世界顶尖专家之一，长期致力于该领域的交叉应用，在生物医学知识发现、系统综述自动化等方面具有开创性贡献。她是 Turing Fellow 和 ELLIS Fellow，并在文本挖掘领域国际排名第一。",
-      order: 2,
+      order: 3,
       createdAt: "2025-12-10T11:35:57.683Z",
       updatedAt: "2026-01-07T15:23:43.453Z",
     },
@@ -267,7 +267,7 @@ export const STATIC_DATA = {
       bio: "Min Peng is a Professor at the School of Artificial Intelligence, Wuhan University, Director of the Center for Language and Information Research, and PhD Supervisor. She is a member of IEEE CIS ETTC, council member of China Chinese Information Society, committee member of Computational Linguistics Specialty Committee and Social Media Processing Specialty Committee of Chinese Information Society. She received her PhD in Computer Software and Theory from Wuhan University and conducted postdoctoral research at the Advanced Cyber-Infrastructure Laboratory, Department of Electrical and Computer Engineering, University of New Mexico, USA. Her long-term research focuses on artificial intelligence, natural language processing, information retrieval, topic models, knowledge graphs, cloud computing systems, and social computing.",
       bioZh:
         "彭敏，武汉大学人工智能学院教授、语言与信息研究中心主任、博士生导师。IEEE CIS ETTC会员，中国中文信息学会理事，中文信息学会计算语言学专委会委员、社会媒体处理专委会委员。曾获武汉大学计算机软件与理论专业博士学位，曾在美国新墨西哥大学电子与计算机工程系Advanced Cyber-Infrastructure Laboratory从事博士后研究。长期从事人工智能、自然语言处理、信息检索、主题模型、知识图谱、云计算系统与社会计算方向研究。",
-      order: 3,
+      order: 1,
       createdAt: "2025-12-10T11:40:04.164Z",
       updatedAt: "2026-01-08T06:56:42.609Z",
     },
