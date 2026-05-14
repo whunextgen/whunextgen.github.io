@@ -86,8 +86,7 @@ export const STATIC_DATA = {
       name: "Qianqian Xie",
       nameZh: "谢倩倩",
       category: "Teachers",
-      title:
-        "Professor of Artificial Intelligence, Wuhan University",
+      title: "Professor of Artificial Intelligence, Wuhan University",
       titleZh: "武汉大学人工智能教授",
       avatar: " ./assets/img_dd4bc2bd6fee.png",
       email: "xqq.sincere@gmail.com",
@@ -162,7 +161,8 @@ export const STATIC_DATA = {
       name: "Sophia Ananiadou",
       nameZh: "Sophia Ananiadou",
       category: "Teachers",
-      title: "Professor of Computer Science, University of Manchester; Adjunct Professor of Artificial Intelligence, Wuhan University",
+      title:
+        "Professor of Computer Science, University of Manchester; Adjunct Professor of Artificial Intelligence, Wuhan University",
       titleZh: "英国曼彻斯特大学计算机科学教授；武汉大学人工智能兼职教授",
       avatar: " ./assets/img_Sophia_Ananiadou.jpg",
       email: "sophia.ananiadou@manchester.ac.uk",
@@ -2401,7 +2401,11 @@ export const STATIC_DATA = {
     hiringLink: "https://sai.whu.edu.cn/",
     mapEmbedUrl:
       "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3390.990!2d114.359!3d30.540!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3617490000000001%3A0x0!2sWuhan+University!5e0!3m2!1sen!2sus!4v1700000000000",
-    heroImages: ["./assets/index-0.jpeg", "./assets/index-1.jpeg", "./assets/index-2.jpeg"],
+    heroImages: [
+      "./assets/index-0.jpeg",
+      "./assets/index-1.jpeg",
+      "./assets/index-2.jpeg",
+    ],
     createdAt: "2025-12-10T09:43:15.316Z",
     updatedAt: "2026-01-20T04:20:22.758Z",
     partners: [
@@ -2416,7 +2420,7 @@ export const STATIC_DATA = {
       {
         name: "MBZUAI",
         nameZh: "穆罕默德·本·扎耶德人工智能大学",
-        logo: "./assets/img_596b4e48dd8e.svg",
+        logo: "./assets/logo-MBZUAI.png",
         link: "https://mbzuai.ac.ae/",
         bgColor: "#D3D3D3",
         _id: "696e64acc006643a2155a77d",
@@ -2432,7 +2436,7 @@ export const STATIC_DATA = {
       {
         name: "Université de Montréal",
         nameZh: "蒙特利尔大学",
-        logo: "./assets/img_b7719dbdb273.png",
+        logo: "./assets/logo-universite-de-montreal.png",
         link: "https://www.umontreal.ca/en/",
         bgColor: "#D3D3D3",
         _id: "696e64acc006643a2155a77e",
@@ -2512,7 +2516,7 @@ export const STATIC_DATA = {
       {
         name: "Institute of Geochemistry, Chinese Academy of Sciences",
         nameZh: "中国科学院地球化学研究所",
-        logo: "./assets/img_b392cc82e384.png",
+        logo: "./assets/logo-gyig.jpg",
         link: "https://www.gyig.ac.cn/",
         bgColor: "#D3D3D3",
         _id: "695011e489bd7d37142c31a3",
@@ -2560,7 +2564,7 @@ export const STATIC_DATA = {
       {
         name: "Harbin Institute of Technology, Shenzhen",
         nameZh: "哈尔滨工业大学（深圳）",
-        logo: "./assets/img_ff1fb25e16d1.png",
+        logo: "./assets/logo-HIT-2048px.png",
         link: "https://www.hitsz.edu.cn/index.html",
         bgColor: "#D3D3D3",
         _id: "695011e489bd7d37142c31a5",
@@ -2568,7 +2572,7 @@ export const STATIC_DATA = {
       {
         name: "School of Sociology, Wuhan University",
         nameZh: "武汉大学社会学院",
-        logo: "./assets/img_0fca51970091.png",
+        logo: "./assets/logo-WHU-shxy-2048px.png",
         link: "https://shxx.whu.edu.cn/",
         bgColor: "#D3D3D3",
         _id: "695011e489bd7d37142c31ab",
@@ -2600,7 +2604,7 @@ export const STATIC_DATA = {
       {
         name: "People's Government of Dongxihu District, Wuhan",
         nameZh: "武汉市东西湖区人民政府",
-        logo: "./assets/img_4a9d54df12ec.png",
+        logo: "./assets/logo-Dongxihu.png",
         link: "https://www.dxh.gov.cn/",
         bgColor: "#D3D3D3",
         _id: "694b89664bb32d0bc912822a",
@@ -2616,7 +2620,7 @@ export const STATIC_DATA = {
       {
         name: "Curefun",
         nameZh: "治趣",
-        logo: "./assets/img_d27e0c37324d.png",
+        logo: "./assets/logo-curefun.png",
         link: "http://www.curefun.com/",
         bgColor: "#D3D3D3",
         _id: "695011e489bd7d37142c31a4",

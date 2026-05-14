@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Flame,
   ArrowRight,
@@ -86,23 +86,89 @@ const VISIONS = [
 // ─── Publication type icon ────────────────────────────────────────────────────
 const pubTypeIcon = (type: string) => {
   switch (type) {
-    case "Journal":    return <BookOpen size={11} className="text-blue-500" />;
-    case "Conference": return <GraduationCap size={11} className="text-brand-red" />;
-    case "Preprint":   return <FileText size={11} className="text-slate-400" />;
-    default:           return <Layout size={11} className="text-slate-400" />;
+    case "Journal":
+      return <BookOpen size={11} className="text-blue-500" />;
+    case "Conference":
+      return <GraduationCap size={11} className="text-brand-red" />;
+    case "Preprint":
+      return <FileText size={11} className="text-slate-400" />;
+    default:
+      return <Layout size={11} className="text-slate-400" />;
   }
 };
+
+// 提取并在外面包裹 React.memo
+const PartnerGroup = React.memo(
+  ({
+    title,
+    items,
+    isZh, // 🌟 新增：从父组件传入语言状态
+  }: {
+    title: string;
+    items: typeof partners; // 注意：如果 partners 报错，可以改为 Project[] 或 any[]，或者用正确的类型
+    isZh: boolean;
+  }) => {
+    if (!items.length) return null;
+
+    // 🌟 新增：把 getText 的逻辑放在这里，或者直接使用
+    const getText = (zh?: string, en?: string, def = "") =>
+      isZh ? zh || en || def : en || zh || def;
+
+    return (
+      <div>
+        {/* Section Title */}
+        <div className="flex items-center gap-3 mb-6">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+            {title}
+          </p>
+          <div className="h-px flex-1 bg-slate-200" />
+          <span className="text-[11px] font-mono text-slate-300">
+            {items.length}
+          </span>
+        </div>
+
+        {/* Partner Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          {items.map((partner) => (
+            <a
+              key={partner.name} // 🌟 修复：将 key={i} 改为 key={partner.name}
+              href={partner.link || "#"}
+              target="_blank"
+              rel="noreferrer"
+              title={getText(partner.nameZh, partner.name)}
+              className="group flex flex-col"
+            >
+              {/* Logo Card */}
+              <div className="h-[88px] rounded-2xl border border-slate-200 bg-white flex items-center justify-center p-4 transition-all duration-200 hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5">
+                <SmartImage
+                  src={partner.logo}
+                  alt={getText(partner.nameZh, partner.name)}
+                  className="max-h-10 max-w-[85%] object-contain opacity-80 group-hover:opacity-100 transition-opacity duration-200"
+                />
+              </div>
+
+              {/* Partner Name */}
+              <p className="mt-2 text-[10px] font-medium leading-tight text-center text-slate-400 group-hover:text-slate-600 transition-colors line-clamp-2 px-1">
+                {getText(partner.nameZh, partner.name)}
+              </p>
+            </a>
+          ))}
+        </div>
+      </div>
+    );
+  },
+);
 
 // ─── Main component ───────────────────────────────────────────────────────────
 const Tour: React.FC = () => {
   const { t, language } = useLanguage();
-  const [contactInfo, setContactInfo]   = useState<ContactInfo | null>(null);
-  const [newsItems, setNewsItems]       = useState<NewsItem[]>([]);
+  const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [publications, setPublications] = useState<Publication[]>([]);
-  const [projects, setProjects]         = useState<Project[]>([]);
-  const [people, setPeople]             = useState<Person[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [loading, setLoading]           = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -143,94 +209,79 @@ const Tour: React.FC = () => {
   const getText = (zh?: string, en?: string, def = "") =>
     isZh ? zh || en || def : en || zh || def;
 
-  const welcomeText = getText(contactInfo?.welcomeTextZh, contactInfo?.welcomeTextEn, "");
+  const welcomeText = getText(
+    contactInfo?.welcomeTextZh,
+    contactInfo?.welcomeTextEn,
+    "",
+  );
 
   const featuredPubs = publications.slice(0, 3);
-  const rawHeroImages = (contactInfo?.heroImages ?? []).map(s => s.trim()).filter(Boolean);
-  const heroImages = rawHeroImages.length > 0 ? rawHeroImages : DEFAULT_HERO_IMAGES;
-  const partners   = contactInfo?.partners || [];
-  const intlParts    = partners.filter((p) => INTL_NAMES.has(p.name));
-  const industParts  = partners.filter((p) => INDUSTRY_NAMES.has(p.name));
-  const domParts     = partners.filter(
-    (p) => !INTL_NAMES.has(p.name) && !INDUSTRY_NAMES.has(p.name),
+  const rawHeroImages = (contactInfo?.heroImages ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const heroImages =
+    rawHeroImages.length > 0 ? rawHeroImages : DEFAULT_HERO_IMAGES;
+  const partners = contactInfo?.partners || [];
+  const intlParts = useMemo(
+    () => partners.filter((p) => INTL_NAMES.has(p.name)),
+    [partners],
+  );
+
+  const industParts = useMemo(
+    () => partners.filter((p) => INDUSTRY_NAMES.has(p.name)),
+    [partners],
+  );
+
+  const domParts = useMemo(
+    () =>
+      partners.filter(
+        (p) => !INTL_NAMES.has(p.name) && !INDUSTRY_NAMES.has(p.name),
+      ),
+    [partners],
   );
 
   const stats = [
-    { value: publications.length ? `${publications.length}+` : "—", label: isZh ? "发表论文" : "Publications" },
-    { value: people.length       ? `${people.length}+`       : "—", label: isZh ? "团队成员" : "Team Members"  },
-    { value: projects.length     ? `${projects.length}+`     : "—", label: isZh ? "研究项目" : "Projects"       },
+    {
+      value: publications.length ? `${publications.length}+` : "—",
+      label: isZh ? "发表论文" : "Publications",
+    },
+    {
+      value: people.length ? `${people.length}+` : "—",
+      label: isZh ? "团队成员" : "Team Members",
+    },
+    {
+      value: projects.length ? `${projects.length}+` : "—",
+      label: isZh ? "研究项目" : "Projects",
+    },
   ];
 
-  // Partner section helper
-  const PartnerGroup: React.FC<{ title: string; items: typeof partners }> = ({ title, items }) => {
-    if (!items.length) return null;
-    return (
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">
-          {title}
-          <span className="ml-2 font-mono text-slate-300 normal-case">{items.length}</span>
-        </p>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-          {items.map((partner, i) => {
-            // Use the stored bgColor from data (currently #D3D3D3 for all).
-            // Admin can set darker bgColor for logos with white text.
-            const bg = partner.bgColor || "#F1F5F9";
-            return (
-              <a
-                key={i}
-                href={partner.link || "#"}
-                target="_blank"
-                rel="noreferrer"
-                title={getText(partner.nameZh, partner.name)}
-                className="group flex flex-col"
-              >
-                <div
-                  className="rounded-lg p-3 flex items-center justify-center h-14 transition-all duration-200 border border-transparent group-hover:shadow-sm group-hover:scale-105"
-                  style={{ backgroundColor: bg }}
-                >
-                  <SmartImage
-                    src={partner.logo}
-                    alt={getText(partner.nameZh, partner.name)}
-                    className="max-h-7 max-w-full object-contain"
-                  />
-                </div>
-                <p className="mt-1.5 text-[9px] text-center text-slate-400 group-hover:text-slate-600 transition-colors leading-tight line-clamp-2 font-medium px-0.5">
-                  {getText(partner.nameZh, partner.name)}
-                </p>
-              </a>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
+  // 把它放在 const pubTypeIcon = ... 的下面，const Tour: React.FC = ... 的上面
 
   return (
     <div className="bg-white">
-
       {/* ═══ HERO ════════════════════════════════════════════════════════════ */}
       <section className="relative w-full h-[65vh] min-h-[460px] mt-20 overflow-hidden bg-slate-900">
         {/* Image slides */}
-        {heroImages.length > 0
-          ? heroImages.map((img, idx) => (
-              <div
-                key={idx}
-                className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-                  idx === currentImageIndex ? "opacity-100" : "opacity-0"
-                }`}
-              >
-                <SmartImage
-                  src={img}
-                  alt={`Slide ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ))
-          : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Flame className="w-20 h-20 text-slate-700" />
-              </div>
-            )}
+        {heroImages.length > 0 ? (
+          heroImages.map((img, idx) => (
+            <div
+              key={idx}
+              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+                idx === currentImageIndex ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              <SmartImage
+                src={img}
+                alt={`Slide ${idx + 1}`}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ))
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Flame className="w-20 h-20 text-slate-700" />
+          </div>
+        )}
 
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -366,7 +417,9 @@ const Tour: React.FC = () => {
                       {pubTypeIcon(pub.type)}
                       {pub.type}
                     </span>
-                    <span className="text-xs font-mono text-slate-400">{pub.year}</span>
+                    <span className="text-xs font-mono text-slate-400">
+                      {pub.year}
+                    </span>
                   </div>
                   <div className="flex-grow mb-4">
                     {pub.link ? (
@@ -389,7 +442,12 @@ const Tour: React.FC = () => {
                       {pub.venue}
                     </span>
                     {pub.link && (
-                      <a href={pub.link} target="_blank" rel="noreferrer" className="flex-shrink-0 text-brand-red hover:opacity-70">
+                      <a
+                        href={pub.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-shrink-0 text-brand-red hover:opacity-70"
+                      >
                         <ArrowUpRight size={15} />
                       </a>
                     )}
@@ -405,19 +463,24 @@ const Tour: React.FC = () => {
       <section className="py-16 border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-
             <div className="md:col-span-2">
               <div className="flex items-baseline justify-between mb-6">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                   {t("nav.news")}
                 </p>
-                <Link to="/news" className="text-[11px] font-bold uppercase tracking-widest text-brand-red hover:underline">
+                <Link
+                  to="/news"
+                  className="text-[11px] font-bold uppercase tracking-widest text-brand-red hover:underline"
+                >
                   {t("sections.viewArchive")} →
                 </Link>
               </div>
               <ul className="divide-y divide-slate-100">
                 {newsItems.map((item) => (
-                  <li key={item.id} className="group py-4 flex items-start gap-4">
+                  <li
+                    key={item.id}
+                    className="group py-4 flex items-start gap-4"
+                  >
                     <span className="flex-shrink-0 text-[11px] font-mono text-slate-300 tabular-nums pt-0.5 w-16">
                       {item.date.slice(0, 7)}
                     </span>
@@ -445,7 +508,12 @@ const Tour: React.FC = () => {
                 {t("contact.joinUs")}
               </p>
               <div className="bg-slate-900 rounded-2xl p-7 flex flex-col">
-                <Flame size={26} className="text-brand-red mb-5" fill="currentColor" fillOpacity={0.15} />
+                <Flame
+                  size={26}
+                  className="text-brand-red mb-5"
+                  fill="currentColor"
+                  fillOpacity={0.15}
+                />
                 <p className="text-white font-serif text-xl leading-snug mb-3">
                   {isZh ? "加入 CLAIN" : "Join CLAIN"}
                 </p>
@@ -454,7 +522,10 @@ const Tour: React.FC = () => {
                     ? "我们长期招募博士生、硕士生和研究实习生。欢迎对 AI 与 NLP 有热情的你联系我们。"
                     : "We are recruiting PhD students, master's students, and research interns passionate about AI and NLP."}
                 </p>
-                <Link to="/contact" className="inline-flex items-center gap-2 text-sm font-bold text-brand-red hover:text-white transition-colors mt-auto">
+                <Link
+                  to="/contact"
+                  className="inline-flex items-center gap-2 text-sm font-bold text-brand-red hover:text-white transition-colors mt-auto"
+                >
                   {t("nav.contact")} <ArrowRight size={14} />
                 </Link>
               </div>
@@ -470,18 +541,25 @@ const Tour: React.FC = () => {
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-12 text-center">
               {t("common.partners")}
             </p>
-            <div className="space-y-12">
+            <div className="space-y-16">
               <PartnerGroup
                 title={isZh ? "国际合作" : "International"}
                 items={intlParts}
+                isZh={isZh}
               />
               <PartnerGroup
-                title={isZh ? "国内高校与科研机构" : "Domestic Universities & Institutes"}
+                title={
+                  isZh
+                    ? "国内高校与科研机构"
+                    : "Domestic Universities & Institutes"
+                }
                 items={domParts}
+                isZh={isZh}
               />
               <PartnerGroup
                 title={isZh ? "产业与医疗合作" : "Industry & Medical"}
                 items={industParts}
+                isZh={isZh}
               />
             </div>
           </div>
