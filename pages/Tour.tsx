@@ -538,7 +538,7 @@ const Tour: React.FC = () => {
       {!loading && partners.length > 0 && (
         <section className="py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-12 text-center">
+            <p className="text-lg font-bold uppercase tracking-widest text-slate-400 mb-12 text-center">
               {t("common.partners")}
             </p>
             <div className="space-y-16">
