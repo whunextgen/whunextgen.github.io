@@ -46,7 +46,7 @@ const NewsDetail: React.FC = () => {
         language === "zh"
           ? article.titleZh || article.title
           : article.title || article.titleZh;
-      document.title = `${displayTitle} | CLAIN Lab`;
+      document.title = `${displayTitle} | Cognitive Language and Information Lab`;
     }
   }, [article, language]);
 
@@ -88,7 +88,7 @@ const NewsDetail: React.FC = () => {
   const displayContent = isZh
     ? article.contentZh || article.content
     : article.content || article.contentZh;
-  const displayAuthor = article.author || "CLAIN Team";
+  const displayAuthor = article.author || "CLAIN Lab Team";
 
   return (
     <div className="bg-white min-h-screen pt-24 pb-20">

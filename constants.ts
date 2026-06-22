@@ -17,8 +17,8 @@ export const STATIC_DATA = {
     {
       teacherProfile: {
         position:
-          "Professor; Deputy Director, Center for Language and Information (CLAIN), Wuhan University",
-        positionZh: "教授；武汉大学语言与信息研究中心副主任",
+          "Professor; Deputy Director, Cognitive Language and Information Lab (CLAIN), Wuhan University",
+        positionZh: "教授；武汉大学认知语言与信息实验室副主任",
         researchAreas: [
           "Natural Language Processing",
           "Medical Artificial Intelligence",
@@ -91,9 +91,9 @@ export const STATIC_DATA = {
       avatar: " ./assets/img_dd4bc2bd6fee.png",
       email: "xqq.sincere@gmail.com",
       homepage: "https://jszy.whu.edu.cn/xieqianqian/zh_CN/index.htm",
-      bio: "Prof. Qianqian Xie is a Professor at the School of Artificial Intelligence, Wuhan University, and the Deputy Director of the Center for Language and Information (CLAIN). She has long been engaged in research on natural language processing, medical AI, intelligent finance, model interpretability/controllability and reasoning, and multimodal fusion. She previously served as an Associate Research Scientist at Yale University, and has worked or conducted academic visits at Cornell University, the University of Manchester, and the University of Montreal. She has published over 70 papers in top conferences and journals such as NeurIPS, ACL, KDD, Nature Communications, and TKDE. She has led the NIH K99/R00 Pathway to Independence Award, NIH Early-Stage Researcher Grant (USD 830K), and the 2025 CCF–Tencent Rhino-Bird Fund. She is a recipient of the National High-level Young Talent Program (Overseas). Her honors include the Hubei Provincial Science and Technology Progress Award (2nd Class) and the CCL Outstanding English Paper Award. She serves as Senior Area Chair of EACL 2025 and Area Chair for ACL 2023/2025, EMNLP 2023/2025, NeurIPS 2025, COLING 2025, LREC 2026, and as Co-chair of the COLING 2025 Workshop.",
+      bio: "Prof. Qianqian Xie is a Professor at the School of Artificial Intelligence, Wuhan University, and the Deputy Director of the Cognitive Language and Information Lab (CLAIN). She has long been engaged in research on natural language processing, medical AI, intelligent finance, model interpretability/controllability and reasoning, and multimodal fusion. She previously served as an Associate Research Scientist at Yale University, and has worked or conducted academic visits at Cornell University, the University of Manchester, and the University of Montreal. She has published over 70 papers in top conferences and journals such as NeurIPS, ACL, KDD, Nature Communications, and TKDE. She has led the NIH K99/R00 Pathway to Independence Award, NIH Early-Stage Researcher Grant (USD 830K), and the 2025 CCF–Tencent Rhino-Bird Fund. She is a recipient of the National High-level Young Talent Program (Overseas). Her honors include the Hubei Provincial Science and Technology Progress Award (2nd Class) and the CCL Outstanding English Paper Award. She serves as Senior Area Chair of EACL 2025 and Area Chair for ACL 2023/2025, EMNLP 2023/2025, NeurIPS 2025, COLING 2025, LREC 2026, and as Co-chair of the COLING 2025 Workshop.",
       bioZh:
-        "谢倩倩，武汉大学人工智能学院教授、博士生导师，武汉大学语言与信息研究中心副主任。长期从事自然语言处理、医疗人工智能、智能金融、模型可解释性/可控性与推理、多模态融合等方向研究。曾任耶鲁大学副研究员，并在康奈尔大学、曼彻斯特大学和蒙特利尔大学工作与访问。在 NeurIPS、ACL、KDD、Nature Communications、TKDE 等国际顶级会议与期刊发表论文 70 余篇；主持美国国立卫生研究院（NIH）青年研究基金项目（约 83 万美元）、NIH K99/R00 青年独立研究者基金，以及 2025 年 CCF-腾讯犀牛鸟科研基金项目。国家高层次海外优青获得者；曾获湖北省科技进步二等奖、CCL 亮点英文论文奖等。担任 EACL 2025 资深领域主席，ACL 2023/2025、EMNLP 2023/2025、NeurIPS 2025、COLING 2025、LREC 2026 等领域主席，并任 COLING-2025 Workshop 大会联合主席。",
+        "谢倩倩，武汉大学人工智能学院教授、博士生导师，武汉大学认知语言与信息实验室副主任。长期从事自然语言处理、医疗人工智能、智能金融、模型可解释性/可控性与推理、多模态融合等方向研究。曾任耶鲁大学副研究员，并在康奈尔大学、曼彻斯特大学和蒙特利尔大学工作与访问。在 NeurIPS、ACL、KDD、Nature Communications、TKDE 等国际顶级会议与期刊发表论文 70 余篇；主持美国国立卫生研究院（NIH）青年研究基金项目（约 83 万美元）、NIH K99/R00 青年独立研究者基金，以及 2025 年 CCF-腾讯犀牛鸟科研基金项目。国家高层次海外优青获得者；曾获湖北省科技进步二等奖、CCL 亮点英文论文奖等。担任 EACL 2025 资深领域主席，ACL 2023/2025、EMNLP 2023/2025、NeurIPS 2025、COLING 2025、LREC 2026 等领域主席，并任 COLING-2025 Workshop 大会联合主席。",
       order: 2,
       createdAt: "2025-12-10T09:51:25.351Z",
       updatedAt: "2025-12-10T09:51:25.351Z",
@@ -177,9 +177,9 @@ export const STATIC_DATA = {
     {
       teacherProfile: {
         position:
-          "Professor, School of Artificial Intelligence, Wuhan University Director, Center for Language and Information Research PhD Supervisor Director, Department of Artificial Intelligence",
+          "Professor, School of Artificial Intelligence, Wuhan University Director, Cognitive Language and Information Lab PhD Supervisor Director, Department of Artificial Intelligence",
         positionZh:
-          "武汉大学人工智能学院教授 语言与信息研究中心主任 博士生导师 人工智能系主任",
+          "武汉大学人工智能学院教授 认知语言与信息实验室主任 博士生导师 人工智能系主任",
         researchAreas: [
           "Artificial Intelligence",
           "Natural Language Processing",
@@ -264,9 +264,9 @@ export const STATIC_DATA = {
       avatar: "./assets/img_023b08017061.jpg",
       email: "pengm@whu.edu.cn",
       homepage: "http://jszy.whu.edu.cn/pengmin/",
-      bio: "Min Peng is a Professor at the School of Artificial Intelligence, Wuhan University, Director of the Center for Language and Information Research, and PhD Supervisor. She is a member of IEEE CIS ETTC, council member of China Chinese Information Society, committee member of Computational Linguistics Specialty Committee and Social Media Processing Specialty Committee of Chinese Information Society. She received her PhD in Computer Software and Theory from Wuhan University and conducted postdoctoral research at the Advanced Cyber-Infrastructure Laboratory, Department of Electrical and Computer Engineering, University of New Mexico, USA. Her long-term research focuses on artificial intelligence, natural language processing, information retrieval, topic models, knowledge graphs, cloud computing systems, and social computing.",
+      bio: "Min Peng is a Professor at the School of Artificial Intelligence, Wuhan University, Director of the Cognitive Language and Information Lab, and PhD Supervisor. She is a member of IEEE CIS ETTC, council member of China Chinese Information Society, committee member of Computational Linguistics Specialty Committee and Social Media Processing Specialty Committee of Chinese Information Society. She received her PhD in Computer Software and Theory from Wuhan University and conducted postdoctoral research at the Advanced Cyber-Infrastructure Laboratory, Department of Electrical and Computer Engineering, University of New Mexico, USA. Her long-term research focuses on artificial intelligence, natural language processing, information retrieval, topic models, knowledge graphs, cloud computing systems, and social computing.",
       bioZh:
-        "彭敏，武汉大学人工智能学院教授、语言与信息研究中心主任、博士生导师。IEEE CIS ETTC会员，中国中文信息学会理事，中文信息学会计算语言学专委会委员、社会媒体处理专委会委员。曾获武汉大学计算机软件与理论专业博士学位，曾在美国新墨西哥大学电子与计算机工程系Advanced Cyber-Infrastructure Laboratory从事博士后研究。长期从事人工智能、自然语言处理、信息检索、主题模型、知识图谱、云计算系统与社会计算方向研究。",
+        "彭敏，武汉大学人工智能学院教授、认知语言与信息实验室主任、博士生导师。IEEE CIS ETTC会员，中国中文信息学会理事，中文信息学会计算语言学专委会委员、社会媒体处理专委会委员。曾获武汉大学计算机软件与理论专业博士学位，曾在美国新墨西哥大学电子与计算机工程系Advanced Cyber-Infrastructure Laboratory从事博士后研究。长期从事人工智能、自然语言处理、信息检索、主题模型、知识图谱、云计算系统与社会计算方向研究。",
       order: 1,
       createdAt: "2025-12-10T11:40:04.164Z",
       updatedAt: "2026-01-08T06:56:42.609Z",
@@ -2412,13 +2412,13 @@ export const STATIC_DATA = {
     emailGeneral: "whusai@whu.edu.cn; pengm@whu.edu.cn",
     emailAdmissions: "whusai@whu.edu.cn",
     introEn:
-      "Welcome to the Center for Language and Information Research (CLAIN)! 👋\n\nThe Center for Language and Information Research is an innovative Artificial Intelligence (AI) research center at the School of Artificial Intelligence, Wuhan University. Under the visionary leadership of Professor Min Peng and Professor Qianqian Xie, we are dedicated to pioneering AI through cutting-edge interdisciplinary research and collaboration.\n\n🌍 About Us\nOur center provides a dynamic and collaborative research environment, blending theoretical AI breakthroughs with real-world technological innovations.\n\n🚀 How to Get Involved\nWe invite students, researchers, and AI enthusiasts to actively participate in various capacities:\n🤝 Research Collaborations – Join our ongoing projects or propose new research ideas.\n💬 Discussion Forums Exchange insights, engage in discussions on AI advancements, and collaborate with experts.\n📢 Workshops & Seminars Attend events featuring prominent AI researchers and thought leaders.\n\n📩 Contact Us\nBecome a part of our expanding community of AI pioneers! Reach out to explore collaboration opportunities and contribute to groundbreaking AI research.\n\n🔗 Let's push the boundaries of AI together at CLAIN! 🚀",
+      "Welcome to the Cognitive Language and Information Lab (CLAIN)! 👋\n\nThe Cognitive Language and Information Lab is an innovative Artificial Intelligence (AI) research center at the School of Artificial Intelligence, Wuhan University. Under the visionary leadership of Professor Min Peng and Professor Qianqian Xie, we are dedicated to pioneering AI through cutting-edge interdisciplinary research and collaboration.\n\n🌍 About Us\nOur center provides a dynamic and collaborative research environment, blending theoretical AI breakthroughs with real-world technological innovations.\n\n🚀 How to Get Involved\nWe invite students, researchers, and AI enthusiasts to actively participate in various capacities:\n🤝 Research Collaborations – Join our ongoing projects or propose new research ideas.\n💬 Discussion Forums Exchange insights, engage in discussions on AI advancements, and collaborate with experts.\n📢 Workshops & Seminars Attend events featuring prominent AI researchers and thought leaders.\n\n📩 Contact Us\nBecome a part of our expanding community of AI pioneers! Reach out to explore collaboration opportunities and contribute to groundbreaking AI research.\n\n🔗 Let's push the boundaries of AI together at CLAIN! 🚀",
     introZh:
-      "欢迎来到语言与信息研究中心 (CLAIN)! 👋\n语言与信息研究中心是武汉大学人工智能学院的一个创新人工智能 (AI) 研究中心。在彭敏教授和谢倩倩教授的远见领导下，我们致力于通过前沿跨学科研究和合作，开创人工智能的新篇章。\n\n🌍 关于我们\n我们的中心提供动态且协作的研究环境，将理论AI突破与现实世界的技术创新相结合。\n🚀 如何参与\n我们邀请学生、研究者和AI爱好者以各种方式积极参与：\n\n🤝 研究合作 – 加入我们正在进行的项目或提出新的研究想法。\n💬 讨论论坛 – 交流见解、参与AI进展讨论，并与专家合作。\n📢 工作坊与研讨会 – 参加由知名AI研究者和思想领袖主讲的活动。\n\n📩 联系我们\n成为我们不断扩大的AI先驱社区的一员！联系我们探索合作机会，并为突破性AI研究贡献力量。\n🔗 让我们在CLAIN共同推动AI的边界！🚀",
+      "欢迎来到认知语言与信息实验室 (CLAIN)! 👋\n认知语言与信息实验室是武汉大学人工智能学院的一个创新人工智能 (AI) 研究中心。在彭敏教授和谢倩倩教授的远见领导下，我们致力于通过前沿跨学科研究和合作，开创人工智能的新篇章。\n\n🌍 关于我们\n我们的中心提供动态且协作的研究环境，将理论AI突破与现实世界的技术创新相结合。\n🚀 如何参与\n我们邀请学生、研究者和AI爱好者以各种方式积极参与：\n\n🤝 研究合作 – 加入我们正在进行的项目或提出新的研究想法。\n💬 讨论论坛 – 交流见解、参与AI进展讨论，并与专家合作。\n📢 工作坊与研讨会 – 参加由知名AI研究者和思想领袖主讲的活动。\n\n📩 联系我们\n成为我们不断扩大的AI先驱社区的一员！联系我们探索合作机会，并为突破性AI研究贡献力量。\n🔗 让我们在CLAIN共同推动AI的边界！🚀",
     hiringTextEn:
-      "The Center for Language and Information Research (CLAIN) at Wuhan University welcomes outstanding researchers, postdoctoral fellows, and PhD students in artificial intelligence, natural language processing, and related fields. We are actively recruiting talented individuals to join our team and contribute to cutting-edge research projects. Interested candidates are encouraged to contact Professor Min Peng or the center for collaboration and recruitment opportunities.",
+      "The Cognitive Language and Information Lab (CLAIN) at Wuhan University welcomes outstanding researchers, postdoctoral fellows, and PhD students in artificial intelligence, natural language processing, and related fields. We are actively recruiting talented individuals to join our team and contribute to cutting-edge research projects. Interested candidates are encouraged to contact Professor Min Peng or the center for collaboration and recruitment opportunities.",
     hiringTextZh:
-      "武汉大学语言与信息研究中心 (CLAIN) 诚邀人工智能、自然语言处理及相关领域优秀研究人员、博士后和博士生加入。我们正在积极招募优秀人才参与前沿研究项目。有意者请联系彭敏教授或中心探讨合作与招聘机会。",
+      "武汉大学认知语言与信息实验室 (CLAIN) 诚邀人工智能、自然语言处理及相关领域优秀研究人员、博士后和博士生加入。我们正在积极招募优秀人才参与前沿研究项目。有意者请联系彭敏教授或中心探讨合作与招聘机会。",
     hiringLink: "https://sai.whu.edu.cn/",
     mapEmbedUrl:
       "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3390.990!2d114.359!3d30.540!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3617490000000001%3A0x0!2sWuhan+University!5e0!3m2!1sen!2sus!4v1700000000000",
@@ -2678,14 +2678,14 @@ export const STATIC_DATA = {
     welcomeTextZh:
       "我们是武汉大学人工智能学院从事人工智能和自然语言处理研究的一组研究人员，致力于推进跨学科人工智能研究和实际应用。",
     welcomeTitleEn:
-      "Welcome to the Center for Language and Information Research (CLAIN)!",
-    welcomeTitleZh: "欢迎来到语言与信息研究中心 (CLAIN)! 👋",
+      "Welcome to the Cognitive Language and Information Lab (CLAIN)!",
+    welcomeTitleZh: "欢迎来到认知语言与信息实验室 (CLAIN)! 👋",
     id: "693940b31af716b4b15b022f",
   } as ContactInfo,
 };
 
 export const LAB_NAME = "CLAIN";
-export const LAB_FULL_NAME = "Center for Language and Information Research";
+export const LAB_FULL_NAME = "Cognitive Language and Information Lab";
 export const UNIVERSITY_NAME = "Wuhan University";
 
 export const PEOPLE = STATIC_DATA.PEOPLE;

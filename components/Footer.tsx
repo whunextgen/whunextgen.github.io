@@ -59,7 +59,7 @@ const Footer: React.FC = () => {
 
         <div className="border-t border-slate-100 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-slate-400">
           <p>
-            &copy; {new Date().getFullYear()} CLAIN Lab. {t("common.copyright")}
+            &copy; {new Date().getFullYear()} Cognitive Language and Information Lab. {t("common.copyright")}
           </p>
           <p className="mt-2 md:mt-0">{t("common.designedBy")}</p>
         </div>

@@ -515,7 +515,7 @@ const Tour: React.FC = () => {
                   fillOpacity={0.15}
                 />
                 <p className="text-white font-serif text-xl leading-snug mb-3">
-                  {isZh ? "加入 CLAIN" : "Join CLAIN"}
+                  {isZh ? "加入 CLAIN Lab" : "Join CLAIN Lab"}
                 </p>
                 <p className="text-slate-400 text-sm font-light leading-relaxed mb-6">
                   {isZh

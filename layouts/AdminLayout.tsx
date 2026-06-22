@@ -34,7 +34,7 @@ const AdminLayout: React.FC = () => {
       <aside className="w-64 bg-slate-900 text-white fixed h-full z-20 hidden md:flex flex-col">
         <div className="h-20 flex items-center px-6 border-b border-white/10">
           <Flame className="w-6 h-6 text-brand-red mr-3" />
-          <span className="font-bold tracking-wider">CLAIN ADMIN</span>
+          <span className="font-bold tracking-wider">CLAIN LAB ADMIN</span>
         </div>
 
         <div className="p-4 mx-4 mt-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
@@ -91,7 +91,7 @@ const AdminLayout: React.FC = () => {
         </div>
 
         <footer className="px-8 py-4 text-center text-xs text-slate-400 border-t border-slate-200 bg-white">
-          CLAIN Static Site | Built for GitHub Pages | Data source:{" "}
+          CLAIN Lab Static Site | Built for GitHub Pages | Data source:{" "}
           <span className="font-mono">constants.ts</span>
         </footer>
       </main>

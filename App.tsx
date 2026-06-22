@@ -79,7 +79,7 @@ const App: React.FC = () => {
                   element={
                     <div className="bg-white p-8 rounded shadow text-center py-20">
                       <h1 className="text-3xl font-bold text-slate-800 mb-4">
-                        Welcome to CLAIN Dashboard
+                        Welcome to CLAIN Lab Dashboard
                       </h1>
                       <p className="text-slate-500">
                         Select a module from the sidebar to manage content.

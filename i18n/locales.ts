@@ -17,7 +17,7 @@ export const translations = {
       wuhanUniversity: "Wuhan University",
       schoolName: "School of Artificial Intelligence, Wuhan University",
       location: "Wuhan, China",
-      labFullName: "Center for Language and Information Research",
+      labFullName: "Cognitive Language and Information Lab",
       labName: "CLAIN",
       hiring: "Join Us",
       researchAreas: "Research Areas",
@@ -56,7 +56,7 @@ export const translations = {
       category: "Category",
     },
     people: {
-      subtitle: "Meet the faculty, researchers, students, and staff of the Center for Language and Information Research.",
+      subtitle: "Meet the faculty, researchers, students, and staff of the Cognitive Language and Information Lab.",
       categories: {
         Teachers: "Faculty",
         "Visiting Scholars": "Visiting Scholars",
@@ -149,7 +149,7 @@ export const translations = {
       wuhanUniversity: "武汉大学",
       schoolName: "武汉大学人工智能学院",
       location: "中国武汉",
-      labFullName: "语言与信息研究中心",
+      labFullName: "认知语言与信息实验室",
       labName: "CLAIN",
       hiring: "加入我们",
       researchAreas: "研究领域",
@@ -188,7 +188,7 @@ export const translations = {
       category: "分类",
     },
     people: {
-      subtitle: "认识语言与信息研究中心的教师、研究人员、学生和工作人员。",
+      subtitle: "认识认知语言与信息实验室的教师、研究人员、学生和工作人员。",
       categories: {
         Teachers: "指导教师",
         "Visiting Scholars": "访问学者",
