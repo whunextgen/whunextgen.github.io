@@ -46,7 +46,7 @@ The canonical public addresses are:
 
 ## Join the community
 
-We welcome research collaborations, visiting scholars, and talented PhD students, master's students, and research interns. If you are interested in working with us, please visit the [Contact page](https://clain.org/#/contact) or write to [whusai@whu.edu.cn](mailto:whusai@whu.edu.cn).
+We welcome research collaborations, visiting scholars, and talented PhD students, master's students, and research interns. If you are interested in working with us, please visit the [Contact page](https://clain.org/#/contact) or write to [plumjane1225@gmail.com](mailto:plumjane1225@gmail.com).
 
 For website corrections and accessibility suggestions, please open an issue in the [website repository](https://github.com/whunextgen/whunextgen.github.io). Keep proposed changes focused and describe the page or section affected.
 
@@ -70,8 +70,8 @@ feat: add lab event archive
 
 ## Contact
 
-- General collaboration: [whusai@whu.edu.cn](mailto:whusai@whu.edu.cn)
-- Admissions and visiting students: [whusai@whu.edu.cn](mailto:whusai@whu.edu.cn)
+- General collaboration: [plumjane1225@gmail.com](mailto:plumjane1225@gmail.com)
+- Admissions and visiting students: [plumjane1225@gmail.com](mailto:plumjane1225@gmail.com)
 - Lab address: School of Artificial Intelligence, Wuhan University, 299 Bayi Road, Wuchang District, Wuhan, Hubei, China
 
 Unless a subdirectory or asset states otherwise, the website source is maintained by CLAIN Lab, Wuhan University. Please contact the lab before redistributing site content, profiles, or photographs.

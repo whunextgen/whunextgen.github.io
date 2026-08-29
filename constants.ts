@@ -2409,8 +2409,8 @@ export const STATIC_DATA = {
     addressEn:
       "No. 299 Bayi Road, Wuchang District, Wuhan City, Hubei Province, China (School of Artificial Intelligence, Wuhan University)",
     addressZh: "中国湖北省武汉市武昌区八一路299号（武汉大学人工智能学院）",
-    emailGeneral: "whusai@whu.edu.cn; pengm@whu.edu.cn",
-    emailAdmissions: "whusai@whu.edu.cn",
+    emailGeneral: "plumjane1225@gmail.com; maowei1258@gmail.com",
+    emailAdmissions: "plumjane1225@gmail.com",
     introEn:
       "Welcome to the Cognitive Language and Information Lab (CLAIN)! 👋\n\nThe Cognitive Language and Information Lab is an innovative Artificial Intelligence (AI) research center at the School of Artificial Intelligence, Wuhan University. Under the visionary leadership of Professor Min Peng and Professor Qianqian Xie, we are dedicated to pioneering AI through cutting-edge interdisciplinary research and collaboration.\n\n🌍 About Us\nOur center provides a dynamic and collaborative research environment, blending theoretical AI breakthroughs with real-world technological innovations.\n\n🚀 How to Get Involved\nWe invite students, researchers, and AI enthusiasts to actively participate in various capacities:\n🤝 Research Collaborations – Join our ongoing projects or propose new research ideas.\n💬 Discussion Forums Exchange insights, engage in discussions on AI advancements, and collaborate with experts.\n📢 Workshops & Seminars Attend events featuring prominent AI researchers and thought leaders.\n\n📩 Contact Us\nBecome a part of our expanding community of AI pioneers! Reach out to explore collaboration opportunities and contribute to groundbreaking AI research.\n\n🔗 Let's push the boundaries of AI together at CLAIN! 🚀",
     introZh:
