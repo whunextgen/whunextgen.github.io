@@ -54,20 +54,6 @@ For website corrections and accessibility suggestions, please open an issue in t
 
 The website is maintained in English and Chinese. Research and people profiles are curated with the lab team; please contact us before reusing photographs, biographies, or other site content.
 
-## Change history
-
-Notable site releases are recorded in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
-
-## Commit style
-
-Contributions use [Conventional Commits](https://www.conventionalcommits.org/), for example:
-
-```text
-docs: refresh project README
-fix: correct publication link on people page
-feat: add lab event archive
-```
-
 ## Contact
 
 - General collaboration: [plumjane1225@gmail.com](mailto:plumjane1225@gmail.com)
