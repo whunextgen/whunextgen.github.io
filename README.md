@@ -39,10 +39,16 @@ Our projects are interdisciplinary by design. We work with researchers, institut
 | Collaboration and recruitment | [Contact](https://clain.org/#/contact) |
 | Finance and operations portal | [clain.org/portal](https://clain.org/portal/) |
 
-The canonical public addresses are:
+## Canonical public addresses
 
-- Main site: **[https://clain.org/](https://clain.org/)**
-- Finance portal: **[https://clain.org/portal/](https://clain.org/portal/)**
+These are the official public URLs for the lab website and the finance portal:
+
+| Service | Canonical URL | Use |
+| --- | --- | --- |
+| Main site | **[https://clain.org/](https://clain.org/)** | Lab profile, people, publications, news, and contact |
+| Finance portal | **[https://clain.org/portal/](https://clain.org/portal/)** | Research finance, budget, and API request workflows |
+
+For users connecting from mainland China, the finance portal is also available at [https://finance-portal-79i.pages.dev/](https://finance-portal-79i.pages.dev/). It is an alternate access endpoint to the same finance service: both addresses use the same authentication, Cloudflare Worker, and Feishu data source. They do not represent separate systems or separate datasets.
 
 ## Join the community
 
