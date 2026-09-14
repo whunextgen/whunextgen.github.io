@@ -5,10 +5,10 @@ category: Talk
 isPinned: false
 isPublished: true
 order: 9992
-summary: "As part of the Language and Information Center lecture series, Jiaxin Huang, a PhD student at MBZUAI, gave a talk titled “From 3D to 4D Spatial Reasoning” on December 24, 2025, and Dr. Guojun Xiong, a postdoctoral fellow at Harvard University, shared his research on structured reinforcement learning and sequential decision making under uncertainty on December 25, 2025."
+summary: "As part of the Center for Language and Information Research lecture series, Jiaxin Huang, a PhD student at MBZUAI, gave a talk titled “From 3D to 4D Spatial Reasoning” on December 24, 2025, and Dr. Guojun Xiong, a postdoctoral fellow at Harvard University, shared his research on structured reinforcement learning and sequential decision making under uncertainty on December 25, 2025."
 ---
 
-On December 24 and 25, 2025, the **Language and Information Center lecture series** welcomed two invited speakers to the School of Artificial Intelligence, Wuhan University.
+On December 24 and 25, 2025, the **Center for Language and Information Research lecture series** welcomed two invited speakers to the School of Artificial Intelligence, Wuhan University.
 
 ## From 3D to 4D Spatial Reasoning
 

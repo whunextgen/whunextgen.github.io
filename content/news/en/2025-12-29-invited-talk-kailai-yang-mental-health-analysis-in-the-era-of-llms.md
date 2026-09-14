@@ -5,10 +5,10 @@ category: Talk
 isPinned: false
 isPublished: true
 order: 9991
-summary: "On December 29, 2025, Dr. Kailai Yang (PhD, University of Manchester), lead author of the MentaLLaMA project and Area Chair of LREC 2026, gave a talk in the Language and Information Center lecture series on how large language models can make mental health analysis more generalizable, interpretable and accessible."
+summary: "On December 29, 2025, Dr. Kailai Yang (PhD, University of Manchester), lead author of the MentaLLaMA project and Area Chair of LREC 2026, gave a talk in the Center for Language and Information Research lecture series on how large language models can make mental health analysis more generalizable, interpretable and accessible."
 ---
 
-On December 29, 2025, the **Language and Information Center lecture series** hosted **Dr. Kailai Yang**, who gave a talk titled **“Mental Health Analysis in the Era of Large Language Models”** to faculty and students of the School of Artificial Intelligence, Wuhan University.
+On December 29, 2025, the **Center for Language and Information Research lecture series** hosted **Dr. Kailai Yang**, who gave a talk titled **“Mental Health Analysis in the Era of Large Language Models”** to faculty and students of the School of Artificial Intelligence, Wuhan University.
 
 Dr. Yang received his PhD in Computer Science from the University of Manchester, where his research focused on large language models. He has published more than 20 papers with over 1,700 citations, with lead-author work appearing at NeurIPS, ACL, EMNLP, WWW, IEEE TAC and Information Fusion. He is the lead author of **MentaLLaMA**, the first open-source series of instruction-following, interpretable large language models for mental health analysis, and serves as an Area Chair of LREC 2026.
 
