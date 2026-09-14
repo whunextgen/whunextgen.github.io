@@ -8,7 +8,7 @@ backend:
   name: github
   repo: whunextgen/whunextgen.github.io
   branch: main
-  base_url: https://clain-cms-oauth.YOUR-ACCOUNT.workers.dev # TODO: replace after deploying cms-oauth
+  base_url: https://clain-cms-oauth.clain-lab.workers.dev
   auth_endpoint: auth
   commit_messages:
     create: "content: create {{collection}} “{{slug}}”"
