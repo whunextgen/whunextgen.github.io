@@ -1,0 +1,61 @@
+id: '1765366555704'
+name: Sophia Ananiadou
+teacherProfile:
+  position: Professor, Department of Computer Science, University of Manchester Director, National Centre for Text Mining (NaCTeM) Deputy Director, Institute for Data Science and Artificial Intelligence Deputy Director, Christabel Pankhurst Institute Senior Researcher, Athena Research Center (Greece)
+  researchAreas:
+    - Natural Language Processing
+    - Biomedical Text Mining
+    - Artificial Intelligence in Biomedicine
+    - Knowledge Discovery from Literature
+    - Automated Systematic Reviews
+    - Event Extraction and Semantic Search
+  researchAreasZh:
+    - 自然语言处理
+    - 生物医学文本挖掘
+    - 人工智能在生物医学中的应用
+    - 文献知识发现
+    - 系统综述自动化
+    - 事件提取与语义搜索
+  achievements:
+    - Leadership of National Centre for Text Mining (NaCTeM)
+    - 'Development of tools: TerMine (term recognition), AcroMine, BRAT (annotation tool)'
+    - Argo text mining platform
+    - RobotAnalyst for systematic reviews
+    - BioNLP shared tasks and challenges
+    - Mining historical archives and biodiversity literature
+  achievementsZh:
+    - 领导National Centre for Text Mining (NaCTeM)
+    - 开发工具：TerMine（术语识别）、AcroMine、BRAT（标注工具）
+    - Argo文本挖掘平台
+    - RobotAnalyst系统综述工具
+    - BioNLP共享任务与挑战
+    - 历史档案与生物多样性文献挖掘
+  projects:
+    - Director of NaCTeM since 2005
+    - Co-instigator of ACL SIGBioMed
+    - Organizer of international shared tasks (BioCreAtIvE, BioNLP)
+    - Turing Fellow (2018-2023)
+    - ELLIS Fellow
+    - Long-term academic community service and tool development
+  projectsZh:
+    - 自2005年起担任NaCTeM主任
+    - ACL SIGBioMed联合发起人
+    - 多个国际共享任务组织者（BioCreAtIvE、BioNLP）
+    - Turing Fellow（2018-2023）
+    - ELLIS Fellow
+  influence:
+    - Collaboration with industry and international centers
+  influenceZh:
+    - 长期领导/参与国际共享任务、工具开发与学术社区服务
+    - 与产业界及国际中心合作
+  positionZh: 英国曼彻斯特大学计算机科学系教授 National Centre for Text Mining (NaCTeM) 主任 数据科学与人工智能研究所副主任 Christabel Pankhurst 研究所副主任 希腊雅典娜研究中心高级研究员
+nameZh: Sophia Ananiadou
+category: Teachers
+title: Professor of Computer Science, University of Manchester; Adjunct Professor of Artificial Intelligence, Wuhan University
+titleZh: 英国曼彻斯特大学计算机科学教授；武汉大学人工智能兼职教授
+avatar: ./assets/img_Sophia_Ananiadou.jpg
+email: sophia.ananiadou@manchester.ac.uk
+homepage: https://research.manchester.ac.uk/en/persons/sophia.ananiadou
+bio: 'Sophia Ananiadou is a Professor in Computer Science at the University of Manchester and Director of the National Centre for Text Mining (NaCTeM), the world''s first publicly funded text mining centre, and an adjunct professor at Wuhan University. She is a leading expert in biomedical text mining and natural language processing, with interdisciplinary contributions to knowledge discovery, automated systematic reviews, and AI applications in biomedicine. She is a Turing Fellow, ELLIS Fellow, and has been ranked #1 internationally in text mining.'
+bioZh: Sophia Ananiadou 是英国曼彻斯特大学计算机科学系教授；National Centre for Text Mining (NaCTeM) 主任；该中心是世界上首个公共资助的文本挖掘中心，同时担任武汉大学兼职教授。她是生物医学文本挖掘与自然语言处理领域的世界顶尖专家之一，长期致力于该领域的交叉应用，在生物医学知识发现、系统综述自动化等方面具有开创性贡献。她是 Turing Fellow 和 ELLIS Fellow，并在文本挖掘领域国际排名第一。
+order: 3

@@ -1,0 +1,204 @@
+addressEn: No. 299 Bayi Road, Wuchang District, Wuhan City, Hubei Province, China (School of Artificial Intelligence, Wuhan University)
+addressZh: 中国湖北省武汉市武昌区八一路299号（武汉大学人工智能学院）
+emailGeneral: plumjane1225@gmail.com; maowei1258@gmail.com
+emailAdmissions: plumjane1225@gmail.com
+introEn: |-
+  Welcome to the Cognitive Language and Information Lab (CLAIN)! 👋
+
+  The Cognitive Language and Information Lab is an innovative Artificial Intelligence (AI) research center at the School of Artificial Intelligence, Wuhan University. Under the visionary leadership of Professor Min Peng and Professor Qianqian Xie, we are dedicated to pioneering AI through cutting-edge interdisciplinary research and collaboration.
+
+  🌍 About Us
+  Our center provides a dynamic and collaborative research environment, blending theoretical AI breakthroughs with real-world technological innovations.
+
+  🚀 How to Get Involved
+  We invite students, researchers, and AI enthusiasts to actively participate in various capacities:
+  🤝 Research Collaborations – Join our ongoing projects or propose new research ideas.
+  💬 Discussion Forums Exchange insights, engage in discussions on AI advancements, and collaborate with experts.
+  📢 Workshops & Seminars Attend events featuring prominent AI researchers and thought leaders.
+
+  📩 Contact Us
+  Become a part of our expanding community of AI pioneers! Reach out to explore collaboration opportunities and contribute to groundbreaking AI research.
+
+  🔗 Let's push the boundaries of AI together at CLAIN! 🚀
+introZh: |-
+  欢迎来到认知语言与信息实验室 (CLAIN)! 👋
+  认知语言与信息实验室是武汉大学人工智能学院的一个创新人工智能 (AI) 研究中心。在彭敏教授和谢倩倩教授的远见领导下，我们致力于通过前沿跨学科研究和合作，开创人工智能的新篇章。
+
+  🌍 关于我们
+  我们的中心提供动态且协作的研究环境，将理论AI突破与现实世界的技术创新相结合。
+  🚀 如何参与
+  我们邀请学生、研究者和AI爱好者以各种方式积极参与：
+
+  🤝 研究合作 – 加入我们正在进行的项目或提出新的研究想法。
+  💬 讨论论坛 – 交流见解、参与AI进展讨论，并与专家合作。
+  📢 工作坊与研讨会 – 参加由知名AI研究者和思想领袖主讲的活动。
+
+  📩 联系我们
+  成为我们不断扩大的AI先驱社区的一员！联系我们探索合作机会，并为突破性AI研究贡献力量。
+  🔗 让我们在CLAIN共同推动AI的边界！🚀
+hiringTextEn: The Cognitive Language and Information Lab (CLAIN) at Wuhan University welcomes outstanding researchers, postdoctoral fellows, and PhD students in artificial intelligence, natural language processing, and related fields. We are actively recruiting talented individuals to join our team and contribute to cutting-edge research projects. Interested candidates are encouraged to contact Professor Min Peng or the center for collaboration and recruitment opportunities.
+hiringTextZh: 武汉大学认知语言与信息实验室 (CLAIN) 诚邀人工智能、自然语言处理及相关领域优秀研究人员、博士后和博士生加入。我们正在积极招募优秀人才参与前沿研究项目。有意者请联系彭敏教授或中心探讨合作与招聘机会。
+hiringLink: https://sai.whu.edu.cn/
+mapEmbedUrl: https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3390.990!2d114.359!3d30.540!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3617490000000001%3A0x0!2sWuhan+University!5e0!3m2!1sen!2sus!4v1700000000000
+heroImages:
+  - ./assets/index-0.jpeg
+  - ./assets/index-1.jpeg
+  - ./assets/index-2.jpeg
+partners:
+  - name: The University of Manchester
+    nameZh: 曼彻斯特大学
+    logo: ./assets/img_4543d116101d.png
+    link: https://www.manchester.ac.uk/
+    bgColor: '#D3D3D3'
+  - name: MBZUAI
+    nameZh: 穆罕默德·本·扎耶德人工智能大学
+    logo: ./assets/logo-MBZUAI.png
+    link: https://mbzuai.ac.ae/
+    bgColor: '#D3D3D3'
+  - name: National Centre for Text Mining (NaCTeM), University of Manchester
+    nameZh: 曼彻斯特大学国家文本挖掘中心
+    logo: ./assets/img_989620b0e54e.gif
+    link: https://nactem.ac.uk/
+    bgColor: '#D3D3D3'
+  - name: Université de Montréal
+    nameZh: 蒙特利尔大学
+    logo: ./assets/logo-universite-de-montreal.png
+    link: https://www.umontreal.ca/en/
+    bgColor: '#D3D3D3'
+  - name: Halmstad University
+    nameZh: 哈姆斯塔德大学
+    logo: ./assets/img_9c7bfdc906fa.svg
+    link: https://www.hh.se/english.html
+    bgColor: '#D3D3D3'
+  - name: Universiti Malaya
+    nameZh: 马来亚大学
+    logo: ./assets/img_932c1725b49e.png
+    link: https://www.um.edu.my/
+    bgColor: '#D3D3D3'
+  - name: Krirk University
+    nameZh: 泰国格乐大学
+    logo: ./assets/img_87af39b138ba.png
+    link: https://www.krirk.ac.th/
+    bgColor: '#D3D3D3'
+  - name: The University of Edinburgh
+    nameZh: 爱丁堡大学
+    logo: ./assets/img_da2adfe288bb.png
+    link: https://www.ed.ac.uk/
+    bgColor: '#D3D3D3'
+  - name: Cardiff University
+    nameZh: 卡迪夫大学
+    logo: ./assets/img_0e0897921286.png
+    link: https://www.cardiff.ac.uk/
+    bgColor: '#D3D3D3'
+  - name: The Chinese University of Hong Kong, Shenzhen
+    nameZh: 香港中文大学（深圳）
+    logo: ./assets/img_a3371e07ab4e.png
+    link: https://www.cuhk.edu.cn/zh-hans
+    bgColor: '#D3D3D3'
+  - name: School of Management and Engineering, Nanjing University
+    nameZh: 南京大学工程管理学院
+    logo: ./assets/img_9a6dd007d535.png
+    link: https://sme.nju.edu.cn/main.htm
+    bgColor: '#D3D3D3'
+  - name: Shanghai Jiao Tong University
+    nameZh: 上海交通大学
+    logo: ./assets/img_d0792da0202f.png
+    link: https://www.sjtu.edu.cn/
+    bgColor: '#D3D3D3'
+  - name: Shanxi Agricultural University
+    nameZh: 山西农业大学
+    logo: ./assets/img_15c3850fb342.png
+    link: https://www.sxau.edu.cn/index.htm
+    bgColor: '#D3D3D3'
+  - name: Institute of Geochemistry, Chinese Academy of Sciences
+    nameZh: 中国科学院地球化学研究所
+    logo: ./assets/logo-gyig.jpg
+    link: https://www.gyig.ac.cn/
+    bgColor: '#D3D3D3'
+  - name: Hong Kong Metropolitan University
+    nameZh: 香港都会大学
+    logo: ./assets/img_51b9758d76c6.png
+    link: https://www.hkmu.edu.hk/sc/
+    bgColor: '#D3D3D3'
+  - name: Sichuan University
+    nameZh: 四川大学
+    logo: ./assets/img_069e00376756.png
+    link: https://www.scu.edu.cn/index.htm
+    bgColor: '#D3D3D3'
+  - name: Shandong University
+    nameZh: 山东大学
+    logo: ./assets/img_9dba94dced32.png
+    link: https://www.sdu.edu.cn/index.htm
+    bgColor: '#D3D3D3'
+  - name: Hefei University of Technology
+    nameZh: 合肥工业大学
+    logo: ./assets/img_002cd3d2ef4a.png
+    link: https://www.hfut.edu.cn/index.htm
+    bgColor: '#D3D3D3'
+  - name: Yunnan University
+    nameZh: 云南大学
+    logo: ./assets/img_8c16f2618abe.png
+    link: https://www.ynu.edu.cn/
+    bgColor: '#D3D3D3'
+  - name: Harbin Institute of Technology, Shenzhen
+    nameZh: 哈尔滨工业大学（深圳）
+    logo: ./assets/logo-HIT-2048px.png
+    link: https://www.hitsz.edu.cn/index.html
+    bgColor: '#D3D3D3'
+  - name: School of Sociology, Wuhan University
+    nameZh: 武汉大学社会学院
+    logo: ./assets/logo-WHU-shxy-2048px.png
+    link: https://shxx.whu.edu.cn/
+    bgColor: '#D3D3D3'
+  - name: Jinan University
+    nameZh: 暨南大学
+    logo: ./assets/img_f5dad7afff91.png
+    link: https://www.jnu.edu.cn/main.htm
+    bgColor: '#D3D3D3'
+  - name: Nanjing Audit University
+    nameZh: 南京审计大学
+    logo: ./assets/img_0eb3e1ff6afe.png
+    link: https://www.nau.edu.cn/main.htm
+    bgColor: '#D3D3D3'
+  - name: Chinese People's Liberation Army (PLA) General Hospital
+    nameZh: 中国人民解放军总医院（301医院）
+    logo: ./assets/img_3ed507cec149.png
+    link: https://www.301hospital.com.cn/index.php
+    bgColor: '#D3D3D3'
+  - name: People's Government of Dongxihu District, Wuhan
+    nameZh: 武汉市东西湖区人民政府
+    logo: ./assets/logo-Dongxihu.png
+    link: https://www.dxh.gov.cn/
+    bgColor: '#D3D3D3'
+  - name: Tencent
+    nameZh: 腾讯
+    logo: ./assets/img_fe2f614832e2.png
+    link: https://www.tencent.com/
+    bgColor: '#D3D3D3'
+  - name: Curefun
+    nameZh: 治趣
+    logo: ./assets/logo-curefun.png
+    link: http://www.curefun.com/
+    bgColor: '#D3D3D3'
+  - name: ZHONGSHAN HOSPITAL
+    nameZh: 复旦大学附属中山医院
+    logo: ./assets/img_e85d5947b0a8.png
+    link: https://www.zs-hospital.sh.cn/
+    bgColor: '#D3D3D3'
+  - name: HUAWEI Health
+    nameZh: 华为运动健康
+    logo: ./assets/img_3fdc55280fe6.svg
+    link: https://consumer.huawei.com/cn/mobileservices/health/
+    bgColor: '#D3D3D3'
+  - name: China Musical Instruments Association
+    nameZh: 中国乐器协会
+    logo: ./assets/img_9fd8fb5be2e8.png
+    link: http://www.cmia.com.cn/index.html
+    bgColor: '#D3D3D3'
+researchAreasTextEn: <img src="./assets/logo.png" alt="Logo">
+researchAreasTextZh: <img src="./assets/logo.png" alt="Logo">
+welcomeTextEn: We are a group of researchers working on artificial intelligence and natural language processing at the School of Artificial Intelligence, Wuhan University, committed to advancing interdisciplinary AI research and real-world applications.
+welcomeTextZh: 我们是武汉大学人工智能学院从事人工智能和自然语言处理研究的一组研究人员，致力于推进跨学科人工智能研究和实际应用。
+welcomeTitleEn: Welcome to the Cognitive Language and Information Lab (CLAIN)!
+welcomeTitleZh: 欢迎来到认知语言与信息实验室 (CLAIN)! 👋
+id: 693940b31af716b4b15b022f

@@ -1,0 +1,12 @@
+id: '1767797673873'
+title: DITING
+description: 'DITING: A Multi-Agent Evaluation Framework for Benchmarking Web Novel Translation'
+order: 1
+links:
+  - label: GitHub
+    url: https://github.com/WHUNextGen/DITING
+  - label: Paper
+    url: https://arxiv.org/abs/2510.09116
+  - label: Dataset
+    url: https://huggingface.co/datasets/NextGenWhu/DITING
+image: ./assets/img_4a82ff5d1008.png

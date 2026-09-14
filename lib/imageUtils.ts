@@ -2,8 +2,8 @@
  * 全球化图片加载优化工具 (v2.5 - 富文本增强版)
  */
 
-const GITHUB_USER = "CLAIN-WHU";
-const GITHUB_REPO = "clain-whu.github.io";
+const GITHUB_USER = "whunextgen";
+const GITHUB_REPO = "whunextgen.github.io";
 
 const CDN_BASE = `https://cdn.jsdelivr.net/gh/${GITHUB_USER}/${GITHUB_REPO}@main/`;
 

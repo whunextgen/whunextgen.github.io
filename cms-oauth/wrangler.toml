@@ -1,0 +1,9 @@
+name = "clain-cms-oauth"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Set secrets after the first deploy:
+#   wrangler secret put GITHUB_CLIENT_ID
+#   wrangler secret put GITHUB_CLIENT_SECRET
+[vars]
+ALLOWED_ORIGINS = "https://clain.org,https://whunextgen.github.io"

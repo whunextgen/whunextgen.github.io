@@ -1,0 +1,221 @@
+# Decap CMS configuration for the CLAIN lab website.
+# Docs: https://decapcms.org/docs/configuration-options/
+#
+# Login flow: the CMS talks to GitHub through the small OAuth worker in
+# /cms-oauth. After deploying it, set `base_url` below to the worker URL.
+
+backend:
+  name: github
+  repo: whunextgen/whunextgen.github.io
+  branch: main
+  base_url: https://clain-cms-oauth.YOUR-ACCOUNT.workers.dev # TODO: replace after deploying cms-oauth
+  auth_endpoint: auth
+  commit_messages:
+    create: "content: create {{collection}} “{{slug}}”"
+    update: "content: update {{collection}} “{{slug}}”"
+    delete: "content: delete {{collection}} “{{slug}}”"
+    uploadMedia: "content: upload {{path}}"
+    deleteMedia: "content: delete {{path}}"
+
+# Only used when the CMS is opened on localhost together with `npm run cms:local`.
+local_backend: true
+
+site_url: https://clain.org
+display_url: https://clain.org
+logo_url: /clain_logo_full.png
+
+# Uploaded images are committed to /assets and referenced as ./assets/<file>,
+# the same convention the existing content uses.
+media_folder: assets
+public_folder: ./assets
+
+i18n:
+  structure: multiple_folders
+  locales: [en, zh]
+  default_locale: en
+
+collections:
+  # ---------------------------------------------------------------- News
+  - name: news
+    label: "News 新闻"
+    label_singular: "News item 新闻"
+    folder: content/news
+    create: true
+    extension: md
+    format: frontmatter
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    summary: "{{date}} · {{title}}"
+    sortable_fields: [date, title, order]
+    i18n: true
+    editor:
+      preview: false
+    fields:
+      - { label: "ID", name: id, widget: hidden, required: false, i18n: duplicate }
+      - { label: "Title 标题", name: title, widget: string, i18n: true }
+      - { label: "Subtitle 副标题", name: subtitle, widget: string, required: false, i18n: true }
+      - { label: "Date 日期", name: date, widget: datetime, format: "YYYY-MM-DD", date_format: "YYYY-MM-DD", time_format: false, i18n: duplicate }
+      - label: "Category 分类"
+        name: category
+        widget: select
+        options: [News, Award, Event, Talk, Paper, Recruitment]
+        default: News
+        i18n: duplicate
+      - { label: "Cover image 封面图", name: coverImage, widget: image, required: false, i18n: duplicate }
+      - { label: "Author 作者", name: author, widget: string, required: false, i18n: duplicate }
+      - { label: "Pinned 置顶", name: isPinned, widget: boolean, default: false, required: false, i18n: duplicate }
+      - { label: "Published 发布", name: isPublished, widget: boolean, default: true, required: false, i18n: duplicate }
+      - { label: "Order 排序 (smaller first)", name: order, widget: number, value_type: int, default: 0, required: false, i18n: duplicate }
+      - { label: "Summary 摘要", name: summary, widget: text, i18n: true }
+      - { label: "Body 正文", name: body, widget: markdown, i18n: true }
+
+  # ---------------------------------------------------------------- People
+  - name: people
+    label: "People 成员"
+    label_singular: "Person 成员"
+    folder: content/people
+    create: true
+    extension: yml
+    format: yml
+    identifier_field: name
+    slug: "{{slug}}"
+    summary: "{{name}} · {{category}}"
+    sortable_fields: [order, name, category]
+    editor:
+      preview: false
+    fields:
+      - { label: "ID", name: id, widget: hidden, required: false }
+      - { label: "Name (EN)", name: name, widget: string }
+      - { label: "姓名 (中文)", name: nameZh, widget: string, required: false }
+      - label: "Category 类别"
+        name: category
+        widget: select
+        options:
+          - Teachers
+          - Visiting Scholars
+          - PhD
+          - Master
+          - Professional Master
+          - Academic Master
+          - RA
+          - Intern
+          - Secretary
+      - { label: "Order 排序 (smaller first)", name: order, widget: number, value_type: int, default: 100 }
+      - { label: "Avatar 头像", name: avatar, widget: image, required: false }
+      - { label: "Title (EN)", name: title, widget: string, required: false }
+      - { label: "职称/身份 (中文)", name: titleZh, widget: string, required: false }
+      - { label: "Grade 年级", name: grade, widget: string, required: false, hint: "e.g. 2024" }
+      - { label: "Advisor 导师", name: advisor, widget: string, required: false }
+      - { label: "Email", name: email, widget: string, required: false }
+      - { label: "Homepage 主页", name: homepage, widget: string, required: false }
+      - { label: "Bio (EN)", name: bio, widget: text, required: false, default: "" }
+      - { label: "简介 (中文)", name: bioZh, widget: text, required: false }
+      - label: "Teacher profile 教师详情 (faculty only)"
+        name: teacherProfile
+        widget: object
+        required: false
+        collapsed: true
+        fields:
+          - { label: "Position (EN)", name: position, widget: text, required: false }
+          - { label: "职务 (中文)", name: positionZh, widget: text, required: false }
+          - { label: "Research areas (EN)", name: researchAreas, widget: list, required: false, field: { label: Item, name: item, widget: string } }
+          - { label: "研究方向 (中文)", name: researchAreasZh, widget: list, required: false, field: { label: Item, name: item, widget: string } }
+          - { label: "Achievements (EN)", name: achievements, widget: list, required: false, field: { label: Item, name: item, widget: string } }
+          - { label: "成果 (中文)", name: achievementsZh, widget: list, required: false, field: { label: Item, name: item, widget: string } }
+          - { label: "Projects (EN)", name: projects, widget: list, required: false, field: { label: Item, name: item, widget: string } }
+          - { label: "项目 (中文)", name: projectsZh, widget: list, required: false, field: { label: Item, name: item, widget: string } }
+          - { label: "Honors (EN)", name: honors, widget: list, required: false, field: { label: Item, name: item, widget: string } }
+          - { label: "荣誉 (中文)", name: honorsZh, widget: list, required: false, field: { label: Item, name: item, widget: string } }
+          - { label: "Influence (EN)", name: influence, widget: list, required: false, field: { label: Item, name: item, widget: string } }
+          - { label: "学术影响 (中文)", name: influenceZh, widget: list, required: false, field: { label: Item, name: item, widget: string } }
+          - { label: "Selected publications", name: publications, widget: list, required: false, field: { label: Item, name: item, widget: string } }
+
+  # ---------------------------------------------------------------- Publications
+  - name: publications
+    label: "Publications 论文"
+    label_singular: "Publication 论文"
+    folder: content/publications
+    create: true
+    extension: yml
+    format: yml
+    slug: "{{year}}-{{slug}}"
+    summary: "{{year}} · {{venue}} · {{title}}"
+    sortable_fields: [year, venue, title, order]
+    editor:
+      preview: false
+    fields:
+      - { label: "ID", name: id, widget: hidden, required: false }
+      - { label: "Title", name: title, widget: string }
+      - { label: "Authors", name: authors, widget: list, field: { label: Author, name: author, widget: string }, hint: "One author per item, in order." }
+      - { label: "Venue 会议/期刊", name: venue, widget: string }
+      - { label: "Year 年份", name: year, widget: number, value_type: int }
+      - { label: "Type 类型", name: type, widget: select, options: [Conference, Journal, Preprint, Other], default: Conference }
+      - { label: "Link (DOI / arXiv)", name: link, widget: string, required: false }
+      - { label: "PDF", name: pdf, widget: file, required: false }
+      - { label: "Tags", name: tags, widget: list, required: false, field: { label: Tag, name: tag, widget: string } }
+      - { label: "Order 排序 (within year, smaller first)", name: order, widget: number, value_type: int, default: 0, required: false }
+
+  # ---------------------------------------------------------------- Projects
+  - name: projects
+    label: "Projects 项目"
+    label_singular: "Project 项目"
+    folder: content/projects
+    create: true
+    extension: yml
+    format: yml
+    slug: "{{slug}}"
+    sortable_fields: [order, title]
+    editor:
+      preview: false
+    fields:
+      - { label: "ID", name: id, widget: hidden, required: false }
+      - { label: "Title", name: title, widget: string }
+      - { label: "Description", name: description, widget: text }
+      - { label: "Content (optional, HTML/Markdown)", name: content, widget: markdown, required: false }
+      - { label: "Image", name: image, widget: image, required: false }
+      - { label: "Order 排序 (smaller first)", name: order, widget: number, value_type: int, default: 100 }
+      - label: "Links"
+        name: links
+        widget: list
+        required: false
+        fields:
+          - { label: "Label", name: label, widget: select, options: ["Try Online", GitHub, Model, Dataset, Paper, Other] }
+          - { label: "URL", name: url, widget: string }
+
+  # ---------------------------------------------------------------- Site settings
+  - name: settings
+    label: "Site settings 站点设置"
+    editor:
+      preview: false
+    files:
+      - name: contact
+        label: "About & Contact 简介与联系方式"
+        file: content/contact.yml
+        fields:
+          - { label: "Welcome title (EN)", name: welcomeTitleEn, widget: string, required: false }
+          - { label: "欢迎标题 (中文)", name: welcomeTitleZh, widget: string, required: false }
+          - { label: "Welcome text (EN)", name: welcomeTextEn, widget: text, required: false }
+          - { label: "欢迎语 (中文)", name: welcomeTextZh, widget: text, required: false }
+          - { label: "Research areas text (EN)", name: researchAreasTextEn, widget: text, required: false }
+          - { label: "研究方向文字 (中文)", name: researchAreasTextZh, widget: text, required: false }
+          - { label: "Intro (EN)", name: introEn, widget: text }
+          - { label: "简介 (中文)", name: introZh, widget: text }
+          - { label: "Hiring text (EN)", name: hiringTextEn, widget: text }
+          - { label: "招聘文字 (中文)", name: hiringTextZh, widget: text }
+          - { label: "Hiring link", name: hiringLink, widget: string }
+          - { label: "Address (EN)", name: addressEn, widget: string }
+          - { label: "地址 (中文)", name: addressZh, widget: string }
+          - { label: "General email(s)", name: emailGeneral, widget: string, hint: "Separate several addresses with ;" }
+          - { label: "Admissions email", name: emailAdmissions, widget: string }
+          - { label: "Map embed URL", name: mapEmbedUrl, widget: string }
+          - { label: "Hero images 首页轮播图", name: heroImages, widget: list, required: false, field: { label: Image, name: image, widget: image } }
+          - label: "Partners 合作机构"
+            name: partners
+            widget: list
+            required: false
+            summary: "{{fields.name}}"
+            fields:
+              - { label: "Name (EN)", name: name, widget: string }
+              - { label: "名称 (中文)", name: nameZh, widget: string, required: false }
+              - { label: "Logo", name: logo, widget: image }
+              - { label: "Link", name: link, widget: string, required: false }
+              - { label: "Background color", name: bgColor, widget: color, required: false, default: "#D3D3D3" }

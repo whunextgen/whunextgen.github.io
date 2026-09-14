@@ -1,0 +1,69 @@
+id: '1765360284292'
+name: Qianqian Xie
+teacherProfile:
+  position: Professor; Deputy Director, Cognitive Language and Information Lab (CLAIN), Wuhan University
+  positionZh: 教授；武汉大学认知语言与信息实验室副主任
+  researchAreas:
+    - Natural Language Processing
+    - Medical Artificial Intelligence
+    - Intelligent Finance
+    - Model Interpretability and Controllability
+    - Reasoning and Inference
+    - Multimodal Fusion
+  researchAreasZh:
+    - 自然语言处理
+    - 医疗人工智能
+    - 智能金融
+    - 模型可解释性与可控性
+    - 推理
+    - 多模态融合
+  achievements:
+    - Published 70+ papers in NeurIPS, ACL, KDD, Nature Communications, TKDE, etc.
+    - Recipient of the NIH K99/R00 Pathway to Independence Award
+    - PI of NIH Early-Stage Researcher Grant (~USD 830K)
+    - PI of CCF–Tencent Rhino-Bird Fund (2025)
+    - Recipient of the National High-level Young Talent Program (Overseas)
+    - Winner of Hubei Provincial Science and Technology Progress Award (2nd Class)
+    - Winner of the CCL Outstanding English Paper Award
+  achievementsZh:
+    - 在 NeurIPS、ACL、KDD、Nature Communications、TKDE 等发表论文 70 余篇
+    - 获 NIH K99/R00 青年独立研究者基金
+    - 主持 NIH 青年研究基金项目（约 83 万美元）
+    - 主持 CCF-腾讯犀牛鸟科学基金（2025）
+    - 国家海外优青获得者
+    - 湖北省科技进步二等奖
+    - CCL 亮点英文论文奖
+  projects:
+    - 'NIH K99/R00: Pathway to Independence Award'
+    - NIH Early-Stage Researcher Project (USD 830K)
+    - CCF–Tencent Rhino-Bird Fund Project (2025)
+  projectsZh:
+    - NIH K99/R00 青年独立研究者项目
+    - NIH 青年研究基金项目（约 83 万美元）
+    - 2025 年 CCF-腾讯犀牛鸟科研基金项目
+  influence:
+    - GitHub open-source projects with 3,000+ stars
+    - Organizer of multiple shared tasks at ACL, IJCAI, COLING with 200+ participating teams
+    - Open-source models downloaded over 68,500 times
+    - Datasets downloaded over 130,000 times
+    - Senior Area Chair of EACL 2025
+    - Area Chair for ACL 2023/2025, EMNLP 2023/2025, NeurIPS 2025, COLING 2025, LREC 2026
+    - Co-chair of COLING 2025 Workshop
+  influenceZh:
+    - GitHub 开源项目累计 3000+ Star
+    - 组织 ACL、IJCAI、COLING 等多个评测任务，吸引 200+ 队伍参与
+    - 开源模型下载量超过 68,500 次
+    - 数据集下载量超过 130,000 次
+    - EACL 2025 资深领域主席
+    - ACL 2023/2025、EMNLP 2023/2025、NeurIPS 2025、COLING 2025、LREC 2026 领域主席
+    - COLING-2025 Workshop 大会联合主席
+nameZh: 谢倩倩
+category: Teachers
+title: Professor of Artificial Intelligence, Wuhan University
+titleZh: 武汉大学人工智能教授
+avatar: ./assets/img_dd4bc2bd6fee.png
+email: xqq.sincere@gmail.com
+homepage: https://jszy.whu.edu.cn/xieqianqian/zh_CN/index.htm
+bio: Prof. Qianqian Xie is a Professor at the School of Artificial Intelligence, Wuhan University, and the Deputy Director of the Cognitive Language and Information Lab (CLAIN). She has long been engaged in research on natural language processing, medical AI, intelligent finance, model interpretability/controllability and reasoning, and multimodal fusion. She previously served as an Associate Research Scientist at Yale University, and has worked or conducted academic visits at Cornell University, the University of Manchester, and the University of Montreal. She has published over 70 papers in top conferences and journals such as NeurIPS, ACL, KDD, Nature Communications, and TKDE. She has led the NIH K99/R00 Pathway to Independence Award, NIH Early-Stage Researcher Grant (USD 830K), and the 2025 CCF–Tencent Rhino-Bird Fund. She is a recipient of the National High-level Young Talent Program (Overseas). Her honors include the Hubei Provincial Science and Technology Progress Award (2nd Class) and the CCL Outstanding English Paper Award. She serves as Senior Area Chair of EACL 2025 and Area Chair for ACL 2023/2025, EMNLP 2023/2025, NeurIPS 2025, COLING 2025, LREC 2026, and as Co-chair of the COLING 2025 Workshop.
+bioZh: 谢倩倩，武汉大学人工智能学院教授、博士生导师，武汉大学认知语言与信息实验室副主任。长期从事自然语言处理、医疗人工智能、智能金融、模型可解释性/可控性与推理、多模态融合等方向研究。曾任耶鲁大学副研究员，并在康奈尔大学、曼彻斯特大学和蒙特利尔大学工作与访问。在 NeurIPS、ACL、KDD、Nature Communications、TKDE 等国际顶级会议与期刊发表论文 70 余篇；主持美国国立卫生研究院（NIH）青年研究基金项目（约 83 万美元）、NIH K99/R00 青年独立研究者基金，以及 2025 年 CCF-腾讯犀牛鸟科研基金项目。国家高层次海外优青获得者；曾获湖北省科技进步二等奖、CCL 亮点英文论文奖等。担任 EACL 2025 资深领域主席，ACL 2023/2025、EMNLP 2023/2025、NeurIPS 2025、COLING 2025、LREC 2026 等领域主席，并任 COLING-2025 Workshop 大会联合主席。
+order: 2

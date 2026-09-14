@@ -56,6 +56,32 @@ We welcome research collaborations, visiting scholars, and talented PhD students
 
 For website corrections and accessibility suggestions, please open an issue in the [website repository](https://github.com/whunextgen/whunextgen.github.io). Keep proposed changes focused and describe the page or section affected.
 
+## Editing the website content
+
+All site content lives in plain files under [`content/`](content/) and is edited through
+**Decap CMS** at <https://clain.org/admin/> (sign in with a GitHub account that has write
+access to this repository). Every save becomes a commit on `main`; GitHub Actions rebuilds
+and redeploys the site within a couple of minutes.
+
+| Content | Where it is stored |
+| --- | --- |
+| News (English + Chinese) | `content/news/en/*.md`, `content/news/zh/*.md` |
+| People | `content/people/*.yml` |
+| Publications | `content/publications/*.yml` |
+| Projects | `content/projects/*.yml` |
+| About / contact / partners / hero images | `content/contact.yml` |
+| Uploaded images | `assets/` (referenced as `./assets/<file>`) |
+
+The files can also be edited directly on GitHub or in a local checkout. Local development:
+
+```bash
+npm install
+npm run dev          # site at http://localhost:5173
+npm run cms:local    # optional: lets http://localhost:5173/admin/index.html edit files without GitHub login
+```
+
+The CMS login is handled by the small Cloudflare Worker in [`cms-oauth/`](cms-oauth/README.md).
+
 ## Repository notes
 
 The website is maintained in English and Chinese. Research and people profiles are curated with the lab team; please contact us before reusing photographs, biographies, or other site content.
