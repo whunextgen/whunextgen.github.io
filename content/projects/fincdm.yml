@@ -1,0 +1,11 @@
+id: '1767797440071'
+title: FinCDM
+description: FinCDM (Financial Cognitive Diagnosis Model) is a comprehensive evaluation framework for financial large language models. It moves beyond traditional score-level evaluation by providing knowledge-skill level diagnosis, identifying what financial skills and knowledge models possess or lack.
+order: 1
+links:
+  - label: GitHub
+    url: https://github.com/WHUNextGen/FinCDM
+  - label: Paper
+    url: https://arxiv.org/abs/2508.13491
+  - label: Dataset
+    url: https://huggingface.co/papers/2508.13491

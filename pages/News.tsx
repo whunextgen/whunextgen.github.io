@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchNews } from "../lib/dataStore";
+import { formatDate } from "../lib/content";
 import { useLanguage } from "../contexts/LanguageContext";
 import { NewsItem } from "../types";
 import SmartImage from "../components/SmartImage";
@@ -69,7 +70,7 @@ const News: React.FC = () => {
                 >
                   <div className="md:col-span-1 pt-1">
                     <span className="text-sm font-mono text-slate-400 block mb-2">
-                      {item.date}
+                      {formatDate(item.date, language)}
                     </span>
                     <span className="inline-block px-2 py-1 text-[10px] uppercase tracking-widest font-bold border border-slate-200 text-slate-500 rounded-sm">
                       {item.category}

@@ -1,0 +1,81 @@
+id: '1765366803036'
+name: Min Peng
+teacherProfile:
+  position: Professor, School of Artificial Intelligence, Wuhan University Director, Cognitive Language and Information Lab PhD Supervisor Director, Department of Artificial Intelligence
+  positionZh: 武汉大学人工智能学院教授 认知语言与信息实验室主任 博士生导师 人工智能系主任
+  researchAreas:
+    - Artificial Intelligence
+    - Natural Language Processing
+    - Information Retrieval
+    - Topic Models
+    - Knowledge Graphs
+    - Cloud Computing Systems
+    - Social Computing
+    - Large Language Models
+    - Knowledge Graph Reasoning
+    - Temporal Knowledge Graphs
+    - Dialogue State Tracking
+    - Generative Models
+    - Financial Intelligence
+    - Intelligent Software Engineering
+    - Text Mining
+    - Graph Neural Networks
+  researchAreasZh:
+    - 人工智能
+    - 自然语言处理
+    - 信息检索
+    - 主题模型
+    - 知识图谱
+    - 云计算系统
+    - 社会计算
+    - 大语言模型
+    - 知识图谱推理
+    - 时间知识图谱
+    - 对话状态追踪
+    - 生成模型
+    - 金融智能
+    - 软件工程智能
+    - 文本挖掘
+    - 图神经网络
+  achievements:
+    - Published over 40 papers in CCF A-class top conferences and journals (including NeurIPS, KDD, WWW, ACL, TKDE, TOIS, CIKM, DAC, etc.), with more than 15 CCF A-class papers
+    - Research achievements awarded Second Prize of Hubei Provincial Natural Science Award (2009)
+    - Authored academic monograph "Research on Regional Industry Association Analysis Based on Industrial Knowledge Graph" (Science Press, 2023)
+    - Holds over 20 national invention patents in knowledge graphs, text mining, code search, cloud computing optimization, meteorological intelligence services, etc.
+  achievementsZh:
+    - 在CCF A类国际顶级会议与期刊（包括NeurIPS、KDD、WWW、ACL、TKDE、TOIS、CIKM、DAC等）发表论文40余篇，其中CCF A类论文超过15篇
+    - 科研成果曾获湖北省自然科学二等奖（2009）
+    - 出版学术专著《基于产业知识图谱的区域产业关联分析研究》（科学出版社，2023）
+    - 在知识图谱、文本挖掘、代码搜索、云计算优化、气象智能服务等方向拥有20余项国家发明专利
+  projects:
+    - Hosted multiple National Natural Science Foundation of China projects
+    - Hosted Hubei Provincial Natural Science Foundation projects
+    - Hosted Hubei Provincial Education Department research projects
+    - Participated in National Science and Technology Innovation 2030 - Major Project on New Generation Artificial Intelligence
+  projectsZh:
+    - 主持多项国家自然科学基金项目
+    - 主持湖北省自然科学基金项目
+    - 主持湖北省教育厅科研项目
+    - 参与国家科技创新2030—新一代人工智能重大项目课题研究
+  influence:
+    - Open-source tools, models, and algorithms widely applied in industry and research in information retrieval, knowledge graphs, and NLP
+    - Research achievements have significant impact and practical applications in social network analysis, code search, cloud service scheduling, etc.
+    - Served as TPC Chair of IEEE INFOCOM 2011 High-Speed Networks Workshop
+    - Served multiple times as Program Committee member for top international conferences including ACL, IJCAI, CIKM
+    - Long-term stable contributions to the international academic community
+  influenceZh:
+    - 研究成果在信息检索、知识图谱与NLP领域具有显著影响，部分开源工具、模型与算法被广泛应用于产业与科研场景
+    - 相关研究在社交网络分析、代码搜索、云服务调度等领域形成实际应用价值
+    - 曾担任IEEE INFOCOM 2011高速网络研讨会程序委员会主席（TPC Chair）
+    - 多次担任ACL、IJCAI、CIKM等国际顶会程序委员会委员
+    - 在国际学术社区具有长期稳定的贡献
+nameZh: 彭敏
+category: Teachers
+title: Professor of Artificial Intelligence, Wuhan University
+titleZh: 武汉大学人工智能教授
+avatar: ./assets/img_023b08017061.jpg
+email: pengm@whu.edu.cn
+homepage: http://jszy.whu.edu.cn/pengmin/
+bio: Min Peng is a Professor at the School of Artificial Intelligence, Wuhan University, Director of the Cognitive Language and Information Lab, and PhD Supervisor. She is a member of IEEE CIS ETTC, council member of China Chinese Information Society, committee member of Computational Linguistics Specialty Committee and Social Media Processing Specialty Committee of Chinese Information Society. She received her PhD in Computer Software and Theory from Wuhan University and conducted postdoctoral research at the Advanced Cyber-Infrastructure Laboratory, Department of Electrical and Computer Engineering, University of New Mexico, USA. Her long-term research focuses on artificial intelligence, natural language processing, information retrieval, topic models, knowledge graphs, cloud computing systems, and social computing.
+bioZh: 彭敏，武汉大学人工智能学院教授、认知语言与信息实验室主任、博士生导师。IEEE CIS ETTC会员，中国中文信息学会理事，中文信息学会计算语言学专委会委员、社会媒体处理专委会委员。曾获武汉大学计算机软件与理论专业博士学位，曾在美国新墨西哥大学电子与计算机工程系Advanced Cyber-Infrastructure Laboratory从事博士后研究。长期从事人工智能、自然语言处理、信息检索、主题模型、知识图谱、云计算系统与社会计算方向研究。
+order: 1

@@ -16,17 +16,8 @@ import People from "./pages/People";
 import Publications from "./pages/Publications";
 import Contact from "./pages/Contact";
 
-// Admin Imports
-import AdminLayout from "./layouts/AdminLayout";
-import AdminLogin from "./pages/admin/Login";
-import NewsManager from "./pages/admin/NewsManager";
-import PeopleManager from "./pages/admin/PeopleManager";
-import PublicationManager from "./pages/admin/PublicationManager";
-import ContactManager from "./pages/admin/ContactManager";
-
 // Contexts
 import { LanguageProvider } from "./contexts/LanguageContext";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -34,12 +25,6 @@ const ScrollToTop = () => {
     window.scrollTo(0, 0);
   }, [pathname]);
   return null;
-};
-
-// Protected Route Component
-const ProtectedRoute = () => {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <Outlet /> : <Navigate to="/admin/login" replace />;
 };
 
 const PublicLayout = () => (
@@ -55,8 +40,7 @@ const PublicLayout = () => (
 const App: React.FC = () => {
   return (
     <LanguageProvider>
-      <AuthProvider>
-        <HashRouter>
+      <HashRouter>
           <ScrollToTop />
           <Routes>
             {/* Public Routes */}
@@ -69,35 +53,9 @@ const App: React.FC = () => {
               <Route path="/contact" element={<Contact />} />
             </Route>
 
-            {/* Admin Routes */}
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin" element={<ProtectedRoute />}>
-              <Route element={<AdminLayout />}>
-                <Route index element={<Navigate to="/admin/dashboard" />} />
-                <Route
-                  path="dashboard"
-                  element={
-                    <div className="bg-white p-8 rounded shadow text-center py-20">
-                      <h1 className="text-3xl font-bold text-slate-800 mb-4">
-                        Welcome to CLAIN Lab Dashboard
-                      </h1>
-                      <p className="text-slate-500">
-                        Select a module from the sidebar to manage content.
-                      </p>
-                    </div>
-                  }
-                />
-                <Route path="news" element={<NewsManager />} />
-                <Route path="people" element={<PeopleManager />} />
-                <Route path="publications" element={<PublicationManager />} />
-                <Route path="contact" element={<ContactManager />} />
-              </Route>
-            </Route>
-
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </HashRouter>
-      </AuthProvider>
+      </HashRouter>
     </LanguageProvider>
   );
 };

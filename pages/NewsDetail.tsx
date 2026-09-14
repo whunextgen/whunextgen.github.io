@@ -5,6 +5,7 @@ import { NewsItem } from "../types";
 import { useLanguage } from "../contexts/LanguageContext";
 import { ArrowLeft, Calendar, User, X, Eye } from "lucide-react";
 import { processHtmlContent } from "../lib/imageUtils";
+import { formatDate } from "../lib/content";
 
 const NewsDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -113,7 +114,7 @@ const NewsDetail: React.FC = () => {
             <div className="w-px h-3 bg-slate-300"></div>
             <div className="flex items-center text-slate-400">
               <Calendar size={12} className="mr-1" />
-              {article.date}
+              {formatDate(article.date, language)}
             </div>
             {article.views !== undefined && (
               <>
