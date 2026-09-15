@@ -1,5 +1,5 @@
-id: batch_1768841452014_29
-title: 'DITING: A Multi-Agent Evaluation Framework for Benchmarking Web Novel Translation'
+id: diting-emnlp-2026
+title: "DITING: Evaluating Sentence-Level Cultural Meaning in Web Novel Translation"
 authors:
   - Enze Zhang
   - Jiaying Wang
@@ -11,9 +11,9 @@ authors:
   - Sophia Ananiadou
   - Min Peng
   - Qianqian Xie
-venue: ACL
-year: 2025
+venue: EMNLP
+year: 2026
 type: Conference
-link: https://doi.org/10.48550/arXiv.2510.09116
+link: https://arxiv.org/abs/2510.09116
 tags: []
 order: 0

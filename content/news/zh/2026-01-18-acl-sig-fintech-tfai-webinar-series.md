@@ -29,6 +29,11 @@ summary: "由 The Fin AI 联合耶鲁大学、NaCTeM、MBZUAI 等多中心承办
 | 5 月 24 日 | Calvin Yixiang Cheng（牛津大学） | Mapping Conspiracy Narratives Across TruthSocial, Twitter, and Bluesky |
 | 6 月 7 日 | Jian-Bo Yang（曼彻斯特大学） | The Evidential Reasoning (ER) Theory and XAI-DSSs: ER Agents for Professional Services |
 | 6 月 21 日 | Md Mohsinul Kabir（曼彻斯特大学） | Cross-Cultural Reasoning in Large Language Models |
+| 7 月 19 日 | Rania Elbadry（MBZUAI） | SAHM: Arabic Financial and Shari'ah-Compliant Reasoning Benchmark |
+| 8 月 2 日 | Shuzhi Gong（墨尔本大学） | Multi-Sourced, Multi-Agent Evidence Retrieval for Fact-Checking |
+| 8 月 16 日 | Bowei He（MBZUAI） | Branching Policy Optimization: Sandbox-Native Language Agent Reinforcement Learning |
+| 8 月 30 日 | Zimu Wang（利物浦大学） | Towards Adaptive Supportive Conversations with Client Modeling and Strategy Alignment |
+| 9 月 13 日 | Ye Yuan（麦吉尔大学 / Mila） | SPINiverse：利用人工智能模型内部信号，实现更优、更快的决策 |
 
 ![2 月 1 日 Zining Zhu](./assets/news-20260201-sigfintech-zining-zhu.jpg) ![3 月 15 日 Alejandro Lopez-Lira](./assets/news-20260315-sigfintech-lopez-lira.jpg) ![4 月 12 日姜玥辰](./assets/news-20260412-sigfintech-yuechen-jiang.jpg)
 
