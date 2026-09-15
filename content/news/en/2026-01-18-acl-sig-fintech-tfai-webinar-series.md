@@ -29,6 +29,11 @@ On January 18, 2026, the **ACL SIG-FinTech × TFAI Webinar Series** held its fir
 | May 24 | Calvin Yixiang Cheng (University of Oxford) | Mapping Conspiracy Narratives Across TruthSocial, Twitter, and Bluesky |
 | Jun 7 | Jian-Bo Yang (University of Manchester) | The Evidential Reasoning (ER) Theory and XAI-DSSs: ER Agents for Professional Services |
 | Jun 21 | Md Mohsinul Kabir (University of Manchester) | Cross-Cultural Reasoning in Large Language Models |
+| Jul 19 | Rania Elbadry (MBZUAI) | SAHM: Arabic Financial and Shari'ah-Compliant Reasoning Benchmark |
+| Aug 2 | Shuzhi Gong (University of Melbourne) | Multi-Sourced, Multi-Agent Evidence Retrieval for Fact-Checking |
+| Aug 16 | Bowei He (MBZUAI) | Branching Policy Optimization: Sandbox-Native Language Agent Reinforcement Learning |
+| Aug 30 | Zimu Wang (University of Liverpool) | Towards Adaptive Supportive Conversations with Client Modeling and Strategy Alignment |
+| Sep 13 | Ye Yuan (McGill University / Mila) | SPINiverse: Using Internal Signals of AI Models for Better and Faster Decisions |
 
 ![Zining Zhu, February 1](./assets/news-20260201-sigfintech-zining-zhu.jpg) ![Alejandro Lopez-Lira, March 15](./assets/news-20260315-sigfintech-lopez-lira.jpg) ![Yuechen Jiang, April 12](./assets/news-20260412-sigfintech-yuechen-jiang.jpg)
 
