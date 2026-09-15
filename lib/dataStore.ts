@@ -9,9 +9,11 @@ import { NEWS, PEOPLE, PUBLICATIONS, PROJECTS, CONTACT } from "./content";
 
 export const fetchNews = async (): Promise<NewsItem[]> =>
   NEWS.filter((n) => n.isPublished !== false).sort((a, b) => {
-    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-    if ((a.order || 0) !== (b.order || 0)) return (a.order || 0) - (b.order || 0);
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
+    // Pinned first, then newest first; `order` only breaks ties on the same day.
+    if (!!a.isPinned !== !!b.isPinned) return a.isPinned ? -1 : 1;
+    const byDate = new Date(b.date).getTime() - new Date(a.date).getTime();
+    if (byDate !== 0) return byDate;
+    return (a.order || 0) - (b.order || 0);
   });
 
 export const fetchNewsItem = async (id: string): Promise<NewsItem | null> =>
