@@ -105,6 +105,7 @@ collections:
       - { label: "职称/身份 (中文)", name: titleZh, widget: string, required: false }
       - { label: "Grade 年级", name: grade, widget: string, required: false, hint: "e.g. 2024" }
       - { label: "Advisor 导师", name: advisor, widget: string, required: false }
+      - { label: "Left the lab 离组时间 (YYYY-MM)", name: leftAt, widget: string, required: false, pattern: ["^\\d{4}-\\d{2}$", "Use YYYY-MM, e.g. 2026-08"], hint: "Leave empty for current members. Once set, the member is listed under Alumni." }
       - { label: "Email", name: email, widget: string, required: false }
       - { label: "Homepage 主页", name: homepage, widget: string, required: false }
       - { label: "Bio (EN)", name: bio, widget: text, required: false, default: "" }
