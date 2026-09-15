@@ -57,8 +57,11 @@ const PersonDetail: React.FC = () => {
     p.authors.some((a) => a.trim().toLowerCase() === lname || (person.nameZh && a.trim() === person.nameZh)),
   ).sort((a, b) => b.year - a.year);
 
-  const mentioned = (s?: string) =>
-    !!s && (s.includes(person.name) || (!!person.nameZh && s.includes(person.nameZh)));
+  const nameParts = person.name.trim().split(/\s+/);
+  const nameVariants = [person.name, person.nameZh, nameParts.length === 2 ? `${nameParts[1]} ${nameParts[0]}` : undefined].filter(
+    (v): v is string => !!v,
+  );
+  const mentioned = (s?: string) => !!s && nameVariants.some((v) => s.includes(v));
   const news = NEWS.filter(
     (n) => n.isPublished !== false && [n.title, n.titleZh, n.content, n.contentZh].some(mentioned),
   ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

@@ -23,7 +23,11 @@ const loadPeopleNames = (): Array<[string, string]> => {
     if (!/\.ya?ml$/.test(f)) continue;
     const slug = f.replace(/\.ya?ml$/, "");
     const p = (loadYaml(readFileSync(join(dir, f), "utf8")) ?? {}) as Record<string, string>;
-    for (const n of [p.name, p.nameZh]) {
+    const variants = [p.name, p.nameZh];
+    // Also accept "Family Given" order for two-part Latin names (e.g. "Xie Qianqian").
+    const parts = (p.name || "").trim().split(/\s+/);
+    if (parts.length === 2 && /^[A-Za-z]/.test(p.name)) variants.push(`${parts[1]} ${parts[0]}`);
+    for (const n of variants) {
       if (n && n.trim().length >= 2 && !out.some(([x]) => x === n.trim())) out.push([n.trim(), slug]);
     }
   }
