@@ -56,6 +56,8 @@ export interface TeacherProfile {
 
 export interface Person {
   id: string;
+  /** URL slug, derived from the content file name */
+  slug: string;
   name: string;
   nameZh?: string;
   category: PersonCategory;

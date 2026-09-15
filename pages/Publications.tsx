@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { fetchPublications } from "../lib/dataStore";
+import { findPersonByName } from "../lib/content";
+import { Link } from "react-router-dom";
 import { Publication } from "../types";
 import {
   ArrowUpRight,
@@ -68,7 +70,21 @@ const PubCard: React.FC<{ pub: Publication }> = ({ pub }) => (
         </h3>
       )}
       <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">
-        {pub.authors.join(", ")}
+        {pub.authors.map((a, i) => {
+          const person = findPersonByName(a);
+          return (
+            <React.Fragment key={i}>
+              {i > 0 && ", "}
+              {person ? (
+                <Link to={`/people/${person.slug}`} className="text-slate-600 hover:text-brand-red underline decoration-dotted underline-offset-2">
+                  {a}
+                </Link>
+              ) : (
+                a
+              )}
+            </React.Fragment>
+          );
+        })}
       </p>
     </div>
 
