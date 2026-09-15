@@ -64,7 +64,7 @@ collections:
       - { label: "Author 作者", name: author, widget: string, required: false, i18n: duplicate }
       - { label: "Pinned 置顶", name: isPinned, widget: boolean, default: false, required: false, i18n: duplicate }
       - { label: "Published 发布", name: isPublished, widget: boolean, default: true, required: false, i18n: duplicate }
-      - { label: "Order 排序 (smaller first)", name: order, widget: number, value_type: int, default: 0, required: false, i18n: duplicate }
+      - { label: "Order 同日排序 (smaller first)", name: order, widget: number, value_type: int, default: 0, required: false, i18n: duplicate, hint: "News is sorted by date, newest first. This only orders items published on the same day." }
       - { label: "Summary 摘要", name: summary, widget: text, i18n: true }
       - { label: "Body 正文", name: body, widget: markdown, i18n: true }
 
