@@ -11,7 +11,9 @@ type Module = Record<string, any>;
 const fileId = (path: string) => path.split("/").pop()!.replace(/\.[^.]+$/, "");
 
 const loadDir = <T>(mods: Record<string, Module>): T[] =>
-  Object.entries(mods).map(([path, data]) => ({ id: fileId(path), ...data }) as T);
+  Object.entries(mods).map(
+    ([path, data]) => ({ id: fileId(path), ...data, slug: fileId(path) }) as T,
+  );
 
 const peopleFiles = import.meta.glob("/content/people/*.yml", { eager: true, import: "default" }) as Record<string, Module>;
 const publicationFiles = import.meta.glob("/content/publications/*.yml", { eager: true, import: "default" }) as Record<string, Module>;
@@ -23,6 +25,17 @@ const contactFiles = import.meta.glob("/content/contact.yml", { eager: true, imp
 export const PEOPLE: Person[] = loadDir<Person>(peopleFiles);
 export const PUBLICATIONS: Publication[] = loadDir<Publication>(publicationFiles);
 export const PROJECTS: Project[] = loadDir<Project>(projectFiles);
+/** Find a lab member by English or Chinese name (exact, case-insensitive). */
+export const findPersonByName = (name: string): Person | undefined => {
+  const n = name.trim().toLowerCase();
+  return PEOPLE.find(
+    (p) => p.name.trim().toLowerCase() === n || (p.nameZh && p.nameZh.trim() === name.trim()),
+  );
+};
+
+export const findPersonBySlug = (slug: string): Person | undefined =>
+  PEOPLE.find((p) => p.slug === slug);
+
 export const CONTACT: ContactInfo = (Object.values(contactFiles)[0] ?? {}) as ContactInfo;
 
 // News is stored per locale (content/news/en, content/news/zh) and merged

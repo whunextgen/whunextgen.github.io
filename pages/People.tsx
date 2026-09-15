@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { fetchPeople } from "../lib/dataStore";
 import { Person } from "../types";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -68,7 +69,9 @@ const TeacherCard: React.FC<{ person: Person }> = ({ person }) => {
           <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
             <div>
               <h3 className="text-2xl font-serif font-bold text-brand-dark mb-1 leading-tight">
-                {name}
+                <Link to={`/people/${person.slug}`} className="hover:text-brand-red transition-colors">
+                  {name}
+                </Link>
               </h3>
               <p className="text-brand-red font-medium text-sm uppercase tracking-wide mb-2">
                 {title}
@@ -220,17 +223,10 @@ const CompactPersonCard: React.FC<{ person: Person }> = ({ person }) => {
     ? person.teacherProfile?.positionZh || person.teacherProfile?.position
     : person.teacherProfile?.position;
 
-  const Wrapper = person.homepage ? "a" : "div";
-  const props = person.homepage
-    ? { href: person.homepage, target: "_blank", rel: "noreferrer" }
-    : {};
-
   return (
-    <Wrapper
-      {...props}
-      className={`block bg-white border border-slate-100 rounded-lg p-5 transition-all duration-300 group hover:shadow-lg hover:border-brand-red/20 animate-fade-in-up ${
-        person.homepage ? "cursor-pointer" : "cursor-default"
-      }`}
+    <Link
+      to={`/people/${person.slug}`}
+      className="block bg-white border border-slate-100 rounded-lg p-5 transition-all duration-300 group hover:shadow-lg hover:border-brand-red/20 animate-fade-in-up cursor-pointer"
     >
       <div className="flex items-start gap-4">
         <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-50 flex-shrink-0 border border-slate-100">
@@ -261,19 +257,17 @@ const CompactPersonCard: React.FC<{ person: Person }> = ({ person }) => {
                 </span>
               )}
             </div>
-            {person.homepage && (
-              <ArrowRight
-                size={16}
-                className="text-slate-300 group-hover:text-brand-red transition-colors opacity-0 group-hover:opacity-100"
-              />
-            )}
+            <ArrowRight
+              size={16}
+              className="text-slate-300 group-hover:text-brand-red transition-colors opacity-0 group-hover:opacity-100"
+            />
           </div>
           <p className="text-sm text-slate-500 leading-relaxed font-light line-clamp-2 mt-2">
             {bio}
           </p>
         </div>
       </div>
-    </Wrapper>
+    </Link>
   );
 };
 

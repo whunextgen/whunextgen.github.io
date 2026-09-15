@@ -13,6 +13,7 @@ import Tour from "./pages/Tour"; // This is now "About" visually
 import News from "./pages/News";
 import NewsDetail from "./pages/NewsDetail";
 import People from "./pages/People";
+import PersonDetail from "./pages/PersonDetail";
 import Publications from "./pages/Publications";
 import Contact from "./pages/Contact";
 
@@ -49,6 +50,7 @@ const App: React.FC = () => {
               <Route path="/news" element={<News />} />
               <Route path="/news/:id" element={<NewsDetail />} />
               <Route path="/people" element={<People />} />
+              <Route path="/people/:slug" element={<PersonDetail />} />
               <Route path="/publications" element={<Publications />} />
               <Route path="/contact" element={<Contact />} />
             </Route>
