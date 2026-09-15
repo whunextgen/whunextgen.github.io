@@ -214,7 +214,7 @@ const TeacherCard: React.FC<{ person: Person }> = ({ person }) => {
 };
 
 const CompactPersonCard: React.FC<{ person: Person }> = ({ person }) => {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const isZh = language === "zh";
   const name = isZh ? person.nameZh || person.name : person.name;
   const title = isZh ? person.titleZh || person.title : person.title;
@@ -256,6 +256,11 @@ const CompactPersonCard: React.FC<{ person: Person }> = ({ person }) => {
                   {person.grade}
                 </span>
               )}
+              {person.leftAt && (
+                <span className="inline-block mt-1 ml-1 text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
+                  {t(`people.categories.${person.category}`)} · {isZh ? "至" : "until"} {person.leftAt}
+                </span>
+              )}
             </div>
             <ArrowRight
               size={16}
@@ -272,7 +277,7 @@ const CompactPersonCard: React.FC<{ person: Person }> = ({ person }) => {
 };
 
 const People: React.FC = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -291,10 +296,16 @@ const People: React.FC = () => {
     load();
   }, []);
 
+  const isZh = language === "zh";
+  const active = people.filter((p) => !p.leftAt);
+  const alumni = people
+    .filter((p) => !!p.leftAt)
+    .sort((a, b) => (b.leftAt! > a.leftAt! ? 1 : b.leftAt! < a.leftAt! ? -1 : (a.order || 99) - (b.order || 99)));
+
   const getByCategory = (cat: string) =>
-    people.filter((p) => p.category === cat);
+    active.filter((p) => p.category === cat);
   const getByCategories = (cats: string[]) =>
-    people.filter((p) => cats.includes(p.category));
+    active.filter((p) => cats.includes(p.category));
 
   if (loading)
     return (
@@ -408,6 +419,11 @@ const People: React.FC = () => {
           count={internAndSecretary.length}
         >
           <CompactGrid items={internAndSecretary} />
+        </Section>
+
+        {/* Alumni */}
+        <Section title={isZh ? "校友" : "Alumni"} count={alumni.length}>
+          <CompactGrid items={alumni} />
         </Section>
 
         {people.length === 0 && !loading && (

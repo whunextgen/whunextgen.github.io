@@ -115,6 +115,11 @@ const PersonDetail: React.FC = () => {
                 <span className="text-[10px] uppercase tracking-widest px-2 py-1 border border-slate-200 rounded-sm text-slate-500">
                   {t(`people.categories.${person.category}`)}
                 </span>
+                {person.leftAt && (
+                  <span className="text-[10px] uppercase tracking-widest px-2 py-1 bg-slate-100 rounded-sm text-slate-500">
+                    {isZh ? `校友 · 至 ${person.leftAt}` : `Alumni · until ${person.leftAt}`}
+                  </span>
+                )}
                 {person.grade && (
                   <span className="text-[10px] px-2 py-1 bg-slate-100 rounded-sm text-slate-500">{person.grade}</span>
                 )}

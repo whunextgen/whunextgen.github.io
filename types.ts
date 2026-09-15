@@ -72,6 +72,8 @@ export interface Person {
   teacherProfile?: TeacherProfile;
   grade?: string;
   advisor?: string;
+  /** YYYY-MM when the member left the lab; set => listed under Alumni */
+  leftAt?: string;
 }
 
 export interface NewsVisitorLog {
