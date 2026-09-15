@@ -1,15 +1,24 @@
 id: batch_1768841452014_31
-title: 'MentraSuite: Post-Training Large Language Models for Mental Health Reasoning and Assessment'
+title: "MiraMind: Benchmarking Reliable Mental Health Reasoning beyond Answer Accuracy"
 authors:
   - Mengxi Xiao
   - Kailai Yang
-  - Qianqian Xie
-  - Jimin Huang
+  - Pengde Zhao
+  - Enze Zhang
+  - Ziyan Kuang
+  - Zhiwei Liu
+  - Weiguang Han
+  - Shu Liao
+  - Lianting Huang
+  - Guojun Xiong
+  - Victor Gutierrez Basulto
+  - Jinpeng Hu
   - Min Peng
+  - Qianqian Xie
   - Sophia Ananiadou
-venue: SIGIR
+venue: arXiv preprint (formerly titled "MentraSuite")
 year: 2025
-type: Conference
-link: https://doi.org/10.48550/arXiv.2512.09636
+type: Preprint
+link: https://arxiv.org/abs/2512.09636
 tags: []
-order: 0
+order: 1
