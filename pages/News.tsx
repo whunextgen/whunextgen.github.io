@@ -10,6 +10,26 @@ const News: React.FC = () => {
   const { t, language } = useLanguage();
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<string>("All");
+
+  const CATEGORY_LABELS: Record<string, { en: string; zh: string }> = {
+    All: { en: "All", zh: "全部" },
+    News: { en: "News", zh: "新闻" },
+    Paper: { en: "Papers", zh: "论文" },
+    Award: { en: "Awards", zh: "获奖" },
+    Talk: { en: "Talks", zh: "报告" },
+    Event: { en: "Events", zh: "活动" },
+  };
+  const categories = [
+    "All",
+    ...Object.keys(CATEGORY_LABELS)
+      .filter((c) => c !== "All" && newsItems.some((n) => n.category === c)),
+    ...Array.from(new Set(newsItems.map((n) => n.category))).filter((c) => !CATEGORY_LABELS[c]),
+  ];
+  const visibleItems =
+    activeCategory === "All" ? newsItems : newsItems.filter((n) => n.category === activeCategory);
+  const labelFor = (c: string) =>
+    CATEGORY_LABELS[c] ? (language === "zh" ? CATEGORY_LABELS[c].zh : CATEGORY_LABELS[c].en) : c;
 
   // Sync data on mount
   useEffect(() => {
@@ -46,11 +66,27 @@ const News: React.FC = () => {
           </p>
         </header>
 
+        <div className="flex flex-wrap gap-2 mb-12 -mt-8">
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={() => setActiveCategory(c)}
+              className={`px-3 py-1.5 text-[11px] uppercase tracking-widest font-bold rounded-sm border transition-colors ${
+                activeCategory === c
+                  ? "bg-brand-red border-brand-red text-white"
+                  : "border-slate-200 text-slate-500 hover:border-brand-red hover:text-brand-red"
+              }`}
+            >
+              {labelFor(c)}
+            </button>
+          ))}
+        </div>
+
         <div className="space-y-16 max-w-5xl">
-          {newsItems.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <p className="text-slate-400 italic">{t("common.noData")}</p>
           ) : (
-            newsItems.map((item, index) => {
+            visibleItems.map((item, index) => {
               // i18n Logic: Prefer Current Lang, Fallback to Other
               const isZh = language === "zh";
 

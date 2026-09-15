@@ -182,7 +182,8 @@ const Tour: React.FC = () => {
             fetchProjects(),
           ]);
         setContactInfo(contactData);
-        setNewsItems(newsData.slice(0, 4));
+        // Biweekly webinar announcements are kept off the home page.
+        setNewsItems(newsData.filter((n) => n.category !== "Event").slice(0, 4));
         setPeople(peopleData);
         setPublications(pubData);
         setProjects(projData);
