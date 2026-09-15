@@ -24,6 +24,11 @@ On January 18, 2026, the **ACL SIG-FinTech × TFAI Webinar Series** held its fir
 | Mar 15 | Alejandro Lopez-Lira (University of Florida) | Can LLMs Discover Novel Economic Theories? |
 | Mar 29 | Jiahuan Pei (Vrije Universiteit Amsterdam) | Trustworthy AI Agents for Report Generation and Evaluation |
 | Apr 12 | Yuechen Jiang (University of Manchester) | Reference-Free Counterfactual Financial Misinformation Detection |
+| Apr 26 | Zeping Yu (University of Manchester) | Mechanistic Interpretability of Large Language Models |
+| May 10 | Wei Zhao (University of Aberdeen) | Why AI Traders Lose Money: Deficits in Thinking Through Time |
+| May 24 | Calvin Yixiang Cheng (University of Oxford) | Mapping Conspiracy Narratives Across TruthSocial, Twitter, and Bluesky |
+| Jun 7 | Jian-Bo Yang (University of Manchester) | The Evidential Reasoning (ER) Theory and XAI-DSSs: ER Agents for Professional Services |
+| Jun 21 | Md Mohsinul Kabir (University of Manchester) | Cross-Cultural Reasoning in Large Language Models |
 
 ![Zining Zhu, February 1](./assets/news-20260201-sigfintech-zining-zhu.jpg) ![Alejandro Lopez-Lira, March 15](./assets/news-20260315-sigfintech-lopez-lira.jpg) ![Yuechen Jiang, April 12](./assets/news-20260412-sigfintech-yuechen-jiang.jpg)
 
