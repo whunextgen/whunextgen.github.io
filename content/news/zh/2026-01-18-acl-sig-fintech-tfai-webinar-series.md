@@ -24,6 +24,11 @@ summary: "由 The Fin AI 联合耶鲁大学、NaCTeM、MBZUAI 等多中心承办
 | 3 月 15 日 | Alejandro Lopez-Lira（佛罗里达大学） | Can LLMs Discover Novel Economic Theories? |
 | 3 月 29 日 | Jiahuan Pei（阿姆斯特丹自由大学） | Trustworthy AI Agents for Report Generation and Evaluation |
 | 4 月 12 日 | 姜玥辰（曼彻斯特大学） | Reference-Free Counterfactual Financial Misinformation Detection |
+| 4 月 26 日 | Zeping Yu（曼彻斯特大学） | Mechanistic Interpretability of Large Language Models |
+| 5 月 10 日 | Wei Zhao（阿伯丁大学） | Why AI Traders Lose Money: Deficits in Thinking Through Time |
+| 5 月 24 日 | Calvin Yixiang Cheng（牛津大学） | Mapping Conspiracy Narratives Across TruthSocial, Twitter, and Bluesky |
+| 6 月 7 日 | Jian-Bo Yang（曼彻斯特大学） | The Evidential Reasoning (ER) Theory and XAI-DSSs: ER Agents for Professional Services |
+| 6 月 21 日 | Md Mohsinul Kabir（曼彻斯特大学） | Cross-Cultural Reasoning in Large Language Models |
 
 ![2 月 1 日 Zining Zhu](./assets/news-20260201-sigfintech-zining-zhu.jpg) ![3 月 15 日 Alejandro Lopez-Lira](./assets/news-20260315-sigfintech-lopez-lira.jpg) ![4 月 12 日姜玥辰](./assets/news-20260412-sigfintech-yuechen-jiang.jpg)
 
