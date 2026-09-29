@@ -78,6 +78,7 @@
 
 ### 初始版本
 
+- 2026-07-10，科研财务中台模块首次进入 GitHub Pages 仓库（提交 `e04ed6d`）；该日期不代表仓库整体建立时间。
 - 建立 React + Cloudflare Pages + Worker + 飞书多维表格基础架构。
 - 完成 Finance/Leader 登录、申请、审批、预算和支出基础流程。
 
