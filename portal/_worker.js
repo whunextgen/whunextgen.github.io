@@ -13,6 +13,11 @@ var pages_worker_default = {
       const target = new URL(apiPath + url.search, apiOrigin);
       return fetch(new Request(target, request));
     }
+    if (url.pathname.startsWith("/portal/assets/")) {
+      const assetUrl = new URL(url);
+      assetUrl.pathname = url.pathname.slice("/portal".length);
+      return env.ASSETS.fetch(new Request(assetUrl, request));
+    }
     return env.ASSETS.fetch(request);
   }
 };
