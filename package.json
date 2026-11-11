@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "cms:local": "npx decap-server",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:people": "node scripts/check-people.mjs",
+    "check:publications": "node scripts/check-publications.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

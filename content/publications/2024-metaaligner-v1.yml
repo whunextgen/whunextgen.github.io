@@ -1,0 +1,17 @@
+id: 2024-metaaligner-v1
+tags: []
+order: 0
+title: 'MetaAligner: Conditional Weak-to-Strong Correction for Generalizable Multi-Objective Alignment of Language Models'
+authors:
+  - Kailai Yang
+  - Zhiwei Liu
+  - Qianqian Xie
+  - Tianlin Zhang
+  - Nirui Song
+  - Jimin Huang
+  - Ziyan Kuang
+  - Sophia Ananiadou
+year: 2024
+venue: arXiv preprint (v1)
+type: Preprint
+link: https://arxiv.org/abs/2403.17141v1

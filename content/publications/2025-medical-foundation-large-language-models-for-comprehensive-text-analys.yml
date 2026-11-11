@@ -3,6 +3,9 @@ title: Medical foundation large language models for comprehensive text analysis 
 authors:
   - Qianqian Xie
   - Qingyu Chen
+  - Aokun Chen
+  - Cheng Peng
+  - Yan Hu
   - Fongci Lin
   - Xueqing Peng
   - Jimin Huang
@@ -13,10 +16,12 @@ authors:
   - Huan He
   - Dennis Shung
   - Lucila Ohno-Machado
+  - Yonghui Wu
   - Hua Xu
-venue: Nature npj Digital Medicine
+  - Jiang Bian
+venue: npj Digital Medicine
 year: 2025
 type: Journal
-link: https://doi.org/10.1038/s41746-025-01645-8
+link: https://doi.org/10.1038/s41746-025-01533-1
 tags: []
 order: 0

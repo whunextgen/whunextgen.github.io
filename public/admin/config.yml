@@ -97,7 +97,9 @@ collections:
           - Professional Master
           - Academic Master
           - RA
+          - Morning Star RA
           - Intern
+          - Baize
           - Secretary
       - { label: "Order 排序 (smaller first)", name: order, widget: number, value_type: int, default: 100 }
       - { label: "Avatar 头像", name: avatar, widget: image, required: false }
@@ -105,7 +107,8 @@ collections:
       - { label: "职称/身份 (中文)", name: titleZh, widget: string, required: false }
       - { label: "Grade 年级", name: grade, widget: string, required: false, hint: "e.g. 2024" }
       - { label: "Advisor 导师", name: advisor, widget: string, required: false }
-      - { label: "Left the lab 离组时间 (YYYY-MM)", name: leftAt, widget: string, required: false, pattern: ["^\\d{4}-\\d{2}$", "Use YYYY-MM, e.g. 2026-08"], hint: "Leave empty for current members. Once set, the member is listed under Alumni." }
+      - { label: "Alumni 已离职", name: isAlumni, widget: boolean, required: false, default: false, hint: "Mark confirmed departures even when the departure date is unknown. 已确认离职但日期不详时勾选。" }
+      - { label: "Left the lab 离组时间 (YYYY-MM)", name: leftAt, widget: string, required: false, pattern: ["^\\d{4}-\\d{2}$", "Use YYYY-MM, e.g. 2026-08"], hint: "Optional known departure date. Dates also imply alumni status; when unknown, leave empty and enable Alumni above. 日期不详时留空，勾选上方已离职。" }
       - { label: "Email", name: email, widget: string, required: false }
       - { label: "Homepage 主页", name: homepage, widget: string, required: false }
       - { label: "Bio (EN)", name: bio, widget: text, required: false, default: "" }
@@ -147,6 +150,8 @@ collections:
       - { label: "ID", name: id, widget: hidden, required: false }
       - { label: "Title", name: title, widget: string }
       - { label: "Authors", name: authors, widget: list, field: { label: Author, name: author, widget: string }, hint: "One author per item, in order." }
+      - { label: "Published on website 网站展示", name: isPublished, widget: boolean, required: false, default: true }
+      - { label: "Verification note 核查说明", name: verificationNote, widget: text, required: false }
       - { label: "Venue 会议/期刊", name: venue, widget: string }
       - { label: "Year 年份", name: year, widget: number, value_type: int }
       - { label: "Type 类型", name: type, widget: select, options: [Conference, Journal, Preprint, Other], default: Conference }

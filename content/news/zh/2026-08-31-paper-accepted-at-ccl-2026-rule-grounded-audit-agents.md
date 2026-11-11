@@ -1,15 +1,68 @@
 ---
-title: "喜报 | 姜茂伟同学论文被 CCL 2026 录用"
-date: 2026-08-31
-category: Paper
+title: 学术交流｜实验室师生参与 CCL 2026 组织工作与成果展示
+date: '2026-10-20'
+category: Event
 isPinned: false
 isPublished: true
-order: 9978
-summary: "热烈祝贺姜茂伟同学的论文《Seeing Is Not Knowing: A Benchmark for Rule-Grounded Audit Agents》被第二十五届中国计算语言学大会（CCL 2026）录用。"
+order: 0
+author: CLAIN
+coverImage: /news/2026/ccl-peng-min-opening.jpg
+summary: 彭敏教授担任 CCL 2026 本地组织主席并主持开幕式，谢倩倩教授担任海报主席、主持 AI4Humanity 论坛和大会闭幕式。实验室师生参与会务支持与学术交流，审计智能体评测论文获大会录用。
 ---
 
-热烈祝贺**姜茂伟**同学的论文 **《Seeing Is Not Knowing: A Benchmark for Rule-Grounded Audit Agents》** 被 **第二十五届中国计算语言学大会（The 25th China National Conference on Computational Linguistics，CCL 2026）** 录用！
+*彭敏教授主持 CCL 2026 大会开幕式。图片来源：中国中文信息学会计算语言学专业委员会。*
 
-论文提出了一个面向审计智能体的评测基准，考察智能体能否基于明确规则而非表面观察作出判断。
+2026 年 10 月 15 日至 18 日，第二十五届中国计算语言学大会（CCL 2026）在湖北宜昌举行。大会由中国中文信息学会主办，围绕计算语言学、自然语言处理及大模型技术的发展设置了特邀报告、专题论坛、论文交流、评测任务和系统展示等环节。武汉大学认知语言与信息实验室（CLAIN）师生参与大会组织、志愿服务与学术交流，并有合作研究论文获大会录用。
 
-感谢各位参与同学的付出以及导师和合作者的指导与支持！
+对实验室师生而言，本次大会既是展示研究成果、了解领域进展的机会，也是参与学术会议组织、服务学术共同体的一次实践。围绕大会组织和研究交流，老师与同学们以不同方式参与其中。
+
+## 彭敏教授担任本地组织主席，主持大会开幕式
+
+**彭敏教授担任 CCL 2026 本地组织主席，并主持大会开幕式。** 本地组织工作连接会议筹备与现场运行，需要围绕会议安排和参会交流做好协调。彭敏教授参与本届大会本地组织工作的统筹，为各项学术活动的开展提供支持。
+
+10 月 17 日，大会主会正式开幕。彭敏教授主持开幕式，推动开幕议程有序进行。大会随后通过特邀报告、口头报告和海报交流等形式，呈现计算语言学与人工智能领域的研究进展。
+
+## 谢倩倩教授主持专题论坛与闭幕式
+
+**谢倩倩教授担任大会海报主席，并主持 AI4Humanity 专题论坛。** 论坛关注人工智能与人的需求、社会应用之间的联系，议题覆盖大模型价值观对齐、低资源语言处理、智能体可信安全、智能决策与医疗服务等方向。
+
+这些议题与实验室在语言理解、可信评测、医疗人工智能和金融智能等方向的研究形成呼应。围绕模型能力如何转化为真实场景中的可靠支持，论坛从技术方法与应用需求等角度展开讨论，为相关研究提供了交流空间。
+
+**在大会闭幕环节，谢倩倩教授主持闭幕式，并宣布本届亮点论文、亮点海报和亮点展示系统评选结果。** 从专题讨论到成果交流，实验室教师参与了本届大会多个环节的学术组织工作。
+
+<figure>
+  <img src="/news/2026/ccl-qianqian-xie-closing.png" alt="谢倩倩教授主持 CCL 2026 闭幕式" loading="lazy" />
+  <figcaption>谢倩倩教授主持 CCL 2026 闭幕式</figcaption>
+</figure>
+
+## 师生与志愿者共同参与会议服务
+
+大型学术会议的开展离不开组织教师与志愿者的配合。本届大会期间，实验室师生参与会务支持与交流服务，在学术研究之外体验会议组织和协作的过程。对同学们而言，志愿服务也提供了近距离了解学术会议运行、接触领域研究者的机会。
+
+下面这张合影记录了 **CCL 2026 全体志愿者与组织教师**。老师与同学们共同参与会议服务，为参会学者交流和各项活动开展提供支持，也留下了本次大会的一份集体记忆。
+
+<figure>
+  <img src="/news/2026/ccl-volunteers-and-organizing-teachers.png" alt="CCL 2026 全体志愿者与组织教师合影" loading="lazy" />
+  <figcaption>CCL 2026 全体志愿者与组织教师合影</figcaption>
+</figure>
+
+## 审计智能体评测研究获大会录用
+
+实验室合作论文 **《Seeing Is Not Knowing: A Benchmark for Rule-Grounded Audit Agents》** 获 CCL 2026 录用，列入英文论文 Poster 名单。该论文由**姜茂伟**为第一作者，聚焦基于规则的审计智能体评测。
+
+在审计场景中，模型需要将观察到的信息与明确规则联系起来，判断哪些证据与规则相关、规则是否适用于当前情境，以及判断能否获得相应依据。这类问题对智能体的信息理解、规则运用与推理过程提出了要求。
+
+该研究围绕上述问题构建评测基准，将规则依据纳入审计智能体的能力考察。其研究方向与实验室对可靠推理、可核查判断和面向实际任务的模型评测的关注相衔接，为进一步分析智能体在规则约束场景中的能力提供了切入点。
+
+**论文作者（按原文顺序）：** Maowei Jiang、Jingchi Yang、Guiqi Hua、Ziyan Kuang、Jie Gong、Ziyang Xu、Zhiwei Liu、Jiajia Huang、Chao Xu、Min Peng、Qianqian Xie。
+
+<figure>
+  <img src="/news/2026/ccl-group.jpg" alt="CCL 2026 全体参会人员合影" loading="lazy" />
+  <figcaption>CCL 2026 全体参会人员合影 · 图片来源：中国中文信息学会计算语言学专业委员会</figcaption>
+</figure>
+
+## 相关链接
+
+- [大会官方报道](https://cips-cl.org/?p=89297)
+- [AI4Humanity 论坛议程](https://cips-cl.org/static/CCL2026/cclProgram/forum/index.html)
+- [官方论文录用名单](https://cips-cl.org/static/CCL2026/cclProgram/accepted/index.html)

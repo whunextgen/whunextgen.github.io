@@ -1,5 +1,5 @@
 id: batch_1768841452014_28
-title: 'LAiW: A Chinese legal large language models benchmark'
+title: 'LAiW: A Chinese Legal Large Language Models Benchmark'
 authors:
   - Yongfu Dai
   - Duanyu Feng
@@ -13,6 +13,6 @@ authors:
 venue: COLING
 year: 2025
 type: Conference
-link: https://aclanthology.org/2025.coling-main.716.pdf
+link: https://aclanthology.org/2025.coling-main.716/
 tags: []
 order: 0

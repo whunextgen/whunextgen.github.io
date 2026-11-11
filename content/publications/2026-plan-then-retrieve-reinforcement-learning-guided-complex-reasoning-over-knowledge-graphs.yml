@@ -1,4 +1,4 @@
-title: "Plan Then Retrieve: Reinforcement Learning-Guided Complex Reasoning over Knowledge Graphs"
+title: 'Plan Then Retrieve: Reinforcement Learning-Guided Complex Reasoning over Knowledge Graphs'
 authors:
   - Yanlin Song
   - Ben Liu
@@ -8,9 +8,10 @@ authors:
   - Min Peng
   - Sophia Ananiadou
   - Jeff Z. Pan
-venue: The Web Conference (WWW)
+venue: WWW
 year: 2026
 type: Conference
 link: https://arxiv.org/abs/2510.20691
 tags: []
 order: 0
+id: plan-then-retrieve-2026

@@ -1,18 +1,18 @@
 id: batch_1768841452014_18
-title: 'LitFM: A Retrieval Augmented Structure-aware Foundation Model for Citation Graphs'
+title: 'LitFM: A Retrieval Augmented Structure-aware Foundation Model For Citation Graphs'
 authors:
   - Jiasheng Zhang
-  - Jialin Chen
   - Ali Maatouk
+  - Jialin Chen
   - Ngoc Bui
   - Qianqian Xie
   - Leandros Tassiulas
-  - Jie Shao
   - Hua Xu
+  - Jie Shao
   - Rex Ying
-venue: SIGKDD
+venue: KDD
 year: 2025
 type: Conference
-link: https://dl.acm.org/doi/10.1145/3711896.3736570
+link: https://doi.org/10.1145/3711896.3737028
 tags: []
 order: 0

@@ -1,0 +1,53 @@
+id: 2024-open-finllms
+tags: []
+order: 0
+title: 'Open-FinLLMs: Open Multimodal Large Language Models for Financial Applications'
+authors:
+  - Jimin Huang
+  - Mengxi Xiao
+  - Dong Li
+  - Zihao Jiang
+  - Yuzhe Yang
+  - Yifei Zhang
+  - Lingfei Qian
+  - Yan Wang
+  - Xueqing Peng
+  - Yang Ren
+  - Ruoyu Xiang
+  - Zhengyu Chen
+  - Xiao Zhang
+  - Yueru He
+  - Weiguang Han
+  - Shunian Chen
+  - Lihang Shen
+  - Daniel Kim
+  - Yangyang Yu
+  - Yupeng Cao
+  - Zhiyang Deng
+  - Haohang Li
+  - Duanyu Feng
+  - Yongfu Dai
+  - VijayaSai Somasundaram
+  - Peng Lu
+  - Guojun Xiong
+  - Zhiwei Liu
+  - Zheheng Luo
+  - Zhiyuan Yao
+  - Ruey-Ling Weng
+  - Meikang Qiu
+  - Kaleb E Smith
+  - Honghai Yu
+  - Yanzhao Lai
+  - Min Peng
+  - Jian-Yun Nie
+  - Jordan W. Suchow
+  - Xiao-Yang Liu
+  - Benyou Wang
+  - Alejandro Lopez-Lira
+  - Qianqian Xie
+  - Sophia Ananiadou
+  - Junichi Tsujii
+year: 2024
+venue: arXiv preprint
+type: Preprint
+link: https://arxiv.org/abs/2408.11878

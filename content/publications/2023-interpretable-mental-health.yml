@@ -1,0 +1,15 @@
+id: 2023-interpretable-mental-health
+tags: []
+order: 0
+title: Towards Interpretable Mental Health Analysis with Large Language Models
+authors:
+  - Kailai Yang
+  - Shaoxiong Ji
+  - Tianlin Zhang
+  - Qianqian Xie
+  - Ziyan Kuang
+  - Sophia Ananiadou
+year: 2023
+venue: EMNLP
+type: Conference
+link: https://aclanthology.org/2023.emnlp-main.370/

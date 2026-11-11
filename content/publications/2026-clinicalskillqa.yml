@@ -1,0 +1,22 @@
+id: 2026-clinicalskillqa
+tags: []
+order: 0
+title: Overview of the ClinicalSkillQA 2026 Shared Task on Continuous Perception and Procedural Reasoning in Clinical Skill Assessment
+authors:
+  - Xiyang Huang
+  - Renxiong Wei
+  - Yihuai Xu
+  - Zhiyuan Chen
+  - Keying Wu
+  - Jiayi Xiang
+  - Buzhou Tang
+  - Yanqing Ye
+  - Jinyu Chen
+  - Cheng Zeng
+  - Min Peng
+  - Qianqian Xie
+  - Sophia Ananiadou
+year: 2026
+venue: BioNLP
+type: Conference
+link: https://aclanthology.org/2026.bionlp-1.89/

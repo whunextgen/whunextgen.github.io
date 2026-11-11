@@ -1,0 +1,446 @@
+{
+  "asOf": "2026-11-11",
+  "active": [
+    {
+      "name": "彭敏",
+      "category": "Teachers"
+    },
+    {
+      "name": "谢倩倩",
+      "category": "Teachers"
+    },
+    {
+      "name": "Sophia Ananiadou",
+      "category": "Teachers"
+    },
+    {
+      "name": "Xindi Wang",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "林明权",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "赖彦钊",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "卢鹏",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "黄佳佳",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "胡志伟",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "刘志威",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "熊国钧",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "杨开来",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "姜玥辰",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "谢卓翰",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "韩玮光",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "冯端宇",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "王禹嫣",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "张欣",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "Yixiang Zheng",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "张帆",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "陈焱凯",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "熊瑶",
+      "category": "Visiting Scholars"
+    },
+    {
+      "name": "宋衍霖",
+      "category": "PhD",
+      "grade": "2024"
+    },
+    {
+      "name": "肖梦溪",
+      "category": "PhD",
+      "grade": "2025"
+    },
+    {
+      "name": "许艺怀",
+      "category": "PhD",
+      "grade": "2025"
+    },
+    {
+      "name": "黄希扬",
+      "category": "PhD",
+      "grade": "2025"
+    },
+    {
+      "name": "龚捷",
+      "category": "PhD",
+      "grade": "2025"
+    },
+    {
+      "name": "张睿宇",
+      "category": "PhD",
+      "grade": "2026"
+    },
+    {
+      "name": "曲保杰",
+      "category": "PhD",
+      "grade": "2026"
+    },
+    {
+      "name": "况紫嫣",
+      "category": "PhD",
+      "grade": "2026"
+    },
+    {
+      "name": "陈鹳嫒",
+      "category": "PhD",
+      "grade": "2027"
+    },
+    {
+      "name": "魏宏宇",
+      "category": "PhD",
+      "grade": "2027"
+    },
+    {
+      "name": "韩祖臣",
+      "category": "Academic Master",
+      "grade": "2025"
+    },
+    {
+      "name": "张恩泽",
+      "category": "Academic Master",
+      "grade": "2025"
+    },
+    {
+      "name": "刘骥飞",
+      "category": "Academic Master",
+      "grade": "2025"
+    },
+    {
+      "name": "柯宇瀚",
+      "category": "Academic Master",
+      "grade": "2025"
+    },
+    {
+      "name": "吴可莹",
+      "category": "Academic Master",
+      "grade": "2026"
+    },
+    {
+      "name": "李震韬",
+      "category": "Academic Master",
+      "grade": "2026"
+    },
+    {
+      "name": "张雪琳",
+      "category": "Academic Master",
+      "grade": "2026"
+    },
+    {
+      "name": "代佳诚",
+      "category": "Academic Master",
+      "grade": "2026"
+    },
+    {
+      "name": "陈胤含",
+      "category": "Academic Master",
+      "grade": "2026"
+    },
+    {
+      "name": "杨俊",
+      "category": "Professional Master",
+      "grade": "2025"
+    },
+    {
+      "name": "陈秀栋",
+      "category": "Professional Master",
+      "grade": "2026"
+    },
+    {
+      "name": "唐逸航",
+      "category": "Professional Master",
+      "grade": "2026"
+    },
+    {
+      "name": "史彦承",
+      "category": "Professional Master",
+      "grade": "2027"
+    },
+    {
+      "name": "孔令尧",
+      "category": "Professional Master",
+      "grade": "2027"
+    },
+    {
+      "name": "翁振昊",
+      "category": "Professional Master",
+      "grade": "2027"
+    },
+    {
+      "name": "刘志翔",
+      "category": "RA"
+    },
+    {
+      "name": "张兵权",
+      "category": "RA"
+    },
+    {
+      "name": "强琦琦",
+      "category": "RA"
+    },
+    {
+      "name": "李思佳",
+      "category": "RA"
+    },
+    {
+      "name": "王佳莹",
+      "category": "RA"
+    },
+    {
+      "name": "郝天宇",
+      "category": "RA"
+    },
+    {
+      "name": "郭泽邦",
+      "category": "RA"
+    },
+    {
+      "name": "黄泓杰",
+      "category": "RA"
+    },
+    {
+      "name": "冀凤献",
+      "category": "Morning Star RA"
+    },
+    {
+      "name": "吴耀祖",
+      "category": "Morning Star RA"
+    },
+    {
+      "name": "施婷婷",
+      "category": "Morning Star RA"
+    },
+    {
+      "name": "荣佳琪",
+      "category": "Morning Star RA"
+    },
+    {
+      "name": "郭润腾",
+      "category": "Morning Star RA"
+    },
+    {
+      "name": "黄伟杰",
+      "category": "Morning Star RA"
+    },
+    {
+      "name": "武娟帆",
+      "category": "Morning Star RA"
+    },
+    {
+      "name": "林诚程",
+      "category": "Morning Star RA"
+    },
+    {
+      "name": "徐子洋",
+      "category": "Morning Star RA"
+    },
+    {
+      "name": "彭思佳",
+      "category": "Morning Star RA"
+    },
+    {
+      "name": "舒鸣",
+      "category": "Morning Star RA"
+    },
+    {
+      "name": "仇仪宁",
+      "category": "Intern"
+    },
+    {
+      "name": "任星月",
+      "category": "Intern"
+    },
+    {
+      "name": "何奕诚",
+      "category": "Intern"
+    },
+    {
+      "name": "刘丰源",
+      "category": "Intern"
+    },
+    {
+      "name": "华山",
+      "category": "Intern"
+    },
+    {
+      "name": "周刘宜生",
+      "category": "Intern"
+    },
+    {
+      "name": "宋佳融",
+      "category": "Intern"
+    },
+    {
+      "name": "张宵瑜",
+      "category": "Intern"
+    },
+    {
+      "name": "张若宸",
+      "category": "Intern"
+    },
+    {
+      "name": "彭颖",
+      "category": "Intern"
+    },
+    {
+      "name": "徐绮依",
+      "category": "Intern"
+    },
+    {
+      "name": "惠思宸",
+      "category": "Intern"
+    },
+    {
+      "name": "林家伟",
+      "category": "Intern"
+    },
+    {
+      "name": "林晨颖",
+      "category": "Intern"
+    },
+    {
+      "name": "焦禄圆",
+      "category": "Intern"
+    },
+    {
+      "name": "王瑞钰",
+      "category": "Intern"
+    },
+    {
+      "name": "肖天博",
+      "category": "Intern"
+    },
+    {
+      "name": "赵晨旭",
+      "category": "Intern"
+    },
+    {
+      "name": "刘益嘉",
+      "category": "Intern"
+    },
+    {
+      "name": "曹润",
+      "category": "Intern"
+    },
+    {
+      "name": "朱耀宇",
+      "category": "Intern"
+    },
+    {
+      "name": "崔璟琳",
+      "category": "Baize"
+    },
+    {
+      "name": "董又中",
+      "category": "Baize"
+    },
+    {
+      "name": "王菲",
+      "category": "Secretary"
+    }
+  ],
+  "alumni": [
+    {
+      "name": "何菀滢",
+      "category": "PhD",
+      "leftAt": "2026-08"
+    },
+    {
+      "name": "罗俊",
+      "category": "PhD",
+      "leftAt": "2026-08"
+    },
+    {
+      "name": "王植铜",
+      "category": "RA",
+      "leftAt": "2026-08"
+    },
+    {
+      "name": "周亚婷",
+      "category": "Intern",
+      "leftAt": "2026-08"
+    },
+    {
+      "name": "刘静怡",
+      "category": "Intern",
+      "leftAt": "2026-08"
+    },
+    {
+      "name": "许仔阳",
+      "category": "Intern",
+      "leftAt": "2026-08"
+    },
+    {
+      "name": "徐晨",
+      "category": "Intern",
+      "leftAt": "2026-08"
+    },
+    {
+      "name": "王泽霖",
+      "category": "Intern",
+      "leftAt": "2026-08"
+    },
+    {
+      "name": "廖姝",
+      "category": "Secretary",
+      "leftAt": "2026-08"
+    },
+    {
+      "name": "姜茂伟",
+      "category": "RA",
+      "leftAt": "2026-10"
+    },
+    {
+      "name": "杨镜池",
+      "category": "Intern"
+    }
+  ]
+}

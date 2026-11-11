@@ -1,18 +1,23 @@
 id: batch_1768841452014_11
 title: Extracting language information from clinical notes using large language models
 authors:
-  - Na Hong
-  - Andrew Wen
-  - Richard A Moffitt
   - Lingfei Qian
-  - Fongci Lin
-  - Xueqing Peng
+  - Na Hong
+  - Yujia Zhou
   - Qianqian Xie
-  - Jimin Huang
-  - Lucila Ohno-Machado
-  - Hua Xu
-  - Laura A Dossett
+  - Ruey-Ling Weng
+  - Pitchaya Chairuengjitjaras
+  - Xinsong Du
+  - John Lian
+  - Gad A. Marshall
+  - Suzanne V. Blackley
+  - John Novoa-Laurentiev
+  - Yakeel T. Quiroz
+  - Tae Youn Kim
+  - Nicole Adams
+  - Michelle L. Dossett
   - Li Zhou
+  - Hua Xu
 venue: International Journal of Medical Informatics
 year: 2026
 type: Journal

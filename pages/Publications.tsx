@@ -69,7 +69,7 @@ const PubCard: React.FC<{ pub: Publication }> = ({ pub }) => (
           {pub.title}
         </h3>
       )}
-      <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">
+      <p className="text-xs text-slate-400 leading-relaxed">
         {pub.authors.map((a, i) => {
           const person = findPersonByName(a);
           return (

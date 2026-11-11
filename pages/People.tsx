@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { fetchPeople } from "../lib/dataStore";
 import { Person } from "../types";
+import { hasLeftLab } from "../lib/personnel";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
   Mail,
@@ -13,7 +14,7 @@ import {
   Star,
   ArrowRight,
 } from "lucide-react";
-import SmartImage from "../components/SmartImage";
+import PersonAvatar from "../components/PersonAvatar";
 
 const TeacherCard: React.FC<{ person: Person }> = ({ person }) => {
   const { t, language } = useLanguage();
@@ -56,7 +57,7 @@ const TeacherCard: React.FC<{ person: Person }> = ({ person }) => {
       <div className="flex flex-col md:flex-row items-start">
         <div className="w-full md:w-64 md:flex-shrink-0 bg-slate-50 relative group border-b md:border-b-0 md:border-r border-slate-100">
           <div className="aspect-[3/4] w-full">
-            <SmartImage
+            <PersonAvatar
               src={person.avatar}
               alt={name}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -230,7 +231,7 @@ const CompactPersonCard: React.FC<{ person: Person }> = ({ person }) => {
     >
       <div className="flex items-start gap-4">
         <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-50 flex-shrink-0 border border-slate-100">
-          <SmartImage
+          <PersonAvatar
             src={person.avatar}
             alt={name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
@@ -253,12 +254,13 @@ const CompactPersonCard: React.FC<{ person: Person }> = ({ person }) => {
               )}
               {person.grade && (
                 <span className="inline-block mt-1 text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
-                  {person.grade}
+                  {t("people.profile.entryYear")}{isZh ? "：" : ": "}{person.grade}
                 </span>
               )}
-              {person.leftAt && (
+              {hasLeftLab(person) && (
                 <span className="inline-block mt-1 ml-1 text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
-                  {t(`people.categories.${person.category}`)} · {isZh ? "至" : "until"} {person.leftAt}
+                  {t(`people.categories.${person.category}`)} · {t("people.profile.alumni")}
+                  {person.leftAt && ` · ${t("people.profile.until")} ${person.leftAt}`}
                 </span>
               )}
             </div>
@@ -297,15 +299,13 @@ const People: React.FC = () => {
   }, []);
 
   const isZh = language === "zh";
-  const active = people.filter((p) => !p.leftAt);
+  const active = people.filter((p) => !hasLeftLab(p));
   const alumni = people
-    .filter((p) => !!p.leftAt)
-    .sort((a, b) => (b.leftAt! > a.leftAt! ? 1 : b.leftAt! < a.leftAt! ? -1 : (a.order || 99) - (b.order || 99)));
+    .filter(hasLeftLab)
+    .sort((a, b) => (b.leftAt || "").localeCompare(a.leftAt || "") || (a.order || 99) - (b.order || 99));
 
   const getByCategory = (cat: string) =>
     active.filter((p) => p.category === cat);
-  const getByCategories = (cats: string[]) =>
-    active.filter((p) => cats.includes(p.category));
 
   if (loading)
     return (
@@ -321,7 +321,10 @@ const People: React.FC = () => {
   const masterProf = getByCategory("Professional Master");
   const masterGeneral = getByCategory("Master");
   const ra = getByCategory("RA");
-  const internAndSecretary = getByCategories(["Intern", "Secretary"]);
+  const morningStarRa = getByCategory("Morning Star RA");
+  const interns = getByCategory("Intern");
+  const baize = getByCategory("Baize");
+  const staff = getByCategory("Secretary");
 
   const Section: React.FC<{
     title: string;
@@ -413,12 +416,24 @@ const People: React.FC = () => {
           <CompactGrid items={ra} />
         </Section>
 
-        {/* Administrative & Interns */}
+        {/* Morning Star Research Assistants */}
         <Section
-          title={t("people.categories.InternAndSecretary")}
-          count={internAndSecretary.length}
+          title={t("people.categories.Morning Star RA")}
+          count={morningStarRa.length}
         >
-          <CompactGrid items={internAndSecretary} />
+          <CompactGrid items={morningStarRa} />
+        </Section>
+
+        <Section title={t("people.categories.Intern")} count={interns.length}>
+          <CompactGrid items={interns} />
+        </Section>
+
+        <Section title={t("people.categories.Baize")} count={baize.length}>
+          <CompactGrid items={baize} />
+        </Section>
+
+        <Section title={t("people.categories.Secretary")} count={staff.length}>
+          <CompactGrid items={staff} />
         </Section>
 
         {/* Alumni */}

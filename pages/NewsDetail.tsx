@@ -90,13 +90,14 @@ const NewsDetail: React.FC = () => {
     ? article.contentZh || article.content
     : article.content || article.contentZh;
   const displayAuthor = article.author || "CLAIN Lab Team";
+  const coverAppearsInBody = Boolean(article.coverImage && displayContent?.includes(article.coverImage));
 
   return (
     <div className="bg-white min-h-screen pt-24 pb-20">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <nav className="flex items-center text-sm text-slate-500 mb-8">
           <Link to="/" className="hover:text-brand-red">
-            Home
+            {isZh ? "首页" : "Home"}
           </Link>
           <span className="mx-2">/</span>
           <Link to="/news" className="hover:text-brand-red">
@@ -152,7 +153,7 @@ const NewsDetail: React.FC = () => {
           </div>
         </header>
 
-        {article.coverImage && (
+        {article.coverImage && !coverAppearsInBody && (
           <div className="mb-12 rounded-lg overflow-hidden shadow-sm">
             <img
               src={
@@ -161,13 +162,14 @@ const NewsDetail: React.FC = () => {
                 )?.[1] || article.coverImage
               }
               alt={displayTitle}
-              className="w-full h-auto object-cover max-h-[500px]"
+              className="w-full h-auto cursor-zoom-in"
+              onClick={(event) => setLightboxSrc(event.currentTarget.src)}
             />
           </div>
         )}
 
         <div
-          className="prose prose-lg prose-slate max-w-none 
+          className="news-article prose prose-lg prose-slate max-w-none
             prose-headings:font-serif prose-headings:font-medium prose-headings:text-brand-dark
             prose-p:font-light prose-p:leading-relaxed prose-p:text-slate-600
             prose-img:rounded-lg prose-img:shadow-md prose-img:w-full prose-img:cursor-zoom-in prose-img:my-8
@@ -202,13 +204,16 @@ const NewsDetail: React.FC = () => {
         <div
           className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
           onClick={() => setLightboxSrc(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={isZh ? "图片预览" : "Image preview"}
         >
-          <button className="absolute top-4 right-4 text-white/70 hover:text-white">
+          <button aria-label={isZh ? "关闭图片" : "Close image"} className="absolute top-4 right-4 text-white/70 hover:text-white">
             <X size={32} />
           </button>
           <img
             src={lightboxSrc}
-            alt="Fullscreen"
+            alt={isZh ? "图片预览" : "Image preview"}
             className="max-w-full max-h-[90vh] object-contain shadow-2xl rounded-sm"
             onClick={(e) => e.stopPropagation()}
           />

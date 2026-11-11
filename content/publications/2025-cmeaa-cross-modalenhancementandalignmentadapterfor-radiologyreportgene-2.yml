@@ -1,5 +1,5 @@
 id: batch_1768841452014_6
-title: CmEAA:Cross-modalEnhancementandAlignmentAdapterfor RadiologyReportGeneration
+title: 'CmEAA: Cross-modal Enhancement and Alignment Adapter for Radiology Report Generation'
 authors:
   - Xiyang Huang
   - Yingjie Han
@@ -7,7 +7,7 @@ authors:
   - Runzhi Li
   - Pengcheng Wu
   - Kunli Zhang
-venue: Coling
+venue: COLING
 year: 2025
 type: Conference
 link: https://aclanthology.org/2025.coling-main.571/

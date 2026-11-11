@@ -1,5 +1,5 @@
 id: batch_1768841452014_21
-title: 'FMDLlama: Financial misinformation detection based on large language models'
+title: 'FMDLlama: Financial Misinformation Detection Based on Large Language Models'
 authors:
   - Zhiwei Liu
   - Xin Zhang
@@ -7,9 +7,9 @@ authors:
   - Qianqian Xie
   - Jimin Huang
   - Sophia Ananiadou
-venue: WWW
+venue: WWW Companion
 year: 2025
 type: Conference
-link: https://dl.acm.org/doi/10.1145/3589334.3645678
+link: https://doi.org/10.1145/3701716.3715599
 tags: []
 order: 0

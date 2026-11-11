@@ -1,5 +1,5 @@
 id: batch_1768841452014_19
-title: 'INVESTORBENCH: A Benchmark for Financial Decision-Making Tasks with LLM-based Agents'
+title: 'INVESTORBENCH: A Benchmark for Financial Decision-Making Tasks with LLM-based Agent'
 authors:
   - Haohang Li
   - Yupeng Cao
@@ -9,7 +9,7 @@ authors:
   - Yueru He
   - Yuechen Jiang
   - Zining Zhu
-  - K. P. Subbalakshmi
+  - K.P. Subbalakshmi
   - Jimin Huang
   - Lingfei Qian
   - Xueqing Peng
@@ -18,6 +18,6 @@ authors:
 venue: ACL
 year: 2025
 type: Conference
-link: https://aclanthology.org/2025.acl-long.123
+link: https://aclanthology.org/2025.acl-long.126/
 tags: []
 order: 0

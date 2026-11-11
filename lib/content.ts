@@ -23,7 +23,9 @@ const newsZhFiles = import.meta.glob("/content/news/zh/*.md", { eager: true, imp
 const contactFiles = import.meta.glob("/content/contact.yml", { eager: true, import: "default" }) as Record<string, Module>;
 
 export const PEOPLE: Person[] = loadDir<Person>(peopleFiles);
-export const PUBLICATIONS: Publication[] = loadDir<Publication>(publicationFiles);
+export const PUBLICATIONS: Publication[] = loadDir<Publication>(publicationFiles).filter(
+  (publication) => publication.isPublished !== false,
+);
 export const PROJECTS: Project[] = loadDir<Project>(projectFiles);
 /** Find a lab member by English or Chinese name (exact, case-insensitive). */
 export const findPersonByName = (name: string): Person | undefined => {
@@ -71,6 +73,8 @@ export const NEWS: NewsItem[] = Object.entries(newsEnFiles).map(([path, en]) => 
 /** Format an ISO date (YYYY-MM-DD) for display in the current language. */
 export const formatDate = (iso: string | undefined, lang: "en" | "zh"): string => {
   if (!iso) return "";
+  // Some source announcements give a year only; do not imply a day or month.
+  if (/^\d{4}$/.test(iso)) return lang === "zh" ? `${iso}年` : iso;
   const d = new Date(`${iso}T00:00:00`);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", {

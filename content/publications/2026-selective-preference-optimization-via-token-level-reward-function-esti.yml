@@ -1,5 +1,5 @@
 id: batch_1768841452014_13
-title: Selective preference optimization via token-level reward function estimation
+title: Selective Preference Optimization via Token-Level Reward Function Estimation
 authors:
   - Kailai Yang
   - Zhiwei Liu
@@ -8,8 +8,8 @@ authors:
   - Erxue Min
   - Sophia Ananiadou
 venue: EMNLP
-year: 2026
+year: 2025
 type: Conference
-link: https://doi.org/10.18653/v1/2025.emnlp-main.359
+link: https://aclanthology.org/2025.emnlp-main.359/
 tags: []
 order: 0

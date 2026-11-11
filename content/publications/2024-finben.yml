@@ -1,0 +1,43 @@
+id: 2024-finben
+tags: []
+order: 0
+title: 'FinBen: A Holistic Financial Benchmark for Large Language Models'
+authors:
+  - Qianqian Xie
+  - Weiguang Han
+  - Zhengyu Chen
+  - Ruoyu Xiang
+  - Xiao Zhang
+  - Yueru He
+  - Mengxi Xiao
+  - Dong Li
+  - Yongfu Dai
+  - Duanyu Feng
+  - Yijing Xu
+  - Haoqiang Kang
+  - Ziyan Kuang
+  - Chenhan Yuan
+  - Kailai Yang
+  - Zheheng Luo
+  - Tianlin Zhang
+  - Zhiwei Liu
+  - Guojun Xiong
+  - Zhiyang Deng
+  - Yuechen Jiang
+  - Zhiyuan Yao
+  - Haohang Li
+  - Yangyang Yu
+  - Gang Hu
+  - Jiajia Huang
+  - Xiao-Yang Liu
+  - Alejandro Lopez-Lira
+  - Benyou Wang
+  - Yanzhao Lai
+  - Hao Wang
+  - Min Peng
+  - Sophia Ananiadou
+  - Jimin Huang
+year: 2024
+venue: NeurIPS Datasets and Benchmarks
+type: Conference
+link: https://proceedings.neurips.cc/paper_files/paper/2024/hash/adb1d9fa8be4576d28703b396b82ba1b-Abstract-Datasets_and_Benchmarks_Track.html

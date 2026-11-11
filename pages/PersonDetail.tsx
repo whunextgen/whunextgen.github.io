@@ -3,7 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Globe, Mail } from "lucide-react";
 import { useLanguage } from "../contexts/LanguageContext";
 import { NEWS, PUBLICATIONS, findPersonBySlug, formatDate } from "../lib/content";
-import SmartImage from "../components/SmartImage";
+import PersonAvatar from "../components/PersonAvatar";
+import { hasLeftLab } from "../lib/personnel";
+import { publicationsForPerson } from "../lib/publications";
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <section className="mb-10">
@@ -52,10 +54,7 @@ const PersonDetail: React.FC = () => {
   const altName = isZh ? person.name : person.nameZh;
   const tp = person.teacherProfile;
 
-  const lname = person.name.trim().toLowerCase();
-  const publications = PUBLICATIONS.filter((p) =>
-    p.authors.some((a) => a.trim().toLowerCase() === lname || (person.nameZh && a.trim() === person.nameZh)),
-  ).sort((a, b) => b.year - a.year);
+  const publications = publicationsForPerson(person, PUBLICATIONS);
 
   const nameParts = person.name.trim().split(/\s+/);
   const nameVariants = [person.name, person.nameZh, nameParts.length === 2 ? `${nameParts[1]} ${nameParts[0]}` : undefined].filter(
@@ -76,7 +75,7 @@ const PersonDetail: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           <aside className="md:col-span-1">
             <div className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-slate-50 border border-slate-100 mb-6">
-              <SmartImage src={person.avatar} alt={name} className="w-full h-full object-cover" />
+              <PersonAvatar src={person.avatar} alt={name} className="w-full h-full object-cover" />
             </div>
             <div className="flex gap-3">
               {person.email && (
@@ -118,13 +117,16 @@ const PersonDetail: React.FC = () => {
                 <span className="text-[10px] uppercase tracking-widest px-2 py-1 border border-slate-200 rounded-sm text-slate-500">
                   {t(`people.categories.${person.category}`)}
                 </span>
-                {person.leftAt && (
+                {hasLeftLab(person) && (
                   <span className="text-[10px] uppercase tracking-widest px-2 py-1 bg-slate-100 rounded-sm text-slate-500">
-                    {isZh ? `校友 · 至 ${person.leftAt}` : `Alumni · until ${person.leftAt}`}
+                    {t("people.profile.alumni")}
+                    {person.leftAt && ` · ${t("people.profile.until")} ${person.leftAt}`}
                   </span>
                 )}
                 {person.grade && (
-                  <span className="text-[10px] px-2 py-1 bg-slate-100 rounded-sm text-slate-500">{person.grade}</span>
+                  <span className="text-[10px] px-2 py-1 bg-slate-100 rounded-sm text-slate-500">
+                    {t("people.profile.entryYear")}{isZh ? "：" : ": "}{person.grade}
+                  </span>
                 )}
                 {person.advisor && (
                   <span className="text-[10px] px-2 py-1 bg-slate-100 rounded-sm text-slate-500">

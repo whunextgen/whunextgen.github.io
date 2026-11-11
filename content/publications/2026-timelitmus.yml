@@ -1,0 +1,18 @@
+id: 2026-timelitmus
+tags: []
+order: 0
+title: 'TimeLitmus: A Diagnostic Benchmark for Cross-Modal Understanding and Explanation Faithfulness in Event-Conditioned Time-Series Prediction'
+authors:
+  - Jie Gong
+  - Maowei Jiang
+  - Zhiwei Liu
+  - Yankai Chen
+  - Guojun Xiong
+  - Xue Liu
+  - Min Peng
+  - Qianqian Xie
+  - Sophia Ananiadou
+year: 2026
+venue: arXiv preprint
+type: Preprint
+link: https://arxiv.org/abs/2609.24677

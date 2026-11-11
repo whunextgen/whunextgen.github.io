@@ -1,19 +1,22 @@
 id: diting-emnlp-2026
-title: "DITING: Evaluating Sentence-Level Cultural Meaning in Web Novel Translation"
+title: 'DITING: Evaluating Sentence-Level Cultural Meaning in Web Novel Translation'
 authors:
   - Enze Zhang
   - Jiaying Wang
   - Mengxi Xiao
   - Jifei Liu
+  - Zhiwei Hu
   - Ziyan Kuang
   - Rui Dong
-  - Eric Dong
-  - Sophia Ananiadou
+  - Youzhong Dong
+  - Mohsinul Kabir
+  - Victor Gutierrez-Basulto
   - Min Peng
   - Qianqian Xie
+  - Sophia Ananiadou
 venue: EMNLP
 year: 2026
 type: Conference
-link: https://arxiv.org/abs/2510.09116
+link: https://aclanthology.org/2026.emnlp-main.1959/
 tags: []
 order: 0

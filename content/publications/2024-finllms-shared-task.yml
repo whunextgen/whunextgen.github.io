@@ -1,0 +1,33 @@
+id: 2024-finllms-shared-task
+tags: []
+order: 0
+title: 'FinNLP-AgentScen-2024 Shared Task: Financial Challenges in Large Language Models - FinLLMs'
+authors:
+  - Qianqian Xie
+  - Jimin Huang
+  - Dong Li
+  - Zhengyu Chen
+  - Ruoyu Xiang
+  - Mengxi Xiao
+  - Yangyang Yu
+  - Vijayasai Somasundaram
+  - Kailai Yang
+  - Chenhan Yuan
+  - Zheheng Luo
+  - Zhiwei Liu
+  - Yueru He
+  - Yuechen Jiang
+  - Haohang Li
+  - Duanyu Feng
+  - Xiao-Yang Liu
+  - Benyou Wang
+  - Hao Wang
+  - Yanzhao Lai
+  - Jordan Suchow
+  - Alejandro Lopez-Lira
+  - Min Peng
+  - Sophia Ananiadou
+year: 2024
+venue: FinNLP-AgentScen
+type: Conference
+link: https://aclanthology.org/2024.finnlp-2.11/

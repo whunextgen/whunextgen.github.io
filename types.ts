@@ -9,6 +9,9 @@ export interface Publication {
   tags?: string[];
   order?: number;
   pdf?: string;
+  /** Unverified legacy records may be retained without being displayed. */
+  isPublished?: boolean;
+  verificationNote?: string;
 }
 
 export interface ProjectLink {
@@ -34,7 +37,9 @@ export type PersonCategory =
   | "Professional Master"
   | "Academic Master"
   | "RA"
+  | "Morning Star RA"
   | "Intern"
+  | "Baize"
   | "Secretary";
 
 export interface TeacherProfile {
@@ -74,6 +79,8 @@ export interface Person {
   advisor?: string;
   /** YYYY-MM when the member left the lab; set => listed under Alumni */
   leftAt?: string;
+  /** Alumni status when the departure date has not been confirmed. */
+  isAlumni?: boolean;
 }
 
 export interface NewsVisitorLog {

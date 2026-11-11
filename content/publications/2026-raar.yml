@@ -1,0 +1,16 @@
+id: 2026-raar
+tags: []
+order: 0
+title: 'RAAR: Retrieval Augmented Agentic Reasoning for Cross-Domain Misinformation Detection'
+authors:
+  - Zhiwei Liu
+  - Runteng Guo
+  - Baojie Qu
+  - Yuechen Jiang
+  - Min Peng
+  - Qianqian Xie
+  - Sophia Ananiadou
+year: 2026
+venue: arXiv preprint
+type: Preprint
+link: https://arxiv.org/abs/2601.04853

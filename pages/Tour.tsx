@@ -17,8 +17,9 @@ import {
   fetchProjects,
 } from "../lib/dataStore";
 import { useLanguage } from "../contexts/LanguageContext";
-import { ContactInfo, NewsItem, Person, Publication, Project } from "../types";
+import { ContactInfo, NewsItem, Person, Publication, Project, Partner } from "../types";
 import SmartImage from "../components/SmartImage";
+import { hasLeftLab } from "../lib/personnel";
 
 // ─── Default hero images (used when heroImages is not set in data) ────────────
 const DEFAULT_HERO_IMAGES = [
@@ -105,7 +106,7 @@ const PartnerGroup = React.memo(
     isZh, // 🌟 新增：从父组件传入语言状态
   }: {
     title: string;
-    items: typeof partners; // 注意：如果 partners 报错，可以改为 Project[] 或 any[]，或者用正确的类型
+    items: Partner[];
     isZh: boolean;
   }) => {
     if (!items.length) return null;
@@ -241,13 +242,14 @@ const Tour: React.FC = () => {
     [partners],
   );
 
+  const activeMemberCount = people.filter((person) => !hasLeftLab(person)).length;
   const stats = [
     {
       value: publications.length ? `${publications.length}+` : "—",
       label: isZh ? "发表论文" : "Publications",
     },
     {
-      value: people.length ? `${people.length}+` : "—",
+      value: activeMemberCount ? `${activeMemberCount}+` : "—",
       label: isZh ? "团队成员" : "Team Members",
     },
     {

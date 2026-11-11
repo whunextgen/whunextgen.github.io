@@ -8,3 +8,5 @@ type: Conference
 link: none
 tags: []
 order: 0
+isPublished: false
+verificationNote: Author list and paper URL unverified as of 2026-11-11; original values retained for review.

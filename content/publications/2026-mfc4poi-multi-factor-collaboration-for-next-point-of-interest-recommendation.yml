@@ -1,12 +1,16 @@
-title: "MFC4POI: Multi-Factor Collaboration for Next Point-of-Interest Recommendation Using Large Language Models"
+title: 'MFC4POI: Multi-factor collaboration for next point-of-interest recommendation using large language models'
 authors:
   - Yanlin Song
   - Wenjie Xu
   - Lei Liu
+  - Prayag Tiwari
+  - Gang Tian
+  - Qianqian Xie
   - Min Peng
 venue: Information Processing & Management
 year: 2026
 type: Journal
-link: https://www.sciencedirect.com/science/article/abs/pii/S0306457326002153
+link: https://doi.org/10.1016/j.ipm.2026.104824
 tags: []
 order: 0
+id: mfc4poi-2026

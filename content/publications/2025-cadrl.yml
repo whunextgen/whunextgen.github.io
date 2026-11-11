@@ -1,0 +1,19 @@
+id: 2025-cadrl
+tags: []
+order: 0
+title: 'CaDRL: Document-level Relation Extraction via Context-aware Differentiable Rule Learning'
+authors:
+  - Kunli Zhang
+  - Pengcheng Wu
+  - Bohan Yu
+  - Kejun Wu
+  - Aoze Zheng
+  - Xiyang Huang
+  - Chenkang Zhu
+  - Min Peng
+  - Hongying Zan
+  - Yu Song
+year: 2025
+venue: COLING
+type: Conference
+link: https://aclanthology.org/2025.coling-main.551/

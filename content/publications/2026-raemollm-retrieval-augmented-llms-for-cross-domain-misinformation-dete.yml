@@ -1,5 +1,5 @@
 id: batch_1768841452014_17
-title: 'Raemollm: Retrieval augmented llms for cross-domain misinformation detection using in-context learning based on emotional information'
+title: 'RAEmoLLM: Retrieval Augmented LLMs for Cross-Domain Misinformation Detection Using In-Context Learning Based on Emotional Information'
 authors:
   - Zhiwei Liu
   - Kailai Yang
@@ -8,8 +8,8 @@ authors:
   - Sophia Ananiadou
   - Eduard Hovy
 venue: ACL
-year: 2026
+year: 2025
 type: Conference
-link: https://doi.org/10.18653/v1/2025.acl-long.806
+link: https://aclanthology.org/2025.acl-long.806/
 tags: []
 order: 0

@@ -1,0 +1,580 @@
+{
+  "date": "2026-11-11",
+  "profiles": [
+    {
+      "slug": "baojie-qu",
+      "papers": [
+        {
+          "href": "https://arxiv.org/abs/2601.04857",
+          "target": "_blank",
+          "title": "MisSpans: Fine-Grained False Span Identification in Cross-Domain Fake News"
+        },
+        {
+          "href": "https://arxiv.org/abs/2601.04853",
+          "target": "_blank",
+          "title": "RAAR: Retrieval Augmented Agentic Reasoning for Cross-Domain Misinformation Detection"
+        }
+      ]
+    },
+    {
+      "slug": "zuchen-han",
+      "papers": [
+        {
+          "href": "https://arxiv.org/abs/2611.00617",
+          "target": "_blank",
+          "title": "Words Caught in the Heart: Simulating Person-Specific Expression for Self-Opaque Clients in Psychotherapy"
+        }
+      ]
+    },
+    {
+      "slug": "keying-wu",
+      "papers": [
+        {
+          "href": "https://aclanthology.org/2026.bionlp-1.89/",
+          "target": "_blank",
+          "title": "Overview of the ClinicalSkillQA 2026 Shared Task on Continuous Perception and Procedural Reasoning in Clinical Skill Assessment"
+        },
+        {
+          "href": "https://aclanthology.org/2026.emnlp-main.2203/",
+          "target": "_blank",
+          "title": "SiMing-Bench: Evaluating Procedural Correctness from Continuous Interactions in Clinical Skill Videos"
+        }
+      ]
+    },
+    {
+      "slug": "xiyang-huang",
+      "papers": [
+        {
+          "href": "https://aclanthology.org/2026.bionlp-1.89/",
+          "target": "_blank",
+          "title": "Overview of the ClinicalSkillQA 2026 Shared Task on Continuous Perception and Procedural Reasoning in Clinical Skill Assessment"
+        },
+        {
+          "href": "https://aclanthology.org/2026.emnlp-main.2203/",
+          "target": "_blank",
+          "title": "SiMing-Bench: Evaluating Procedural Correctness from Continuous Interactions in Clinical Skill Videos"
+        },
+        {
+          "href": "https://arxiv.org/abs/2611.00617",
+          "target": "_blank",
+          "title": "Words Caught in the Heart: Simulating Person-Specific Expression for Self-Opaque Clients in Psychotherapy"
+        },
+        {
+          "href": "https://aclanthology.org/2025.coling-main.551/",
+          "target": "_blank",
+          "title": "CaDRL: Document-level Relation Extraction via Context-aware Differentiable Rule Learning"
+        },
+        {
+          "href": "https://aclanthology.org/2025.coling-main.571/",
+          "target": "_blank",
+          "title": "CmEAA: Cross-modal Enhancement and Alignment Adapter for Radiology Report Generation"
+        },
+        {
+          "href": "https://rmhh.cbpt.cnki.net/portal/journal/portal/client/paper/5798084745df772aaab15efcdd12cfb1",
+          "target": "_blank",
+          "title": "面向数字孪生工程的水利知识图谱构建及应用"
+        },
+        {
+          "href": "https://doi.org/10.3934/mbe.2022492",
+          "target": "_blank",
+          "title": "Graph-based structural knowledge-aware network for diagnosis assistant"
+        }
+      ]
+    },
+    {
+      "slug": "ziyan-kuang",
+      "papers": [
+        {
+          "href": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7289362",
+          "target": "_blank",
+          "title": "A Survey of Simulation in Finance: Data, Methods, Applications, and Evaluation"
+        },
+        {
+          "href": "https://aclanthology.org/2026.emnlp-main.1959/",
+          "target": "_blank",
+          "title": "DITING: Evaluating Sentence-Level Cultural Meaning in Web Novel Translation"
+        },
+        {
+          "href": "https://arxiv.org/abs/2608.01204",
+          "target": "_blank",
+          "title": "ShiJianBench: From Dialogue to Decision for Long-Horizon Evaluation of Investment Advisors"
+        },
+        {
+          "href": "https://aclanthology.org/2026.emnlp-main.2203/",
+          "target": "_blank",
+          "title": "SiMing-Bench: Evaluating Procedural Correctness from Continuous Interactions in Clinical Skill Videos"
+        },
+        {
+          "href": "https://arxiv.org/abs/2611.00617",
+          "target": "_blank",
+          "title": "Words Caught in the Heart: Simulating Person-Specific Expression for Self-Opaque Clients in Psychotherapy"
+        },
+        {
+          "href": "https://arxiv.org/abs/2508.13491",
+          "target": "_blank",
+          "title": "From Scores to Skills: A Cognitive Diagnosis Framework for Evaluating Financial Large Language Models"
+        },
+        {
+          "href": "https://arxiv.org/abs/2512.09636",
+          "target": "_blank",
+          "title": "MiraMind: Benchmarking Reliable Mental Health Reasoning beyond Answer Accuracy"
+        },
+        {
+          "href": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/adb1d9fa8be4576d28703b396b82ba1b-Abstract-Datasets_and_Benchmarks_Track.html",
+          "target": "_blank",
+          "title": "FinBen: A Holistic Financial Benchmark for Large Language Models"
+        },
+        {
+          "href": "https://aclanthology.org/2024.acl-long.93/",
+          "target": "_blank",
+          "title": "HealMe: Harnessing Cognitive Reframing in Large Language Models for Psychotherapy"
+        },
+        {
+          "href": "https://arxiv.org/abs/2309.13567",
+          "target": "_blank",
+          "title": "MentaLLaMA: Interpretable Mental Health Analysis on Social Media with Large Language Models"
+        },
+        {
+          "href": "https://arxiv.org/abs/2403.17141v1",
+          "target": "_blank",
+          "title": "MetaAligner: Conditional Weak-to-Strong Correction for Generalizable Multi-Objective Alignment of Language Models"
+        },
+        {
+          "href": "https://aclanthology.org/2023.emnlp-main.370/",
+          "target": "_blank",
+          "title": "Towards Interpretable Mental Health Analysis with Large Language Models"
+        }
+      ]
+    },
+    {
+      "slug": "mengxi-xiao",
+      "papers": [
+        {
+          "href": "https://aclanthology.org/2026.emnlp-main.1959/",
+          "target": "_blank",
+          "title": "DITING: Evaluating Sentence-Level Cultural Meaning in Web Novel Translation"
+        },
+        {
+          "href": "https://arxiv.org/abs/2608.01204",
+          "target": "_blank",
+          "title": "ShiJianBench: From Dialogue to Decision for Long-Horizon Evaluation of Investment Advisors"
+        },
+        {
+          "href": "https://arxiv.org/abs/2611.00617",
+          "target": "_blank",
+          "title": "Words Caught in the Heart: Simulating Person-Specific Expression for Self-Opaque Clients in Psychotherapy"
+        },
+        {
+          "href": "https://arxiv.org/abs/2512.09636",
+          "target": "_blank",
+          "title": "MiraMind: Benchmarking Reliable Mental Health Reasoning beyond Answer Accuracy"
+        },
+        {
+          "href": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/27bb4753c44e0990865583fa49296465-Abstract-Conference.html",
+          "target": "_blank",
+          "title": "MoodAngels: A Retrieval-augmented Multi-agent Framework for Psychiatry Diagnosis"
+        },
+        {
+          "href": "https://arxiv.org/abs/2502.05878",
+          "target": "_blank",
+          "title": "Retrieval-augmented Large Language Models for Financial Time Series Forecasting"
+        },
+        {
+          "href": "https://doi.org/10.1109/ijcnn60899.2024.10650892",
+          "target": "_blank",
+          "title": "Clarified Aggregation and Predictive Modeling (CAPM): High-Interpretability Framework for Inductive Link Prediction"
+        },
+        {
+          "href": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/adb1d9fa8be4576d28703b396b82ba1b-Abstract-Datasets_and_Benchmarks_Track.html",
+          "target": "_blank",
+          "title": "FinBen: A Holistic Financial Benchmark for Large Language Models"
+        },
+        {
+          "href": "https://aclanthology.org/2024.finnlp-2.11/",
+          "target": "_blank",
+          "title": "FinNLP-AgentScen-2024 Shared Task: Financial Challenges in Large Language Models - FinLLMs"
+        },
+        {
+          "href": "https://aclanthology.org/2024.acl-long.93/",
+          "target": "_blank",
+          "title": "HealMe: Harnessing Cognitive Reframing in Large Language Models for Psychotherapy"
+        },
+        {
+          "href": "https://arxiv.org/abs/2408.11878",
+          "target": "_blank",
+          "title": "Open-FinLLMs: Open Multimodal Large Language Models for Financial Applications"
+        }
+      ]
+    },
+    {
+      "slug": "enze-zhang",
+      "papers": [
+        {
+          "href": "https://arxiv.org/abs/2604.07338",
+          "target": "_blank",
+          "title": "Appear2Meaning: A Cross-Cultural Benchmark for Structured Cultural Metadata Inference from Images"
+        },
+        {
+          "href": "https://aclanthology.org/2026.emnlp-main.1959/",
+          "target": "_blank",
+          "title": "DITING: Evaluating Sentence-Level Cultural Meaning in Web Novel Translation"
+        },
+        {
+          "href": "https://arxiv.org/abs/2608.01204",
+          "target": "_blank",
+          "title": "ShiJianBench: From Dialogue to Decision for Long-Horizon Evaluation of Investment Advisors"
+        },
+        {
+          "href": "https://arxiv.org/abs/2512.09636",
+          "target": "_blank",
+          "title": "MiraMind: Benchmarking Reliable Mental Health Reasoning beyond Answer Accuracy"
+        }
+      ]
+    },
+    {
+      "slug": "guanai-chen",
+      "papers": []
+    },
+    {
+      "slug": "hongyu-wei",
+      "papers": []
+    },
+    {
+      "slug": "jiacheng-dai",
+      "papers": []
+    },
+    {
+      "slug": "jie-gong",
+      "papers": [
+        {
+          "href": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7289362",
+          "target": "_blank",
+          "title": "A Survey of Simulation in Finance: Data, Methods, Applications, and Evaluation"
+        },
+        {
+          "href": "https://arxiv.org/abs/2608.01204",
+          "target": "_blank",
+          "title": "ShiJianBench: From Dialogue to Decision for Long-Horizon Evaluation of Investment Advisors"
+        },
+        {
+          "href": "https://arxiv.org/abs/2609.24677",
+          "target": "_blank",
+          "title": "TimeLitmus: A Diagnostic Benchmark for Cross-Modal Understanding and Explanation Faithfulness in Event-Conditioned Time-Series Prediction"
+        },
+        {
+          "href": "https://arxiv.org/abs/2611.00617",
+          "target": "_blank",
+          "title": "Words Caught in the Heart: Simulating Person-Specific Expression for Self-Opaque Clients in Psychotherapy"
+        },
+        {
+          "href": "https://aclanthology.org/2025.findings-emnlp.482/",
+          "target": "_blank",
+          "title": "EventRelBench: A Comprehensive Benchmark for Evaluating Event Relation Understanding in Large Language Models"
+        },
+        {
+          "href": "https://aclanthology.org/2025.findings-naacl.182/",
+          "target": "_blank",
+          "title": "Extracting Military Event Temporal Relations via Relative Event Time Prediction and Virtual Adversarial Training"
+        }
+      ]
+    },
+    {
+      "slug": "jifei-liu",
+      "papers": [
+        {
+          "href": "https://aclanthology.org/2026.emnlp-main.1959/",
+          "target": "_blank",
+          "title": "DITING: Evaluating Sentence-Level Cultural Meaning in Web Novel Translation"
+        }
+      ]
+    },
+    {
+      "slug": "jun-yang",
+      "papers": []
+    },
+    {
+      "slug": "lingyao-kong",
+      "papers": []
+    },
+    {
+      "slug": "ruiyu-zhang",
+      "papers": []
+    },
+    {
+      "slug": "xiudong-chen",
+      "papers": []
+    },
+    {
+      "slug": "xuelin-zhang",
+      "papers": []
+    },
+    {
+      "slug": "yancheng-shi",
+      "papers": []
+    },
+    {
+      "slug": "yanlin-song",
+      "papers": [
+        {
+          "href": "https://doi.org/10.1016/j.ipm.2026.104824",
+          "target": "_blank",
+          "title": "MFC4POI: Multi-factor collaboration for next point-of-interest recommendation using large language models"
+        },
+        {
+          "href": "https://arxiv.org/abs/2510.20691",
+          "target": "_blank",
+          "title": "Plan Then Retrieve: Reinforcement Learning-Guided Complex Reasoning over Knowledge Graphs"
+        },
+        {
+          "href": "https://arxiv.org/abs/2306.06851",
+          "target": "_blank",
+          "title": "UniPoll: A Unified Social Media Poll Generation Framework via Multiobjective Optimization"
+        }
+      ]
+    },
+    {
+      "slug": "yihang-tang",
+      "papers": []
+    },
+    {
+      "slug": "yihuai-xu",
+      "papers": [
+        {
+          "href": "https://doi.org/10.1016/j.patcog.2025.112158",
+          "target": "_blank",
+          "title": "Hyper adversarial tuning for boosting adversarial robustness of pretrained large vision transformers"
+        },
+        {
+          "href": "https://aclanthology.org/2026.bionlp-1.89/",
+          "target": "_blank",
+          "title": "Overview of the ClinicalSkillQA 2026 Shared Task on Continuous Perception and Procedural Reasoning in Clinical Skill Assessment"
+        },
+        {
+          "href": "https://arxiv.org/abs/2611.00617",
+          "target": "_blank",
+          "title": "Words Caught in the Heart: Simulating Person-Specific Expression for Self-Opaque Clients in Psychotherapy"
+        },
+        {
+          "href": "https://arxiv.org/abs/2410.06072",
+          "target": "_blank",
+          "title": "Training-free LLM-generated Text Detection by Mining Token Probability Sequences"
+        }
+      ]
+    },
+    {
+      "slug": "yinhan-chen",
+      "papers": []
+    },
+    {
+      "slug": "yuhan-ke",
+      "papers": []
+    },
+    {
+      "slug": "zhenhao-weng",
+      "papers": []
+    },
+    {
+      "slug": "zhentao-li",
+      "papers": []
+    }
+  ],
+  "publicationIndexTitleLinks": [
+    {
+      "href": "https://aclanthology.org/2026.emnlp-main.1959/",
+      "title": "DITING: Evaluating Sentence-Level Cultural Meaning in Web Novel Translation"
+    },
+    {
+      "href": "https://arxiv.org/abs/2604.07338",
+      "title": "Appear2Meaning: A Cross-Cultural Benchmark for Structured Cultural Metadata Inference from Images"
+    },
+    {
+      "href": "https://aclanthology.org/2026.bionlp-1.89/",
+      "title": "Overview of the ClinicalSkillQA 2026 Shared Task on Continuous Perception and Procedural Reasoning in Clinical Skill Assessment"
+    },
+    {
+      "href": "https://doi.org/10.1016/j.ijmedinf.2025.106116",
+      "title": "Extracting language information from clinical notes using large language models"
+    },
+    {
+      "href": "https://doi.org/10.1016/j.patcog.2025.112158",
+      "title": "Hyper adversarial tuning for boosting adversarial robustness of pretrained large vision transformers"
+    },
+    {
+      "href": "https://doi.org/10.1016/j.ipm.2026.104824",
+      "title": "MFC4POI: Multi-factor collaboration for next point-of-interest recommendation using large language models"
+    },
+    {
+      "href": "https://arxiv.org/abs/2601.04857",
+      "title": "MisSpans: Fine-Grained False Span Identification in Cross-Domain Fake News"
+    },
+    {
+      "href": "https://arxiv.org/abs/2510.20691",
+      "title": "Plan Then Retrieve: Reinforcement Learning-Guided Complex Reasoning over Knowledge Graphs"
+    },
+    {
+      "href": "https://arxiv.org/abs/2601.04853",
+      "title": "RAAR: Retrieval Augmented Agentic Reasoning for Cross-Domain Misinformation Detection"
+    },
+    {
+      "href": "https://arxiv.org/abs/2608.01204",
+      "title": "ShiJianBench: From Dialogue to Decision for Long-Horizon Evaluation of Investment Advisors"
+    },
+    {
+      "href": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7289362",
+      "title": "A Survey of Simulation in Finance: Data, Methods, Applications, and Evaluation"
+    },
+    {
+      "href": "https://arxiv.org/abs/2609.24677",
+      "title": "TimeLitmus: A Diagnostic Benchmark for Cross-Modal Understanding and Explanation Faithfulness in Event-Conditioned Time-Series Prediction"
+    },
+    {
+      "href": "https://arxiv.org/abs/2611.00617",
+      "title": "Words Caught in the Heart: Simulating Person-Specific Expression for Self-Opaque Clients in Psychotherapy"
+    },
+    {
+      "href": "https://aclanthology.org/2026.emnlp-main.2203/",
+      "title": "SiMing-Bench: Evaluating Procedural Correctness from Continuous Interactions in Clinical Skill Videos"
+    },
+    {
+      "href": "https://aclanthology.org/2025.coling-main.551/",
+      "title": "CaDRL: Document-level Relation Extraction via Context-aware Differentiable Rule Learning"
+    },
+    {
+      "href": "https://aclanthology.org/2025.coling-main.571/",
+      "title": "CmEAA: Cross-modal Enhancement and Alignment Adapter for Radiology Report Generation"
+    },
+    {
+      "href": "https://aclanthology.org/2025.coling-main.313/",
+      "title": "ELAINE-medLLM: Lightweight English Japanese Chinese Trilingual Large Language Model for Bio-medical Domain"
+    },
+    {
+      "href": "https://aclanthology.org/2025.findings-emnlp.482/",
+      "title": "EventRelBench: A Comprehensive Benchmark for Evaluating Event Relation Understanding in Large Language Models"
+    },
+    {
+      "href": "https://aclanthology.org/2025.findings-naacl.182/",
+      "title": "Extracting Military Event Temporal Relations via Relative Event Time Prediction and Virtual Adversarial Training"
+    },
+    {
+      "href": "https://arxiv.org/abs/2502.05878",
+      "title": "Retrieval-augmented Large Language Models for Financial Time Series Forecasting"
+    },
+    {
+      "href": "https://doi.org/10.1145/3701716.3715599",
+      "title": "FMDLlama: Financial Misinformation Detection Based on Large Language Models"
+    },
+    {
+      "href": "https://arxiv.org/abs/2508.13491",
+      "title": "From Scores to Skills: A Cognitive Diagnosis Framework for Evaluating Financial Large Language Models"
+    },
+    {
+      "href": "https://aclanthology.org/2025.acl-long.126/",
+      "title": "INVESTORBENCH: A Benchmark for Financial Decision-Making Tasks with LLM-based Agent"
+    },
+    {
+      "href": "https://aclanthology.org/2025.coling-main.716/",
+      "title": "LAiW: A Chinese Legal Large Language Models Benchmark"
+    },
+    {
+      "href": "https://doi.org/10.1145/3711896.3737028",
+      "title": "LitFM: A Retrieval Augmented Structure-aware Foundation Model For Citation Graphs"
+    },
+    {
+      "href": "https://doi.org/10.1038/s41746-025-01533-1",
+      "title": "Medical foundation large language models for comprehensive text analysis and beyond"
+    },
+    {
+      "href": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/27bb4753c44e0990865583fa49296465-Abstract-Conference.html",
+      "title": "MoodAngels: A Retrieval-augmented Multi-agent Framework for Psychiatry Diagnosis"
+    },
+    {
+      "href": "https://arxiv.org/abs/2410.06072",
+      "title": "Training-free LLM-generated Text Detection by Mining Token Probability Sequences"
+    },
+    {
+      "href": "https://arxiv.org/abs/2306.06851",
+      "title": "UniPoll: A Unified Social Media Poll Generation Framework via Multiobjective Optimization"
+    },
+    {
+      "href": "https://doi.org/10.1016/j.compbiomed.2025.111013",
+      "title": "A comprehensive evaluation of large language models for information extraction from unstructured electronic health records in residential aged care"
+    },
+    {
+      "href": "https://doi.org/10.1038/s41467-025-56989-2",
+      "title": "Benchmarking large language models for biomedical natural language processing applications and recommendations"
+    },
+    {
+      "href": "https://doi.org/10.1093/jamia/ocaf064",
+      "title": "CDEMapper: enhancing National Institutes of Health common data element use with large language models"
+    },
+    {
+      "href": "https://aclanthology.org/2025.emnlp-main.1535/",
+      "title": "Plutus: Benchmarking Large Language Models in Low-Resource Greek Finance"
+    },
+    {
+      "href": "https://aclanthology.org/2025.acl-long.806/",
+      "title": "RAEmoLLM: Retrieval Augmented LLMs for Cross-Domain Misinformation Detection Using In-Context Learning Based on Emotional Information"
+    },
+    {
+      "href": "https://aclanthology.org/2025.emnlp-main.359/",
+      "title": "Selective Preference Optimization via Token-Level Reward Function Estimation"
+    },
+    {
+      "href": "https://doi.org/10.1146/annurev-biodatasci-102224-074736",
+      "title": "The Development Landscape of Large Language Models for Biomedical Applications"
+    },
+    {
+      "href": "https://aclanthology.org/2025.findings-naacl.300/",
+      "title": "UCFE: A User-Centric Financial Expertise Benchmark for Large Language Models"
+    },
+    {
+      "href": "https://aclanthology.org/2025.findings-naacl.444/",
+      "title": "UCL-Bench: A Chinese User-Centric Legal Benchmark for Large Language Models"
+    },
+    {
+      "href": "https://arxiv.org/abs/2512.09636",
+      "title": "MiraMind: Benchmarking Reliable Mental Health Reasoning beyond Answer Accuracy"
+    },
+    {
+      "href": "https://doi.org/10.1109/ijcnn60899.2024.10650892",
+      "title": "Clarified Aggregation and Predictive Modeling (CAPM): High-Interpretability Framework for Inductive Link Prediction"
+    },
+    {
+      "href": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/adb1d9fa8be4576d28703b396b82ba1b-Abstract-Datasets_and_Benchmarks_Track.html",
+      "title": "FinBen: A Holistic Financial Benchmark for Large Language Models"
+    },
+    {
+      "href": "https://aclanthology.org/2024.finnlp-2.11/",
+      "title": "FinNLP-AgentScen-2024 Shared Task: Financial Challenges in Large Language Models - FinLLMs"
+    },
+    {
+      "href": "https://aclanthology.org/2024.acl-long.93/",
+      "title": "HealMe: Harnessing Cognitive Reframing in Large Language Models for Psychotherapy"
+    },
+    {
+      "href": "https://arxiv.org/abs/2309.13567",
+      "title": "MentaLLaMA: Interpretable Mental Health Analysis on Social Media with Large Language Models"
+    },
+    {
+      "href": "https://arxiv.org/abs/2403.17141v1",
+      "title": "MetaAligner: Conditional Weak-to-Strong Correction for Generalizable Multi-Objective Alignment of Language Models"
+    },
+    {
+      "href": "https://arxiv.org/abs/2408.11878",
+      "title": "Open-FinLLMs: Open Multimodal Large Language Models for Financial Applications"
+    },
+    {
+      "href": "https://rmhh.cbpt.cnki.net/portal/journal/portal/client/paper/5798084745df772aaab15efcdd12cfb1",
+      "title": "面向数字孪生工程的水利知识图谱构建及应用"
+    },
+    {
+      "href": "https://aclanthology.org/2023.emnlp-main.370/",
+      "title": "Towards Interpretable Mental Health Analysis with Large Language Models"
+    },
+    {
+      "href": "https://doi.org/10.3934/mbe.2022492",
+      "title": "Graph-based structural knowledge-aware network for diagnosis assistant"
+    }
+  ],
+  "englishProfileChecked": "zuchen-han"
+}

@@ -1,14 +1,25 @@
 id: batch_1768841452014_7
 title: 'CDEMapper: enhancing National Institutes of Health common data element use with large language models'
 authors:
-  - Lingfei Wang
-  - Xiyang Huang
-  - Qianqian Xie
+  - Yan Wang
   - Jimin Huang
+  - Huan He
+  - Vincent Zhang
+  - Yujia Zhou
+  - Xubing Hao
+  - Pritham Ram
+  - Lingfei Qian
+  - Qianqian Xie
+  - Ruey-Ling Weng
+  - Fongci Lin
+  - Yan Hu
+  - Licong Cui
+  - Xiaoqian Jiang
   - Hua Xu
+  - Na Hong
 venue: Journal of the American Medical Informatics Association
-year: 2026
+year: 2025
 type: Journal
-link: https://academic.oup.com/jamia/article/32/7/1130/8126535
+link: https://doi.org/10.1093/jamia/ocaf064
 tags: []
 order: 0

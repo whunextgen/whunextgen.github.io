@@ -1,0 +1,17 @@
+id: 2026-misspans
+tags: []
+order: 0
+title: 'MisSpans: Fine-Grained False Span Identification in Cross-Domain Fake News'
+authors:
+  - Zhiwei Liu
+  - Paul Thompson
+  - Jiaqi Rong
+  - Baojie Qu
+  - Runteng Guo
+  - Min Peng
+  - Qianqian Xie
+  - Sophia Ananiadou
+year: 2026
+venue: arXiv preprint
+type: Preprint
+link: https://arxiv.org/abs/2601.04857

@@ -1,0 +1,18 @@
+id: 2026-hyper-adversarial-tuning
+tags: []
+order: 0
+title: Hyper adversarial tuning for boosting adversarial robustness of pretrained large vision transformers
+authors:
+  - Kangtao Lv
+  - Wenyan Fan
+  - Huangsen Cao
+  - Kainan Tu
+  - Yihuai Xu
+  - Zhimeng Zhang
+  - Yang Li
+  - Xin Ding
+  - Yongwei Wang
+year: 2026
+venue: Pattern Recognition
+type: Journal
+link: https://doi.org/10.1016/j.patcog.2025.112158
