@@ -72,9 +72,16 @@ async function connect() {
 const data = rows();
 const db = await connect();
 console.log(db.live ? '写入 DATABASE_URL 指向的库' : '演练：内存库，不写任何真实数据库');
-for (const r of data)
-  await db.q(`insert into legacy.record (table_id, table_name, record_id, fields) values ($1,$2,$3,$4::jsonb)
-              on conflict (table_id, record_id) do update set fields = excluded.fields`, r);
+// 分批装入；fields 以文本传入再转 jsonb，避免驱动把字符串再编码一层
+for (let i = 0; i < data.length; i += 100) {
+  const part = data.slice(i, i + 100);
+  await db.q(`insert into legacy.record (table_id, table_name, record_id, fields)
+              select t, n, r, f::jsonb from unnest($1::text[], $2::text[], $3::text[], $4::text[]) as x(t, n, r, f)
+              on conflict (table_id, record_id) do update set fields = excluded.fields`,
+             [0, 1, 2, 3].map((k) => part.map((row) => row[k])));
+}
+const [{ n: scalars }] = await db.q(`select count(*)::int as n from legacy.record where jsonb_typeof(fields) <> 'object'`);
+if (scalars) { console.error(`暂存区有 ${scalars} 行不是对象，装入方式有误`); process.exit(1); }
 await db.exec(readFileSync(path.join(root, 'supabase/legacy/transform.sql'), 'utf8'));
 if (director) {
   const n = await db.q(`update app_user set role = 'director' where name = $1 returning id`, [director]);

@@ -8,7 +8,7 @@ APP_ORIGIN = "http://localhost:5173"
 FEISHU_APP_ID = ""
 
 # 密钥用 wrangler secret put 设置，不写在这里：FEISHU_APP_SECRET、SESSION_SECRET
-# Hyperdrive 指向 Supabase Postgres，用 app_api 角色的连接串创建后把 id 填在这里
-# [[hyperdrive]]
-# binding = "HYPERDRIVE"
-# id = ""
+# Hyperdrive 指向 Supabase Postgres，以 app_api 角色连接
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "74b386399f8e409c84b9b13ab2f9a5ca"

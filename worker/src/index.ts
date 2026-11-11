@@ -148,6 +148,12 @@ export default {
       if (url.pathname === '/auth/logout' && req.method === 'POST')
         return json({ ok: true }, 200, { ...cors, 'set-cookie': setCookie('fp_session', '', 0) });
 
+      // 连通性检查：只确认接口层连得上数据库，不返回任何数据
+      if (url.pathname === '/health') {
+        const [r] = await withUser(env, null, (sql) => sql`select current_user as role, (select count(*) from api.me)::int as me`);
+        return json({ ok: r.role === 'app_api' && r.me === 0 });
+      }
+
       // ---------- API ----------
       if (!url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404);
       const uid = await verify(env.SESSION_SECRET, 'uid', jar.fp_session);
