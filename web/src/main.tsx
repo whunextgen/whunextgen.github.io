@@ -5,6 +5,10 @@ import { ROLE } from './ui';
 import { Overview } from './pages/Overview';
 import { CardPage } from './pages/Card';
 import { Requests } from './pages/Requests';
+import '@fontsource/instrument-serif/latin-400.css';
+import '@fontsource/instrument-serif/latin-400-italic.css';
+import '@fontsource/jetbrains-mono/latin-400.css';
+import '@fontsource/jetbrains-mono/latin-500.css';
 import './styles.css';
 
 const useRoute = () => {
@@ -20,10 +24,14 @@ const useRoute = () => {
 function Login({ reason }: { reason?: string }) {
   return (
     <div className="login">
-      <h1>科研财务中台</h1>
-      <p>按经费卡管理预算、承诺和决算。用中心的飞书账号登录。</p>
-      {reason && <div className="msg bad" role="alert">{reason}</div>}
-      <a className="btn" href="/auth/feishu/login">飞书登录</a>
+      <div className="login-in">
+        <span className="eyebrow">CLAIN Finance</span>
+        <h1>科研财务中台</h1>
+        <p>按经费卡管理预算、承诺和决算。用中心的飞书账号登录。</p>
+        {reason && <div className="msg bad" role="alert">{reason}</div>}
+        <a className="btn" href="/auth/feishu/login">飞书登录 →</a>
+      </div>
+      <div className="login-word" aria-hidden="true">Budget <i>&amp;</i><br />Ledger</div>
     </div>
   );
 }
@@ -51,16 +59,16 @@ function App() {
   const current = cardId ? '/' : route.startsWith('/requests') || !seesCards ? '/requests' : '/';
   return (
     <div className="shell">
-      <aside>
-        <h1>科研财务中台</h1>
-        <p className="sub">经费卡 · 预算 · 决算</p>
+      <header className="hd">
+        <a className="brand" href="#/"><b>科研财务中台</b><span>CLAIN Finance</span></a>
         <nav>{nav.map(([to, label]) => <a key={to} href={`#${to}`} className={current === to ? 'on' : ''} aria-current={current === to ? 'page' : undefined}>{label}</a>)}</nav>
         <div className="who">
-          <b>{me.name}</b><span>{ROLE[me.role]}</span>
+          <span><b>{me.name}</b><span>{ROLE[me.role]}</span></span>
           <button className="ghost sm" onClick={() => logout().finally(() => location.reload())}>退出</button>
         </div>
-      </aside>
-      <main>{page}</main>
+      </header>
+      <main key={cardId ?? current}>{page}</main>
+      <footer className="ft"><span>经费卡 · 预算 · 决算</span><span>决算数只认学校正式入账</span></footer>
     </div>
   );
 }

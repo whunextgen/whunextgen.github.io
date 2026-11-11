@@ -18,6 +18,21 @@ export const CHANGE: Record<string, [string, string]> = {
   pending: ['待负责人确认', 'warn'], filed: ['已报发规办', 'pri'], approved: ['已批复', 'ok'], rejected: ['已驳回', ''],
 };
 
+// 数字滚动到目标值；系统设置了减少动效时直接显示
+export function useCount(target: number, ms = 1300) {
+  const still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const [v, setV] = useState(still ? target : 0);
+  useEffect(() => {
+    if (still) { setV(target); return; }
+    let raf = 0; const t0 = performance.now();
+    const tick = (t: number) => { const p = Math.min(1, (t - t0) / ms); setV(target * (1 - (1 - p) ** 4)); if (p < 1) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    const end = setTimeout(() => setV(target), ms + 300);   // 标签页在后台时动画帧不触发
+    return () => { cancelAnimationFrame(raf); clearTimeout(end); };
+  }, [target, ms, still]);
+  return v;
+}
+
 export const Badge = ({ tone = '', children }: { tone?: string; children: ReactNode }) => <span className={`b ${tone}`}>{children}</span>;
 
 // 预算执行条：决算数、承诺、可用
