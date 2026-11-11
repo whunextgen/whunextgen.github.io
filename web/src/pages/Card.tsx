@@ -1,12 +1,64 @@
-import { useViews, type Cap, type Card, type Cell, type Change, type Me, type Node, type Req } from '../api';
-import { Badge, Bar, CHANGE, Empty, END_RULE, Loading, Tile, day, money, num, pct, today } from '../ui';
+import { useState, type FormEvent } from 'react';
+import { rpc, useViews, type Cap, type Card, type Cell, type Change, type Me, type Node, type Req, type SettleLine } from '../api';
+import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, Tile, day, money, num, pct, today, type Field } from '../ui';
 import { nodeState } from './Overview';
 import { RequestTable } from './Requests';
 
+interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
+
+// 预算变更：调出与调入相等才能提交；可用额度和比例上限由数据库函数检查
+function NewChange({ cardId, cells, onDone, onCancel }: { cardId: string; cells: Cell[]; onDone: () => void; onCancel: () => void }) {
+  const [delta, setDelta] = useState<Record<string, string>>({});
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const lines = Object.entries(delta).map(([subject_id, v]) => ({ subject_id, delta: Math.round(Number(v) * 100) / 100 })).filter((l) => l.delta);
+  const net = lines.reduce((s, l) => s + l.delta, 0);
+  const out = lines.reduce((s, l) => s + Math.max(0, -l.delta), 0);
+  const ready = lines.length >= 2 && Math.abs(net) < 0.005;
+  const submit = async (e: FormEvent) => {
+    e.preventDefault(); setBusy(true); setError('');
+    try { await rpc('create_change', { card_id: cardId, reason, lines }); onDone(); }
+    catch (err) { setError((err as Error).message); setBusy(false); }
+  };
+  return (
+    <form onSubmit={submit} className="change">
+      <p className="hint">调出填负数，调入填正数，合计为零。提交后由中心负责人确认，报发规办，批复录入后才生效。</p>
+      <div className="scroll"><table>
+        <thead><tr><th>科目</th><th className="r">现行预算</th><th className="r">可用</th><th className="r">调整（元）</th><th className="r">调整后</th></tr></thead>
+        <tbody>{cells.map((x) => { const d = Number(delta[x.subject_id] || 0); return (
+          <tr key={x.subject_id}><td>{x.subject_name}</td><td className="r">{money(x.cur)}</td><td className="r">{money(x.avail)}</td>
+            <td className="r"><input type="number" step="0.01" aria-label={`${x.subject_name} 调整金额`} value={delta[x.subject_id] ?? ''}
+              onChange={(e) => setDelta({ ...delta, [x.subject_id]: e.target.value })} /></td>
+            <td className={`r ${num(x.cur) + d < 0 || -d > num(x.avail) ? 'neg' : ''}`}>{d ? money(num(x.cur) + d) : '—'}</td></tr>); })}</tbody>
+      </table></div>
+      <p className="sub2">调出 {money(out)}，调入 {money(out + net)}{Math.abs(net) >= 0.005 && `，还差 ${money(-net)} 没有配平`}</p>
+      <label className="field"><span>变更原因</span><input required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+      {error && <div className="msg bad" role="alert">{error}</div>}
+      <div className="actions"><button type="button" className="ghost" onClick={onCancel}>取消</button>
+        <button type="submit" disabled={busy || !ready}>{busy ? '提交中…' : '提交预算变更'}</button></div>
+    </form>
+  );
+}
+
+function changeActs(me: Me, ch: Change): Act[] {
+  const out: Act[] = [];
+  if (me.role === 'director' && ch.status === 'pending')
+    out.push({ label: '确认', title: '确认这笔预算变更', hint: `${ch.reason}。确认后报发规办，批复录入前不改变现行预算。`, fields: [], run: () => rpc('confirm_change', { id: ch.id }) });
+  if (me.role === 'finance' && ch.status === 'filed')
+    out.push({ label: '录入批复', title: '发规办已批复', hint: `${ch.reason}。录入后现行预算立即按这笔变更调整。`,
+      fields: [{ name: 'approved_on', label: '批复日期', type: 'date', value: today() }], run: (v) => rpc('approve_change', { id: ch.id, approved_on: v.approved_on }) });
+  if (me.role === 'director' && (ch.status === 'pending' || ch.status === 'filed'))
+    out.push({ label: '驳回', title: '驳回这笔预算变更', hint: ch.reason, danger: true, fields: [], run: () => rpc('reject_change', { id: ch.id }) });
+  return out;
+}
+
 export function CardPage({ me, id }: { me: Me; id: string }) {
   const f = { card_id: id };
-  const { data, error, reload } = useViews<{ card: Card[]; cells: Cell[]; nodes: Node[]; caps: Cap[]; changes: Change[]; reqs: Req[] }>({
-    card: ['card', f], cells: ['cell', f], nodes: ['node', f], caps: ['cap', f], changes: ['budget_change', f], reqs: ['request', f],
+  const [act, setAct] = useState<Act | null>(null);
+  const [adding, setAdding] = useState(false);
+  const { data, error, reload } = useViews<{ card: Card[]; cells: Cell[]; nodes: Node[]; caps: Cap[]; changes: Change[]; reqs: Req[]; settle: SettleLine[] }>({
+    card: ['card', f], cells: ['cell', f], nodes: ['node', f], caps: ['cap', f], changes: ['budget_change', f], reqs: ['request', f], settle: ['settlement', f],
   }, id);
   if (!data) return <Loading error={error} />;
   const c = data.card[0];
@@ -16,6 +68,9 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   const used = cells.filter((x) => num(x.cur) || num(x.commit) || num(x.actual));
   const name = new Map(cells.map((x) => [x.subject_id, x.subject_name]));
   const open = data.reqs.filter((r) => !['posted', 'released', 'rejected'].includes(r.status));
+  const staff = me.role === 'finance' || me.role === 'director';
+  const canChange = staff && c.status === 'active' && !c.locked;
+  const canSettle = me.role === 'director' && c.status === 'active' && !!c.settle_date && day(c.settle_date) <= now;
   const diff = c.school_available != null ? num(c.avail) - num(c.school_available) : null;
 
   return (
@@ -24,6 +79,9 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
         <div className="crumb"><a href="#/">经费卡与节点</a> / {c.card_no}</div>
         <h2>{c.name}</h2>
         {c.status === 'settled' ? <Badge>已结清</Badge> : <Badge tone={day(c.cutoff_date) < now ? 'bad' : 'ok'}>{day(c.cutoff_date) < now ? '已过单据截止' : '在用'}</Badge>}
+        {canSettle && <button className="ghost" onClick={() => setAct({ label: '结清', title: '结清这张卡',
+          hint: `${c.name}。结清后按科目固定预算、决算和结余，这张卡不能再提交支出，也不能撤销。还有在途支出、在途变更或未入账人员费时不能结清。`,
+          danger: true, fields: [], run: () => rpc('settle_card', { card_id: c.card_id }) })}>结清</button>}
       </div>
       <div className="tiles">
         <Tile k="现行预算" v={money(c.cur)} f={num(c.adj) ? `年初 ${money(c.orig)}，变更 ${money(c.adj)}` : '未做过预算变更'} />
@@ -95,13 +153,16 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
 
       <section className="card">
         <h3>预算变更</h3>
-        {data.changes.length === 0 ? <Empty>没有预算变更记录。</Empty> : (
+        {canChange && !adding && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}><button className="sm" onClick={() => setAdding(true)}>发起预算变更</button></div>}
+        {adding && <NewChange cardId={c.card_id} cells={cells} onDone={() => { setAdding(false); reload(); }} onCancel={() => setAdding(false)} />}
+        {data.changes.length === 0 ? (!adding && <Empty>没有预算变更记录。{c.locked && '这张卡科目锁定，不能变更预算。'}</Empty>) : (
           <div className="scroll"><table>
-            <thead><tr><th>发起日</th><th>原因</th><th>调整</th><th>状态</th><th>批复日</th></tr></thead>
+            <thead><tr><th>发起日</th><th>原因</th><th>调整</th><th>状态</th><th>批复日</th><th /></tr></thead>
             <tbody>{[...data.changes].sort((a, b) => b.created_at.localeCompare(a.created_at)).map((ch) => (
               <tr key={ch.id}><td>{day(ch.created_at)}</td><td className="wrap">{ch.reason}</td>
                 <td className="wrap">{(ch.lines ?? []).map((l) => `${name.get(l.subject_id) ?? '科目'} ${l.delta > 0 ? '+' : ''}${money(l.delta)}`).join('；')}</td>
-                <td><Badge tone={CHANGE[ch.status][1]}>{CHANGE[ch.status][0]}</Badge></td><td>{day(ch.approved_on)}</td></tr>
+                <td><Badge tone={CHANGE[ch.status][1]}>{CHANGE[ch.status][0]}</Badge></td><td>{day(ch.approved_on)}</td>
+                <td><div className="acts">{changeActs(me, ch).map((a) => <button key={a.label} className={`sm ghost ${a.danger ? 'danger' : ''}`} onClick={() => setAct(a)}>{a.label}</button>)}</div></td></tr>
             ))}</tbody>
           </table></div>
         )}
@@ -113,6 +174,21 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
         {open.length === 0 ? <Empty>这张卡没有在途的支出。</Empty>
           : <RequestTable me={me} rows={open} subjectName={name} onChange={reload} />}
       </section>
+
+      {data.settle.length > 0 && (
+        <section className="card">
+          <h3>结清</h3>
+          <p className="hint">{day(data.settle[0].settled_on)} 结清，以下数字已固定。</p>
+          <div className="scroll"><table>
+            <thead><tr><th>科目</th><th className="r">预算</th><th className="r">决算</th><th className="r">结余</th></tr></thead>
+            <tbody>{data.settle.filter((l) => num(l.budget) || num(l.actual)).map((l) => (
+              <tr key={l.subject_id}><td>{name.get(l.subject_id) ?? '科目'}</td><td className="r">{money(l.budget)}</td><td className="r">{money(l.actual)}</td><td className="r">{money(l.balance)}</td></tr>
+            ))}</tbody>
+          </table></div>
+        </section>
+      )}
+      {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label}
+        onSubmit={async (v) => { await act.run(v); reload(); }} onClose={() => setAct(null)} />}
     </>
   );
 }

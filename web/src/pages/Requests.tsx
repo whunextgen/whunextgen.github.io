@@ -8,7 +8,7 @@ const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
 interface Action { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
 // 每个状态下，当前角色能做什么。权限最终由数据库函数判定，这里只决定显示哪些按钮。
-function actionsFor(me: Me, r: Req): Action[] {
+function actionsFor(me: Me, r: Req, targets: [string, string][]): Action[] {
   const what = `${r.title}，${money(r.amount)}`;
   const out: Action[] = [];
   if (me.role === 'director' && r.status === 'pending') {
@@ -26,14 +26,26 @@ function actionsFor(me: Me, r: Req): Action[] {
     out.push({ label: '退回', title: '学校退回了这笔单据', hint: `${what}。退回原因会写进可报销规则表。`, danger: true,
       fields: [{ name: 'reason', label: '退回原因' }], run: (v) => rpc('school_return', { id: r.id, reason: v.reason }) });
   }
+  if (me.role === 'finance' && r.status === 'committed' && r.path && r.stage != null && r.stages != null && r.stage < r.stages) {
+    out.push({ label: '推进采购', title: '采购进到下一阶段', hint: `${what}。${r.path}，现在是第 ${r.stage} 阶段，共 ${r.stages} 阶段；到最后一个阶段即验收贴码，之后才能提交学校。`,
+      fields: [], run: () => rpc('procurement_advance', { id: r.id }) });
+    out.push({ label: '废标/流标', title: '记录废标或流标', hint: `${what}。采购退回挂网阶段，预计入账日顺延。`, danger: true,
+      fields: [{ name: 'kind', label: '类型', options: [['废标', '废标'], ['流标', '流标']] }, { name: 'reason', label: '原因' },
+        { name: 'delay_days', label: '预计入账顺延天数', type: 'number', value: '30' }],
+      run: (v) => rpc('procurement_fail', { id: r.id, kind: v.kind, reason: v.reason, delay_days: Math.round(Number(v.delay_days)) }) });
+  }
+  if (me.role === 'finance' && r.status === 'returned' && targets.length > 0)
+    out.push({ label: '改卡', title: '改走另一张卡', hint: `${what}。目标卡要允许这类支出、可用额度够、预计入账不晚于它的单据截止日。`,
+      fields: [{ name: 'target', label: '目标经费卡和科目', options: targets }],
+      run: (v) => { const [card_id, subject_id] = v.target.split('|'); return rpc('move_request', { id: r.id, card_id, subject_id }); } });
   if ((me.role === 'finance' || me.role === 'director') && (r.status === 'committed' || r.status === 'returned'))
     out.push({ label: '释放', title: '释放这笔承诺', hint: `${what}。释放后额度回到可用，这笔申请作废。`, danger: true, fields: [],
       run: () => rpc('release_request', { id: r.id }) });
   return out;
 }
 
-export function RequestTable({ me, rows, subjectName, cardName, userName, onChange }: {
-  me: Me; rows: Req[]; subjectName?: Map<string, string>; cardName?: Map<string, string>; userName?: Map<string, string>; onChange: () => void;
+export function RequestTable({ me, rows, subjectName, cardName, userName, cards, subjects, onChange }: {
+  me: Me; rows: Req[]; cards?: CardPick[]; subjects?: Subject[]; subjectName?: Map<string, string>; cardName?: Map<string, string>; userName?: Map<string, string>; onChange: () => void;
 }) {
   const [act, setAct] = useState<Action | null>(null);
   return (
@@ -41,7 +53,10 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, onChan
       <table>
         <thead><tr><th>事项</th>{cardName && <th>经费卡</th>}<th>科目</th><th className="r">金额</th><th>预计入账</th><th>状态</th><th /></tr></thead>
         <tbody>{rows.map((r) => {
-          const acts = actionsFor(me, r);
+          const targets = r.status === 'returned' && me.role === 'finance' ? (cards ?? []).filter((c) => c.status === 'active' && c.id !== r.card_id)
+            .flatMap((c) => (subjects ?? []).filter((s) => s.template_id === c.template_id).sort((a, b) => a.sort - b.sort)
+              .map((s): [string, string] => [`${c.id}|${s.id}`, `${c.name} · ${s.name}`])) : [];
+          const acts = actionsFor(me, r, targets);
           return (
             <tr key={r.id}>
               <td className="wrap">{r.title}
@@ -147,7 +162,7 @@ export function Requests({ me }: { me: Me }) {
         </div>
         {rows.length === 0 ? <Empty>{tab === 'open' ? '没有进行中的申请。' : '这个状态下没有申请。'}</Empty> : (
           <>
-            <RequestTable me={me} rows={rows} cardName={maps.card} subjectName={maps.subject} userName={maps.user} onChange={reload} />
+            <RequestTable me={me} rows={rows} cards={data.cards} subjects={data.subjects} cardName={maps.card} subjectName={maps.subject} userName={maps.user} onChange={reload} />
             <p className="sub2">{rows.length} 笔，合计 {money(total)}</p>
           </>
         )}

@@ -217,3 +217,10 @@ main>*:nth-child(5){animation-delay:.28s}main>*:nth-child(n+6){animation-delay:.
   .todo a .b{grid-column:1 / -1}
   td+th[scope=row]{padding-left:16px}
 }
+
+/* 规则矩阵与预算变更表单 */
+.matrix th[scope=row]{font-weight:500;white-space:nowrap}
+.matrix td{min-width:120px;vertical-align:top}
+.matrix .none{color:var(--mute);font-size:12px}
+.change{margin-bottom:22px;padding-bottom:22px;border-bottom:1px solid var(--line)}
+.change td input{width:132px;text-align:right;padding:6px 10px;font-family:var(--mono);font-size:13px}

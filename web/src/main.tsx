@@ -5,6 +5,7 @@ import { ROLE } from './ui';
 import { Overview } from './pages/Overview';
 import { CardPage } from './pages/Card';
 import { Requests } from './pages/Requests';
+import { Rules } from './pages/Rules';
 import '@fontsource/instrument-serif/latin-400.css';
 import '@fontsource/instrument-serif/latin-400-italic.css';
 import '@fontsource/jetbrains-mono/latin-400.css';
@@ -51,12 +52,15 @@ function App() {
   const nav = [
     ...(seesCards ? [['/', '经费卡与节点']] : []),
     ['/requests', '支出与承诺'],
+    ['/rules', '可报销规则'],
   ];
   const cardId = route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1];
+  const rules = route.startsWith('/rules');
   const page = cardId ? <CardPage me={me} id={cardId} />
+    : rules ? <Rules me={me} />
     : route.startsWith('/requests') || !seesCards ? <Requests me={me} />
     : <Overview me={me} />;
-  const current = cardId ? '/' : route.startsWith('/requests') || !seesCards ? '/requests' : '/';
+  const current = cardId ? '/' : rules ? '/rules' : route.startsWith('/requests') || !seesCards ? '/requests' : '/';
   return (
     <div className="shell">
       <header className="hd">

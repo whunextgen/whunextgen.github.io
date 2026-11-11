@@ -14,6 +14,9 @@ export const REQ: Record<ReqStatus, [string, string]> = {
   pending: ['待审批', 'warn'], committed: ['已批准', 'pri'], at_school: ['学校审核中', 'pri'], posted: ['已入账', 'ok'],
   returned: ['被退回', 'bad'], released: ['已释放', ''], rejected: ['已驳回', ''],
 };
+export const VERDICT: Record<string, [string, string]> = {
+  yes: ['可以', 'ok'], conditional: ['有条件', 'warn'], no: ['不可以', 'bad'], disputed: ['有争议', 'warn'],
+};
 export const CHANGE: Record<string, [string, string]> = {
   pending: ['待负责人确认', 'warn'], filed: ['已报发规办', 'pri'], approved: ['已批复', 'ok'], rejected: ['已驳回', ''],
 };
@@ -56,7 +59,7 @@ export function Loading({ error }: { error?: Error }) {
 }
 
 // 一个带若干输入项的确认框，用于批准以外需要补充信息的操作
-export interface Field { name: string; label: string; type?: 'text' | 'date' | 'number'; value?: string; required?: boolean }
+export interface Field { name: string; label: string; type?: 'text' | 'date' | 'number'; value?: string; required?: boolean; options?: [string, string][] }
 export function ActionDialog({ title, hint, fields, submitLabel = '确认', danger, onSubmit, onClose }: {
   title: string; hint?: ReactNode; fields: Field[]; submitLabel?: string; danger?: boolean;
   onSubmit: (values: Record<string, string>) => Promise<unknown>; onClose: () => void;
@@ -77,8 +80,14 @@ export function ActionDialog({ title, hint, fields, submitLabel = '确认', dang
         {fields.map((f) => (
           <label key={f.name} className="field">
             <span>{f.label}</span>
-            <input type={f.type ?? 'text'} step={f.type === 'number' ? '0.01' : undefined} required={f.required ?? true}
-              value={values[f.name]} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
+            {f.options ? (
+              <select required={f.required ?? true} value={values[f.name]} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}>
+                <option value="">请选择</option>{f.options.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
+            ) : (
+              <input type={f.type ?? 'text'} step={f.type === 'number' ? '0.01' : undefined} required={f.required ?? true}
+                value={values[f.name]} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
+            )}
           </label>
         ))}
         {error && <div className="msg bad" role="alert">{error}</div>}
