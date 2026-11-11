@@ -271,6 +271,26 @@ ok((await one(`select done from api.fund_event where id = $1`, [fe])).done === t
 await raises('已办的记录不能重复办结', /已经办结/, `select finish_fund_event($1)`, [fe]);
 await as(U.mem, '2026-09-05');
 eq((await q(`select * from api.fund_event`)).length, 0, '成员看不到学校侧记录');
+await as(U.lead, '2026-09-05');
+await raises('项目负责人不能维护人员', /当前角色/, `select save_person(null, '新人甲')`);
+await as(U.fin, '2026-09-05');
+const np = (await one(`select save_person(null, ' 新人甲 ') as id`)).id;
+await raises('人员不能重名', /已经有叫/, `select save_person(null, '新人甲')`);
+await raises('发放类型要对应已有科目', /对应的科目/, `select save_pay_type(null, '专家咨询费', 'nope')`);
+const npt = (await one(`select save_pay_type(null, '专家咨询费', 'consult', 3000) as id`)).id;
+await raises('排布不能超过每月上限', /每月上限/, `select set_staff($1,$2,'2026-09-01','2026-10-01',$3,3500)`, [np, npt, C.A]);
+await db.exec(`reset role`);
+const noSub = await one(`select c.id from fund_card c where c.status = 'active' and not exists (select 1 from template_subject s where s.template_id = c.template_id and s.code = 'consult') limit 1`);
+await db.exec(`set role app_api`);
+if (noSub) await raises('排布的卡要有对应科目', /没有对应科目/, `select set_staff($1,$2,'2026-09-01','2026-10-01',$3,1000)`, [np, npt, noSub.id]);
+else ok(false, '测试数据里应有一张没有咨询费科目的在用卡');
+await raises('排布不能超出现行预算', /超出现行预算/, `select set_staff($1,$2,'2026-09-15','2026-10-01',$3,3000)`, [np, npt, C.A]);
+eq((await one(`select set_staff($1,$2,'2026-09-15','2026-12-01',$3,1000) n`, [np, npt, C.A])).n, 4, '排布四个月，日期归到月初');
+eq((await q(`select * from api.staff where person_id = $1 and gap is not null`, [np])).length, 2, '发放日过了单据截止的月份标为空档');
+eq((await one(`select set_staff($1,$2,'2026-11-01','2026-12-01',null,null) n`, [np, npt])).n, 2, '金额不填是撤掉排布');
+await q(`select build_payroll('2026-09-01')`);
+await raises('进了发放表的月份不能再改', /已进发放表/, `select set_staff($1,$2,'2026-09-01','2026-10-01',$3,500)`, [np, npt, C.A]);
+await raises('有排布的发放类型不能改科目', /不能再改科目/, `select save_pay_type($1, '专家咨询费', 'labor', 3000)`, [npt]);
 await db.exec(`reset role`);
 ok((await one(`select count(*) c from audit_log`)).c > 0, '审计日志有记录');
 

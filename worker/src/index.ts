@@ -39,6 +39,9 @@ const RPC: Record<string, [string, string][]> = {
   finish_fund_event: [['id', 'uuid']],
   add_fund_event: [['card_id', 'uuid'], ['kind', 'text'], ['event_date', 'date'], ['amount', 'numeric'], ['todo', 'text']],
   save_expense_type: [['id', 'uuid'], ['name', 'text'], ['required_path', 'text']],
+  save_person: [['id', 'uuid'], ['name', 'text']],
+  save_pay_type: [['id', 'uuid'], ['name', 'text'], ['subject_code', 'text'], ['monthly_cap', 'numeric']],
+  set_staff: [['person_id', 'uuid'], ['pay_type_id', 'uuid'], ['from_month', 'date'], ['to_month', 'date'], ['card_id', 'uuid'], ['amount', 'numeric']],
   set_user_role: [['user_id', 'uuid'], ['role', 'text'], ['active', 'boolean']],
 };
 

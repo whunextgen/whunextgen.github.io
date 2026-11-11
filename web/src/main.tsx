@@ -7,6 +7,7 @@ import { CardPage } from './pages/Card';
 import { Requests } from './pages/Requests';
 import { Rules } from './pages/Rules';
 import { School } from './pages/School';
+import { StaffPage } from './pages/Staff';
 import '@fontsource/instrument-serif/latin-400.css';
 import '@fontsource/instrument-serif/latin-400-italic.css';
 import '@fontsource/jetbrains-mono/latin-400.css';
@@ -50,21 +51,25 @@ function App() {
   if (me === null) return <Login reason={error} />;
 
   const seesCards = me.role !== 'member';
+  const seesStaff = me.role === 'finance' || me.role === 'director';
   const nav = [
     ...(seesCards ? [['/', '经费卡与节点']] : []),
     ['/requests', '支出与承诺'],
+    ...(seesStaff ? [['/staff', '人员费']] : []),
     ...(seesCards ? [['/school', '学校侧进度']] : []),
     ['/rules', '可报销规则'],
   ];
   const cardId = route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1];
   const rules = route.startsWith('/rules');
   const school = seesCards && route.startsWith('/school');
+  const staff = seesStaff && route.startsWith('/staff');
   const page = cardId ? <CardPage me={me} id={cardId} />
     : rules ? <Rules me={me} />
     : school ? <School me={me} />
+    : staff ? <StaffPage me={me} />
     : route.startsWith('/requests') || !seesCards ? <Requests me={me} />
     : <Overview me={me} />;
-  const current = cardId ? '/' : rules ? '/rules' : school ? '/school' : route.startsWith('/requests') || !seesCards ? '/requests' : '/';
+  const current = cardId ? '/' : rules ? '/rules' : school ? '/school' : staff ? '/staff' : route.startsWith('/requests') || !seesCards ? '/requests' : '/';
   return (
     <div className="shell">
       <header className="hd">

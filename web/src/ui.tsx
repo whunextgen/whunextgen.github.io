@@ -59,7 +59,7 @@ export function Loading({ error }: { error?: Error }) {
 }
 
 // 一个带若干输入项的确认框，用于批准以外需要补充信息的操作
-export interface Field { name: string; label: string; type?: 'text' | 'date' | 'number'; value?: string; required?: boolean; options?: [string, string][] }
+export interface Field { name: string; label: string; type?: 'text' | 'date' | 'number' | 'month'; value?: string; required?: boolean; options?: [string, string][] }
 export function ActionDialog({ title, hint, fields, submitLabel = '确认', danger, onSubmit, onClose }: {
   title: string; hint?: ReactNode; fields: Field[]; submitLabel?: string; danger?: boolean;
   onSubmit: (values: Record<string, string>) => Promise<unknown>; onClose: () => void;

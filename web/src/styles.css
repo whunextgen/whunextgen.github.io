@@ -224,3 +224,9 @@ main>*:nth-child(5){animation-delay:.28s}main>*:nth-child(n+6){animation-delay:.
 .matrix .none{color:var(--mute);font-size:12px}
 .change{margin-bottom:22px;padding-bottom:22px;border-bottom:1px solid var(--line)}
 .change td input{width:132px;text-align:right;padding:6px 10px;font-family:var(--mono);font-size:13px}
+
+/* 人员费排布 */
+.staff td{min-width:104px;vertical-align:top;white-space:nowrap}
+.staff td.gap{background:color-mix(in srgb,var(--bad) 9%,transparent)}
+.staff td.gap b{color:var(--bad)}
+.staff td b{font:500 13px var(--mono)}

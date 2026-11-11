@@ -66,5 +66,9 @@ export interface Rule { card_id: string; expense_type_id: string; ruled_on: stri
 export interface Ruling extends Rule { id: string; source: string | null }
 export interface FundEvent { id: string; card_id: string; kind: string; event_date: string; amount: string; todo: string | null; done: boolean; created_at: string }
 export interface ReqEvent { id: string; request_id: string; at: string; kind: string; note: string | null }
+export interface Person { id: string; name: string }
+export interface PayType { id: string; name: string; subject_code: string; monthly_cap: string | null }
+export interface Staff { id: string; person_id: string; pay_type_id: string; month: string; card_id: string; amount: string; sheet_id: string | null; gap: string | null }
+export interface Sheet { id: string; month: string; pay_type_id: string; card_id: string; status: 'draft' | 'submitted' | 'posted'; posted_on: string | null; total: string }
 export interface SettleLine { id: string; card_id: string; settled_on: string; subject_id: string; budget: string; actual: string; balance: string }
 export interface User { id: string; name: string; role: Role; active: boolean }
