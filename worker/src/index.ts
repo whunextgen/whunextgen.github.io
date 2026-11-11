@@ -37,6 +37,7 @@ const RPC: Record<string, [string, string][]> = {
   settle_card: [['card_id', 'uuid']],
   add_ruling: [['card_id', 'uuid'], ['expense_type_id', 'uuid'], ['ruled_on', 'date'], ['ruled_by', 'text'], ['verdict', 'text'], ['note', 'text'], ['source', 'text']],
   finish_fund_event: [['id', 'uuid']],
+  save_expense_type: [['id', 'uuid'], ['name', 'text'], ['required_path', 'text']],
   set_user_role: [['user_id', 'uuid'], ['role', 'text'], ['active', 'boolean']],
 };
 

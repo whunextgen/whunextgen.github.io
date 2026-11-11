@@ -248,6 +248,15 @@ await q(`insert into app_user (name, role, email) values ('旧账号', 'leader',
 await db.exec(`set role app_api`);
 ok((await one(`select (login_feishu('ou_old', '旧账号', 'Old@Example.com')).role as role`)).role === 'leader', '按邮箱认领旧账号并保留角色');
 ok((await one(`select (login_feishu('ou_other', '冒名', 'old@example.com')).role as role`)).role === 'member', '已认领的邮箱不能被第二个 open_id 认领');
+await as(U.mem, '2026-09-05');
+await raises('成员不能维护支出类型', /当前角色/, `select save_expense_type(null, '测试类型')`);
+await as(U.fin, '2026-09-05');
+const et = (await one(`select save_expense_type(null, ' 测试类型 ') as id`)).id;
+ok((await one(`select name from api.expense_type where id = $1`, [et])).name === '测试类型', '财务岗新增支出类型，名称去掉首尾空格');
+await raises('支出类型不能重名', /已经有叫/, `select save_expense_type(null, '测试类型')`);
+await raises('采购路径只能取三种', /采购路径只能是/, `select save_expense_type(null, '测试类型二', '网购')`);
+await q(`select save_expense_type($1, '测试类型改名', '集采')`, [et]);
+ok((await one(`select required_path p from api.expense_type where id = $1`, [et])).p === '集采', '支出类型可以改名和改采购路径');
 await db.exec(`reset role`);
 ok((await one(`select count(*) c from audit_log`)).c > 0, '审计日志有记录');
 

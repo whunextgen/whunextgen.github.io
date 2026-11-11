@@ -1,6 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { rpc, useViews, type CardPick, type ExpenseType, type Me, type Rule, type Ruling } from '../api';
-import { Badge, Empty, Loading, VERDICT, day, today } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, VERDICT, day, today } from '../ui';
+
+const PATH_OPTS: [string, string][] = [['直采', '直采'], ['集采', '集采'], ['分散采购', '分散采购']];
 
 function NewRuling({ cards, types, onDone }: { cards: CardPick[]; types: ExpenseType[]; onDone: () => void }) {
   const [v, setV] = useState({ card_id: '', expense_type_id: '', ruled_on: today(), ruled_by: '', verdict: '', note: '' });
@@ -47,6 +49,7 @@ export function Rules({ me }: { me: Me }) {
   });
   const [adding, setAdding] = useState(false);
   const [pick, setPick] = useState('');
+  const [edit, setEdit] = useState<ExpenseType | 'new' | null>(null);
   const by = useMemo(() => new Map((data?.rules ?? []).map((r) => [`${r.card_id}|${r.expense_type_id}`, r])), [data]);
   if (!data) return <Loading error={error} />;
   const cards = data.cards.filter((c) => c.status === 'active').sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
@@ -76,6 +79,23 @@ export function Rules({ me }: { me: Me }) {
           </table></div>
         )}
       </section>
+
+      {staff && (
+        <section className="card">
+          <h3>支出类型</h3>
+          <p className="hint">提交支出申请时要选类型，规则按类型记录。类型只能新增和修改，不能删除。</p>
+          <div className="tabs">
+            {types.map((t) => <button key={t.id} className="sm" onClick={() => setEdit(t)} title="修改">{t.name}{t.required_path ? ` · ${t.required_path}` : ''}</button>)}
+            <button className="sm" aria-pressed="true" onClick={() => setEdit('new')}>新增类型</button>
+          </div>
+        </section>
+      )}
+      {edit && <ActionDialog title={edit === 'new' ? '新增支出类型' : '修改支出类型'} submitLabel="保存"
+        hint={edit === 'new' ? '例如：电脑、差旅、会议、劳务、云服务。' : '改名会同时改变已有答复和申请里显示的名称。'}
+        fields={[{ name: 'name', label: '名称', value: edit === 'new' ? '' : edit.name },
+          { name: 'required_path', label: '必须走的采购路径（没有就不选）', required: false, options: PATH_OPTS, value: edit === 'new' ? '' : edit.required_path ?? '' }]}
+        onSubmit={async (v) => { await rpc('save_expense_type', { id: edit === 'new' ? null : edit.id, name: v.name, required_path: v.required_path || null }); reload(); }}
+        onClose={() => setEdit(null)} />}
 
       <section className="card">
         <h3>答复记录</h3>
