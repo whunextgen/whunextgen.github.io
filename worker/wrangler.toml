@@ -3,8 +3,11 @@ main = "src/index.ts"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
 
-[vars]
-APP_ORIGIN = "http://localhost:5173"
+# 页面由同一个 Worker 提供（先在 web/ 里 npm run build）；接口路径先交给 Worker 处理
+[assets]
+directory = "../web/dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/auth/*", "/health"]
 
 # 密钥用 wrangler secret put 设置，不写在这里：FEISHU_APP_ID、FEISHU_APP_SECRET、SESSION_SECRET
 # Hyperdrive 指向 Supabase Postgres，以 app_api 角色连接

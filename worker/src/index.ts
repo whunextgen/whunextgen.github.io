@@ -8,7 +8,7 @@ export interface Env {
   FEISHU_APP_SECRET: string;
   FEISHU_TENANT_KEY?: string;                 // 设了就只允许本租户
   SESSION_SECRET: string;
-  APP_ORIGIN: string;                         // 前端地址，登录后跳回这里，也是唯一允许的跨域来源
+  APP_ORIGIN?: string;                        // 前端地址；不设时前端与接口同源（页面由本 Worker 的静态资源提供）
 }
 
 const VIEWS = new Set(['me', 'users', 'card_pick', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
@@ -99,8 +99,9 @@ async function withUser<T>(env: Env, uid: string | null, fn: (sql: postgres.Tran
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
+    const appOrigin = env.APP_ORIGIN || url.origin;
     const cors = {
-      'access-control-allow-origin': env.APP_ORIGIN,
+      'access-control-allow-origin': appOrigin,
       'access-control-allow-credentials': 'true',
       'access-control-allow-headers': 'content-type',
       'access-control-allow-methods': 'GET, POST, OPTIONS',
@@ -139,7 +140,7 @@ export default {
         if (env.FEISHU_TENANT_KEY && u.tenant_key !== env.FEISHU_TENANT_KEY) return json({ error: '只允许本单位飞书账号登录' }, 403);
         const [row] = await withUser(env, null, (sql) =>
           sql`select (login_feishu(${u.open_id}, ${u.name ?? ''}, ${u.enterprise_email || u.email || null})).id as id`);
-        const headers = new Headers({ location: env.APP_ORIGIN });
+        const headers = new Headers({ location: appOrigin });
         headers.append('set-cookie', setCookie('fp_session', await sign(env.SESSION_SECRET, 'uid', row.id, 7 * 86400), 7 * 86400));
         headers.append('set-cookie', setCookie('fp_state', '', 0));
         return new Response(null, { status: 302, headers });
@@ -175,7 +176,7 @@ export default {
         const spec = RPC[fn];
         if (!spec) return json({ error: 'not found' }, 404, cors);
         // 写操作只接受来自前端页面的请求
-        if (req.headers.get('origin') !== env.APP_ORIGIN) return json({ error: '来源不允许' }, 403, cors);
+        if (req.headers.get('origin') !== appOrigin) return json({ error: '来源不允许' }, 403, cors);
         const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
         const args = spec.map(([name, type]) => {
           const v = body[name];
