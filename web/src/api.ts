@@ -52,13 +52,14 @@ export interface Cell { card_id: string; subject_id: string; subject_code: strin
 export interface Node { node_id: string; card_id: string; node_date: string; ratio: string; consequence: string; need: string; forecast: string }
 export interface Cap { card_id: string; cap_id: string; name: string; max_ratio: string; used: string; max_amount: string }
 export interface CardPick { id: string; card_no: string; name: string; template_id: string; start_date: string; cutoff_date: string; status: string }
-export interface Subject { id: string; template_id: string; code: string; name: string; sort: number }
+export interface Subject { id: string; template_id: string; code: string; name: string; school_name: string | null; sort: number }
 export interface ExpenseType { id: string; name: string; required_path: string | null }
 export type ReqStatus = 'pending' | 'committed' | 'at_school' | 'posted' | 'returned' | 'released' | 'rejected';
 export interface Req {
   id: string; code: string | null; card_id: string; subject_id: string; expense_type_id: string; title: string; amount: string;
   eta_date: string; emergency: boolean; status: ReqStatus; requested_by: string | null; created_at: string;
   path: string | null; stage: number | null; stages: number | null; posted_on: string | null; posted_amount: string | null; voucher_no: string | null;
+  morningstar_quota_id: string | null; split_group: string | null;
 }
 export interface Change { id: string; card_id: string; reason: string; status: 'pending' | 'filed' | 'approved' | 'rejected';
   approved_on: string | null; created_at: string; lines: { subject_id: string; delta: number }[] | null }
@@ -74,3 +75,14 @@ export interface YearActual { card_id: string; year: number; actual: string }
 export interface SettleCheck { card_id: string; open_requests: number; open_changes: number; open_staff: number }
 export interface SettleLine { id: string; card_id: string; settled_on: string; subject_id: string; budget: string; actual: string; balance: string }
 export interface User { id: string; name: string; role: Role; active: boolean }
+export interface Template { id: string; code: string; name: string; locked: boolean; cards: number }
+export interface TemplateCap { id: string; template_id: string; name: string; max_ratio: string; subject_ids: string[] }
+export interface UserAdmin { id: string; name: string; email: string | null; role: Role; active: boolean; linked: boolean; migrated: boolean; created_at: string; cards: number; requests: number }
+export interface Outbox { id: number; created_at: string; user_id: string | null; user_name: string | null; text: string; status: 'queued' | 'sent' | 'failed' | 'expired'; attempts: number; last_error: string | null; sent_at: string | null }
+export interface Quota { id: string; leader_id: string; leader_name: string; year: number; amount: string; labor_cap_ratio: string; used: string; actual: string; labor_used: string;
+  requests: number; labor_cap: string; quarter: number; due: string; behind: boolean }
+export interface QuotaPick { id: string; leader_name: string; year: number }
+export interface Resource { id: string; kind: 'api' | 'asset'; name: string; ref: string | null; total: string | null; unit: string | null; note: string | null; active: boolean; allocated: string; holders: number }
+export interface Allocation { id: string; resource_id: string; kind: 'api' | 'asset'; resource_name: string; ref: string | null; unit: string | null; user_id: string; user_name: string;
+  quota: string | null; from_date: string; to_date: string | null; note: string | null; returned_on: string | null; current: boolean }
+export interface Emergency { year: number; per_request: string; per_year: string; used: string }

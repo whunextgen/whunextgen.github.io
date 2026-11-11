@@ -302,6 +302,156 @@ await as(U.lead, '2026-12-15');
 ok((await q(`select * from api.settle_check`)).every(x => x.card_id === C.E) && (await q(`select * from api.year_actual`)).every(x => x.card_id === C.E), '项目负责人的汇总只含自己的卡');
 await as(U.mem, '2026-12-15');
 eq((await q(`select * from api.year_actual`)).length + (await q(`select * from api.settle_check`)).length, 0, '成员看不到汇总');
+
+// ---------- 主数据维护 ----------
+const val = async (sql, p = []) => (await one(sql, p)).v;
+const D = '2026-12-15';
+await as(U.mem, D);
+await raises('成员不能建模板', /当前角色/, `select save_template(null, 'X1', '测试模板', false)`);
+await as(U.fin, D);
+const nt = await val(`select save_template(null, 'X1', '测试模板', false) v`);
+await raises('模板代码不能重复', /已经有代码/, `select save_template(null, 'X1', '另一个', false)`);
+const s1 = await val(`select save_subject(null, $1, 'equip', '设备费') v`, [nt]);
+const s2 = await val(`select save_subject(null, $1, 'labor', '劳务费') v`, [nt]);
+const s3 = await val(`select save_subject(null, $1, 'tmp', '临时科目') v`, [nt]);
+await raises('同一模板科目代码不能重复', /已经有代码/, `select save_subject(null, $1, 'equip', '设备二') v`, [nt]);
+await q(`select delete_subject($1)`, [s3]);
+eq((await q(`select * from api.subject where template_id = $1`, [nt])).length, 2, '没用过的科目可以删');
+await raises('上限里的科目要属于本模板', /不属于这个模板/, `select save_cap(null, $1, '错的', 0.3, $2)`, [nt, JSON.stringify([sub('A', 'equip')])]);
+await q(`select save_cap(null, $1, '劳务费不超过 30%', 0.3, $2)`, [nt, JSON.stringify([s2])]);
+eq((await q(`select * from api.template_cap where template_id = $1`, [nt]))[0].subject_ids.length, 1, '比例上限带出科目');
+const nc = await val(`select save_card(null, '9999-Z', '测试卡', $1, $2, '2026-01-01', '2027-06-30', null, 'carry') v`, [nt, U.lead]);
+await raises('卡号不能重复', /已经有卡号/, `select save_card(null, '9999-Z', '重复', $1, null, '2026-01-01', '2027-06-30', null, 'carry')`, [nt]);
+await raises('截止日不能早于下达日', /不能早于下达日/, `select save_card(null, '9999-Y', '反了', $1, null, '2026-06-01', '2026-01-01', null, 'carry')`, [nt]);
+eq((await q(`select * from api.card where card_id = $1 and cur = 0`, [nc])).length, 1, '新建的卡没录预算也出现在总览里');
+await q(`select set_node($1, '2026-12-31', 0.5, '通报')`, [nc]);
+await q(`select set_node($1, '2026-12-31', 0.6, '回收')`, [nc]);
+const nodes = await q(`select * from api.node where card_id = $1`, [nc]);
+ok(nodes.length === 1 && Number(nodes[0].ratio) === 0.6, '同一天的节点是修改不是新增');
+const bl = (a, b) => JSON.stringify([{ subject_id: s1, amount: a }, { subject_id: s2, amount: b }]);
+await raises('年初预算也受比例上限约束', /违反模板规则/, `select set_budget($1, $2)`, [nc, bl(60000, 40000)]);
+eq(await val(`select set_budget($1, $2) v`, [nc, bl(80000, 20000)]), 2, '财务岗录入年初预算');
+await raises('录入后财务岗不能再改年初预算', /中心负责人/, `select set_budget($1, $2)`, [nc, bl(90000, 20000)]);
+await raises('财务岗不能设紧急通道限额', /当前角色/, `select set_emergency_limit(2027, 3000, 10000)`);
+await as(U.dir, D);
+await q(`select set_budget($1, $2)`, [nc, JSON.stringify([{ subject_id: s1, amount: 90000 }])]);
+eq((await one(`select cur from api.card where card_id = $1`, [nc])).cur, 110000, '中心负责人更正后预算合计正确');
+await q(`select set_emergency_limit(2027, 3000, 10000)`);
+await raises('全年额度不能小于单笔上限', /不能小于单笔/, `select set_emergency_limit(2027, 3000, 1000)`);
+await raises('有预算的卡不能换模板', /不能换科目模板/, `select save_card($1, '9999-Z', '测试卡', $2, $3, '2026-01-01', '2027-06-30', null, 'carry')`, [nc, T.S, U.lead]);
+await q(`select save_card($1, '9999-Z', '测试卡改名', $2, $3, '2026-01-01', '2027-09-30', null, 'carry', '备注')`, [nc, nt, U.lead]);
+eq((await q(`select * from api.card where card_id = $1 and name = '测试卡改名'`, [nc])).length, 1, '可以改卡信息');
+await q(`select delete_node($1)`, [nodes[0].node_id]);
+eq((await q(`select * from api.node where card_id = $1`, [nc])).length, 0, '可以删节点');
+
+// ---------- 用户管理 ----------
+await raises('不能停用自己', /不能停用自己/, `select set_user_role($1, 'director', false)`, [U.dir]);
+await raises('不能改掉自己的角色', /不能停用自己/, `select save_user($1, '主任', null, 'member', true)`, [U.dir]);
+await raises('角色要合法', /角色只能是/, `select set_user_role($1, 'boss', true)`, [U.mem]);
+const nu = await val(`select save_user(null, '新同事', 'New@Example.com', 'member', true) v`);
+eq((await q(`select * from api.user_admin where id = $1 and email = 'new@example.com' and not linked`, [nu])).length, 1, '预先登记的人按小写邮箱等认领');
+await raises('邮箱不能重复登记', /已经登记/, `select save_user(null, '又一个', 'new@example.com', 'member', true)`);
+await as(U.fin, D);
+eq((await q(`select * from api.user_admin`)).length, 0, '财务岗看不到用户管理');
+
+// ---------- 学校余额、通知、批量入账 ----------
+await q(`select set_school_balance($1, 500000, 20000)`, [C.C]);
+eq((await one(`select school_available from api.card where card_id = $1`, [C.C])).school_available, 480000, '学校可用 = 余额 - 冻结');
+await db.exec(`reset role`);
+for (const t of ['耗材', 'API 充值']) await q(`insert into reimb_ruling (card_id, expense_type_id, ruled_on, ruled_by, verdict) values ($1, $2, '2026-12-01', '财务甲', 'yes')`, [nc, TY[t]]);
+await db.exec(`set role app_api`);
+await as(U.mem, D);
+const nreq = (t, a) => val(`select submit_request_quota($1, $2, $3, $4, $5, '2027-03-01', false, null, null) v`, [nc, s1, TY['耗材'], t, a]);
+const b1 = await nreq('批量一', 5000), b2 = await nreq('批量二', 6000);
+await raises('登录用户取不到发送队列', /当前角色/, `select * from outbox_take(10)`);
+await as(U.dir, D);
+await q(`select approve_request($1)`, [b1]); await q(`select approve_request($1)`, [b2]);
+const ob = await q(`select * from api.outbox`);
+ok(ob.some(o => o.user_id === U.dir && /^待审批/.test(o.text) && /批量一/.test(o.text)), '提交后通知中心负责人');
+ok(ob.some(o => o.user_id === U.mem && /^已批准/.test(o.text)), '批准后通知申请人');
+ok(!ob.some(o => o.user_id === U.dir && /^已批准/.test(o.text)), '不通知操作者本人');
+await as(U.fin, D);
+await q(`select send_to_school($1)`, [b1]); await q(`select send_to_school($1)`, [b2]);
+const rows = (x) => JSON.stringify(x.map(([id, amount]) => ({ id, amount, posted_on: '2027-01-10', voucher_no: 'PZ-9' })));
+await raises('批量入账指出出错的行', /第 2 行（批量一）/, `select post_vouchers($1)`, [rows([[b1, 5000], [b1, 5000]])]);
+eq((await q(`select * from api.request where id = $1 and status = 'at_school'`, [b1])).length, 1, '批量入账有一行出错就全部不入');
+eq(await val(`select post_vouchers($1) v`, [rows([[b1, 5000], [b2, 5800]])]), 2, '批量入账两笔');
+eq((await one(`select posted_amount from api.request where id = $1`, [b2])).posted_amount, 5800, '批量入账金额按实际入账');
+await as(U.dir, D);
+await raises('中心负责人不能回写学校余额', /当前角色/, `select set_school_balance($1, 1, 0)`, [C.C]);
+await as('', D);
+const took = await q(`select * from outbox_take(50)`);
+ok(took.length > 0 && took.every(t => /^ou_/.test(t.target_id) && t.body.text), '定时任务能取到待发消息');
+await q(`select outbox_done($1, true)`, [took[0].msg_id]);
+await q(`select outbox_done($1, false, '网络错误')`, [took[1].msg_id]);
+await as(U.fin, D);
+const ob2 = await q(`select * from api.outbox`);
+ok(ob2.find(o => String(o.id) === String(took[0].msg_id)).status === 'sent' && ob2.find(o => String(o.id) === String(took[1].msg_id)).status === 'queued', '发送成功标记已发，失败留在队列重试');
+
+// ---------- 晨星额度 ----------
+await raises('财务岗不能设晨星额度', /当前角色/, `select save_quota(null, $1, 2026, 10000, 0.3)`, [U.lead]);
+await as(U.dir, D);
+const qd = await val(`select save_quota(null, $1, 2026, 10000, 0.3) v`, [U.lead]);
+await raises('同一人同一年只有一个额度', /已经有额度/, `select save_quota(null, $1, 2026, 5000, 0.3)`, [U.lead]);
+await as(U.mem, D);
+const subq = `select submit_request_quota($1, $2, $3, $4, $5, '2027-03-01', false, null, $6) v`;
+const rq = await val(subq, [nc, s1, TY['耗材'], '挂额度', 4000, qd]);
+await raises('超出晨星额度拦截', /晨星额度不足/, subq, [nc, s1, TY['耗材'], '超额度', 7000, qd]);
+await raises('晨星额度里劳务不超过 30%', /劳务类支出超过上限/, subq, [nc, s2, TY['耗材'], '超劳务', 3500, qd]);
+eq((await q(`select * from api.request where title in ('超额度', '超劳务')`)).length, 0, '额度拦截时申请整笔不提交');
+eq((await q(`select * from api.quota`)).length, 0, '成员看不到额度金额');
+eq((await q(`select * from api.quota_pick where id = $1`, [qd])).length, 1, '成员提交时能选到当年额度');
+await as(U.lead, D);
+const myq = await q(`select * from api.quota`);
+ok(myq.length === 1 && Number(myq[0].used) === 4000 && Number(myq[0].actual) === 0 && myq[0].quarter === 4 && myq[0].behind, '负责人看到自己的额度、占用和季度执行');
+await as(U.dir, D);
+await raises('额度不能调到低于已占用', /晨星额度不足/, `select save_quota($1, null, null, 3000, 0.3)`, [qd]);
+await as(U.fin, D);
+await q(`select set_request_quota($1, null)`, [rq]);
+eq((await one(`select used from api.quota where id = $1`, [qd])).used, 0, '取消挂接后额度释放');
+
+// ---------- 资源使用权 ----------
+const rs = await val(`select save_resource(null, 'api', '大模型接口', 'sk-…a3f9', 1000, '美元') v`);
+await raises('编号一栏拒绝密钥', /不要填密钥/, `select save_resource(null, 'api', '另一个接口', 'sk-abcdefghijklmnopqrstuvwxyz012345')`);
+await q(`select allocate_resource($1, $2, 600)`, [rs, U.mem]);
+await raises('接口配额不能超分', /剩余配额/, `select allocate_resource($1, $2, 500)`, [rs, U.mem2]);
+const asset = await val(`select save_resource(null, 'asset', '笔记本-01', 'ZC-001') v`);
+const al = await val(`select allocate_resource($1, $2) v`, [asset, U.mem]);
+await raises('资产同时只在一人名下', /还在别人名下/, `select allocate_resource($1, $2)`, [asset, U.mem2]);
+await as(U.mem, D);
+const mine = await q(`select * from api.allocation`);
+ok(mine.length === 2 && mine.every(a => a.user_id === U.mem && a.current), '成员只看到分给自己的资源');
+eq((await q(`select * from api.resource`)).length, 0, '成员看不到资源总表');
+await raises('成员不能分配资源', /当前角色/, `select allocate_resource($1, $2)`, [asset, U.mem]);
+await as(U.fin, D);
+await q(`select return_allocation($1)`, [al]);
+await q(`select allocate_resource($1, $2)`, [asset, U.mem2]);
+eq((await one(`select holders from api.resource where id = $1`, [asset])).holders, 1, '归还后可以再领用');
+
+// ---------- 多卡分摊 ----------
+await as(U.mem, D);
+const parts = (a, b) => JSON.stringify([{ card_id: nc, subject_id: s1, amount: a }, { card_id: C.C, subject_id: sub('C', 'net'), amount: b }]);
+await raises('分摊有一处超预算就整笔不提交', /可用/, `select submit_split($1, '分摊失败', '2027-03-01', null, $2)`, [TY['API 充值'], parts(1000, 9999999)]);
+eq((await q(`select * from api.request where title like '分摊失败%'`)).length, 0, '分摊失败不留半笔');
+await raises('分摊的直采按合计算上限', /直采单件上限/, `select submit_split($1, '分摊直采', '2027-03-01', '直采', $2)`, [TY['API 充值'], parts(30000, 30000)]);
+const g = await val(`select submit_split($1, '分摊充值', '2027-03-01', '直采', $2) v`, [TY['API 充值'], parts(1000, 2000)]);
+const gp = await q(`select * from api.request where split_group = $1 order by title`, [g]);
+ok(gp.length === 2 && /分摊 1\/2/.test(gp[0].title) && gp[0].path === '直采' && gp[1].path === null, '分摊拆成两笔，采购只记在第一笔');
+await as(U.dir, D);
+for (const x of gp) await q(`select approve_request($1)`, [x.id]);
+await as(U.fin, D);
+await raises('分摊的任何一笔都要等采购验收', /采购未验收/, `select send_to_school($1)`, [gp[1].id]);
+await q(`select procurement_fail($1, '流标', '无人报价', 10)`, [gp[0].id]);
+eq((await q(`select * from api.request where split_group = $1 and eta_date = '2027-03-11'`, [g])).length, 2, '流标后分摊的几笔一起顺延');
+
+// ---------- 账号合并 ----------
+await as(U.dir, D);
+const dup = await val(`select save_user(null, '重复账号', 'dup@example.com', 'member', true) v`);
+await raises('不能合并自己正在用的账号', /自己正在用/, `select merge_user($1, $2)`, [U.dir, dup]);
+await raises('两个都绑定飞书的账号不能合并', /两个飞书身份/, `select merge_user($1, $2)`, [U.mem, U.mem2]);
+await q(`select merge_user($1, $2)`, [dup, U.mem2]);
+const ua = await q(`select * from api.user_admin where id in ($1, $2)`, [dup, U.mem2]);
+ok(ua.find(u => u.id === dup).active === false && ua.find(u => u.id === U.mem2).email === 'dup@example.com' && ua.find(u => u.id === U.mem2).linked, '合并后旧账号停用，邮箱并到保留的账号');
 await db.exec(`reset role`);
 ok((await one(`select count(*) c from audit_log`)).c > 0, '审计日志有记录');
 

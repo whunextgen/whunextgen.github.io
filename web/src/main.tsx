@@ -9,6 +9,10 @@ import { Rules } from './pages/Rules';
 import { School } from './pages/School';
 import { StaffPage } from './pages/Staff';
 import { Settle } from './pages/Settle';
+import { Admin } from './pages/Admin';
+import { QuotaPage } from './pages/Quota';
+import { Procure } from './pages/Procure';
+import { ResourcePage } from './pages/Resource';
 import '@fontsource/instrument-serif/latin-400.css';
 import '@fontsource/instrument-serif/latin-400-italic.css';
 import '@fontsource/jetbrains-mono/latin-400.css';
@@ -57,23 +61,31 @@ function App() {
     ...(seesCards ? [['/', '经费卡与节点']] : []),
     ['/requests', '支出与承诺'],
     ...(seesStaff ? [['/staff', '人员费']] : []),
-    ...(seesCards ? [['/school', '学校侧进度']] : []),
+    ...(seesCards ? [['/procure', '采购跟踪'], ['/school', '学校侧进度'], ['/quota', '晨星额度']] : []),
     ['/rules', '可报销规则'],
+    ['/resource', '资源'],
     ...(seesCards ? [['/settle', '结清与汇总']] : []),
+    ...(seesStaff ? [['/admin', '设置']] : []),
   ];
   const cardId = route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1];
   const rules = route.startsWith('/rules');
   const school = seesCards && route.startsWith('/school');
   const staff = seesStaff && route.startsWith('/staff');
   const settle = seesCards && route.startsWith('/settle');
+  const extra = seesStaff && route.startsWith('/admin') ? '/admin' : seesCards && route.startsWith('/quota') ? '/quota'
+    : seesCards && route.startsWith('/procure') ? '/procure' : route.startsWith('/resource') ? '/resource' : '';
   const page = cardId ? <CardPage me={me} id={cardId} />
     : rules ? <Rules me={me} />
     : school ? <School me={me} />
     : staff ? <StaffPage me={me} />
     : settle ? <Settle me={me} />
+    : extra === '/admin' ? <Admin me={me} />
+    : extra === '/quota' ? <QuotaPage me={me} />
+    : extra === '/procure' ? <Procure me={me} />
+    : extra === '/resource' ? <ResourcePage me={me} />
     : route.startsWith('/requests') || !seesCards ? <Requests me={me} />
     : <Overview me={me} />;
-  const current = cardId ? '/' : rules ? '/rules' : school ? '/school' : staff ? '/staff' : settle ? '/settle' : route.startsWith('/requests') || !seesCards ? '/requests' : '/';
+  const current = cardId ? '/' : rules ? '/rules' : school ? '/school' : staff ? '/staff' : settle ? '/settle' : extra ? extra : route.startsWith('/requests') || !seesCards ? '/requests' : '/';
   return (
     <div className="shell">
       <header className="hd">

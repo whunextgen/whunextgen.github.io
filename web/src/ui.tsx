@@ -59,7 +59,7 @@ export function Loading({ error }: { error?: Error }) {
 }
 
 // 一个带若干输入项的确认框，用于批准以外需要补充信息的操作
-export interface Field { name: string; label: string; type?: 'text' | 'date' | 'number' | 'month'; value?: string; required?: boolean; options?: [string, string][] }
+export interface Field { name: string; label: string; type?: 'text' | 'date' | 'number' | 'month' | 'check' | 'multi'; value?: string; required?: boolean; options?: [string, string][] }
 export function ActionDialog({ title, hint, fields, submitLabel = '确认', danger, onSubmit, onClose }: {
   title: string; hint?: ReactNode; fields: Field[]; submitLabel?: string; danger?: boolean;
   onSubmit: (values: Record<string, string>) => Promise<unknown>; onClose: () => void;
@@ -77,7 +77,18 @@ export function ActionDialog({ title, hint, fields, submitLabel = '确认', dang
       }}>
         <h3>{title}</h3>
         {hint && <p className="hint">{hint}</p>}
-        {fields.map((f) => (
+        {fields.map((f) => f.type === 'check' ? (
+          <label key={f.name} className="field check">
+            <input type="checkbox" checked={values[f.name] === 'true'} onChange={(e) => setValues({ ...values, [f.name]: String(e.target.checked) })} /><span>{f.label}</span>
+          </label>
+        ) : f.type === 'multi' ? (
+          <fieldset key={f.name} className="multi">
+            <legend>{f.label}</legend>
+            {(f.options ?? []).map(([v, label]) => { const on = values[f.name].split(',').filter(Boolean); return (
+              <label key={v} className="field check"><input type="checkbox" checked={on.includes(v)}
+                onChange={(e) => setValues({ ...values, [f.name]: (e.target.checked ? [...on, v] : on.filter((x) => x !== v)).join(',') })} /><span>{label}</span></label>); })}
+          </fieldset>
+        ) : (
           <label key={f.name} className="field">
             <span>{f.label}</span>
             {f.options ? (

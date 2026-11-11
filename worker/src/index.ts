@@ -9,11 +9,13 @@ export interface Env {
   FEISHU_TENANT_KEY?: string;                 // 设了就只允许本租户
   SESSION_SECRET: string;
   APP_ORIGIN?: string;                        // 前端地址；不设时前端与接口同源（页面由本 Worker 的静态资源提供）
+  FEISHU_NOTIFY?: string;                     // 设为 on 才真正发飞书通知；不设时消息只在数据库里排队，过 24 小时作废
 }
 
 const VIEWS = new Set(['me', 'users', 'card_pick', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
   'request', 'request_event', 'procurement_event', 'budget_change', 'fund_event', 'person', 'pay_type', 'staff',
-  'payroll_sheet', 'settlement', 'emergency', 'year_actual', 'settle_check']);
+  'payroll_sheet', 'settlement', 'emergency', 'year_actual', 'settle_check',
+  'template', 'template_cap', 'user_admin', 'outbox', 'quota', 'quota_pick', 'resource', 'allocation']);
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
 const RPC: Record<string, [string, string][]> = {
@@ -43,6 +45,29 @@ const RPC: Record<string, [string, string][]> = {
   save_pay_type: [['id', 'uuid'], ['name', 'text'], ['subject_code', 'text'], ['monthly_cap', 'numeric']],
   set_staff: [['person_id', 'uuid'], ['pay_type_id', 'uuid'], ['from_month', 'date'], ['to_month', 'date'], ['card_id', 'uuid'], ['amount', 'numeric']],
   set_user_role: [['user_id', 'uuid'], ['role', 'text'], ['active', 'boolean']],
+  save_template: [['id', 'uuid'], ['code', 'text'], ['name', 'text'], ['locked', 'boolean']],
+  save_subject: [['id', 'uuid'], ['template_id', 'uuid'], ['code', 'text'], ['name', 'text'], ['school_name', 'text'], ['sort', 'int']],
+  delete_subject: [['id', 'uuid']],
+  save_cap: [['id', 'uuid'], ['template_id', 'uuid'], ['name', 'text'], ['max_ratio', 'numeric'], ['subject_ids', 'jsonb']],
+  delete_cap: [['id', 'uuid']],
+  save_card: [['id', 'uuid'], ['card_no', 'text'], ['name', 'text'], ['template_id', 'uuid'], ['owner_id', 'uuid'], ['start_date', 'date'],
+    ['cutoff_date', 'date'], ['settle_date', 'date'], ['end_rule', 'text'], ['rule_note', 'text']],
+  set_node: [['card_id', 'uuid'], ['node_date', 'date'], ['ratio', 'numeric'], ['consequence', 'text']],
+  delete_node: [['id', 'uuid']],
+  set_budget: [['card_id', 'uuid'], ['lines', 'jsonb']],
+  set_emergency_limit: [['year', 'int'], ['per_request', 'numeric'], ['per_year', 'numeric']],
+  save_user: [['id', 'uuid'], ['name', 'text'], ['email', 'text'], ['role', 'text'], ['active', 'boolean']],
+  merge_user: [['from_id', 'uuid'], ['into_id', 'uuid']],
+  set_school_balance: [['card_id', 'uuid'], ['balance', 'numeric'], ['frozen', 'numeric'], ['available', 'numeric']],
+  post_vouchers: [['rows', 'jsonb']],
+  save_quota: [['id', 'uuid'], ['leader_id', 'uuid'], ['year', 'int'], ['amount', 'numeric'], ['labor_ratio', 'numeric']],
+  set_request_quota: [['id', 'uuid'], ['quota_id', 'uuid']],
+  submit_request_quota: [['card_id', 'uuid'], ['subject_id', 'uuid'], ['expense_type_id', 'uuid'], ['title', 'text'], ['amount', 'numeric'],
+    ['eta_date', 'date'], ['emergency', 'boolean'], ['path', 'text'], ['quota_id', 'uuid']],
+  submit_split: [['expense_type_id', 'uuid'], ['title', 'text'], ['eta_date', 'date'], ['path', 'text'], ['parts', 'jsonb'], ['quota_id', 'uuid']],
+  save_resource: [['id', 'uuid'], ['kind', 'text'], ['name', 'text'], ['ref', 'text'], ['total', 'numeric'], ['unit', 'text'], ['note', 'text'], ['active', 'boolean']],
+  allocate_resource: [['resource_id', 'uuid'], ['user_id', 'uuid'], ['quota', 'numeric'], ['from_date', 'date'], ['to_date', 'date'], ['note', 'text']],
+  return_allocation: [['id', 'uuid'], ['returned_on', 'date']],
 };
 
 const enc = new TextEncoder();
@@ -200,5 +225,29 @@ export default {
       console.error(e);
       return json({ error: '服务器错误' }, 500, cors);
     }
+  },
+
+  // 定时把通知队列里的消息以应用身份发给本人。开关 FEISHU_NOTIFY 不是 on 时什么都不做，也不连数据库。
+  async scheduled(_event: unknown, env: Env): Promise<void> {
+    if (env.FEISHU_NOTIFY !== 'on') return;
+    const batch = await withUser(env, null, (sql) => sql`select msg_id, target_id, body from public.outbox_take(20)`);
+    if (!batch.length) return;
+    const tok = await feishu('/auth/v3/tenant_access_token/internal', {
+      method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ app_id: env.FEISHU_APP_ID, app_secret: env.FEISHU_APP_SECRET }) }).catch(() => null);
+    const results: [string, boolean, string | null][] = [];
+    for (const m of batch) {
+      if (!tok?.tenant_access_token) { results.push([String(m.msg_id), false, '取不到应用凭证']); continue; }
+      const body = typeof m.body === 'string' ? JSON.parse(m.body) : m.body;
+      const r = await feishu('/im/v1/messages?receive_id_type=open_id', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
+        body: JSON.stringify({ receive_id: m.target_id, msg_type: 'text', content: JSON.stringify({ text: `【科研财务中台】${body.text}` }) }),
+      }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
+      results.push([String(m.msg_id), r?.code === 0, r?.code === 0 ? null : `飞书返回 ${r?.code}：${String(r?.msg ?? '').slice(0, 200)}`]);
+    }
+    await withUser(env, null, async (sql) => {
+      for (const [id, ok, err] of results) await sql`select public.outbox_done(${id}::bigint, ${ok}::boolean, ${err}::text)`;
+    });
   },
 };

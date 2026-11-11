@@ -14,3 +14,7 @@ run_worker_first = ["/api/*", "/auth/*", "/health"]
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "74b386399f8e409c84b9b13ab2f9a5ca"
+
+# 每 5 分钟处理一次飞书通知队列。只有把 FEISHU_NOTIFY 设为 on（wrangler secret put 或在控制台加变量）才会真正发送
+[triggers]
+crons = ["*/5 * * * *"]
