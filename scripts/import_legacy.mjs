@@ -41,6 +41,7 @@ function rows() {
         const acct = Array.isArray(F['飞书账号']) ? F['飞书账号'][0] : null;
         fields = { serial: text(F['序号']), name: text(F['姓名']) ?? acct?.name ?? null,
                    email: acct?.email || text(F['登录邮箱']) || null,
+                   open_id: acct?.id ?? null,     // 导出应用下的 open_id；只有登录也用同一个应用时才有效
                    role: text(F['财务系统角色']) ?? null, status: text(F['财务系统状态']) ?? null,
                    scope: text(F['数据查看范围']) ?? null };
       } else if (t.table_id === ENTITY) {

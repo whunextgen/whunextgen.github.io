@@ -11,6 +11,24 @@ from legacy.record
 where table_id = 'users' and coalesce(fields->>'name', '') <> ''
 on conflict (legacy_serial) do nothing;
 
+-- 旧表的飞书账号字段带 open_id（属于导出所用的应用，登录须用同一个应用）。直接绑定，登录时不依赖邮箱。
+-- 先清掉登录时因认不出而新建的空账号（有业务记录的会因外键报错，需人工处理），再绑定；重复出现的 open_id 不绑。
+create temp view legacy_oid as
+select fields->>'serial' as serial, fields->>'open_id' as open_id
+from legacy.record
+where table_id = 'users' and coalesce(fields->>'open_id', '') <> ''
+  and fields->>'open_id' in (select fields->>'open_id' from legacy.record where table_id = 'users' group by 1 having count(*) = 1);
+
+delete from app_user u using legacy_oid o
+where u.feishu_open_id = o.open_id and u.legacy_serial is null;
+
+update app_user u set feishu_open_id = o.open_id, updated_at = now()
+from legacy_oid o
+where u.legacy_serial = o.serial and u.feishu_open_id is null
+  and not exists (select 1 from app_user x where x.feishu_open_id = o.open_id);
+
+drop view legacy_oid;
+
 insert into card_template (code, name) values ('LEGACY', '旧门户科目（过渡）') on conflict (code) do nothing;
 
 insert into template_subject (template_id, code, name, sort)
