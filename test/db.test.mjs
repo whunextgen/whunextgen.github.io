@@ -257,6 +257,20 @@ await raises('支出类型不能重名', /已经有叫/, `select save_expense_ty
 await raises('采购路径只能取三种', /采购路径只能是/, `select save_expense_type(null, '测试类型二', '网购')`);
 await q(`select save_expense_type($1, '测试类型改名', '集采')`, [et]);
 ok((await one(`select required_path p from api.expense_type where id = $1`, [et])).p === '集采', '支出类型可以改名和改采购路径');
+await as(U.dir, '2026-09-05');
+await raises('中心负责人不能登记学校侧记录', /当前角色/, `select add_fund_event($1, '到账', '2026-08-28', 50000, '科研系统到账认领')`, [C.A]);
+await as(U.fin, '2026-09-05');
+await raises('学校侧记录的类型受限', /类型只能是/, `select add_fund_event($1, '拨款', '2026-08-28', 50000)`, [C.A]);
+await raises('学校侧记录金额必须为正', /金额必须大于/, `select add_fund_event($1, '到账', '2026-08-28', 0)`, [C.A]);
+const fe = (await one(`select add_fund_event($1, '到账', '2026-08-28', 50000, ' 科研系统到账认领 ') as id`, [C.A])).id;
+const fe2 = (await one(`select add_fund_event($1, '下达', '2026-04-25', 1000000) as id`, [C.A])).id;
+ok((await one(`select done from api.fund_event where id = $1`, [fe])).done === false, '带待办的学校侧记录是未办');
+ok((await one(`select done from api.fund_event where id = $1`, [fe2])).done === true, '没有待办的学校侧记录直接算已办');
+await q(`select finish_fund_event($1)`, [fe]);
+ok((await one(`select done from api.fund_event where id = $1`, [fe])).done === true, '财务岗标记待办已办');
+await raises('已办的记录不能重复办结', /已经办结/, `select finish_fund_event($1)`, [fe]);
+await as(U.mem, '2026-09-05');
+eq((await q(`select * from api.fund_event`)).length, 0, '成员看不到学校侧记录');
 await db.exec(`reset role`);
 ok((await one(`select count(*) c from audit_log`)).c > 0, '审计日志有记录');
 

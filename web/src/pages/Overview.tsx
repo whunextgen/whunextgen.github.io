@@ -1,4 +1,4 @@
-import { useViews, type Card, type Me, type Node, type Req } from '../api';
+import { useViews, type Card, type FundEvent, type Me, type Node, type Req } from '../api';
 import { Badge, Bar, Empty, END_RULE, Loading, day, money, num, pct, today, useCount } from '../ui';
 
 // 节点状态：预测 = 已入账 + 预计在节点日前入账的承诺
@@ -28,8 +28,8 @@ function Hero({ cur, actual, commit, avail, cards, now }: { cur: number; actual:
 }
 
 export function Overview({ me }: { me: Me }) {
-  const { data, error } = useViews<{ cards: Card[]; nodes: Node[]; reqs: Req[] }>({
-    cards: ['card'], nodes: ['node'], reqs: ['request', { status: 'pending' }],
+  const { data, error } = useViews<{ cards: Card[]; nodes: Node[]; reqs: Req[]; back: Req[]; events: FundEvent[] }>({
+    cards: ['card'], nodes: ['node'], reqs: ['request', { status: 'pending' }], back: ['request', { status: 'returned' }], events: ['fund_event', { done: 'false' }],
   });
   if (!data) return <Loading error={error} />;
   const now = today();
@@ -48,13 +48,18 @@ export function Overview({ me }: { me: Me }) {
       <div className="top"><h2>经费卡与节点</h2></div>
       <Hero cur={sum('cur')} actual={sum('actual')} commit={sum('commit')} avail={sum('avail')} cards={active.length} now={now} />
 
-      {(over.length > 0 || behind.length > 0 || soon.length > 0 || data.reqs.length > 0) && (
+      {(over.length > 0 || behind.length > 0 || soon.length > 0 || data.reqs.length > 0 || data.back.length > 0 || data.events.length > 0) && (
         <section className="card">
           <h3>需要处理</h3>
           <ul className="todo">
             {data.reqs.length > 0 && <li><a href="#/requests"><Badge tone="warn">待审批</Badge>
               <span>{data.reqs.length} 笔支出申请等待批准，合计 {money(data.reqs.reduce((s, r) => s + num(r.amount), 0))}</span>
               <span className="go">去处理 →</span></a></li>}
+            {data.back.length > 0 && <li><a href="#/school"><Badge tone="bad">被退回</Badge>
+              <span>{data.back.length} 笔单据被学校退回，合计 {money(data.back.reduce((s, r) => s + num(r.amount), 0))}</span>
+              <span className="go">去处理 →</span></a></li>}
+            {data.events.length > 0 && <li><a href="#/school"><Badge tone="warn">待办</Badge>
+              <span>{data.events.length} 笔到账认领或借票核销未办</span><span className="go">去处理 →</span></a></li>}
             {over.map((c) => <li key={c.card_id}><a href={`#/card/${c.card_id}`}><Badge tone="bad">超支</Badge>
               <span>{c.name} 可用为 {money(c.avail)}</span><span className="go">看这张卡 →</span></a></li>)}
             {behind.map((n) => { const c = byId.get(n.card_id)!; const s = nodeState(n, now); return (

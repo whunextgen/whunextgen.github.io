@@ -64,5 +64,7 @@ export interface Change { id: string; card_id: string; reason: string; status: '
   approved_on: string | null; created_at: string; lines: { subject_id: string; delta: number }[] | null }
 export interface Rule { card_id: string; expense_type_id: string; ruled_on: string; ruled_by: string | null; note: string | null; verdict: string }
 export interface Ruling extends Rule { id: string; source: string | null }
+export interface FundEvent { id: string; card_id: string; kind: string; event_date: string; amount: string; todo: string | null; done: boolean; created_at: string }
+export interface ReqEvent { id: string; request_id: string; at: string; kind: string; note: string | null }
 export interface SettleLine { id: string; card_id: string; settled_on: string; subject_id: string; budget: string; actual: string; balance: string }
 export interface User { id: string; name: string; role: Role; active: boolean }
