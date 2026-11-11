@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { LegacyMs } from './Legacy';
 import { rpc, useViews, type CardPick, type Me, type Quota, type Req, type Subject, type User } from '../api';
 import { ActionDialog, Badge, Empty, Loading, REQ, Tile, day, money, num, pct, type Field } from '../ui';
 
@@ -82,6 +83,7 @@ export function QuotaPage({ me }: { me: Me }) {
             </table></div>
           )}
         </section>); })}
+      <LegacyMs />
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label}
         onSubmit={async (v) => { await act.run(v); reload(); }} onClose={() => setAct(null)} />}
     </>

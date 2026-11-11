@@ -428,6 +428,54 @@ await q(`select return_allocation($1)`, [al]);
 await q(`select allocate_resource($1, $2)`, [asset, U.mem2]);
 eq((await one(`select holders from api.resource where id = $1`, [asset])).holders, 1, '归还后可以再领用');
 
+// 有库存的一类资产可以按件发给多人
+const stock = await val(`select save_resource(null, 'asset', '显示器', null, 3, '台') v`);
+await q(`select allocate_resource($1, $2, 2)`, [stock, U.mem]);
+await raises('一类资产发放不超过库存', /库存/, `select allocate_resource($1, $2, 2)`, [stock, U.mem2]);
+await q(`select allocate_resource($1, $2)`, [stock, U.mem2]);
+eq((await one(`select allocated from api.resource where id = $1`, [stock])).allocated, 3, '一类资产按件数累计');
+
+// ---------- 旧门户数据 ----------
+await db.exec(`reset role`);
+const ent = (type, eid, status, data) => q(`insert into legacy.record (table_id, table_name, record_id, fields) values ('entity', '实体', $1, $2)`,
+  [eid, JSON.stringify({ type, id: eid, name: eid, status, data: { id: eid, ...data } })]);
+const lname = async (uid) => (await one(`select name from app_user where id = $1`, [uid])).name;
+const cardNo = (await one(`select card_no from fund_card where id = $1`, [nc])).card_no;
+await ent('funding_project', 'p1', '启用', { project_number: cardNo, total_amount: '1,000,000' });
+await ent('milestone', 'm1', '启用', { project_id: 'p1', target_date: '2031-09-20', target_amount: '750000' });
+await ent('milestone', 'm2', '启用', { project_id: 'p1', target_date: '2031-08-31', target_amount: '6500000' });
+await ent('asset_catalog_item', 'a1', '启用', { name: '旧显示器', spec: '27 寸', unit: '台', stock_quantity: '1', category: '办公设备' });
+await ent('asset_ledger', 'l1', '有效', { catalog_id: 'a1', leader_name: await lname(U.mem), quantity: '2', action: '财务直接发放', created_at: '2026-03-01T08:00:00.0000000+08:00' });
+await ent('asset_ledger', 'l2', '已作废', { catalog_id: 'a1', leader_name: await lname(U.mem2), quantity: '1', action: '领用预留', created_at: '2026-03-02T08:00:00.0000000+08:00', voided_at: '2026-03-05T08:00:00.0000000+08:00' });
+await ent('api_resource_pool', 'k1', '启用', { name: '充值在用', provider: '某服务商', model: '某模型', currency: '元', purchased_amount: '45000', balance_amount: '100' });
+await ent('morningstar_budget_submission', 's1', '待审核', { leader_name: await lname(U.mem), file_name: '预算.xlsx', submitted_at: '2026-04-01T08:00:00.0000000+08:00', total_amount: '300' });
+await ent('morningstar_budget_item', 'i1', '已通过', { submission_id: 's1', leader_name: await lname(U.mem), expense_type: '耗材', requested_amount: '300', approved_amount: '200' });
+await ent('budget_adjustment', 'b1', '启用', { project_id: 'p1', category_name: '材料费', previous_amount: '100', amount: '200', version: '2', adjusted_at: '2026-05-01T08:00:00.0000000+08:00' });
+await q(`insert into legacy.record (table_id, table_name, record_id, fields) values ('t1', '资源申请表', 'r1', $1), ('t2', '额度台账表', 'r2', $2)`,
+  [JSON.stringify({ 申请人姓名: await lname(U.mem), 资源类型: '接口', 申请状态: '已通过', 预算金额: '500', 申请时间: '1767225600000' }),
+   JSON.stringify({ 用户姓名: await lname(U.mem2), 资源类型: '接口', 总额度: '100', 已用额度: '40' })]);
+await q(`select legacy_import()`); await q(`select legacy_import()`);
+const lnodes = await q(`select * from card_node where card_id = $1 and consequence like '旧门户%'`, [nc]);
+ok(lnodes.length === 1 && Number(lnodes[0].ratio) === 0.75, '旧考核节点换算成比例，超过总经费的不导入');
+const la = await one(`select * from resource where legacy_id = 'a1'`);
+eq(la.total, 2, '旧资产库存不小于已发数量');
+const lal = await q(`select * from resource_allocation where legacy_id in ('l1', 'l2') order by legacy_id`);
+ok(lal.length === 2 && Number(lal[0].quota) === 2 && lal[0].returned_on === null && lal[1].returned_on !== null, '旧发放台账导入，作废的记为已收回，重复执行不重复导入');
+eq((await one(`select total from resource where legacy_id = 'k1'`)).total, 45000, '旧接口资源池导入');
+await db.exec(`set role app_api`);
+await as(U.mem, D);
+eq((await q(`select * from api.legacy_ms_submission`)).length, 1, '负责人看得到自己的旧晨星预算');
+eq((await one(`select approved from api.legacy_ms_item`)).approved, 200, '旧晨星明细金额');
+ok((await one(`select status from api.legacy_ms_submission`)).status === '已通过', '旧晨星提交的状态按明细推出');
+eq((await q(`select * from api.legacy_resource_request`)).length, 1, '看得到自己的旧资源申请');
+eq((await q(`select * from api.legacy_quota_ledger`)).length, 0, '看不到别人的旧额度台账');
+eq((await q(`select * from api.legacy_record`)).length, 0, '成员看不到旧数据原始记录');
+await as(U.mem2, D);
+eq((await q(`select * from api.legacy_ms_submission`)).length, 0, '看不到别人的旧晨星预算');
+await as(U.fin, D);
+eq((await q(`select * from api.legacy_budget_adjust where card_id = $1`, [nc])).length, 1, '旧预算调整挂到对应的卡');
+ok((await q(`select * from api.legacy_source`)).length >= 8, '财务岗看得到旧数据目录');
+
 // ---------- 多卡分摊 ----------
 await as(U.mem, D);
 const parts = (a, b) => JSON.stringify([{ card_id: nc, subject_id: s1, amount: a }, { card_id: C.C, subject_id: sub('C', 'net'), amount: b }]);

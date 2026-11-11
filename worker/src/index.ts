@@ -15,7 +15,8 @@ export interface Env {
 const VIEWS = new Set(['me', 'users', 'card_pick', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
   'request', 'request_event', 'procurement_event', 'budget_change', 'fund_event', 'person', 'pay_type', 'staff',
   'payroll_sheet', 'settlement', 'emergency', 'year_actual', 'settle_check',
-  'template', 'template_cap', 'user_admin', 'outbox', 'quota', 'quota_pick', 'resource', 'allocation']);
+  'template', 'template_cap', 'user_admin', 'outbox', 'quota', 'quota_pick', 'resource', 'allocation',
+  'legacy_ms_submission', 'legacy_ms_item', 'legacy_budget_adjust', 'legacy_resource_request', 'legacy_quota_ledger', 'legacy_source', 'legacy_record']);
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
 const RPC: Record<string, [string, string][]> = {

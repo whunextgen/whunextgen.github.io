@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type Allocation, type Me, type Resource, type User } from '../api';
+import { LegacyResource } from './Legacy';
 import { ActionDialog, Badge, Empty, Loading, day, num, today, type Field } from '../ui';
 
 interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
@@ -21,19 +22,20 @@ export function ResourcePage({ me }: { me: Me }) {
   const shown = data.allocs.filter((a) => past || a.current).sort((a, b) => Number(b.current) - Number(a.current) || b.from_date.localeCompare(a.from_date));
   const resAct = (r?: Resource): Act => ({
     label: r ? '修改' : '登记资源', title: r ? `修改资源：${r.name}` : '登记资源',
-    hint: '接口配额填总量和单位（例如 元/月、万 token）；资产一次只能在一个人名下。编号一栏只填保管库里的编号或掩码，不要填密钥本身。',
+    hint: '接口配额填总量和单位（例如 元/月、万 token）。资产分两种：单件的（一台设备）不填总量，一次只能在一个人名下；成批的（同一型号多件）填库存数量，按件发给多人。编号一栏只填保管库里的编号或掩码，不要填密钥本身。',
     fields: [...(r ? [] : [{ name: 'kind', label: '类型', options: Object.entries(KIND) } as Field]), { name: 'name', label: '名称', value: r?.name },
       { name: 'ref', label: '编号或掩码（可不填）', required: false, value: r?.ref ?? '' },
-      { name: 'total', label: '总配额（不限量的不填）', type: 'number', required: false, value: r?.total != null ? String(num(r.total)) : '' },
+      { name: 'total', label: '总配额或库存数量（不限量、单件资产不填）', type: 'number', required: false, value: r?.total != null ? String(num(r.total)) : '' },
       { name: 'unit', label: '单位（可不填）', required: false, value: r?.unit ?? '' }, { name: 'note', label: '备注（可不填）', required: false, value: r?.note ?? '' },
       ...(r ? [{ name: 'active', label: '在用（取消勾选即停用，不能再分配）', type: 'check', value: String(r.active) } as Field] : [])],
     run: (v) => rpc('save_resource', { id: r?.id ?? null, kind: r?.kind ?? v.kind, name: v.name, ref: v.ref, total: v.total, unit: v.unit, note: v.note, active: r ? v.active === 'true' : true }),
   });
   const giveAct = (r: Resource): Act => ({
     label: '分配', title: `分配：${r.name}`,
-    hint: r.total != null ? `总配额 ${qty(r.total, r.unit)}，已分出 ${qty(r.allocated, r.unit)}。` : r.kind === 'asset' ? '资产一次只能在一个人名下，换人前先登记归还。' : undefined,
+    hint: r.total != null ? `${r.kind === 'asset' ? '库存' : '总配额'} ${qty(r.total, r.unit)}，已分出 ${qty(r.allocated, r.unit)}。` : r.kind === 'asset' ? '资产一次只能在一个人名下，换人前先登记归还。' : undefined,
     fields: [{ name: 'user_id', label: '使用人', options: users },
-      ...(r.kind === 'api' ? [{ name: 'quota', label: `配额${r.unit ? `（${r.unit}）` : ''}`, type: 'number', required: r.total != null } as Field] : []),
+      ...(r.kind === 'api' ? [{ name: 'quota', label: `配额${r.unit ? `（${r.unit}）` : ''}`, type: 'number', required: r.total != null } as Field]
+        : r.total != null ? [{ name: 'quota', label: `数量${r.unit ? `（${r.unit}）` : ''}`, type: 'number', value: '1' } as Field] : []),
       { name: 'from_date', label: '起始日', type: 'date', value: today() }, { name: 'to_date', label: '到期日（长期的不填）', type: 'date', required: false },
       { name: 'note', label: '用途（可不填）', required: false }],
     run: (v) => rpc('allocate_resource', { resource_id: r.id, user_id: v.user_id, quota: v.quota ?? null, from_date: v.from_date, to_date: v.to_date, note: v.note }),
@@ -64,10 +66,10 @@ export function ResourcePage({ me }: { me: Me }) {
             <h3>资源</h3>
             {data.resources.length === 0 ? <Empty>还没有登记资源。</Empty> : (
               <div className="scroll"><table>
-                <thead><tr><th>名称</th><th>类型</th><th>编号</th><th className="r">总配额</th><th className="r">已分出</th><th className="r">在用人数</th><th>状态</th><th /></tr></thead>
+                <thead><tr><th>名称</th><th>类型</th><th>编号</th><th className="r">总配额 / 库存</th><th className="r">已分出</th><th className="r">在用人数</th><th>状态</th><th /></tr></thead>
                 <tbody>{[...data.resources].sort((a, b) => Number(b.active) - Number(a.active) || a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name, 'zh')).map((r) => (
                   <tr key={r.id}><td>{r.name}{r.note && <div className="sub2">{r.note}</div>}</td><td>{KIND[r.kind]}</td><td className="code">{r.ref ?? '—'}</td>
-                    <td className="r">{r.total == null ? '不限' : qty(r.total, r.unit)}</td><td className="r">{r.kind === 'api' ? qty(r.allocated, r.unit) : '—'}</td><td className="r">{r.holders}</td>
+                    <td className="r">{r.total == null ? (r.kind === 'asset' ? '单件' : '不限') : qty(r.total, r.unit)}</td><td className="r">{r.kind === 'api' || r.total != null ? qty(r.allocated, r.unit) : '—'}</td><td className="r">{r.holders}</td>
                     <td>{r.active ? <Badge tone="ok">在用</Badge> : <Badge>已停用</Badge>}</td>
                     <td><div className="acts">{r.active && <button className="sm ghost" onClick={() => setAct(giveAct(r))}>分配</button>}
                       <button className="sm ghost" onClick={() => setAct(resAct(r))}>修改</button></div></td></tr>
@@ -97,6 +99,7 @@ export function ResourcePage({ me }: { me: Me }) {
           </section>
         </>
       )}
+      <LegacyResource />
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label}
         onSubmit={async (v) => { await act.run(v); reload(); }} onClose={() => setAct(null)} />}
     </>

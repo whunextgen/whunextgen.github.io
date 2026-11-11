@@ -69,6 +69,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink)}
 .hint{margin:0 0 16px;color:var(--mute);font-size:13px}
 .empty{color:var(--mute);margin:0;padding:2px 0}
 .sub2{color:var(--mute);font-size:12px}
+tr.subrow td{background:color-mix(in srgb,var(--mute) 7%,transparent);font-size:13px}
 p.sub2{margin:14px 0 0}
 
 /* 总览主视觉 */

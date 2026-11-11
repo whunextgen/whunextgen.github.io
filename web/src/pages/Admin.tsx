@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LegacyArchive } from './Legacy';
 import { rpc, useViews, type Card, type Emergency, type Me, type Outbox, type Subject, type Template, type TemplateCap, type User, type UserAdmin } from '../api';
 import { ActionDialog, Badge, Empty, END_RULE, Loading, ROLE, day, money, num, type Field } from '../ui';
 
@@ -25,7 +26,7 @@ const OUT: Record<string, [string, string]> = { queued: ['排队中', 'warn'], s
 
 export function Admin({ me }: { me: Me }) {
   const director = me.role === 'director';
-  const [tab, setTab] = useState<'cards' | 'templates' | 'users' | 'limits' | 'outbox'>('cards');
+  const [tab, setTab] = useState<'cards' | 'templates' | 'users' | 'limits' | 'outbox' | 'legacy'>('cards');
   const [tpl, setTpl] = useState('');
   const [act, setAct] = useState<Act | null>(null);
   const { data, error, reload } = useViews<{ cards: Card[]; templates: Template[]; subjects: Subject[]; caps: TemplateCap[]; users: User[];
@@ -83,7 +84,7 @@ export function Admin({ me }: { me: Me }) {
   });
 
   const tabs: [typeof tab, string][] = [['cards', `经费卡 ${cards.length}`], ['templates', `科目模板 ${data.templates.length}`],
-    ...(director ? [['users', `用户 ${data.admin.length}`] as [typeof tab, string]] : []), ['limits', '紧急通道限额'], ['outbox', '飞书通知']];
+    ...(director ? [['users', `用户 ${data.admin.length}`] as [typeof tab, string]] : []), ['limits', '紧急通道限额'], ['outbox', '飞书通知'], ['legacy', '旧门户数据']];
 
   return (
     <>
@@ -218,6 +219,8 @@ export function Admin({ me }: { me: Me }) {
           )}
         </section>
       )}
+
+      {tab === 'legacy' && <LegacyArchive />}
 
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label}
         onSubmit={async (v) => { await act.run(v); reload(); }} onClose={() => setAct(null)} />}

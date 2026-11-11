@@ -4,6 +4,7 @@ import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, ROLE, Tile,
 import { cardFields, saveCard } from './Admin';
 import { nodeState } from './Overview';
 import { RequestTable } from './Requests';
+import { LegacyAdjustList } from './Legacy';
 
 interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
@@ -241,6 +242,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
           </table></div>
         </section>
       )}
+      <LegacyAdjustList cardId={id} />
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label}
         onSubmit={async (v) => { await act.run(v); reload(); }} onClose={() => setAct(null)} />}
     </>

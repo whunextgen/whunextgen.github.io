@@ -85,4 +85,12 @@ export interface QuotaPick { id: string; leader_name: string; year: number }
 export interface Resource { id: string; kind: 'api' | 'asset'; name: string; ref: string | null; total: string | null; unit: string | null; note: string | null; active: boolean; allocated: string; holders: number }
 export interface Allocation { id: string; resource_id: string; kind: 'api' | 'asset'; resource_name: string; ref: string | null; unit: string | null; user_id: string; user_name: string;
   quota: string | null; from_date: string; to_date: string | null; note: string | null; returned_on: string | null; current: boolean }
+export interface LegacyMsSub { id: string; leader_name: string; file_name: string | null; submitted_at: string | null; total: string | null; approved: string | null; pending: string | null; rejected: string | null; status: string; comment: string | null }
+export interface LegacyMsItem { id: string; submission_id: string; leader_name: string; serial: string | null; expense_type: string | null; parent_category: string | null; quantity: string | null; unit_amount: string | null;
+  requested: string | null; approved: string | null; note: string | null; comment: string | null; status: string; card_name: string | null; subject_name: string | null; row_no: string }
+export interface LegacyAdjust { id: string; card_id: string; subject_name: string; previous: string | null; amount: string | null; reason: string | null; version: string | null; adjusted_at: string | null }
+export interface LegacyResReq { id: string; applicant: string; kind: string | null; resource: string | null; project: string | null; purpose: string | null; usage: string | null; amount: string | null; period: string | null; status: string | null; applied_at: string | null; comment: string | null }
+export interface LegacyLedger { id: string; user_name: string; resource: string | null; project: string | null; period: string | null; total: string | null; used: string | null; remaining: string | null; valid_to: string | null }
+export interface LegacySource { source: string; name: string; n: number }
+export interface LegacyRecord { source: string; record_id: string; status: string | null; data: Record<string, unknown> | null }
 export interface Emergency { year: number; per_request: string; per_year: string; used: string }
