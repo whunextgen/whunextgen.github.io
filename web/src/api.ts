@@ -70,5 +70,7 @@ export interface Person { id: string; name: string }
 export interface PayType { id: string; name: string; subject_code: string; monthly_cap: string | null }
 export interface Staff { id: string; person_id: string; pay_type_id: string; month: string; card_id: string; amount: string; sheet_id: string | null; gap: string | null }
 export interface Sheet { id: string; month: string; pay_type_id: string; card_id: string; status: 'draft' | 'submitted' | 'posted'; posted_on: string | null; total: string }
+export interface YearActual { card_id: string; year: number; actual: string }
+export interface SettleCheck { card_id: string; open_requests: number; open_changes: number; open_staff: number }
 export interface SettleLine { id: string; card_id: string; settled_on: string; subject_id: string; budget: string; actual: string; balance: string }
 export interface User { id: string; name: string; role: Role; active: boolean }

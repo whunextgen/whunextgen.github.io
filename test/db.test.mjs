@@ -291,6 +291,17 @@ eq((await one(`select set_staff($1,$2,'2026-11-01','2026-12-01',null,null) n`, [
 await q(`select build_payroll('2026-09-01')`);
 await raises('进了发放表的月份不能再改', /已进发放表/, `select set_staff($1,$2,'2026-09-01','2026-10-01',$3,500)`, [np, npt, C.A]);
 await raises('有排布的发放类型不能改科目', /不能再改科目/, `select save_pay_type($1, '专家咨询费', 'labor', 3000)`, [npt]);
+await as(U.dir, '2026-12-15');
+const ya = await q(`select * from api.year_actual`);
+const ca = await q(`select card_id, actual from api.card`);
+ok(ca.every(c => Math.abs(Number(c.actual) - ya.filter(y => y.card_id === c.card_id).reduce((s, y) => s + Number(y.actual), 0)) < 0.005), '分年度决算数加起来等于各卡决算数');
+const sc = await q(`select * from api.settle_check`);
+eq(sc.length, (await q(`select * from api.card where status = 'active'`)).length, '每张在用卡都有结清检查');
+ok(sc.some(x => x.card_id === C.A && x.open_requests > 0), '有未结支出的卡在结清检查里标出');
+await as(U.lead, '2026-12-15');
+ok((await q(`select * from api.settle_check`)).every(x => x.card_id === C.E) && (await q(`select * from api.year_actual`)).every(x => x.card_id === C.E), '项目负责人的汇总只含自己的卡');
+await as(U.mem, '2026-12-15');
+eq((await q(`select * from api.year_actual`)).length + (await q(`select * from api.settle_check`)).length, 0, '成员看不到汇总');
 await db.exec(`reset role`);
 ok((await one(`select count(*) c from audit_log`)).c > 0, '审计日志有记录');
 

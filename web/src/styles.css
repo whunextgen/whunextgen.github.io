@@ -230,3 +230,4 @@ main>*:nth-child(5){animation-delay:.28s}main>*:nth-child(n+6){animation-delay:.
 .staff td.gap{background:color-mix(in srgb,var(--bad) 9%,transparent)}
 .staff td.gap b{color:var(--bad)}
 .staff td b{font:500 13px var(--mono)}
+tfoot th,tfoot td{border-top:1px solid var(--ink);font-weight:600;text-align:left}tfoot td.r{text-align:right}

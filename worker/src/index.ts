@@ -13,7 +13,7 @@ export interface Env {
 
 const VIEWS = new Set(['me', 'users', 'card_pick', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
   'request', 'request_event', 'procurement_event', 'budget_change', 'fund_event', 'person', 'pay_type', 'staff',
-  'payroll_sheet', 'settlement', 'emergency']);
+  'payroll_sheet', 'settlement', 'emergency', 'year_actual', 'settle_check']);
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
 const RPC: Record<string, [string, string][]> = {
