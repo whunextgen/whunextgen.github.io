@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>科研财务中台 · 经费卡预算决算原型</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#1c2330;--mute:#6b7585;--line:#e3e6eb;--pri:#1f4e8c;--pri-bg:#e8f0fa;--ok:#1b7a4b;--ok-bg:#e5f4ec;--warn:#9a6200;--warn-bg:#fdf3dc;--bad:#b3261e;--bad-bg:#fbe9e7}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.55 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg)}
+.shell{display:grid;grid-template-columns:216px 1fr;min-height:100vh}
+aside{background:#17233a;color:#cdd6e4;padding:16px 0}
+aside h1{font-size:15px;color:#fff;margin:0 18px 4px}
+aside .sub{font-size:12px;color:#8fa0bb;margin:0 18px 14px}
+aside .grp{font-size:11px;color:#7f8fa9;margin:14px 18px 4px;letter-spacing:.08em}
+aside a{display:flex;gap:8px;padding:8px 18px;color:#cdd6e4;text-decoration:none;cursor:pointer;border-left:3px solid transparent}
+aside a:hover{background:#1f2f4d}
+aside a.on{background:#24385c;color:#fff;border-left-color:#6ea8ff}
+aside a .n{color:#7f8fa9;width:14px}
+main{padding:0 24px 40px;min-width:0}
+.top{display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap}
+.top h2{margin:0;font-size:18px;flex:1}
+.demo{font-size:12px;background:var(--warn-bg);color:var(--warn);padding:3px 8px;border-radius:4px}
+select,input,button{font:inherit}
+select,input{border:1px solid var(--line);border-radius:6px;padding:5px 8px;background:#fff}
+button{border:1px solid var(--pri);background:var(--pri);color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer}
+button.ghost{background:#fff;color:var(--pri)}
+button.sm{padding:2px 8px;font-size:12px}
+button:disabled{opacity:.4;cursor:not-allowed}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.card h3{margin:0 0 10px;font-size:15px}
+.card p.hint{margin:-4px 0 10px;color:var(--mute);font-size:13px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.tile .k{font-size:12px;color:var(--mute)}
+.tile .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.tile .f{font-size:12px;color:var(--mute)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:12px;color:var(--mute);font-weight:500;background:#fafbfc}
+td.r,th.r{text-align:right}
+tr.sum td{font-weight:600;background:#fafbfc}
+tr.grp td{background:var(--pri-bg);font-weight:600}
+.scroll{overflow-x:auto}
+.b{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;background:#eef0f3;color:#465066}
+.b.ok{background:var(--ok-bg);color:var(--ok)}.b.warn{background:var(--warn-bg);color:var(--warn)}.b.bad{background:var(--bad-bg);color:var(--bad)}.b.pri{background:var(--pri-bg);color:var(--pri)}
+.steps{display:flex;gap:0;margin-bottom:16px;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.steps div{flex:1;padding:10px 12px;border-right:1px solid var(--line);font-size:13px;color:var(--mute);cursor:pointer}
+.steps div:last-child{border-right:0}
+.steps div b{display:block;color:var(--ink);font-size:14px}
+.steps div.done{background:var(--ok-bg)}.steps div.cur{background:var(--pri-bg);box-shadow:inset 0 -3px 0 var(--pri)}
+.periods{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.periods .p{border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.msg{padding:9px 12px;border-radius:8px;margin-bottom:14px;background:var(--pri-bg);color:var(--pri)}
+.msg.bad{background:var(--bad-bg);color:var(--bad)}
+.form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.form input[type=number]{width:110px}
+.bar{height:8px;background:#eef0f3;border-radius:4px;overflow:hidden;min-width:120px;display:flex}
+.bar i{display:block;height:100%}
+.bar .a{background:var(--pri)}.bar .c{background:#e0a100}
+ul.chk{list-style:none;margin:0;padding:0}
+ul.chk li{padding:5px 0;display:flex;gap:8px;align-items:center}
+td input[type=number]{width:92px;text-align:right;padding:3px 6px}
+@media(max-width:820px){.shell{grid-template-columns:1fr}aside{display:flex;flex-wrap:wrap;padding:8px}aside h1,aside .sub,aside .grp{display:none}aside a{padding:6px 10px;border:0}.periods{grid-template-columns:1fr 1fr}}
+.mx td,.mx th{padding:4px 6px;font-size:12px;text-align:center}
+.mx td.l,.mx th.l{text-align:left}
+.c0{background:#e8f0fa}.c1{background:#e5f4ec}.c2{background:#fdf3dc}.c3{background:#f1e9fb}.c4{background:#e6f5f7}.c5{background:#f3efe6}
+td.gap{background:var(--bad-bg);color:var(--bad);font-weight:600}
+.note{font-size:12px;color:var(--mute)}
+.stage{display:inline-flex;gap:2px;vertical-align:middle}.stage i{width:14px;height:6px;border-radius:2px;background:#dfe3e9;display:block}.stage i.d{background:var(--pri)}
+td.w{white-space:normal;min-width:180px}
+</style>
+</head>
+<body>
+<div class="shell"><aside id="nav"></aside><main id="main"></main></div>
+<script>
+// ---------- 示例数据（全部为演示用虚构数字，结构取自真实流程） ----------
+const SUBJ={equip:'设备购置',mat:'专用材料',labor:'劳务费',wage:'工资福利（编外）',travel:'国内差旅',conf:'会议费',net:'网络运行与维护',abroad:'因公出国',print:'印刷费',consult:'专家咨询费',biz:'业务费'};
+const TPL={
+ S:{n:'财政专项模板',subs:['equip','mat','labor','wage','travel','conf','net','abroad','print','consult'],caps:[{subs:['labor','wage'],max:.3,n:'工资福利与劳务费合计不超过经费总额 30%'},{subs:['print'],max:.3,n:'印刷费不超过 30%'}]},
+ S2:{n:'基本科研业务费模板',subs:['mat','labor','travel','net','print'],caps:[{subs:['labor'],max:.3,n:'劳务费不超过经费总额 30%'}]},
+ P:{n:'人才项目模板',subs:['equip','mat','labor','wage','travel','conf','net','abroad','print','consult'],caps:[]},
+ N:{n:'基金项目模板',subs:['equip','biz','labor'],caps:[]},
+ H:{n:'横向项目模板',subs:['equip','biz','labor','travel','net'],caps:[]},
+ W:{n:'外专项目模板',subs:['wage','consult'],caps:[],locked:true}};
+const CARDS=[
+ {id:'A',no:'4131-A',n:'人才启动经费',tpl:'S',start:'2026-04-25',cutoff:'2026-11-04',settle:'2026-12-10',end:'recall',rule:'未达节点比例的部分由学校回收；单据 11-04 截止；12-10 清零',nodes:[['2026-06-20',.5,'通报'],['2026-09-20',.75,'回收'],['2026-12-10',1,'清零']]},
+ {id:'B',no:'4130-B',n:'基本科研业务费小项目',tpl:'S2',start:'2026-03-01',cutoff:'2026-11-30',settle:'2026-11-30',end:'recall',rule:'11-30 前用完，未用回收；没有设备科目',nodes:[['2026-06-30',.5,'通报'],['2026-09-30',.75,'回收'],['2026-11-30',1,'用完']]},
+ {id:'C',no:'2121-C',n:'海外人才项目',tpl:'P',start:'2026-01-01',cutoff:'2028-12-31',settle:null,end:'keep',rule:'不回收，结余结转下年',nodes:[]},
+ {id:'D',no:'2301-D',n:'市自然科学基金',tpl:'N',start:'2026-01-01',cutoff:'2028-06-30',settle:null,end:'keep',rule:'2028-06 结题，科目间无比例限制',nodes:[]},
+ {id:'E',no:'2500-E',n:'企业横向',tpl:'H',start:'2026-01-01',cutoff:'2026-12-31',settle:'2026-12-31',end:'keep',rule:'2026-12-31 结题；限制最少',nodes:[['2026-12-31',1,'结题']]},
+ {id:'F',no:'6004-F',n:'外专项目',tpl:'W',start:'2026-06-01',cutoff:'2027-12-31',settle:null,end:'return',rule:'专人专用，科目不可增改，不可超支，到期未用上缴',nodes:[]}];
+const BUD0={A:{equip:560000,mat:50000,labor:120000,wage:80000,travel:60000,conf:60000,net:30000,abroad:30000,print:5000,consult:5000},
+ B:{mat:20000,labor:10000,travel:15000,net:10000,print:5000},
+ C:{equip:200000,mat:50000,labor:250000,wage:150000,travel:100000,conf:50000,net:120000,abroad:50000,print:10000,consult:20000},
+ D:{equip:10000,biz:60000,labor:30000},E:{equip:30000,biz:40000,labor:40000,travel:20000,net:20000},F:{wage:240000,consult:60000}};
+const TYPES=['API 充值','服务器与 GPU','电脑','会员订阅','专利费','国际差旅','国内差旅','会议注册费','耗材','聚餐'];
+const RULES={
+ 'A|API 充值':{v:'争议',log:[['2026-09-07','财务甲','不可','该卡不能列支 API'],['2026-09-10','财务乙','可','记网络运行与维护费']]},
+ 'A|服务器与 GPU':{v:'可',log:[['2026-06-03','设备处','可','5 万以上走分散采购，10 万以上要论证']]},
+ 'A|电脑':{v:'条件',log:[['2026-06-03','采购办','条件','属集采目录，财政经费只能集采；台式 5000、笔记本 7000 封顶']]},
+ 'A|会员订阅':{v:'不可',log:[['2026-07-15','财务甲','不可','财政经费不支持订阅类']]},
+ 'A|国际差旅':{v:'可',log:[['2026-05-20','财务乙','可','须在年度出访计划内']]},
+ 'A|国内差旅':{v:'可',log:[['2026-05-20','财务乙','可','']]},'A|会议注册费':{v:'可',log:[['2026-05-20','财务乙','可','']]},
+ 'A|耗材':{v:'可',log:[['2026-05-12','财务甲','可','直采平台限品类']]},'A|聚餐':{v:'不可',log:[['2026-05-12','财务甲','不可','']]},
+ 'B|API 充值':{v:'可',log:[['2026-08-10','财务乙','可','记网络运行与维护费']]},'B|服务器与 GPU':{v:'不可',log:[['2026-06-18','财务甲','不可','该项目没有设备科目']]},
+ 'B|耗材':{v:'可',log:[['2026-06-18','财务甲','可','']]},'B|国内差旅':{v:'可',log:[['2026-06-18','财务甲','可','']]},
+ 'C|API 充值':{v:'可',log:[['2026-07-01','财务乙','可','']]},'C|电脑':{v:'条件',log:[['2026-06-03','采购办','条件','必须集采，周期约两个半月']]},
+ 'C|国际差旅':{v:'可',log:[['2026-05-20','财务乙','可','']]},'C|国内差旅':{v:'可',log:[['2026-05-20','财务乙','可','']]},'C|服务器与 GPU':{v:'可',log:[['2026-06-03','设备处','可','']]},'C|耗材':{v:'可',log:[['2026-05-12','财务甲','可','']]},
+ 'D|专利费':{v:'可',log:[['2026-08-02','科发院','可','']]},'D|API 充值':{v:'可',log:[['2026-08-02','财务乙','可','记业务费']]},
+ 'E|会员订阅':{v:'可',log:[['2026-07-15','财务甲','可','']]},'E|API 充值':{v:'可',log:[['2026-07-15','财务甲','可','']]},'E|专利费':{v:'可',log:[['2026-07-15','财务甲','可','']]},
+ 'E|会议注册费':{v:'可',log:[['2026-05-25','财务甲','可','']]},'E|聚餐':{v:'不可',log:[['2026-05-25','财务甲','不可','']]},'E|国内差旅':{v:'可',log:[['2026-05-25','财务甲','可','']]}};
+const PATHS={'直采':['下单','审批（约 14 天）','到货','验收贴码'],'集采':['申报','集中采购（约 2.5 个月）','到货','验收贴码'],'分散采购':['备案','论证','挂网竞价','合同','到货','验收贴码']};
+let REQ=[
+ {id:'R01',c:'A',s:'equip',t:'服务器与 GPU',d:'GPU 服务器',amt:315000,st:'已承诺',eta:'2026-09-28',path:'分散采购',stage:2,log:[['2026-08-24','废标：所有供应商报价为同一品牌，重新挂网']]},
+ {id:'R02',c:'A',s:'equip',t:'服务器与 GPU',d:'机器人实验平台',amt:240000,st:'已承诺',eta:'2026-09-15',path:'分散采购',stage:3,log:[]},
+ {id:'R03',c:'A',s:'equip',t:'服务器与 GPU',d:'内存与硬盘',amt:48000,st:'已入账',post:['2026-06-12',48000],path:'直采',stage:4,log:[]},
+ {id:'R04',c:'A',s:'net',t:'API 充值',d:'API 充值 8 月',amt:10000,st:'被退回',eta:'2026-09-18',log:[['2026-09-07','退回：该卡不能列支 API']]},
+ {id:'R05',c:'A',s:'abroad',t:'国际差旅',d:'国际会议出访',amt:28000,st:'已入账',post:['2026-08-30',28000],log:[]},
+ {id:'R06',c:'A',s:'travel',t:'国内差旅',d:'国内会议差旅',amt:12000,st:'学校审核中',eta:'2026-09-12',log:[]},
+ {id:'R07',c:'B',s:'net',t:'API 充值',d:'API 充值 7 月',amt:10000,st:'已入账',post:['2026-08-15',10000],log:[]},
+ {id:'R08',c:'B',s:'mat',t:'耗材',d:'实验耗材',amt:8000,st:'已入账',post:['2026-06-20',8000],log:[]},
+ {id:'R09',c:'C',s:'net',t:'API 充值',d:'API 集中充值 三季度',amt:30000,st:'已入账',post:['2026-07-20',30000],log:[]},
+ {id:'R10',c:'C',s:'equip',t:'电脑',d:'笔记本 4 台',amt:28000,st:'已承诺',eta:'2026-11-15',path:'集采',stage:1,log:[]},
+ {id:'R11',c:'E',s:'biz',t:'会员订阅',d:'文献工具年费',amt:3200,st:'待审批',eta:'2026-09-25',log:[]},
+ {id:'R12',c:'E',s:'travel',t:'会议注册费',d:'会议注册费',amt:6000,st:'已入账',post:['2026-05-30',6000],log:[]},
+ {id:'R13',c:'D',s:'biz',t:'专利费',d:'专利申请费',amt:4500,st:'学校审核中',eta:'2026-09-10',log:[]}];
+let ADJ=[{id:'J01',c:'A',from:'conf',to:'equip',amt:50000,why:'会议改线上，设备需求增加',st:'已批复',date:'2026-07-20'}];
+const PEOPLE=[{id:'P1',n:'校外 RA-01',k:'外聘人员劳务费',s:'labor',m:3500},{id:'P2',n:'校外 RA-02',k:'外聘人员劳务费',s:'labor',m:3500},{id:'P3',n:'校外 RA-03',k:'外聘人员劳务费',s:'labor',m:4000},
+ {id:'P4',n:'学生-01',k:'学生三兼费',s:'labor',m:2500},{id:'P5',n:'学生-02',k:'学生三兼费',s:'labor',m:3000},{id:'P6',n:'科研助理-01',k:'编外人员工资',s:'wage',m:6500}];
+const MONTHS=['2026-05','2026-06','2026-07','2026-08','2026-09','2026-10','2026-11','2026-12','2027-01','2027-02','2027-03','2027-04'];
+const ASG={};PEOPLE.forEach(p=>{ASG[p.id]={};MONTHS.forEach(m=>ASG[p.id][m]={c:(p.id==='P4'||p.id==='P5')?'C':'A',amt:p.m})});
+let EVENTS=[{id:'V1',c:'E',t:'预借票',d:'2026-01-15',amt:150000,todo:'款到后入账核销',done:false},{id:'V2',c:'D',t:'到账',d:'2026-08-28',amt:50000,todo:'科研系统到账认领',done:false},{id:'V3',c:'A',t:'下达',d:'2026-04-25',amt:1000000,todo:'',done:true}];
+const SETTLED={};const EMG={cap:5000,year:20000};
+const DATES=['2026-05-15','2026-06-25','2026-09-05','2026-10-20','2026-12-15'];
+const S={page:'overview',role:'财务',today:'2026-09-05',card:'A',msg:null,pm:'2026-09'};
+
+// ---------- 口径 ----------
+const sum=a=>a.reduce((x,y)=>x+y,0);
+const fmt=n=>(n<0?'-':'')+'¥'+Math.abs(Math.round(n)).toLocaleString('en-US');
+const pct=(a,b)=>b?(a/b*100).toFixed(1)+'%':'—';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const card=id=>CARDS.find(c=>c.id===id),tpl=id=>TPL[card(id).tpl],md=d=>d.slice(5);
+const OPEN=['已承诺','学校审核中','被退回'];
+function adjOf(c,s){return sum(ADJ.filter(a=>a.c===c&&a.st==='已批复').map(a=>(a.to===s?a.amt:0)-(a.from===s?a.amt:0)))}
+function bud(c,s){return (BUD0[c][s]||0)+adjOf(c,s)}
+function total(c){return sum(tpl(c).subs.map(s=>bud(c,s)))}
+function payDate(m){return m+'-20'}
+// 流水：每张卡的每一笔钱，带日期和状态。决算数只来自学校已入账。
+function flows(c){const out=[];
+ REQ.filter(r=>r.c===c).forEach(r=>{if(r.st==='已入账')out.push({s:r.s,amt:r.post[1],date:r.post[0],k:r.post[0]<=S.today?'actual':'commit'});else if(OPEN.includes(r.st))out.push({s:r.s,amt:r.amt,date:r.eta,k:'commit'})});
+ PEOPLE.forEach(p=>MONTHS.forEach(m=>{const a=ASG[p.id][m];if(a.c!==c||!a.amt)return;const d=payDate(m);if(gapWhy(c,d))return;out.push({s:p.s,amt:a.amt,date:d,k:d<=S.today?'actual':'commit',person:true})}));
+ return out}
+function gapWhy(c,d){const k=card(c);if(d<k.start)return '未下达';if(d>k.cutoff)return k.end==='recall'?'已回收':'已结题';return ''}
+function cell(c,s){const f=flows(c).filter(x=>x.s===s);const b=bud(c,s),a=sum(f.filter(x=>x.k==='actual').map(x=>x.amt)),m=sum(f.filter(x=>x.k==='commit').map(x=>x.amt));return{orig:BUD0[c][s]||0,adj:adjOf(c,s),cur:b,commit:m,actual:a,avail:b-m-a}}
+function agg(c){const t={orig:0,adj:0,cur:0,commit:0,actual:0,avail:0};tpl(c).subs.forEach(s=>{const x=cell(c,s);for(const k in t)t[k]+=x[k]});return t}
+function upTo(c,d){return sum(flows(c).filter(x=>x.date<=d).map(x=>x.amt))}
+function nodeState(c,n){const T=total(c),need=T*n[1],v=upTo(c,n[0]);const past=n[0]<S.today;return{need,v,gap:Math.max(0,need-v),past,ok:v>=need}}
+function gaps(){const g=[];PEOPLE.forEach(p=>MONTHS.forEach(m=>{const a=ASG[p.id][m];if(a.amt&&gapWhy(a.c,payDate(m)))g.push({p,m,why:gapWhy(a.c,payDate(m))})}));return g}
+function late(){return REQ.filter(r=>OPEN.includes(r.st)&&lateWhy(r))}
+function lateWhy(r){const k=card(r.c);if(r.eta>k.cutoff)return '预计入账晚于单据截止 '+md(k.cutoff);const n=k.nodes.find(n=>n[2]==='回收'&&n[0]>=S.today);if(n&&r.eta>n[0]&&!nodeState(r.c,n).ok)return '预计入账晚于回收节点 '+md(n[0]);return ''}
+function rule(c,t){return RULES[c+'|'+t]||{v:'未确认',log:[]}}
+function capIssues(c,over){const T=total(c);return tpl(c).caps.map(k=>{const v=sum(k.subs.map(s=>bud(c,s)+((over&&over[s])||0)));return{n:k.n,v,max:T*k.max,bad:v>T*k.max+.5}})}
+function emgUsed(){return sum(REQ.filter(r=>r.emg).map(r=>r.amt))}
+const D=()=>S.today;
+
+// ---------- 外壳 ----------
+const NAV=[['总览',[['overview','经费卡与节点']]],['预算',[['cards','经费卡预算'],['rules','可报销规则']]],['执行',[['req','支出与承诺'],['proc','采购跟踪'],['staff','人员费'],['school','学校侧进度']]],['决算',[['settle','结清与年度汇总']]]];
+const TITLE={overview:'经费卡与节点',cards:'经费卡预算与变更',rules:'可报销规则',req:'支出与承诺',proc:'采购跟踪',staff:'人员费排布与发放',school:'学校侧进度',settle:'结清与年度汇总'};
+function go(p){S.page=p;S.msg=null;render()}
+function say(t,bad){S.msg={t,bad};render()}
+function render(){
+ let i=0;document.getElementById('nav').innerHTML='<h1>科研财务中台</h1><div class="sub">经费卡预算决算原型</div>'+NAV.map(([g,items])=>'<div class="grp">'+g+'</div>'+items.map(([id,n])=>'<a class="'+(S.page===id?'on':'')+'" onclick="go(\''+id+'\')"><span class="n">'+(++i)+'</span>'+n+'</a>').join('')).join('');
+ const top='<div class="top"><h2>'+TITLE[S.page]+'</h2><span class="demo">示例数据</span><label>今天 <select onchange="S.today=this.value;S.msg=null;render()">'+DATES.map(d=>'<option'+(d===S.today?' selected':'')+'>'+d+'</option>').join('')+'</select></label><label>角色 <select onchange="S.role=this.value;render()">'+['财务','负责人'].map(r=>'<option'+(r===S.role?' selected':'')+'>'+r+'</option>').join('')+'</select></label></div>';
+ const msg=S.msg?'<div class="msg'+(S.msg.bad?' bad':'')+'">'+esc(S.msg.t)+'</div>':'';
+ document.getElementById('main').innerHTML=top+msg+PAGES[S.page]()}
+const B=(t,c)=>'<span class="b '+(c||'')+'">'+t+'</span>';
+function stB(s){return B(s,{'已入账':'ok','已承诺':'warn','学校审核中':'pri','被退回':'bad','待审批':'pri','已释放':'','已驳回':'bad','已批复':'ok','待负责人确认':'pri','已报发规办':'warn'}[s])}
+function rB(v){return B(v,{可:'ok',不可:'bad',条件:'warn',争议:'bad',未确认:''}[v])}
+function bar(a,m,T){return '<div class="bar"><i class="a" style="width:'+Math.min(100,a/T*100)+'%"></i><i class="c" style="width:'+Math.min(100-Math.min(100,a/T*100),m/T*100)+'%"></i></div>'}
+function cardSel(id,fn){return '<select id="'+id+'" onchange="'+fn+'">'+CARDS.map(c=>'<option value="'+c.id+'"'+(c.id===S.card?' selected':'')+'>'+c.no+' '+c.n+'</option>').join('')+'</select>'}
+const fin=()=>S.role==='财务',lead=()=>S.role==='负责人';
+const dis=ok=>ok?'':' disabled title="当前角色不能操作"';
+
+// ---------- 页面 ----------
+const PAGES={
+overview(){
+ const A=CARDS.map(c=>agg(c.id));const T=k=>sum(A.map(a=>a[k]));
+ const g=gaps(),lt=late(),pend=REQ.filter(r=>r.st==='待审批'),rej=REQ.filter(r=>r.st==='被退回'),ev=EVENTS.filter(e=>!e.done),adjp=ADJ.filter(a=>a.st!=='已批复'&&a.st!=='已驳回');
+ let h='<div class="tiles">'+[['现行预算',T('cur'),'6 张经费卡'],['决算数（学校已入账）',T('actual'),'执行率 '+pct(T('actual'),T('cur'))],['承诺（已批未入账）',T('commit'),'含已排人员费'],['可用',T('avail'),'现行预算 − 承诺 − 决算数']].map(x=>'<div class="tile"><div class="k">'+x[0]+'</div><div class="v">'+fmt(x[1])+'</div><div class="f">'+x[2]+'</div></div>').join('')+'</div>';
+ h+='<div class="card"><h3>经费卡 × 节点</h3><p class="hint">每张卡按自己的节点考核。已过节点看当时入账数；未到节点看预测数，即已入账加上预计在节点前入账的承诺。</p><div class="scroll"><table><tr><th>经费卡</th><th class="r">现行预算</th><th class="r">决算数</th><th class="r">承诺</th><th class="r">可用</th><th>执行</th><th>节点</th><th>年末规则</th></tr>';
+ CARDS.forEach((c,i)=>{const a=A[i];const ns=c.nodes.map(n=>{const s=nodeState(c.id,n);const lab=md(n[0])+' '+Math.round(n[1]*100)+'% '+n[2];return s.past?B(lab+(s.ok?' 已达':' 未达 差 '+fmt(s.gap)),s.ok?'ok':'bad'):B(lab+(s.ok?' 预计达标':' 预计差 '+fmt(s.gap)),s.ok?'ok':'warn')}).join(' ')||'<span class="note">无中间节点</span>';
+  h+='<tr><td><a href="#" onclick="S.card=\''+c.id+'\';go(\'cards\');return false"><b>'+c.no+'</b> '+c.n+'</a>'+(SETTLED[c.id]?' '+B('已结清','ok'):'')+'</td><td class="r">'+fmt(a.cur)+'</td><td class="r">'+fmt(a.actual)+'</td><td class="r">'+fmt(a.commit)+'</td><td class="r">'+fmt(a.avail)+'</td><td>'+bar(a.actual,a.commit,a.cur)+'<span class="note">'+pct(a.actual,a.cur)+'</span></td><td class="w">'+ns+'</td><td class="w note">'+c.rule+'</td></tr>'});
+ h+='<tr class="sum"><td>合计</td><td class="r">'+fmt(T('cur'))+'</td><td class="r">'+fmt(T('actual'))+'</td><td class="r">'+fmt(T('commit'))+'</td><td class="r">'+fmt(T('avail'))+'</td><td colspan="3"></td></tr></table></div></div>';
+ const todo=[[pend.length,'笔支出待负责人审批','req'],[rej.length,'笔单据被学校退回','school'],[lt.length,'笔承诺预计赶不上节点','proc'],[g.length,'个人月的人员费挂在已回收或未下达的卡上','staff'],[adjp.length,'笔预算变更在途','cards'],[ev.length,'笔到账认领或借票核销未办','school']];
+ h+='<div class="card"><h3>待办</h3><ul class="chk">'+todo.map(t=>'<li>'+B(t[0],t[0]?'bad':'ok')+' '+t[1]+' <a href="#" onclick="go(\''+t[2]+'\');return false">去处理</a></li>').join('')+'</ul></div>';
+ if(lt.length)h+='<div class="card"><h3>来不及的承诺</h3><table><tr><th>单号</th><th>经费卡</th><th>事项</th><th class="r">金额</th><th>预计入账</th><th>问题</th></tr>'+lt.map(r=>'<tr><td>'+r.id+'</td><td>'+card(r.c).no+'</td><td>'+esc(r.d)+'</td><td class="r">'+fmt(r.amt)+'</td><td>'+r.eta+'</td><td>'+B(lateWhy(r),'bad')+'</td></tr>').join('')+'</table></div>';
+ return h},
+
+cards(){const c=card(S.card),t=tpl(c.id),a=agg(c.id),locked=t.locked||SETTLED[c.id];
+ let h='<div class="card"><div class="form">'+cardSel('cs',"S.card=this.value;S.msg=null;render()")+B(t.n,'pri')+(t.locked?B('科目不可增改','bad'):'')+(SETTLED[c.id]?B('已结清','ok'):'')+'<span class="note">起 '+c.start+'　单据截止 '+c.cutoff+'　'+c.rule+'</span></div></div>';
+ h+='<div class="card"><h3>预算执行（按该卡的科目模板）</h3><div class="scroll"><table><tr><th>科目</th><th class="r">年初预算</th><th class="r">调整</th><th class="r">现行预算</th><th class="r">承诺</th><th class="r">决算数</th><th class="r">可用</th><th>执行率</th></tr>';
+ t.subs.forEach(s=>{const x=cell(c.id,s);h+='<tr><td>'+SUBJ[s]+'</td><td class="r">'+fmt(x.orig)+'</td><td class="r">'+(x.adj?fmt(x.adj):'')+'</td><td class="r">'+fmt(x.cur)+'</td><td class="r">'+fmt(x.commit)+'</td><td class="r">'+fmt(x.actual)+'</td><td class="r">'+(x.avail<0?B(fmt(x.avail),'bad'):fmt(x.avail))+'</td><td>'+pct(x.actual,x.cur)+'</td></tr>'});
+ h+='<tr class="sum"><td>合计</td><td class="r">'+fmt(a.orig)+'</td><td class="r">'+(a.adj?fmt(a.adj):'')+'</td><td class="r">'+fmt(a.cur)+'</td><td class="r">'+fmt(a.commit)+'</td><td class="r">'+fmt(a.actual)+'</td><td class="r">'+fmt(a.avail)+'</td><td>'+pct(a.actual,a.cur)+'</td></tr></table></div>';
+ const ci=capIssues(c.id);h+=ci.length?'<ul class="chk" style="margin-top:10px">'+ci.map(k=>'<li>'+B(k.bad?'超限':'合规',k.bad?'bad':'ok')+' '+k.n+'：现为 '+fmt(k.v)+'，上限 '+fmt(k.max)+'</li>').join('')+'</ul>':'<p class="note">该模板没有科目比例限制。</p>';h+='</div>';
+ if(c.nodes.length){h+='<div class="card"><h3>节点</h3><table><tr><th>日期</th><th>要求</th><th class="r">应达</th><th class="r">入账或预测</th><th class="r">差额</th><th>状态</th></tr>'+c.nodes.map(n=>{const s=nodeState(c.id,n);return '<tr><td>'+n[0]+'</td><td>'+Math.round(n[1]*100)+'% '+n[2]+'</td><td class="r">'+fmt(s.need)+'</td><td class="r">'+fmt(s.v)+'</td><td class="r">'+(s.gap?fmt(s.gap):'')+'</td><td>'+(s.past?B(s.ok?'已达':'未达',s.ok?'ok':'bad'):B(s.ok?'预计达标':'预计不达标',s.ok?'ok':'warn'))+'</td></tr>'}).join('')+'</table></div>'}
+ h+='<div class="card"><h3>预算变更</h3><p class="hint">科目间调剂。负责人确认后报发规办，财务录入批复后生效；变更前后都按模板的比例上限校验。</p>';
+ const opts=t.subs.map(s=>'<option value="'+s+'">'+SUBJ[s]+'</option>').join('');
+ h+=locked?'<p class="note">该卡不能变更预算。</p>':'<div class="form">从 <select id="jf">'+opts+'</select> 调到 <select id="jt">'+opts+'</select> <input id="jm" type="number" placeholder="金额"> <input id="jw" placeholder="理由" style="flex:1;min-width:160px"> <button onclick="jNew()">发起变更</button></div>';
+ const L=ADJ.filter(x=>x.c===c.id);if(L.length)h+='<table style="margin-top:10px"><tr><th>单号</th><th>调出</th><th>调入</th><th class="r">金额</th><th>理由</th><th>状态</th><th></th></tr>'+L.map(x=>'<tr><td>'+x.id+'</td><td>'+SUBJ[x.from]+'</td><td>'+SUBJ[x.to]+'</td><td class="r">'+fmt(x.amt)+'</td><td>'+esc(x.why)+'</td><td>'+stB(x.st)+(x.date?' <span class="note">'+x.date+'</span>':'')+'</td><td>'+(x.st==='待负责人确认'?'<button class="sm"'+dis(lead())+' onclick="jStep(\''+x.id+'\')">确认并报发规办</button> <button class="sm ghost"'+dis(lead())+' onclick="jNo(\''+x.id+'\')">驳回</button>':x.st==='已报发规办'?'<button class="sm"'+dis(fin())+' onclick="jStep(\''+x.id+'\')">录入批复</button>':'')+'</td></tr>').join('')+'</table>';
+ return h+'</div>'},
+
+rules(){let h='<div class="card"><h3>经费卡 × 支出类型</h3><p class="hint">每一格是财务或职能部门的答复。未确认的类型不能提交支出；有争议的可以提交但会标出退单风险。学校退单的原因自动记到对应格子。</p><div class="scroll"><table class="mx"><tr><th class="l">支出类型</th>'+CARDS.map(c=>'<th>'+c.no+'<br>'+c.n+'</th>').join('')+'</tr>';
+ TYPES.forEach(t=>{h+='<tr><td class="l">'+t+'</td>'+CARDS.map(c=>{const r=rule(c.id,t);return '<td><a href="#" onclick="S.rk=\''+c.id+'|'+t+'\';render();return false">'+rB(r.v)+'</a></td>'}).join('')+'</tr>'});h+='</table></div></div>';
+ if(S.rk){const [c,t]=S.rk.split('|'),r=rule(c,t);h+='<div class="card"><h3>'+card(c).no+' '+card(c).n+' · '+t+' '+rB(r.v)+'</h3>'+(r.log.length?'<table><tr><th>日期</th><th>答复人</th><th>结论</th><th>说明</th></tr>'+r.log.map(l=>'<tr><td>'+l[0]+'</td><td>'+esc(l[1])+'</td><td>'+rB(l[2])+'</td><td class="w">'+esc(l[3])+'</td></tr>').join('')+'</table>':'<p class="note">还没有人问过。</p>')+'<div class="form" style="margin-top:10px"><input id="rw" placeholder="答复人"> <select id="rv"><option>可</option><option>不可</option><option>条件</option></select> <input id="rn" placeholder="说明" style="flex:1;min-width:160px"> <button'+dis(fin())+' onclick="rAdd()">记录答复</button></div><p class="note">新答复与此前结论相反时，该格自动标为争议，直到再记录一条一致的答复。</p></div>'}
+ return h},
+
+req(){const c=card(S.card),t=tpl(c.id);const ty=S.rt||TYPES[0];const r=rule(c.id,ty);
+ let h='<div class="card"><h3>新建支出申请</h3><p class="hint">先申请、后支出。审批通过即占用预算（承诺），学校入账后转为决算数。</p><div class="form">'+cardSel('xc',"S.card=this.value;render()")+' <select id="xt" onchange="S.rt=this.value;render()">'+TYPES.map(x=>'<option'+(x===ty?' selected':'')+'>'+x+'</option>').join('')+'</select> <select id="xs">'+t.subs.map(s=>'<option value="'+s+'">'+SUBJ[s]+'（可用 '+fmt(cell(c.id,s).avail)+'）</option>').join('')+'</select> <input id="xm" type="number" placeholder="金额"> <input id="xd" placeholder="事项" style="min-width:140px"> 预计入账 <input id="xe" type="date" value="'+S.today+'"> <select id="xp"><option value="">非采购</option>'+Object.keys(PATHS).map(p=>'<option>'+p+'</option>').join('')+'</select> <label><input type="checkbox" id="xg"> 紧急通道</label> <button onclick="xNew()">提交</button></div>';
+ h+='<p style="margin:10px 0 0">'+c.no+' 能否列支「'+ty+'」：'+rB(r.v)+' <span class="note">'+(r.log.length?esc(r.log[r.log.length-1][0]+' '+r.log[r.log.length-1][1]+'：'+(r.log[r.log.length-1][3]||r.log[r.log.length-1][2])):'还没有人问过，请先到「可报销规则」记录答复')+'</span></p>';
+ const can=CARDS.filter(k=>['可','条件'].includes(rule(k.id,ty).v)).map(k=>k.no+' '+k.n);h+='<p class="note">可列支这类支出的卡：'+(can.join('、')||'暂无')+'。紧急通道：单笔不超过 '+fmt(EMG.cap)+'，全年累计不超过 '+fmt(EMG.year)+'（已用 '+fmt(emgUsed())+'），事后补批。</p></div>';
+ h+='<div class="card"><h3>台账</h3><div class="scroll"><table><tr><th>单号</th><th>经费卡</th><th>科目</th><th>类型</th><th>事项</th><th class="r">金额</th><th>预计或实际入账</th><th>状态</th><th></th></tr>';
+ REQ.forEach(x=>{const lw=OPEN.includes(x.st)?lateWhy(x):'';let act='';
+  if(x.st==='待审批')act='<button class="sm"'+dis(lead())+' onclick="xOk(\''+x.id+'\')">批准</button> <button class="sm ghost"'+dis(lead())+' onclick="xSet(\''+x.id+'\',\'已驳回\')">驳回</button>';
+  else if(x.st==='已承诺')act=(x.path&&x.stage<PATHS[x.path].length?'<span class="note">采购未验收</span> ':'<button class="sm"'+dis(fin())+' onclick="xSet(\''+x.id+'\',\'学校审核中\')">提交学校</button> ')+'<button class="sm ghost"'+dis(fin())+' onclick="xSet(\''+x.id+'\',\'已释放\')">释放</button>';
+  else if(x.st==='学校审核中')act='<button class="sm"'+dis(fin())+' onclick="xPost(\''+x.id+'\')">录入入账</button> <button class="sm ghost"'+dis(fin())+' onclick="xBack(\''+x.id+'\')">学校退回</button>';
+  else if(x.st==='被退回')act='<button class="sm"'+dis(fin())+' onclick="xMove(\''+x.id+'\')">改走其他卡</button> <button class="sm ghost"'+dis(fin())+' onclick="xSet(\''+x.id+'\',\'学校审核中\')">重新提交</button>';
+  h+='<tr><td>'+x.id+(x.emg?' '+B('紧急','bad'):'')+'</td><td>'+card(x.c).no+'</td><td>'+SUBJ[x.s]+'</td><td>'+x.t+'</td><td>'+esc(x.d)+'</td><td class="r">'+fmt(x.st==='已入账'?x.post[1]:x.amt)+'</td><td>'+(x.st==='已入账'?x.post[0]:x.eta||'')+(lw?' '+B('来不及','bad'):'')+'</td><td>'+stB(x.st)+'</td><td>'+act+'</td></tr>'});
+ return h+'</table></div></div>'},
+
+proc(){let h='<div class="card"><h3>采购路径</h3><table><tr><th>路径</th><th>适用</th><th>阶段</th></tr><tr><td>直采</td><td>单件 5 万以下，平台按经费卡限品类</td><td>'+PATHS['直采'].join(' → ')+'</td></tr><tr><td>集采</td><td>政府集采目录内品类（电脑等），财政经费必须走</td><td>'+PATHS['集采'].join(' → ')+'</td></tr><tr><td>分散采购</td><td>5 万以上；10 万以上要论证，按金额分三档组织</td><td>'+PATHS['分散采购'].join(' → ')+'</td></tr></table></div>';
+ h+='<div class="card"><h3>在途采购</h3><p class="hint">验收贴码后才能提交学校报销。预计入账日期与该卡的回收节点和单据截止日比对。</p><div class="scroll"><table><tr><th>单号</th><th>经费卡</th><th>事项</th><th class="r">金额</th><th>路径</th><th>阶段</th><th>预计入账</th><th>风险</th><th></th></tr>';
+ REQ.filter(r=>r.path).forEach(r=>{const st=PATHS[r.path],done=r.stage>=st.length,lw=OPEN.includes(r.st)?lateWhy(r):'';
+  h+='<tr><td>'+r.id+'</td><td>'+card(r.c).no+'</td><td>'+esc(r.d)+'</td><td class="r">'+fmt(r.amt)+'</td><td>'+r.path+'</td><td><span class="stage">'+st.map((_,i)=>'<i class="'+(i<r.stage?'d':'')+'"></i>').join('')+'</span> '+(done?'已验收':st[r.stage])+'</td><td>'+(r.st==='已入账'?r.post[0]:'<input type="date" value="'+r.eta+'" onchange="pEta(\''+r.id+'\',this.value)"'+(fin()?'':' disabled')+'>')+'</td><td class="w">'+(lw?B(lw,'bad'):r.st==='已入账'?B('已入账','ok'):B('赶得上','ok'))+'</td><td>'+(r.st==='已承诺'&&!done?'<button class="sm"'+dis(fin())+' onclick="pNext(\''+r.id+'\')">推进一步</button> <button class="sm ghost"'+dis(fin())+' onclick="pFail(\''+r.id+'\')">废标或流标</button>':'')+'</td></tr>'+(r.log.length?'<tr><td></td><td colspan="8" class="note">'+r.log.map(l=>esc(l[0]+' '+l[1])).join('；')+'</td></tr>':'')});
+ return h+'</table></div></div>'},
+
+staff(){const g=gaps();const ci=i=>'c'+i;
+ let h='<div class="card"><h3>人员 × 月份 × 经费卡</h3><p class="hint">每格是当月发放额和所挂经费卡，跨年排布。红格表示该月发放日晚于该卡的单据截止日或早于下达日，这笔钱发不出去。</p><div class="scroll"><table class="mx"><tr><th class="l">人员</th><th class="l">发放类型</th>'+MONTHS.map(m=>'<th>'+m.slice(2)+'</th>').join('')+'</tr>';
+ PEOPLE.forEach(p=>{h+='<tr><td class="l">'+p.n+'</td><td class="l">'+p.k+'</td>'+MONTHS.map(m=>{const a=ASG[p.id][m];if(!a.amt)return '<td></td>';const w=gapWhy(a.c,payDate(m));const i=CARDS.findIndex(c=>c.id===a.c);return '<td class="'+(w?'gap':ci(i))+'" title="'+(w||card(a.c).n)+'">'+card(a.c).no.split('-')[1]+' '+(a.amt/1000)+'k'+(w?'<br>'+w:'')+'</td>'}).join('')+'</tr>'});
+ h+='<tr class="sum"><td class="l" colspan="2">当月合计</td>'+MONTHS.map(m=>'<td>'+(sum(PEOPLE.map(p=>ASG[p.id][m].amt))/1000)+'k</td>').join('')+'</tr></table></div>';
+ h+='<p class="note" style="margin-top:8px">图例：'+CARDS.map((c,i)=>'<span class="b '+ci(i)+'">'+c.no.split('-')[1]+' = '+c.n+'</span>').join(' ')+'</p></div>';
+ const mo=MONTHS.map(m=>'<option>'+m+'</option>').join('');
+ h+='<div class="card"><h3>调整挂靠</h3><div class="form"><select id="sp">'+PEOPLE.map(p=>'<option value="'+p.id+'">'+p.n+'</option>').join('')+'<option value="*">全部红格人员</option></select> 从 <select id="sf">'+mo+'</select> 到 <select id="st">'+MONTHS.map((m,i)=>'<option'+(i===MONTHS.length-1?' selected':'')+'>'+m+'</option>').join('')+'</select> 改挂 '+cardSel('sc','')+' <button'+dis(lead())+' onclick="sMove()">改挂</button></div><p class="note" style="margin-top:8px">由负责人决定。改挂时检查目标卡的科目、可用额度和有效期。</p></div>';
+ h+='<div class="card"><h3>检查</h3><ul class="chk"><li>'+B(g.length?g.length+' 个人月':'无',g.length?'bad':'ok')+' 挂在已回收、已结题或未下达的卡上'+(g.length?'，合计 '+fmt(sum(g.map(x=>ASG[x.p.id][x.m].amt))):'')+'</li>';
+ CARDS.forEach(c=>{['labor','wage'].forEach(s=>{if(!tpl(c.id).subs.includes(s))return;const x=cell(c.id,s);if(x.avail<0)h+='<li>'+B('超预算','bad')+' '+c.no+' '+SUBJ[s]+' 已排人员费超出现行预算 '+fmt(-x.avail)+'</li>'})});
+ const st=PEOPLE.filter(p=>p.k==='学生三兼费'&&p.m>3000);h+='<li>'+B(st.length?st.length+' 人':'合规',st.length?'bad':'ok')+' 学生三兼费每人每月不超过 ¥3,000</li><li>'+B('提示','pri')+' 每月 23 日后财务不再受理劳务发放；当月不能发当月</li></ul></div>';
+ const pm=S.pm;h+='<div class="card"><h3>发放表</h3><div class="form">月份 <select onchange="S.pm=this.value;render()">'+MONTHS.map(m=>'<option'+(m===pm?' selected':'')+'>'+m+'</option>').join('')+'</select><span class="note">由排布生成，按学校的提单方式分表：发放类型 × 经费卡。垫付款不进发放表，走支出申请。</span></div><table style="margin-top:10px"><tr><th>发放类型</th><th>经费卡</th><th>科目</th><th class="r">人数</th><th class="r">合计</th><th>能否提单</th></tr>';
+ const grp={};PEOPLE.forEach(p=>{const a=ASG[p.id][pm];if(!a.amt)return;const k=p.k+'|'+a.c+'|'+p.s;(grp[k]=grp[k]||[]).push(a.amt)});
+ Object.keys(grp).forEach(k=>{const [kk,c,s]=k.split('|');const w=gapWhy(c,payDate(pm));const has=tpl(c).subs.includes(s);h+='<tr><td>'+kk+'</td><td>'+card(c).no+' '+card(c).n+'</td><td>'+SUBJ[s]+'</td><td class="r">'+grp[k].length+'</td><td class="r">'+fmt(sum(grp[k]))+'</td><td>'+(w?B('不能：'+w,'bad'):!has?B('不能：该卡无此科目','bad'):B('可以','ok'))+'</td></tr>'});
+ return h+'</table></div>'},
+
+school(){const L=REQ.filter(r=>['学校审核中','被退回'].includes(r.st));
+ let h='<div class="card"><h3>在学校侧的单据</h3><table><tr><th>单号</th><th>经费卡</th><th>事项</th><th class="r">金额</th><th>状态</th><th>记录</th></tr>'+(L.map(r=>'<tr><td>'+r.id+'</td><td>'+card(r.c).no+'</td><td>'+esc(r.d)+'</td><td class="r">'+fmt(r.amt)+'</td><td>'+stB(r.st)+'</td><td class="w note">'+(r.log.map(l=>esc(l[0]+' '+l[1])).join('；')||'已提交，等待财务处理')+'</td></tr>').join('')||'<tr><td colspan="6" class="note">没有在途单据</td></tr>')+'</table></div>';
+ h+='<div class="card"><h3>到账认领与借票核销</h3><p class="hint">项目经费到校后要在科研系统认领才能使用；预借发票要在款到后核销。</p><table><tr><th>日期</th><th>经费卡</th><th>类型</th><th class="r">金额</th><th>待办</th><th></th></tr>'+EVENTS.map(e=>'<tr><td>'+e.d+'</td><td>'+card(e.c).no+' '+card(e.c).n+'</td><td>'+e.t+'</td><td class="r">'+fmt(e.amt)+'</td><td>'+(e.done?B('已办','ok'):B(e.todo,'warn'))+'</td><td>'+(e.done?'':'<button class="sm"'+dis(fin())+' onclick="eDone(\''+e.id+'\')">标记已办</button>')+'</td></tr>').join('')+'</table></div>';
+ const back=[];REQ.forEach(r=>r.log.forEach(l=>{if(/退回|废标|流标/.test(l[1]))back.push([l[0],r.id,card(r.c).no,r.t,l[1]])}));
+ h+='<div class="card"><h3>退单与废标记录</h3><table><tr><th>日期</th><th>单号</th><th>经费卡</th><th>类型</th><th>原因</th></tr>'+(back.sort().reverse().map(b=>'<tr><td>'+b[0]+'</td><td>'+b[1]+'</td><td>'+b[2]+'</td><td>'+b[3]+'</td><td class="w">'+esc(b[4])+'</td></tr>').join('')||'<tr><td colspan="5" class="note">无</td></tr>')+'</table></div>';
+ return h},
+
+settle(){let h='<div class="card"><h3>按经费卡结清</h3><p class="hint">每张卡在自己的回收或结题节点结清，不按自然年统一关账。结清条件：已到结清日；没有未结承诺；没有在途预算变更。</p><div class="scroll"><table><tr><th>经费卡</th><th>结清节点</th><th class="r">现行预算</th><th class="r">决算数</th><th>执行率</th><th class="r">未结承诺</th><th class="r">结余</th><th>结余去向</th><th></th></tr>';
+ const R={cur:0,actual:0,commit:0,recall:0,keep:0,ret:0};
+ CARDS.forEach(c=>{const a=agg(c.id),bal=a.cur-a.actual;const due=c.settle&&S.today>=c.settle;const openN=REQ.filter(r=>r.c===c.id&&(OPEN.includes(r.st)||r.st==='待审批')).length,adjN=ADJ.filter(x=>x.c===c.id&&['待负责人确认','已报发规办'].includes(x.st)).length;
+  const where=c.end==='recall'?'学校回收':c.end==='return'?'到期上缴':'结转下年';R.cur+=a.cur;R.actual+=a.actual;R.commit+=a.commit;if(c.settle){if(c.end==='recall')R.recall+=bal;else R.keep+=bal}else R.keep+=bal;
+  h+='<tr><td><b>'+c.no+'</b> '+c.n+'</td><td>'+(c.settle||'跨年，本年度只做小结')+'</td><td class="r">'+fmt(a.cur)+'</td><td class="r">'+fmt(a.actual)+'</td><td>'+pct(a.actual,a.cur)+'</td><td class="r">'+fmt(a.commit)+'</td><td class="r">'+fmt(bal)+'</td><td>'+where+'</td><td>'+(SETTLED[c.id]?B('已结清 '+SETTLED[c.id],'ok'):!c.settle?'':!due?'<span class="note">未到结清日</span>':openN||adjN?B('还有 '+(openN+adjN)+' 笔未结','warn'):'<button class="sm"'+dis(lead())+' onclick="zSettle(\''+c.id+'\')">确认结清</button>')+'</td></tr>'});
+ h+='<tr class="sum"><td colspan="2">中心年度汇总</td><td class="r">'+fmt(R.cur)+'</td><td class="r">'+fmt(R.actual)+'</td><td>'+pct(R.actual,R.cur)+'</td><td class="r">'+fmt(R.commit)+'</td><td class="r">'+fmt(R.cur-R.actual)+'</td><td colspan="2">回收 '+fmt(R.recall)+'　结转或留用 '+fmt(R.keep)+'</td></tr></table></div></div>';
+ const bySub={};CARDS.forEach(c=>tpl(c.id).subs.forEach(s=>{const x=cell(c.id,s);bySub[s]=bySub[s]||{cur:0,actual:0};bySub[s].cur+=x.cur;bySub[s].actual+=x.actual}));
+ h+='<div class="card"><h3>年度汇总：按科目</h3><p class="hint">各卡科目模板不同，汇总时按科目名归并。</p><table><tr><th>科目</th><th class="r">现行预算</th><th class="r">决算数</th><th>执行率</th></tr>'+Object.keys(bySub).map(s=>'<tr><td>'+SUBJ[s]+'</td><td class="r">'+fmt(bySub[s].cur)+'</td><td class="r">'+fmt(bySub[s].actual)+'</td><td>'+pct(bySub[s].actual,bySub[s].cur)+'</td></tr>').join('')+'</table></div>';
+ return h}
+};
+
+// ---------- 动作 ----------
+const $=id=>document.getElementById(id);let seq=20;
+function jNew(){const f=$('jf').value,t=$('jt').value,m=+$('jm').value,w=$('jw').value.trim(),c=S.card;if(f===t||!(m>0)||!w)return say('请选不同科目并填写金额和理由',1);if(m>cell(c,f).avail)return say('调出科目可用额度不足：'+SUBJ[f]+' 可用 '+fmt(cell(c,f).avail),1);const bad=capIssues(c,{[f]:-m,[t]:m}).find(k=>k.bad);if(bad)return say('变更后违反模板规则：'+bad.n,1);ADJ.push({id:'J'+(++seq),c,from:f,to:t,amt:m,why:w,st:'待负责人确认'});say('已发起变更，等待负责人确认')}
+function jStep(id){const x=ADJ.find(a=>a.id===id);if(x.st==='待负责人确认'){x.st='已报发规办';return say(id+' 已报发规办，等待批复')}if(x.amt>cell(x.c,x.from).avail)return say('调出科目可用额度已不足，无法生效',1);x.st='已批复';x.date=S.today;say(id+' 已批复，现行预算已更新')}
+function jNo(id){ADJ.find(a=>a.id===id).st='已驳回';say(id+' 已驳回')}
+function rAdd(){const w=$('rw').value.trim(),v=$('rv').value,n=$('rn').value.trim();if(!w)return say('请填写答复人',1);const r=RULES[S.rk]=RULES[S.rk]||{v:'未确认',log:[]};const last=r.log.length?r.log[r.log.length-1][2]:null;r.log.push([S.today,w,v,n]);const neg=x=>x==='不可';r.v=(last&&neg(last)!==neg(v))?'争议':v;say('已记录。当前结论：'+r.v)}
+function xNew(){const c=S.card,t=$('xt').value,s=$('xs').value,m=+$('xm').value,d=$('xd').value.trim(),e=$('xe').value,p=$('xp').value,g=$('xg').checked,k=card(c),r=rule(c,t);
+ if(!(m>0)||!d||!e)return say('请填写金额、事项和预计入账日期',1);if(SETTLED[c])return say(k.no+' 已结清，不能再列支',1);
+ if(r.v==='不可')return say('拦截：'+k.no+' 不能列支「'+t+'」。'+(r.log.length?r.log[r.log.length-1][1]+'：'+r.log[r.log.length-1][3]:''),1);
+ if(r.v==='未确认')return say('拦截：'+k.no+' 能否列支「'+t+'」还没有答复，请先问财务并记录到规则表',1);
+ if(S.today<k.start)return say('拦截：'+k.no+' 尚未下达',1);if(e>k.cutoff)return say('拦截：预计入账 '+e+' 晚于该卡单据截止 '+k.cutoff,1);
+ const av=cell(c,s).avail;if(m>av)return say('拦截：'+SUBJ[s]+' 可用 '+fmt(av)+'，不足 '+fmt(m)+'。请先做预算变更或改走其他卡',1);
+ if(t==='电脑'&&p!=='集采')return say('拦截：电脑属于集采目录，必须选集采路径',1);if(p==='直采'&&m>50000)return say('拦截：直采单件上限 5 万，请走分散采购',1);
+ if(g){if(m>EMG.cap)return say('拦截：紧急通道单笔上限 '+fmt(EMG.cap),1);if(emgUsed()+m>EMG.year)return say('拦截：紧急通道全年额度已用完',1)}
+ const x={id:'R'+(++seq),c,s,t,d,amt:m,st:g?'已承诺':'待审批',eta:e,log:[],emg:g};if(p){x.path=p;x.stage=0}REQ.push(x);
+ say(x.id+(g?' 已走紧急通道直接占用预算，需事后补批':' 已提交，等待负责人审批')+(r.v==='争议'?'。注意：这类支出在该卡的口径有争议，有退单风险':'')+(lateWhy(x)?'。注意：'+lateWhy(x):''))}
+function xOk(id){const x=REQ.find(r=>r.id===id);const av=cell(x.c,x.s).avail;if(x.amt>av)return say('无法批准：'+SUBJ[x.s]+' 可用 '+fmt(av)+'，不足 '+fmt(x.amt),1);x.st='已承诺';say(id+' 已批准，占用预算 '+fmt(x.amt))}
+function xSet(id,s){REQ.find(r=>r.id===id).st=s;say(id+' '+s)}
+function xPost(id){const x=REQ.find(r=>r.id===id);const v=prompt('学校入账金额',x.amt);if(v===null)return;const m=+v;if(!(m>0))return say('金额无效',1);x.st='已入账';x.post=[S.today,m];say(id+' 已入账 '+fmt(m)+(m<x.amt?'，差额 '+fmt(x.amt-m)+' 回到可用额度':''))}
+function xBack(id){const x=REQ.find(r=>r.id===id);const why=prompt('退回原因','');if(!why)return;x.st='被退回';x.log.push([S.today,'退回：'+why]);const r=RULES[x.c+'|'+x.t]=RULES[x.c+'|'+x.t]||{v:'未确认',log:[]};const last=r.log.length?r.log[r.log.length-1][2]:null;r.log.push([S.today,'学校退单','不可',why]);r.v=last&&last!=='不可'?'争议':'不可';say(id+' 已记录退回，原因已写入规则表')}
+function xMove(id){const x=REQ.find(r=>r.id===id);const ok=CARDS.filter(k=>k.id!==x.c&&rule(k.id,x.t).v==='可'&&!SETTLED[k.id]);const hit=ok.map(k=>{const s=tpl(k.id).subs.includes(x.s)?x.s:tpl(k.id).subs.includes('biz')?'biz':null;return s&&cell(k.id,s).avail>=x.amt&&x.eta<=k.cutoff?[k,s]:null}).find(Boolean);if(!hit)return say('没有找到规则允许且额度足够的其他卡',1);x.log.push([S.today,'由 '+card(x.c).no+' 改走 '+hit[0].no]);x.c=hit[0].id;x.s=hit[1];x.st='已承诺';say(id+' 已改走 '+hit[0].no+' '+hit[0].n+'（'+SUBJ[hit[1]]+'）')}
+function pNext(id){const x=REQ.find(r=>r.id===id);x.stage++;say(id+(x.stage>=PATHS[x.path].length?' 已验收贴码，可以提交学校':' 进入「'+PATHS[x.path][x.stage]+'」'))}
+function pFail(id){const x=REQ.find(r=>r.id===id);const why=prompt('废标或流标原因','');if(!why)return;const i=PATHS[x.path].indexOf('挂网竞价');x.stage=i<0?0:i;const d=new Date(x.eta);d.setDate(d.getDate()+30);x.eta=d.toISOString().slice(0,10);x.log.push([S.today,'废标或流标：'+why+'，预计入账顺延 30 天']);say(id+' 已记录，预计入账顺延到 '+x.eta+(lateWhy(x)?'。'+lateWhy(x):''),!!lateWhy(x))}
+function pEta(id,v){if(v){REQ.find(r=>r.id===id).eta=v;render()}}
+function sMove(){const p=$('sp').value,f=$('sf').value,t=$('st').value,c=$('sc').value;if(f>t)return say('起止月份顺序不对',1);let n=0,skip=0;const ms=MONTHS.filter(m=>m>=f&&m<=t);
+ PEOPLE.forEach(pp=>{if(p!=='*'&&pp.id!==p)return;ms.forEach(m=>{const a=ASG[pp.id][m];if(!a.amt||a.c===c)return;if(p==='*'&&!gapWhy(a.c,payDate(m)))return;if(!tpl(c).subs.includes(pp.s)||gapWhy(c,payDate(m))){skip++;return}a.c=c;n++})});
+ const over=['labor','wage'].filter(s=>tpl(c).subs.includes(s)&&cell(c,s).avail<0).map(s=>SUBJ[s]);say('已改挂 '+n+' 个人月到 '+card(c).no+(skip?'，'+skip+' 个人月因目标卡无对应科目或不在有效期而跳过':'')+(over.length?'。注意：'+over.join('、')+' 已超出该卡现行预算，需要预算变更':''),over.length>0)}
+function eDone(id){EVENTS.find(e=>e.id===id).done=true;say('已标记')}
+function zSettle(id){SETTLED[id]=S.today;const a=agg(id);say(card(id).no+' 已结清：决算数 '+fmt(a.actual)+'，执行率 '+pct(a.actual,a.cur)+'，结余 '+fmt(a.cur-a.actual)+(card(id).end==='recall'?' 由学校回收':' 结转'))}
+render();
+</script>
+</body>
+</html>

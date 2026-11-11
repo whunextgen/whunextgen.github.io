@@ -1,0 +1,14 @@
+{
+  "name": "finance-portal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/db.test.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.16"
+  },
+  "dependencies": {
+    "postgres": "^4.1.0"
+  }
+}

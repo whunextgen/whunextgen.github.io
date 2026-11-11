@@ -1,0 +1,10 @@
+import { sign, verify } from '../src/index.ts';
+let bad = 0; const ok = (c: boolean, n: string) => { if (!c) { bad++; console.log('FAIL', n); } };
+const t = await sign('s3', 'uid', 'abc-123', 60);
+ok(await verify('s3', 'uid', t) === 'abc-123', 'round trip');
+ok(await verify('other', 'uid', t) === null, 'wrong secret');
+ok(await verify('s3', 'state', t) === null, 'wrong kind');
+ok(await verify('s3', 'uid', t, Date.now() + 61000) === null, 'expired');
+ok(await verify('s3', 'uid', t.replace('abc-123', 'abc-124')) === null, 'tampered value');
+ok(await verify('s3', 'uid', undefined) === null, 'missing');
+console.log(bad ? `${bad} failed` : 'session: all passed'); process.exit(bad ? 1 : 0);

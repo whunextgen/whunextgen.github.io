@@ -1,0 +1,14 @@
+name = "finance-portal-api"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+APP_ORIGIN = "http://localhost:5173"
+FEISHU_APP_ID = ""
+
+# 密钥用 wrangler secret put 设置，不写在这里：FEISHU_APP_SECRET、SESSION_SECRET
+# Hyperdrive 指向 Supabase Postgres，用 app_api 角色的连接串创建后把 id 填在这里
+# [[hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = ""
