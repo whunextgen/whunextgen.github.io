@@ -191,7 +191,7 @@ dialog h3{margin:0 0 10px;font-size:20px}
 .login .btn{background:var(--paper);border-color:var(--paper);color:var(--brand);padding:11px 30px;font-weight:600}
 .login .btn:hover{background:var(--gold);border-color:var(--gold);color:var(--ink)}
 .login .msg{background:var(--paper);color:var(--bad);border-color:var(--paper)}
-.login-word{font:400 clamp(72px,19vw,300px)/.86 var(--serif);letter-spacing:-.03em;margin:48px 0 -.08em;animation:rise 1.2s var(--ease) both .12s}
+.login-word{font:400 clamp(72px,19vw,300px)/1.02 var(--serif);letter-spacing:0;margin:48px 0 0;animation:rise 1.2s var(--ease) both .12s}
 .login-word i{color:var(--gold)}
 
 /* 进入动效 */

@@ -13,7 +13,7 @@ function Hero({ cur, actual, commit, avail, cards, now }: { cur: number; actual:
   const w = (x: number) => `${cur > 0 ? Math.min(100, Math.max(0, (x / cur) * 100)) : 0}%`;
   return (
     <section className="hero" aria-label="在用经费卡合计">
-      <div className="hero-top"><span className="eyebrow">可用额度 · Available</span><span className="eyebrow">{now} · {cards} 张在用的卡</span></div>
+      <div className="hero-top"><span className="eyebrow">可用额度</span><span className="eyebrow">{now} · {cards} 张在用的卡</span></div>
       <div className={`hero-num ${avail < 0 ? 'bad' : ''}`} aria-label={`可用 ${money(avail)} 元`}>{int}<small>.{dec}</small><em>元</em></div>
       <div className="hero-bar" role="img" aria-label={`决算 ${pct(actual, cur)}，承诺 ${pct(commit, cur)}`}>
         <i className="a" style={{ width: w(actual) }} /><i className="c" style={{ width: w(commit) }} />

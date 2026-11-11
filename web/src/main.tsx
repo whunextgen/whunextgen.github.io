@@ -25,13 +25,13 @@ function Login({ reason }: { reason?: string }) {
   return (
     <div className="login">
       <div className="login-in">
-        <span className="eyebrow">CLAIN Finance</span>
+        <span className="eyebrow">CLAIN 中心</span>
         <h1>科研财务中台</h1>
         <p>按经费卡管理预算、承诺和决算。用中心的飞书账号登录。</p>
         {reason && <div className="msg bad" role="alert">{reason}</div>}
         <a className="btn" href="/auth/feishu/login">飞书登录 →</a>
       </div>
-      <div className="login-word" aria-hidden="true">Budget <i>&amp;</i><br />Ledger</div>
+      <div className="login-word" aria-hidden="true">预算<i>与</i><br />决算</div>
     </div>
   );
 }
@@ -60,7 +60,7 @@ function App() {
   return (
     <div className="shell">
       <header className="hd">
-        <a className="brand" href="#/"><b>科研财务中台</b><span>CLAIN Finance</span></a>
+        <a className="brand" href="#/"><b>科研财务中台</b><span>CLAIN 中心</span></a>
         <nav>{nav.map(([to, label]) => <a key={to} href={`#${to}`} className={current === to ? 'on' : ''} aria-current={current === to ? 'page' : undefined}>{label}</a>)}</nav>
         <div className="who">
           <span><b>{me.name}</b><span>{ROLE[me.role]}</span></span>
