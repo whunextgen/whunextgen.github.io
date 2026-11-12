@@ -88,6 +88,7 @@ p.sub2{margin:12px 0 0}
 .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .g3{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr) minmax(0,1.25fr)}
 .g2>.card,.g3>.card{display:flex;flex-direction:column}
+.g2>:only-child{grid-column:1/-1}
 
 /* 指标卡 */
 .tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:16px}

@@ -170,11 +170,11 @@ export function ResourcePage({ me }: { me: Me }) {
       <section className="card wide">
         <h3>我的申请</h3>
         {myReqs.length === 0 ? <Empty>你还没有提过资源申请。</Empty> : (
-          <div className="scroll"><table>
+          <div className="scroll"><table className="tight">
             <thead><tr><th>提交</th><th>类型</th><th>资源</th><th>项目 · 预算行</th><th className="r">申请</th><th className="r">批准</th><th>用于</th><th>用途</th><th>状态</th><th /></tr></thead>
             <tbody>{myReqs.map((r) => (
               <tr key={r.id}><td>{day(r.created_at)}</td><td>{KIND[r.kind]}{r.urgent && <> <Badge tone="bad">加急</Badge></>}</td><td>{r.resource_name ?? '未指定'}</td>
-                <td>{r.project_code} {r.project_name}<div className="sub2">{r.line_purpose}</div></td><td className="r">{qty(r.amount, r.unit)}</td>
+                <td className="wrap">{r.project_code} {r.project_name}<div className="sub2">{r.line_purpose}</div></td><td className="r">{qty(r.amount, r.unit)}</td>
                 <td className="r">{r.approved_amount != null ? qty(r.approved_amount, r.unit) : '—'}</td><td>{r.period ? r.period.slice(0, 7) : '—'}</td>
                 <td className="wrap">{r.purpose}{r.decide_note && <div className="sub2">{r.decided_by_name ?? r.reviewed_by_name}：{r.decide_note}</div>}</td>
                 <td><Badge tone={RES_REQ[r.status][1]}>{RES_REQ[r.status][0]}</Badge></td>
