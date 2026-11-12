@@ -1,4 +1,5 @@
 import { useViews, type Card, type Me, type Node } from '../api';
+import { Bullets, C, Donut } from '../charts';
 import { Badge, Bar, Empty, END_RULE, FUND_KIND, Loading, can, Tile, day, money, num, pct, today, useCount } from '../ui';
 
 // 节点状态：预测 = 已入账 + 预计在节点日前入账的承诺
@@ -68,10 +69,25 @@ export function Overview({ me }: { me: Me }) {
       <div className="top"><h2>经费卡与节点</h2></div>
       <div className="tiles">
         <Tile k="现行预算" v={money(sum('cur'))} f={`${active.length} 张在用的卡`} />
-        <Tile k="承诺 · 已批准未入账" v={money(sum('commit'))} f={`占预算 ${pct(sum('commit'), sum('cur'))}`} />
-        <Tile k="决算数 · 学校已入账" v={money(sum('actual'))} f={`执行率 ${pct(sum('actual'), sum('cur'))}`} />
+        <Tile k="决算数 · 学校已入账" color={C.actual} v={money(sum('actual'))} meter={sum('cur') > 0 ? sum('actual') / sum('cur') : 0} f={`执行率 ${pct(sum('actual'), sum('cur'))}`} />
+        <Tile k="承诺 · 已批准未入账" color={C.commit} v={money(sum('commit'))} meter={sum('cur') > 0 ? sum('commit') / sum('cur') : 0} f={`占预算 ${pct(sum('commit'), sum('cur'))}`} />
         <Tile k="可用" v={money(sum('avail'))} tone={sum('avail') < 0 ? 'bad' : ''} f="预算 − 承诺 − 决算" />
       </div>
+      {active.length > 0 && (
+        <div className="g2">
+          <section className="card">
+            <h3>额度构成 <span className="h3sub">{active.length} 张在用的卡合计</span></h3>
+            <Donut value={pct(sum('actual'), sum('cur'))} label="执行率" parts={[{ name: '已入账', value: sum('actual'), color: C.actual }, { name: '承诺', value: sum('commit'), color: C.commit }, { name: '可用', value: Math.max(0, sum('avail')), color: C.rest }]} />
+          </section>
+          <section className="card">
+            <h3>执行进度对时间进度 <span className="h3sub">竖线左边没填满的，是落后于时间的部分</span></h3>
+            <Bullets legend={[{ name: '已入账', color: C.actual }, { name: '承诺', color: C.commit }, { name: '时间进度', mark: true }]} rows={risks.map(({ c, k }) => ({
+              key: c.card_id, name: c.name, sub: `${END_RULE[c.end_rule]} · 还有 ${k.daysLeft} 天`, href: `#/card/${c.card_id}`,
+              cur: num(c.cur), actual: num(c.actual), commit: num(c.commit), time: k.time, tone: k.level === 'bad' ? 'bad' : '',
+              v: money(k.left), f: '预计到期结余' }))} />
+          </section>
+        </div>
+      )}
       {active.length > 0 && (
         <section className="card">
           <h3>执行预警 <span className="h3sub">{atRisk.length ? `${atRisk.length} 张卡进度落后，按现在的速度到截止日合计会剩 ${money(atRisk.reduce((s, r) => s + r.k.left, 0))}` : '各卡进度都跟得上'}</span></h3>

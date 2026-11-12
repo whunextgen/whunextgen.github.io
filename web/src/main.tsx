@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ApiError, logout, view, type Me } from './api';
-import { ROLE, can } from './ui';
+import { ROLE, can, today } from './ui';
 import { Overview } from './pages/Overview';
 import { Home } from './pages/Home';
 import { History } from './pages/Legacy';
@@ -55,6 +55,8 @@ function App() {
   const route = useRoute();
   const [me, setMe] = useState<Me | null | undefined>(undefined);   // undefined 加载中，null 未登录
   const [error, setError] = useState('');
+  const [open, setOpen] = useState(false);   // 窄屏上的导航抽屉
+  useEffect(() => setOpen(false), [route]);
   useEffect(() => {
     view<Me>('me').then((rows) => setMe(rows[0] ?? null))
       .catch((e: ApiError) => { if (e.status !== 401) setError(e.message); setMe(null); });
@@ -77,7 +79,6 @@ function App() {
     { label: '资源', no: '', pages: keep(['/resource', '申请与名下'], seesRes && ['/pool', '需求池与分发'], seesRes && ['/stock', '资源池与库存']) },
     { label: seesStaff ? '财务工作台' : '经费卡', no: '', pages: keep(seesDesk && ['/desk', '预算设置'], seesCards && ['/cards', '经费卡与节点'], seesCards && ['/quota', '晨星额度'], seesAdmin && ['/admin', '用户、权限与规则']) },
   ].filter((g) => g.pages.length > 0);
-  const main = groups.filter((g) => g.no), desk = groups.filter((g) => !g.no);
   const side = keep(['/history', '旧门户记录']);
 
   const cardId = seesCards ? route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1] : undefined;
@@ -106,30 +107,37 @@ function App() {
     : current === '/history' ? <History staff={can(me, 'read.legacy')} />
     : current === '/admin' ? <Admin me={me} />
     : <Home me={me} />;
+  const link = ([to, label]: Page) => <a key={to} href={`#${to}`} className={current === to ? 'on' : ''} aria-current={current === to ? 'page' : undefined}>{label}</a>;
+  const title = [...groups.flatMap((g) => g.pages), ...side].find(([to]) => to === current)?.[1] ?? '总览';
   return (
-    <div className="shell">
-      <header className="hd">
-        <a className="brand" href="#/"><b>科研财务中台</b><span>CLAIN 中心</span></a>
-        <nav aria-label="流程">
-          {main.map((g) => <a key={g.label} href={`#${g.pages[0][0]}`} className={group === g ? 'on' : ''} aria-current={group === g ? 'true' : undefined}><i>{g.no}</i>{g.label}</a>)}
-        </nav>
-        <nav className="side" aria-label="其他">
-          {desk.map((g) => <a key={g.label} href={`#${g.pages[0][0]}`} className={group === g ? 'on' : ''} aria-current={group === g ? 'true' : undefined}>{g.label}</a>)}
-          {side.map(([to, label]) => <a key={to} href={`#${to}`} className={current === to ? 'on' : ''} aria-current={current === to ? 'page' : undefined}>{label}</a>)}
+    <div className={`shell${open ? ' nav-open' : ''}`}>
+      <aside className="sb">
+        <a className="brand" href="#/"><i aria-hidden="true">财</i><span><b>科研财务中台</b><span>CLAIN 中心</span></span></a>
+        <nav aria-label="导航">
+          <a href="#/" className={`home${current === '/' ? ' on' : ''}`} aria-current={current === '/' ? 'page' : undefined}>总览</a>
+          {groups.map((g) => (
+            <div className="sg" key={g.label}>
+              <div className="sg-h">{g.label}{g.no && <i>{g.no}</i>}</div>
+              {g.pages.map(link)}
+            </div>
+          ))}
+          <div className="sg"><div className="sg-h">存档</div>{side.map(link)}</div>
         </nav>
         <div className="who">
           <span><b>{me.name}</b><span>{ROLE[me.role]}</span></span>
           <button className="ghost sm" onClick={() => logout().finally(() => location.reload())}>退出</button>
         </div>
-      </header>
-      {group && group.pages.length > 1 && (
-        <nav className="subnav" aria-label={`${group.label}的页面`}>
-          <span className="eyebrow">{group.no} {group.label}</span>
-          {group.pages.map(([to, label]) => <a key={to} href={`#${to}`} className={current === to ? 'on' : ''} aria-current={current === to ? 'page' : undefined}>{label}</a>)}
-        </nav>
-      )}
-      <main key={route}>{page}</main>
-      <footer className="ft"><span>预算 · 执行 · 决算</span><span>决算数只认学校正式入账</span></footer>
+      </aside>
+      <div className="scrim" onClick={() => setOpen(false)} />
+      <div className="body">
+        <header className="tb">
+          <button className="ghost sm menu" aria-expanded={open} onClick={() => setOpen(!open)}>菜单</button>
+          <div className="bc">{group && <>{group.label}<i>/</i></>}<b>{title}</b></div>
+          <span>{today()}</span>
+        </header>
+        <main key={route}>{page}</main>
+        <footer className="ft"><span>预算 · 执行 · 决算</span><span>决算数只认学校正式入账</span></footer>
+      </div>
     </div>
   );
 }

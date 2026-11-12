@@ -54,8 +54,11 @@ export function Bar({ cur, actual, commit }: { cur: number; actual: number; comm
   );
 }
 
-export const Tile = ({ k, v, f, tone }: { k: string; v: ReactNode; f?: ReactNode; tone?: string }) => (
-  <div className="tile"><div className="k">{k}</div><div className={`v ${tone ?? ''}`}>{v}</div>{f && <div className="f">{f}</div>}</div>
+// 指标卡；给了 meter 就在数字下面画一条占比
+export const Tile = ({ k, v, f, tone, color, meter }: { k: string; v: ReactNode; f?: ReactNode; tone?: string; color?: string; meter?: number }) => (
+  <div className="tile"><div className="k">{color && <i style={{ background: color }} />}{k}</div><div className={`v ${tone ?? ''}`}>{v}</div>
+    {meter != null && <div className="mt"><i style={{ width: `${Math.min(100, Math.max(0, meter * 100))}%`, background: color ?? 'var(--ink)' }} /></div>}
+    {f && <div className="f">{f}</div>}</div>
 );
 
 export const Empty = ({ children }: { children: ReactNode }) => <p className="empty">{children}</p>;
