@@ -1,5 +1,5 @@
-import { useViews, type BudgetLine, type BudgetYear, type Card, type CardPick, type Project, type ProjectBudget, type FundEvent, type Me, type Node, type Req, type ReqStatus } from '../api';
-import { Badge, Empty, Flow, Loading, REQ, ROLE, day, money, num, today } from '../ui';
+import { useViews, type BudgetLine, type BudgetYear, type Card, type CardPick, type Project, type ProjectBudget, type FundEvent, type LineExec, type Me, type Node, type Req, type ReqStatus } from '../api';
+import { Badge, Bar, Empty, END_RULE, Flow, Loading, REQ, ROLE, day, money, num, pct, today } from '../ui';
 import { Hero, nodeState } from './Overview';
 import { STAGE_TEXT, STEP_OF } from './Budget';
 
@@ -11,9 +11,9 @@ const STEPS = ['申报', '汇总报批', '核定下达', '申请', '承诺', '�
 export function Home({ me }: { me: Me }) {
   const seesCards = me.role !== 'member';
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
-    years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[] }>({
+    years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[] }>({
     reqs: ['request'], picks: ['card_pick'], cards: ['card'], nodes: ['node'], events: ['fund_event', { done: 'false' }],
-    years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'],
+    years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'],
   });
   if (!data) return <Loading error={error} />;
   const now = today();
@@ -98,6 +98,16 @@ export function Home({ me }: { me: Me }) {
   const mineOpen = mine.filter((r) => OPEN.includes(r.status)).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const cardName = new Map(data.picks.map((c) => [c.id, c.name]));
 
+  // 总览：执行中的年度预算按项目，在用的经费卡按截止日
+  const execYear = [...data.years].filter((y) => y.stage === 'issued').sort((a, b) => b.year - a.year)[0];
+  const planYear = [...data.years].filter((y) => STEP_OF[y.stage] <= 3).sort((a, b) => a.year - b.year)[0];
+  const byProject = !execYear ? [] : data.projects.map((p) => { const rows = data.exec.filter((l) => l.year === execYear.year && l.project_id === p.id);
+    const t = (k: 'fixed' | 'used' | 'actual') => rows.reduce((x, l) => x + num(l[k]), 0);
+    return { p, n: rows.length, fixed: t('fixed'), used: t('used'), actual: t('actual') }; }).filter((r) => r.n > 0);
+  const tot = (k: 'fixed' | 'used' | 'actual') => byProject.reduce((x, r) => x + r[k], 0);
+  const planTotal = (k: 'requested' | 'applied' | 'fixed') => (planYear ? data.lines.filter((l) => l.year === planYear.year).reduce((x, l) => x + num((l as unknown as Record<string, string | null>)[k]), 0) : 0);
+  const byCutoff = [...active].sort((a, b) => a.cutoff_date.localeCompare(b.cutoff_date));
+
   return (
     <>
       <div className="top">
@@ -116,6 +126,40 @@ export function Home({ me }: { me: Me }) {
           </a>
         ))}
       </div>
+
+      {(byProject.length > 0 || (planYear && seesCards)) && (
+        <section className="card">
+          <h3>年度预算</h3>
+          {planYear && <p className="hint"><a href={`#/budget/${planYear.year}`}>{planYear.year} 年度预算</a>：{STAGE_TEXT[planYear.stage]}{planYear.stage === 'declare' ? `，${day(planYear.due_date)} 截止` : ''}。申报数合计 {money(planTotal('requested'))}{planTotal('applied') > 0 ? `，申请数 ${money(planTotal('applied'))}` : ''}{planTotal('fixed') > 0 ? `，核定数 ${money(planTotal('fixed'))}` : ''}。</p>}
+          {byProject.length > 0 && execYear && (
+            <div className="scroll"><table>
+              <thead><tr><th>{execYear.year} 年度 · 项目</th><th className="r">核定数</th><th className="r">已入账</th><th className="r">在途</th><th className="r">还没用</th><th>执行</th></tr></thead>
+              <tbody>{byProject.map((r) => (
+                <tr key={r.p.id}><td><a href={`#/review/${execYear.year}`}>{r.p.name}</a><span className="sub2">{r.p.code}{r.p.owner_name ? ` · ${r.p.owner_name}` : ''}</span></td>
+                  <td className="r">{money(r.fixed)}</td><td className="r">{money(r.actual)}</td><td className="r">{money(r.used - r.actual)}</td>
+                  <td className={`r ${r.fixed - r.used < 0 ? 'neg' : ''}`}>{money(r.fixed - r.used)}</td>
+                  <td style={{ minWidth: 150 }}><Bar cur={r.fixed} actual={r.actual} commit={r.used - r.actual} /><span className="sub2">入账 {pct(r.actual, r.fixed)}</span></td></tr>))}</tbody>
+              <tfoot><tr><th scope="row">合计</th><td className="r">{money(tot('fixed'))}</td><td className="r">{money(tot('actual'))}</td><td className="r">{money(tot('used') - tot('actual'))}</td><td className="r">{money(tot('fixed') - tot('used'))}</td><td><span className="sub2">入账 {pct(tot('actual'), tot('fixed'))}</span></td></tr></tfoot>
+            </table></div>)}
+        </section>
+      )}
+
+      {seesCards && byCutoff.length > 0 && (
+        <section className="card">
+          <h3>经费卡</h3>
+          <div className="scroll"><table>
+            <thead><tr><th>经费卡</th><th>到期怎么办</th><th>单据截止</th><th className="r">现行预算</th><th className="r">已入账</th><th className="r">承诺</th><th className="r">可用</th><th>执行</th></tr></thead>
+            <tbody>{byCutoff.map((c) => { const left = Math.round((Date.parse(day(c.cutoff_date)) - Date.parse(now)) / 864e5); return (
+              <tr key={c.card_id}><td><a href={`#/card/${c.card_id}`}>{c.name}</a><span className="sub2">{c.card_no}</span></td>
+                <td><Badge tone={c.end_rule === 'recall' && num(c.avail) > 0 ? 'warn' : ''}>{END_RULE[c.end_rule]}</Badge></td>
+                <td>{day(c.cutoff_date)}<div className={`sub2 ${left < 0 ? 'neg' : ''}`}>{left < 0 ? `已过 ${-left} 天` : `还有 ${left} 天`}</div></td>
+                <td className="r">{money(c.cur)}</td><td className="r">{money(c.actual)}</td><td className="r">{money(c.commit)}</td>
+                <td className={`r ${num(c.avail) < 0 ? 'neg' : ''}`}>{money(c.avail)}{c.end_rule === 'recall' && num(c.avail) > 0 && <div className="sub2">到期前要花完</div>}</td>
+                <td style={{ minWidth: 150 }}><Bar cur={num(c.cur)} actual={num(c.actual)} commit={num(c.commit)} /><span className="sub2">入账 {pct(num(c.actual), num(c.cur))}</span></td></tr>); })}</tbody>
+          </table></div>
+          <div className="legend"><span><i className="a" />已入账</span><span><i className="c" />承诺或在途</span></div>
+        </section>
+      )}
 
       <nav className="flowline three" aria-label="执行中的三步">
         {stages.map((s, i) => (
