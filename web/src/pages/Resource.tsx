@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { rpc, useViews, type Allocation, type Me, type Resource, type User } from '../api';
-import { LegacyResource } from './Legacy';
 import { ActionDialog, Badge, Empty, Loading, day, num, today, type Field } from '../ui';
 
 interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
@@ -99,7 +98,6 @@ export function ResourcePage({ me }: { me: Me }) {
           </section>
         </>
       )}
-      <LegacyResource />
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label}
         onSubmit={async (v) => { await act.run(v); reload(); }} onClose={() => setAct(null)} />}
     </>

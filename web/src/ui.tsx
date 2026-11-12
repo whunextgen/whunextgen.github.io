@@ -110,3 +110,15 @@ export function ActionDialog({ title, hint, fields, submitLabel = '确认', dang
     </dialog>
   );
 }
+
+// 一笔申请走到哪一步：申请 → 批准 → 交学校 → 入账。已驳回、已释放的不画
+export const FLOW = ['申请', '批准', '交学校', '入账'];
+export function Flow({ status }: { status: ReqStatus }) {
+  const at = ({ pending: 1, committed: 2, returned: 2, at_school: 3, posted: 4, released: -1, rejected: -1 } as Record<ReqStatus, number>)[status];
+  if (at < 0) return null;
+  return (
+    <ol className="flow" aria-label={at >= FLOW.length ? '四步都已完成' : `已完成 ${at} 步，现在等${FLOW[at]}`}>
+      {FLOW.map((s, i) => <li key={s} title={s} className={i < at ? 'done' : i === at ? (status === 'returned' ? 'now bad' : 'now') : ''} />)}
+    </ol>
+  );
+}

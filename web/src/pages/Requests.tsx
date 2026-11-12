@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { rpc, useViews, type CardPick, type ExpenseType, type Me, type QuotaPick, type Req, type ReqStatus, type Subject, type User } from '../api';
-import { ActionDialog, Badge, Empty, Loading, REQ, day, money, num, today, type Field } from '../ui';
+import { rpc, useViews, type CardPick, type ExpenseType, type LinePick, type Me, type Project, type QuotaPick, type Req, type ReqStatus, type Subject, type User } from '../api';
+import { ActionDialog, Badge, Empty, Flow, Loading, REQ, day, money, num, today, type Field } from '../ui';
 
 export const PATHS = ['直采', '集采', '分散采购'];
 const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
@@ -8,7 +8,7 @@ const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
 interface Action { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
 // 每个状态下，当前角色能做什么。权限最终由数据库函数判定，这里只决定显示哪些按钮。
-export function actionsFor(me: Me, r: Req, targets: [string, string][]): Action[] {
+export function actionsFor(me: Me, r: Req, targets: [string, string][], lines: [string, string][] = []): Action[] {
   const what = `${r.title}，${money(r.amount)}`;
   const out: Action[] = [];
   if (me.role === 'director' && r.status === 'pending') {
@@ -41,11 +41,14 @@ export function actionsFor(me: Me, r: Req, targets: [string, string][]): Action[
   if ((me.role === 'finance' || me.role === 'director') && (r.status === 'committed' || r.status === 'returned'))
     out.push({ label: '释放', title: '释放这笔承诺', hint: `${what}。释放后额度回到可用，这笔申请作废。`, danger: true, fields: [],
       run: () => rpc('release_request', { id: r.id }) });
+  if (me.role === 'finance' && !r.budget_line_id && lines.length > 0 && r.status !== 'rejected' && r.status !== 'released')
+    out.push({ label: '挂到预算', title: '把这笔支出挂到预算行上', hint: `${what}。下达之前按经费卡提交的支出，挂上之后计入那个项目的预算执行。挂上后那一行不能超过核定数。`,
+      fields: [{ name: 'line', label: '项目 · 预算行', options: lines }], run: (v) => rpc('set_request_line', { id: r.id, line_id: v.line }) });
   return out;
 }
 
-export function RequestTable({ me, rows, subjectName, cardName, userName, cards, subjects, onChange }: {
-  me: Me; rows: Req[]; cards?: CardPick[]; subjects?: Subject[]; subjectName?: Map<string, string>; cardName?: Map<string, string>; userName?: Map<string, string>; onChange: () => void;
+export function RequestTable({ me, rows, subjectName, cardName, userName, cards, subjects, projectName, lines, onChange }: {
+  me: Me; rows: Req[]; projectName?: Map<string, string>; lines?: [string, string][]; cards?: CardPick[]; subjects?: Subject[]; subjectName?: Map<string, string>; cardName?: Map<string, string>; userName?: Map<string, string>; onChange: () => void;
 }) {
   const [act, setAct] = useState<Action | null>(null);
   return (
@@ -56,17 +59,17 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
           const targets = r.status === 'returned' && me.role === 'finance' ? (cards ?? []).filter((c) => c.status === 'active' && c.id !== r.card_id)
             .flatMap((c) => (subjects ?? []).filter((s) => s.template_id === c.template_id).sort((a, b) => a.sort - b.sort)
               .map((s): [string, string] => [`${c.id}|${s.id}`, `${c.name} · ${s.name}`])) : [];
-          const acts = actionsFor(me, r, targets);
+          const acts = actionsFor(me, r, targets, lines);
           return (
             <tr key={r.id}>
               <td className="wrap">{r.title}
-                <div className="sub2">{[r.code, userName?.get(r.requested_by ?? ''), r.requested_by === me.id ? '我提交的' : '',
+                <div className="sub2">{[projectName?.get(r.project_id ?? ''), r.code, userName?.get(r.requested_by ?? ''), r.requested_by === me.id ? '我提交的' : '',
                   r.path && `${r.path} ${r.stage}/${r.stages}`, r.split_group && '分摊', r.morningstar_quota_id && '晨星额度', r.emergency && '紧急通道'].filter(Boolean).join(' · ')}</div></td>
               {cardName && <td>{cardName.get(r.card_id) ?? '—'}</td>}
               <td>{subjectName?.get(r.subject_id) ?? '—'}</td>
               <td className="r">{money(r.amount)}</td>
               <td>{r.status === 'posted' ? <>{day(r.posted_on)}<div className="sub2">已入账{r.voucher_no ? ` ${r.voucher_no}` : ''}</div></> : day(r.eta_date)}</td>
-              <td><Badge tone={REQ[r.status][1]}>{REQ[r.status][0]}</Badge></td>
+              <td><Badge tone={REQ[r.status][1]}>{REQ[r.status][0]}</Badge><Flow status={r.status} /></td>
               <td><div className="acts">{acts.map((a) => <button key={a.label} className={`sm ghost ${a.danger ? 'danger' : ''}`} onClick={() => setAct(a)}>{a.label}</button>)}</div></td>
             </tr>
           );
@@ -81,10 +84,14 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
 interface Part { card_id: string; subject_id: string; amount: string }
 const blank = (): Part => ({ card_id: '', subject_id: '', amount: '' });
 
-function NewRequest({ cards, subjects, types, quotas, onDone }: { cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; quotas: QuotaPick[]; onDone: (msg: string) => void }) {
+function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: { cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; quotas: QuotaPick[]; picks: LinePick[]; canCard: boolean; onDone: (msg: string) => void }) {
   const usable = cards.filter((c) => c.status === 'active');
   const [v, setV] = useState({ card_id: '', subject_id: '', expense_type_id: '', title: '', amount: '', eta_date: '', path: '', emergency: false, quota_id: '' });
   const [split, setSplit] = useState(false);
+  // 年度预算下达之后按项目提交：只选项目和预算行，经费卡由系统在这一行下达到的卡里挑
+  const [byLine, setByLine] = useState(picks.length > 0);
+  const [line, setLine] = useState({ project: '', id: '' });
+  const projects = [...new Map(picks.map((x) => [x.project_id, x])).values()].sort((a, b) => a.project_code.localeCompare(b.project_code));
   const [parts, setParts] = useState<Part[]>([blank(), blank()]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -100,7 +107,10 @@ function NewRequest({ cards, subjects, types, quotas, onDone }: { cards: CardPic
     e.preventDefault(); setBusy(true); setError('');
     const path = v.path || type?.required_path || null;
     try {
-      if (split) {
+      if (byLine) {
+        await rpc('submit_project_request', { line_id: line.id, expense_type_id: v.expense_type_id, title: v.title, amount: v.amount, eta_date: v.eta_date, emergency: v.emergency, path });
+        onDone(`已提交：${v.title}，${money(v.amount)}，计入「${picks.find((x) => x.id === line.id)?.project_name ?? ''}」的预算。等待中心负责人批准。`);
+      } else if (split) {
         await rpc('submit_split', { expense_type_id: v.expense_type_id, title: v.title, eta_date: v.eta_date, path, quota_id: v.quota_id,
           parts: parts.map((p) => ({ card_id: p.card_id, subject_id: p.subject_id, amount: Math.round(num(p.amount) * 100) / 100 })) });
         onDone(`已提交：${v.title}，分摊 ${parts.length} 处，合计 ${money(total)}。等待中心负责人逐笔批准。`);
@@ -113,9 +123,23 @@ function NewRequest({ cards, subjects, types, quotas, onDone }: { cards: CardPic
   return (
     <form className="card" onSubmit={submit}>
       <h3>提交支出申请</h3>
-      <p className="hint">先申请、后支出。提交时按可报销规则、可用额度、单据截止日和采购路径检查，不符合的会说明原因。</p>
+      <p className="hint">{byLine ? '先申请、后支出。选项目和预算行就行，走哪张经费卡由系统在这一行下达到的卡里挑（快到期回收的卡优先）。超出这一行核定数、或者下达的卡都放不下时会说明原因。'
+        : '先申请、后支出。提交时按可报销规则、可用额度、单据截止日和采购路径检查，不符合的会说明原因。'}</p>
+      {picks.length > 0 && canCard && <div className="tabs" style={{ marginBottom: 12 }}>
+        <button type="button" className="sm" aria-pressed={byLine} onClick={() => { setByLine(true); setSplit(false); }}>按项目预算</button>
+        <button type="button" className="sm" aria-pressed={!byLine} onClick={() => setByLine(false)}>不在年度预算里，按经费卡</button></div>}
       <div className="grid">
-        {!split && <>
+        {byLine && <>
+          <label className="field"><span>项目</span>
+            <select required value={line.project} onChange={(e) => setLine({ project: e.target.value, id: '' })}>
+              <option value="">请选择</option>{projects.map((x) => <option key={x.project_id} value={x.project_id}>{x.project_code} {x.project_name}</option>)}
+            </select></label>
+          <label className="field"><span>预算行</span>
+            <select required value={line.id} disabled={!line.project} onChange={(e) => setLine({ ...line, id: e.target.value })}>
+              <option value="">{line.project ? '请选择' : '先选项目'}</option>{picks.filter((x) => x.project_id === line.project).map((x) => <option key={x.id} value={x.id}>{x.category_name} · {x.purpose}</option>)}
+            </select></label>
+        </>}
+        {!byLine && !split && <>
           <label className="field"><span>经费卡</span>
             <select required value={v.card_id} onChange={(e) => set({ card_id: e.target.value, subject_id: '' })}>
               <option value="">请选择</option>{usable.map((c) => <option key={c.id} value={c.id}>{c.name}（截止 {day(c.cutoff_date)}）</option>)}
@@ -131,20 +155,20 @@ function NewRequest({ cards, subjects, types, quotas, onDone }: { cards: CardPic
           </select></label>
         <label className="field"><span>事项</span><input required maxLength={200} value={v.title} onChange={(e) => set({ title: e.target.value })} /></label>
         {!split && <label className="field"><span>金额（元）</span><input required type="number" min="0.01" step="0.01" value={v.amount} onChange={(e) => set({ amount: e.target.value })} /></label>}
-        <label className="field"><span>预计学校入账日</span><input required type="date" min={today()} max={cutoff}
+        <label className="field"><span>预计学校入账日</span><input required type="date" min={today()} max={byLine ? undefined : cutoff}
           value={v.eta_date} onChange={(e) => set({ eta_date: e.target.value })} /></label>
         <label className="field"><span>采购路径</span>
           <select value={type?.required_path ?? v.path} disabled={!!type?.required_path} onChange={(e) => set({ path: e.target.value })}>
             <option value="">不涉及采购</option>{PATHS.map((p) => <option key={p}>{p}</option>)}
           </select></label>
-        {quotas.length > 0 && <label className="field"><span>计入晨星额度</span>
+        {!byLine && quotas.length > 0 && <label className="field"><span>计入晨星额度</span>
           <select value={v.quota_id} onChange={(e) => set({ quota_id: e.target.value })}>
             <option value="">不计入</option>{quotas.map((q) => <option key={q.id} value={q.id}>{q.leader_name} {q.year} 年额度</option>)}
           </select></label>}
-        <label className="field check"><input type="checkbox" checked={split} onChange={(e) => { setSplit(e.target.checked); if (e.target.checked) set({ emergency: false }); }} /><span>一笔支出分摊到多张卡或多个科目</span></label>
+        {!byLine && <label className="field check"><input type="checkbox" checked={split} onChange={(e) => { setSplit(e.target.checked); if (e.target.checked) set({ emergency: false }); }} /><span>一笔支出分摊到多张卡或多个科目</span></label>}
         {!split && <label className="field check"><input type="checkbox" checked={v.emergency} onChange={(e) => set({ emergency: e.target.checked })} /><span>走紧急通道（事后补批，有单笔和全年上限）</span></label>}
       </div>
-      {split && (
+      {split && !byLine && (
         <div className="change parts" style={{ border: 0, padding: 0, margin: '6px 0 0' }}>
           <p className="hint">每一处各自按那张卡的规则和可用额度检查，有一处不通过就整笔不提交。涉及采购的，几处共用一条采购，直采的 5 万上限按合计算。</p>
           <div className="scroll"><table>
@@ -169,18 +193,20 @@ function NewRequest({ cards, subjects, types, quotas, onDone }: { cards: CardPic
   );
 }
 
-export function Requests({ me }: { me: Me }) {
+export function Requests({ me, start = '' }: { me: Me; start?: string }) {
   const staff = me.role === 'finance' || me.role === 'director';
-  const { data, error, reload } = useViews<{ reqs: Req[]; cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; users: User[]; quotas: QuotaPick[] }>({
-    reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], types: ['expense_type'], users: ['users'], quotas: ['quota_pick'],
+  const { data, error, reload } = useViews<{ reqs: Req[]; cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; users: User[]; quotas: QuotaPick[]; picks: LinePick[]; projects: Project[] }>({
+    reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], types: ['expense_type'], users: ['users'], quotas: ['quota_pick'], picks: ['line_pick'], projects: ['project'],
   });
-  const [tab, setTab] = useState<'open' | ReqStatus>('open');
-  const [adding, setAdding] = useState(false);
+  const [tab, setTab] = useState<'open' | ReqStatus>(start in REQ ? (start as ReqStatus) : 'open');
+  const [adding, setAdding] = useState(start === 'new');
   const [done, setDone] = useState('');
   const maps = useMemo(() => ({
     card: new Map((data?.cards ?? []).map((c) => [c.id, c.name])),
     subject: new Map((data?.subjects ?? []).map((s) => [s.id, s.name])),
     user: new Map((data?.users ?? []).map((u) => [u.id, u.name])),
+    project: new Map((data?.projects ?? []).map((p) => [p.id, p.name])),
+    lines: (data?.picks ?? []).map((x): [string, string] => [x.id, `${x.project_name} · ${x.category_name} · ${x.purpose}`]),
   }), [data]);
   if (!data) return <Loading error={error} />;
   const count = (s: ReqStatus) => data.reqs.filter((r) => r.status === s).length;
@@ -192,19 +218,20 @@ export function Requests({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>支出与承诺</h2>
+      <div className="top"><h2>支出申请</h2>
         <button onClick={() => { setAdding(!adding); setDone(''); }} className={adding ? 'ghost' : ''}>{adding ? '收起' : '提交支出申请'}</button></div>
       {done && <div className="msg ok" role="status">{done}</div>}
-      {adding && <NewRequest cards={data.cards} subjects={data.subjects} types={data.types} quotas={data.quotas}
+      {adding && <NewRequest cards={data.cards} subjects={data.subjects} types={data.types} quotas={data.quotas} picks={data.picks} canCard={me.role !== 'member'}
         onDone={(msg) => { setAdding(false); setDone(msg); setTab('open'); reload(); }} />}
       <section className="card">
         <h3>{staff ? '全部申请' : me.role === 'leader' ? '我的申请和我名下卡的申请' : '我的申请'}</h3>
+        <p className="hint">每笔申请走四步：申请、批准、交学校、入账。状态下面的四格表示走到了哪一步，金色是现在停的地方。</p>
         <div className="tabs" style={{ marginBottom: 12 }}>
           {tabs.map(([k, label]) => <button key={k} className="sm" aria-pressed={tab === k} onClick={() => setTab(k)}>{label}</button>)}
         </div>
         {rows.length === 0 ? <Empty>{tab === 'open' ? '没有进行中的申请。' : '这个状态下没有申请。'}</Empty> : (
           <>
-            <RequestTable me={me} rows={rows} cards={data.cards} subjects={data.subjects} cardName={maps.card} subjectName={maps.subject} userName={maps.user} onChange={reload} />
+            <RequestTable me={me} rows={rows} cards={data.cards} subjects={data.subjects} cardName={maps.card} subjectName={maps.subject} userName={maps.user} projectName={maps.project} lines={maps.lines} onChange={reload} />
             <p className="sub2">{rows.length} 笔，合计 {money(total)}</p>
           </>
         )}

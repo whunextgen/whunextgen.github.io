@@ -59,7 +59,7 @@ export interface Req {
   id: string; code: string | null; card_id: string; subject_id: string; expense_type_id: string; title: string; amount: string;
   eta_date: string; emergency: boolean; status: ReqStatus; requested_by: string | null; created_at: string;
   path: string | null; stage: number | null; stages: number | null; posted_on: string | null; posted_amount: string | null; voucher_no: string | null;
-  morningstar_quota_id: string | null; split_group: string | null;
+  morningstar_quota_id: string | null; split_group: string | null; project_id: string | null; budget_line_id: string | null;
 }
 export interface Change { id: string; card_id: string; reason: string; status: 'pending' | 'filed' | 'approved' | 'rejected';
   approved_on: string | null; created_at: string; lines: { subject_id: string; delta: number }[] | null }
@@ -80,7 +80,7 @@ export interface TemplateCap { id: string; template_id: string; name: string; ma
 export interface UserAdmin { id: string; name: string; email: string | null; role: Role; active: boolean; linked: boolean; migrated: boolean; created_at: string; cards: number; requests: number }
 export interface Outbox { id: number; created_at: string; user_id: string | null; user_name: string | null; text: string; status: 'queued' | 'sent' | 'failed' | 'expired'; attempts: number; last_error: string | null; sent_at: string | null }
 export interface Quota { id: string; leader_id: string; leader_name: string; year: number; amount: string; labor_cap_ratio: string; used: string; actual: string; labor_used: string;
-  requests: number; labor_cap: string; quarter: number; due: string; behind: boolean }
+  requests: number; labor_cap: string; quarter: number; due: string; behind: boolean; project_id: string | null }
 export interface QuotaPick { id: string; leader_name: string; year: number }
 export interface Resource { id: string; kind: 'api' | 'asset'; name: string; ref: string | null; total: string | null; unit: string | null; note: string | null; active: boolean; allocated: string; holders: number }
 export interface Allocation { id: string; resource_id: string; kind: 'api' | 'asset'; resource_name: string; ref: string | null; unit: string | null; user_id: string; user_name: string;
@@ -92,5 +92,25 @@ export interface LegacyAdjust { id: string; card_id: string; subject_name: strin
 export interface LegacyResReq { id: string; applicant: string; kind: string | null; resource: string | null; project: string | null; purpose: string | null; usage: string | null; amount: string | null; period: string | null; status: string | null; applied_at: string | null; comment: string | null }
 export interface LegacyLedger { id: string; user_name: string; resource: string | null; project: string | null; period: string | null; total: string | null; used: string | null; remaining: string | null; valid_to: string | null }
 export interface LegacySource { source: string; name: string; n: number }
+export interface LegacyRecon { step: number; sort: number; key: string; source: string | null; label: string; old_n: number; old_amt: string | null; in_n: number | null; in_amt: string | null;
+  new_n: number | null; new_amt: string | null; place: string | null; note: string | null; ok: boolean | null; all_n: number }
 export interface LegacyRecord { source: string; record_id: string; status: string | null; data: Record<string, unknown> | null }
 export interface Emergency { year: number; per_request: string; per_year: string; used: string }
+
+// ---------- 年度预算 ----------
+export type BudgetStage = 'declare' | 'summary' | 'approved' | 'applied' | 'granted' | 'fixed' | 'issued' | 'closed';
+export interface Project { id: string; code: string; name: string; kind: 'project' | 'line' | 'public'; owner_id: string | null; owner_name: string | null; active: boolean; mine: boolean; labor_cap_ratio: string | null }
+export interface BudgetCategory { id: string; code: string; name: string; labor: boolean; sort: number; active: boolean }
+export interface BudgetYear { year: number; due_date: string; stage: BudgetStage; applied_on: string | null; granted_on: string | null; approved_at: string | null; approved_by_name: string | null;
+  granted_amount: string | null; fixed_total: string | null; issued_at: string | null; closed_at: string | null }
+export interface ProjectBudget { id: string; year: number; project_id: string; status: 'draft' | 'submitted' | 'returned'; return_note: string | null; submitted_at: string | null; submitted_by_name: string | null }
+export interface BudgetLine { id: string; budget_id: string; year: number; project_id: string; category_id: string; purpose: string; q1: string; q2: string; q3: string; q4: string;
+  declared: string; applied: string | null; adjust_note: string | null; fixed: string | null }
+export interface CategorySubject { category_id: string; subject_id: string }
+export interface BudgetAlloc { id: string; line_id: string; year: number; project_id: string; card_id: string; card_no: string; card_name: string; end_rule: 'recall' | 'carry' | 'return'; card_end: string;
+  subject_id: string; subject_name: string; amount: string; used: string; actual: string }
+export interface LineExec { id: string; year: number; project_id: string; category_id: string; purpose: string; q1: string; q2: string; q3: string; q4: string;
+  fixed: string | null; allocated: string; used: string; actual: string; pending: string; a1: string; a2: string; a3: string; a4: string }
+export interface LinePick { id: string; project_id: string; project_code: string; project_name: string; category_id: string; category_name: string; purpose: string }
+export interface BudgetRevision { id: string; line_id: string; year: number; project_id: string; purpose: string; old_amount: string; new_amount: string; note: string | null; revised_by_name: string | null; revised_at: string }
+export interface BudgetReview { id: string; year: number; quarter: number; project_id: string; note: string | null; reviewed_by_name: string | null; reviewed_at: string }

@@ -16,7 +16,9 @@ const VIEWS = new Set(['me', 'users', 'card_pick', 'subject', 'expense_type', 'c
   'request', 'request_event', 'procurement_event', 'budget_change', 'fund_event', 'person', 'pay_type', 'staff',
   'payroll_sheet', 'settlement', 'emergency', 'year_actual', 'settle_check',
   'template', 'template_cap', 'user_admin', 'outbox', 'quota', 'quota_pick', 'resource', 'allocation',
-  'legacy_ms_submission', 'legacy_ms_item', 'legacy_budget_adjust', 'legacy_resource_request', 'legacy_quota_ledger', 'legacy_source', 'legacy_record']);
+  'legacy_ms_submission', 'legacy_ms_item', 'legacy_budget_adjust', 'legacy_resource_request', 'legacy_quota_ledger', 'legacy_source', 'legacy_record', 'legacy_recon',
+  'project', 'budget_category', 'budget_year', 'project_budget', 'budget_line',
+  'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review']);
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
 const RPC: Record<string, [string, string][]> = {
@@ -61,6 +63,22 @@ const RPC: Record<string, [string, string][]> = {
   merge_user: [['from_id', 'uuid'], ['into_id', 'uuid']],
   set_school_balance: [['card_id', 'uuid'], ['balance', 'numeric'], ['frozen', 'numeric'], ['available', 'numeric']],
   post_vouchers: [['rows', 'jsonb']],
+  save_project: [['id', 'uuid'], ['code', 'text'], ['name', 'text'], ['kind', 'text'], ['owner_id', 'uuid'], ['active', 'boolean']],
+  save_budget_category: [['id', 'uuid'], ['code', 'text'], ['name', 'text'], ['labor', 'boolean'], ['sort', 'int'], ['active', 'boolean']],
+  open_budget_year: [['year', 'int'], ['due_date', 'date']],
+  save_budget_line: [['id', 'uuid'], ['year', 'int'], ['project_id', 'uuid'], ['category_id', 'uuid'], ['purpose', 'text'], ['q1', 'numeric'], ['q2', 'numeric'], ['q3', 'numeric'], ['q4', 'numeric']],
+  delete_budget_line: [['id', 'uuid']],
+  set_project_budget: [['year', 'int'], ['project_id', 'uuid'], ['action', 'text'], ['note', 'text']],
+  advance_budget_year: [['year', 'int'], ['action', 'text'], ['amount', 'numeric'], ['on_date', 'date']],
+  adjust_budget_line: [['id', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
+  set_category_subjects: [['category_id', 'uuid'], ['subjects', 'jsonb']],
+  allocate_line: [['id', 'uuid'], ['parts', 'jsonb']],
+  auto_allocate: [['year', 'int']],
+  submit_project_request: [['line_id', 'uuid'], ['expense_type_id', 'uuid'], ['title', 'text'], ['amount', 'numeric'], ['eta_date', 'date'], ['emergency', 'boolean'], ['path', 'text']],
+  set_request_line: [['id', 'uuid'], ['line_id', 'uuid']],
+  review_project: [['year', 'int'], ['quarter', 'int'], ['project_id', 'uuid'], ['note', 'text']],
+  revise_fixed: [['id', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
+  quota_to_project: [['id', 'uuid']],
   save_quota: [['id', 'uuid'], ['leader_id', 'uuid'], ['year', 'int'], ['amount', 'numeric'], ['labor_ratio', 'numeric']],
   set_request_quota: [['id', 'uuid'], ['quota_id', 'uuid']],
   submit_request_quota: [['card_id', 'uuid'], ['subject_id', 'uuid'], ['expense_type_id', 'uuid'], ['title', 'text'], ['amount', 'numeric'],

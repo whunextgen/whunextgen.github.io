@@ -97,7 +97,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   }, id);
   if (!data) return <Loading error={error} />;
   const c = data.card[0];
-  if (!c) return <><div className="top"><h2>经费卡</h2></div><Empty>没有这张卡，或者你看不到它。<a href="#/">回到总览</a></Empty></>;
+  if (!c) return <><div className="top"><h2>经费卡</h2></div><Empty>没有这张卡，或者你看不到它。<a href="#/cards">回到经费卡</a></Empty></>;
   const now = today();
   const cells = [...data.cells].sort((a, b) => a.sort - b.sort || a.subject_code.localeCompare(b.subject_code));
   const used = cells.filter((x) => num(x.cur) || num(x.commit) || num(x.actual));
@@ -122,7 +122,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   return (
     <>
       <div className="top">
-        <div className="crumb"><a href="#/">经费卡与节点</a> / {c.card_no}</div>
+        <div className="crumb"><a href="#/cards">经费卡与节点</a> / {c.card_no}</div>
         <h2>{c.name}</h2>
         {c.status === 'settled' ? <Badge>已结清</Badge> : <Badge tone={day(c.cutoff_date) < now ? 'bad' : 'ok'}>{day(c.cutoff_date) < now ? '已过单据截止' : '在用'}</Badge>}
         {canSettle && <button className="ghost" onClick={() => setAct({ label: '结清', title: '结清这张卡',

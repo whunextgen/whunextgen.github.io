@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import { LegacyMs } from './Legacy';
-import { rpc, useViews, type CardPick, type Me, type Quota, type Req, type Subject, type User } from '../api';
+import { rpc, useViews, type CardPick, type Me, type Project, type Quota, type Req, type Subject, type User } from '../api';
 import { ActionDialog, Badge, Empty, Loading, REQ, Tile, day, money, num, pct, type Field } from '../ui';
 
 interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
@@ -9,8 +8,8 @@ interface Act { label: string; title: string; hint?: string; fields: Field[]; da
 export function QuotaPage({ me }: { me: Me }) {
   const staff = me.role === 'finance' || me.role === 'director';
   const director = me.role === 'director';
-  const { data, error, reload } = useViews<{ quotas: Quota[]; reqs: Req[]; cards: CardPick[]; subjects: Subject[]; users: User[] }>({
-    quotas: ['quota'], reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], users: ['users'],
+  const { data, error, reload } = useViews<{ quotas: Quota[]; reqs: Req[]; cards: CardPick[]; subjects: Subject[]; users: User[]; projects: Project[] }>({
+    quotas: ['quota'], reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], users: ['users'], projects: ['project'],
   });
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
@@ -19,6 +18,7 @@ export function QuotaPage({ me }: { me: Me }) {
   const maps = useMemo(() => ({
     card: new Map((data?.cards ?? []).map((c) => [c.id, c.name])),
     subject: new Map((data?.subjects ?? []).map((s) => [s.id, s.name])),
+    project: new Map((data?.projects ?? []).map((p) => [p.id, p])),
   }), [data]);
   if (!data) return <Loading error={error} />;
 
@@ -47,21 +47,25 @@ export function QuotaPage({ me }: { me: Me }) {
       </div>
       <section className="card">
         <h3>额度与执行</h3>
-        <p className="hint">额度是中心内部的安排，钱仍从经费卡的科目里出，经费卡的检查照旧。提交支出申请时选上额度，这里就会计入。
+        <p className="hint">晨星额度并入项目预算：每位负责人的额度对应一个独立研究线项目，额度是这个项目当年预算的上限，申报、核定、下达和执行都走年度预算。还没转成项目的额度照旧，提交支出申请时选上额度就会计入。
           季度执行按到当季末应累计入账 额度 × 季度序号 ÷ 4 计算，实际入账不到应执行数的 70% 标为落后。</p>
         {years.length > 1 && <div className="tabs" style={{ marginBottom: 12 }}>
           {years.map((y) => <button key={y} className="sm" aria-pressed={y === year} onClick={() => setYear(y)}>{y}</button>)}</div>}
         {rows.length === 0 ? <Empty>{year} 年还没有下达额度。</Empty> : (
           <div className="scroll"><table>
-            <thead><tr><th>负责人</th><th className="r">额度</th><th className="r">已挂支出</th><th className="r">剩余</th><th className="r">已入账</th>
+            <thead><tr><th>负责人</th><th>项目</th><th className="r">额度</th><th className="r">已挂支出</th><th className="r">剩余</th><th className="r">已入账</th>
               <th className="r">第 {rows[0].quarter} 季度末应执行</th><th>执行</th><th className="r">劳务类</th><th /></tr></thead>
             <tbody>{rows.map((q) => { const left = num(q.amount) - num(q.used); return (
               <tr key={q.id}><td>{q.leader_name}{q.leader_id === me.id && <span className="sub2"> 我</span>}</td>
+                <td>{q.project_id ? <a href="#/projects">{maps.project.get(q.project_id)?.name ?? '已转成项目'}<span className="sub2">{maps.project.get(q.project_id)?.code ?? ''}</span></a> : <Badge tone="warn">还没转</Badge>}</td>
                 <td className="r">{money(q.amount)}</td><td className="r">{money(q.used)}</td><td className={`r ${left < 0 ? 'neg' : ''}`}>{money(left)}</td>
                 <td className="r">{money(q.actual)}</td><td className="r">{money(q.due)}</td>
                 <td>{q.quarter === 0 ? '—' : q.behind ? <Badge tone="bad">落后，差 {money(num(q.due) - num(q.actual))}</Badge> : <Badge tone="ok">正常</Badge>}</td>
                 <td className={`r ${num(q.labor_used) > num(q.labor_cap) ? 'neg' : ''}`}>{money(q.labor_used)}<div className="sub2">上限 {money(q.labor_cap)}</div></td>
                 <td><div className="acts"><button className="sm ghost" aria-pressed={open === q.id} onClick={() => setOpen(open === q.id ? '' : q.id)}>{q.requests} 笔</button>
+                  {staff && !q.project_id && <button className="sm ghost" onClick={() => setAct({ label: '转成项目', title: `把 ${q.leader_name} 的额度转成项目预算`, fields: [],
+                    hint: `给 ${q.leader_name} 建一个独立研究线项目（以前转过的沿用原来的项目），${q.year} 年的额度 ${money(q.amount)} 成为这个项目当年预算的上限，劳务上限一起带过去；额度下已有的 ${q.requests} 笔支出归到这个项目。转过去之后不能撤回。`,
+                    run: () => rpc('quota_to_project', { id: q.id }) })}>转成项目</button>}
                   {director && <button className="sm ghost" onClick={() => setAct(quotaAct(q))}>修改</button>}</div></td></tr>); })}</tbody>
           </table></div>
         )}
@@ -83,7 +87,6 @@ export function QuotaPage({ me }: { me: Me }) {
             </table></div>
           )}
         </section>); })}
-      <LegacyMs />
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label}
         onSubmit={async (v) => { await act.run(v); reload(); }} onClose={() => setAct(null)} />}
     </>
