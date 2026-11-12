@@ -40,7 +40,7 @@ export function Procure({ me }: { me: Me }) {
   const ready = all.filter((r) => r.status === 'committed' && r.stage === r.stages);
   const done = all.filter((r) => !live(r));
   const rows = (tab === 'doing' ? doing : tab === 'ready' ? ready : done).sort((a, b) => a.eta_date.localeCompare(b.eta_date));
-  const late = doing.filter((r) => { const c = maps.card.get(r.card_id); return day(r.eta_date) < now || (c && day(r.eta_date) > day(c.cutoff_date)); });
+  const late = doing.filter((r) => { const c = maps.card.get(r.card_id ?? ''); return day(r.eta_date) < now || (c && day(r.eta_date) > day(c.cutoff_date)); });
   const fails = data.events.filter((e) => e.kind === '废标' || e.kind === '流标').length;
 
   return (
@@ -64,7 +64,7 @@ export function Procure({ me }: { me: Me }) {
           <div className="scroll"><table>
             <thead><tr><th>事项与进度</th><th>经费卡</th><th className="r">金额</th><th>预计入账</th><th>状态</th><th /></tr></thead>
             <tbody>{rows.map((r) => {
-              const c = maps.card.get(r.card_id); const left = daysTo(r.eta_date, now);
+              const c = maps.card.get(r.card_id ?? ''); const left = daysTo(r.eta_date, now);
               const group = r.split_group ? maps.group.get(r.split_group) ?? [] : [];
               const ev = [...(maps.events.get(r.id) ?? [])].sort((a, b) => b.at.localeCompare(a.at));
               const acts = live(r) ? actionsFor(me, r, []).filter((a) => ['推进采购', '废标/流标', '提交学校'].includes(a.label)) : [];

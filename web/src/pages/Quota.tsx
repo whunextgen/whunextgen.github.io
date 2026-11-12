@@ -78,7 +78,7 @@ export function QuotaPage({ me }: { me: Me }) {
             <div className="scroll"><table>
               <thead><tr><th>事项</th><th>经费卡</th><th>科目</th><th className="r">金额</th><th>预计入账</th><th>状态</th><th /></tr></thead>
               <tbody>{list.map((r) => (
-                <tr key={r.id}><td className="wrap">{r.title}</td><td>{maps.card.get(r.card_id) ?? '—'}</td><td>{maps.subject.get(r.subject_id) ?? '—'}</td>
+                <tr key={r.id}><td className="wrap">{r.title}</td><td>{maps.card.get(r.card_id ?? '') ?? '—'}</td><td>{maps.subject.get(r.subject_id) ?? '—'}</td>
                   <td className="r">{money(r.status === 'posted' ? r.posted_amount ?? r.amount : r.amount)}</td><td>{day(r.posted_on ?? r.eta_date)}</td>
                   <td><Badge tone={REQ[r.status][1]}>{REQ[r.status][0]}</Badge></td>
                   <td><div className="acts">{staff && <button className="sm ghost danger" onClick={() => setAct({ label: '移出额度', title: '把这笔支出移出额度', danger: true,

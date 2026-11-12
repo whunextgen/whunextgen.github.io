@@ -140,8 +140,13 @@ eq((await one(`select cur from v_cell where card_id = $1 and subject_code = 'equ
 ok((await q(`select 1 from v_cell where avail < 0`)).length === 0, '没有负的可用额度');
 
 // ---------- 3. 提交时的拦截 ----------
-await as(U.mem, '2026-09-05');
+// 直接选卡提交只留给看得到卡的人（财务岗、中心负责人）；成员和项目负责人从预算行提
 const submit = `select submit_request($1,$2,$3,$4,$5,$6,$7,$8) as id`;
+await as(U.mem, '2026-09-05');
+await raises('成员不能直接选卡提交', /不能直接选经费卡/, submit, [C.A, sub('A', 'mat'), TY['耗材'], 'x', 100, '2026-09-20', false, null]);
+await as(U.lead, '2026-09-05');
+await raises('卡上的负责人也不能直接选卡提交', /不能直接选经费卡/, submit, [C.E, sub('E', 'biz'), TY['会员订阅'], 'x', 100, '2026-09-20', false, null]);
+await as(U.fin, '2026-09-05');
 await raises('规则不可', /不能列支/, submit, [C.A, sub('A', 'net'), TY['会员订阅'], 'x', 100, '2026-09-20', false, null]);
 await raises('规则未知', /还没有答复/, submit, [C.B, sub('B', 'mat'), TY['电脑'], 'x', 100, '2026-09-20', false, null]);
 await raises('超可用额度', /可用/, submit, [C.A, sub('A', 'mat'), TY['耗材'], 'x', 50001, '2026-09-20', false, null]);
@@ -150,15 +155,16 @@ await raises('电脑必须集采', /必须走集采/, submit, [C.A, sub('A', 'eq
 await raises('直采上限', /直采单件上限/, submit, [C.C, sub('C', 'equip'), TY['服务器与 GPU'], 'x', 60000, '2026-10-20', false, '直采']);
 await raises('紧急通道单笔上限', /紧急通道单笔上限/, submit, [C.A, sub('A', 'mat'), TY['耗材'], 'x', 6000, '2026-09-20', true, null]);
 await raises('科目不属于该卡', /没有这个科目/, submit, [C.B, sub('A', 'equip'), TY['耗材'], 'x', 100, '2026-09-20', false, null]);
-await as(U.mem, '2026-05-20');
+await as(U.fin, '2026-05-20');
 await raises('卡未下达', /尚未下达/, submit, [C.F, sub('F', 'wage'), TY['耗材'], 'x', 100, '2026-06-20', false, null]);
-await as(U.mem, '2026-09-05');
+await as(U.fin, '2026-09-05');
 const r1 = (await one(submit, [C.A, sub('A', 'mat'), TY['耗材'], '试剂', 20000, '2026-09-18', false, null])).id;
 eq((await one(`select avail from v_cell where card_id=$1 and subject_code='mat'`, [C.A])).avail, 50000, '待审批不占用额度');
 const em = (await one(submit, [C.A, sub('A', 'mat'), TY['耗材'], '急用耗材', 4000, '2026-09-18', true, null])).id;
 ok((await one(`select status from expense_request where id=$1`, [em])).status === 'committed', '紧急通道直接承诺');
 
 // ---------- 4. 审批、提交学校、退回、改卡、入账 ----------
+await as(U.mem, '2026-09-05');
 await raises('成员不能审批', /当前角色/, `select approve_request($1)`, [r1]);
 await as(U.dir, '2026-09-05');
 await q(`select approve_request($1)`, [r1]);
@@ -168,7 +174,6 @@ await as(U.fin, '2026-09-07');
 await raises('采购未验收不能提交学校', /未验收/, `select send_to_school($1)`, [R.R02]);
 await q(`select school_return($1, '该卡不能列支 API')`, [R.R04]);
 ok((await one(`select verdict from v_reimb_rule where card_id=$1 and expense_type_id=$2`, [C.A, TY['API 充值']])).verdict === 'disputed', '退单写入规则表并标为争议');
-await as(U.mem, '2026-09-08');
 ok((await one(submit, [C.A, sub('A', 'net'), TY['API 充值'], '争议仍可提交', 100, '2026-09-20', false, null])).id, '争议规则可提交');
 await as(U.fin, '2026-09-08');
 await raises('改到规则不允许的卡', /规则不允许/, `select move_request($1,$2,$3)`, [R.R04, C.F, sub('F', 'consult')]);
@@ -229,15 +234,17 @@ eq((await q(`select * from api.card_pick`)).length, 0, '未登录看不到任何
 eq((await q(`select * from api.rule`)).length, 0, '未登录看不到规则');
 await raises('未登录不能提交', /当前角色/, submit, [C.A, sub('A', 'mat'), TY['耗材'], 'x', 100, '2026-09-20', false, null]);
 await as(U.mem, '2026-09-05');
-eq((await q(`select * from api.card_pick`)).length, 6, '成员能选卡');
+eq((await q(`select * from api.card_pick`)).length, 0, '成员看不到经费卡，也选不了卡');
+eq((await q(`select * from api.rule`)).length, 0, '成员看不到按卡的报销规则');
 eq((await q(`select * from api.card`)).length, 0, '成员看不到卡的金额');
 eq((await q(`select * from api.staff`)).length, 0, '成员看不到人员费');
 ok((await q(`select * from api.request`)).every(r => r.requested_by === U.mem), '成员只看到自己的申请');
-ok((await q(`select * from api.request`)).length >= 3, '成员能看到自己的申请');
+ok((await q(`select * from api.request`)).length >= 1, '成员能看到自己的申请');
+ok((await q(`select card_id from api.request`)).every(r => r.card_id === null), '成员看自己的申请时看不到落在哪张卡');
 await as(U.mem2, '2026-09-05');
 eq((await q(`select * from api.request`)).length, 0, '其他成员看不到别人的申请');
 await as(U.lead, '2026-09-05');
-eq((await q(`select * from api.card`)).length, 1, '项目负责人只看到自己负责的卡');
+eq((await q(`select * from api.card`)).length, 0, '卡上的负责人也看不到经费卡');
 await as(U.dir, '2026-09-05');
 eq((await q(`select * from api.card`)).length, 6, '中心负责人看到全部卡');
 eq((await q(`select * from api.staff`)).length, 72, '中心负责人看到人员费');
@@ -360,7 +367,7 @@ eq((await one(`select school_available from api.card where card_id = $1`, [C.C])
 await db.exec(`reset role`);
 for (const t of ['耗材', 'API 充值']) await q(`insert into reimb_ruling (card_id, expense_type_id, ruled_on, ruled_by, verdict) values ($1, $2, '2026-12-01', '财务甲', 'yes')`, [nc, TY[t]]);
 await db.exec(`set role app_api`);
-await as(U.mem, D);
+await as(U.fin, D);
 const nreq = (t, a) => val(`select submit_request_quota($1, $2, $3, $4, $5, '2027-03-01', false, null, null) v`, [nc, s1, TY['耗材'], t, a]);
 const b1 = await nreq('批量一', 5000), b2 = await nreq('批量二', 6000);
 await raises('登录用户取不到发送队列', /当前角色/, `select * from outbox_take(10)`);
@@ -368,7 +375,7 @@ await as(U.dir, D);
 await q(`select approve_request($1)`, [b1]); await q(`select approve_request($1)`, [b2]);
 const ob = await q(`select * from api.outbox`);
 ok(ob.some(o => o.user_id === U.dir && /^待审批/.test(o.text) && /批量一/.test(o.text)), '提交后通知中心负责人');
-ok(ob.some(o => o.user_id === U.mem && /^已批准/.test(o.text)), '批准后通知申请人');
+ok(ob.some(o => o.user_id === U.fin && /^已批准/.test(o.text)), '批准后通知申请人');
 ok(!ob.some(o => o.user_id === U.dir && /^已批准/.test(o.text)), '不通知操作者本人');
 await as(U.fin, D);
 await q(`select send_to_school($1)`, [b1]); await q(`select send_to_school($1)`, [b2]);
@@ -393,12 +400,13 @@ await raises('财务岗不能设晨星额度', /当前角色/, `select save_quot
 await as(U.dir, D);
 const qd = await val(`select save_quota(null, $1, 2026, 10000, 0.3) v`, [U.lead]);
 await raises('同一人同一年只有一个额度', /已经有额度/, `select save_quota(null, $1, 2026, 5000, 0.3)`, [U.lead]);
-await as(U.mem, D);
+await as(U.fin, D);
 const subq = `select submit_request_quota($1, $2, $3, $4, $5, '2027-03-01', false, null, $6) v`;
 const rq = await val(subq, [nc, s1, TY['耗材'], '挂额度', 4000, qd]);
 await raises('超出晨星额度拦截', /晨星额度不足/, subq, [nc, s1, TY['耗材'], '超额度', 7000, qd]);
 await raises('晨星额度里劳务不超过 30%', /劳务类支出超过上限/, subq, [nc, s2, TY['耗材'], '超劳务', 3500, qd]);
 eq((await q(`select * from api.request where title in ('超额度', '超劳务')`)).length, 0, '额度拦截时申请整笔不提交');
+await as(U.mem, D);
 eq((await q(`select * from api.quota`)).length, 0, '成员看不到额度金额');
 eq((await q(`select * from api.quota_pick where id = $1`, [qd])).length, 1, '成员提交时能选到当年额度');
 await as(U.lead, D);
@@ -489,7 +497,7 @@ await as(U.mem, D);
 eq((await q(`select * from api.legacy_recon`)).length, 0, '成员看不到对账表');
 
 // ---------- 多卡分摊 ----------
-await as(U.mem, D);
+await as(U.fin, D);
 const parts = (a, b) => JSON.stringify([{ card_id: nc, subject_id: s1, amount: a }, { card_id: C.C, subject_id: sub('C', 'net'), amount: b }]);
 await raises('分摊有一处超预算就整笔不提交', /可用/, `select submit_split($1, '分摊失败', '2027-03-01', null, $2)`, [TY['API 充值'], parts(1000, 9999999)]);
 eq((await q(`select * from api.request where title like '分摊失败%'`)).length, 0, '分摊失败不留半笔');
@@ -521,6 +529,32 @@ const P1 = await val(`select save_project(null, 'P-01', '具身智能评测', 'p
 const P2 = await val(`select save_project(null, 'P-02', '金融大模型', 'project', $1, true) v`, [U.mem]);
 const P0 = await val(`select save_project(null, 'PUB', '中心公共开支', 'public', null, true) v`);
 await raises('项目编号不能重复', /已经有编号/, `select save_project(null, 'P-01', '重复', 'project', null, true)`);
+// ---------- 项目分两层 ----------
+const PA1 = await val(`select save_project(null, '', '论文甲', 'project', $1, true, $2) v`, [U.mem2, P1]);
+const PA2 = await val(`select save_project(null, '', '论文乙', null, $1, true, $2) v`, [U.lead, P1]);
+let pa = await q(`select id, code, layer, kind, parent_id, parent_code, parent_name from api.project where parent_id = $1 order by code`, [P1]);
+ok(pa.length === 2 && pa[0].code === 'P-01-01' && pa[1].code === 'P-01-02' && pa.every(x => x.layer === 'paper' && x.kind === 'project' && x.parent_code === 'P-01'), '论文项目挂在大项目下，编号自动编', JSON.stringify(pa));
+ok((await one(`select layer, parent_id from api.project where id = $1`, [P1])).layer === 'big', '原有项目都是大项目');
+await raises('论文项目要有负责人', /指定负责人/, `select save_project(null, '', '没人管', 'project', null, true, $1)`, [P1]);
+await raises('论文项目不能再往下套', /只能挂在大项目下面/, `select save_project(null, '', '套娃', 'project', $1, true, $2)`, [U.lead, PA1]);
+await raises('公共开支下面不挂论文项目', /不挂论文项目/, `select save_project(null, '', '公共论文', 'project', $1, true, $2)`, [U.lead, P0]);
+await raises('有论文项目的大项目不能改成论文项目', /不能改成论文项目/, `select save_project($1, 'P-01', '具身智能评测', 'project', $2, true, $3)`, [P1, U.lead, P2]);
+await raises('下面有在用的论文项目时大项目不能停用', /先停用它们/, `select save_project($1, 'P-01', '具身智能评测', 'project', $2, false)`, [P1, U.lead]);
+await raises('不能挂在自己下面', /自己下面/, `select save_project($1, 'P-02', '金融大模型', 'project', $2, true, $1)`, [P2, U.mem]);
+await q(`select save_project($1, 'P-01-02', '论文乙', null, $2, true, $3)`, [PA2, U.lead, P2]);
+ok((await one(`select parent_code from api.project where id = $1`, [PA2])).parent_code === 'P-02', '论文项目可以改挂到别的大项目');
+await q(`select save_project($1, 'P-01-02', '论文乙', null, $2, false, $3)`, [PA2, U.lead, P2]);
+await as(U.lead, D);
+let sv = await one(`select mine, seen from api.project where id = $1`, [PA1]);
+ok(sv.mine === false && sv.seen === true, '大项目负责人看得到下面论文项目的预算，但不能替它填', JSON.stringify(sv));
+ok((await q(`select 1 from api.project where id = $1`, [PA2])).length === 0, '停用的论文项目负责人看不到');
+await as(U.mem2, D);
+sv = await one(`select mine, seen from api.project where id = $1`, [PA1]);
+ok(sv.mine === true && sv.seen === true, '论文项目负责人能填自己的论文项目');
+ok((await one(`select seen from api.project where id = $1`, [P1])).seen === false, '论文项目负责人看不到大项目自己的预算');
+await as(U.mem, D);
+ok((await one(`select seen from api.project where id = $1`, [PA1])).seen === false, '别的大项目负责人看不到这个论文项目的预算');
+await as(U.fin, D);
 // ---------- 资源申请、库存、密钥、备用金、经费卡属性、补登 ----------
 await q(`select set_resource_info($1, $2)`, [rs, JSON.stringify({ provider: '服务商甲', model: '通用模型', currency: '美元', balance: '820.5' })]);
 let ri = await one(`select provider, balance, balance_on::text d from api.resource where id = $1`, [rs]);
@@ -689,8 +723,18 @@ await as(U.fin, D7);
 await q(`select advance_budget_year(2027, 'issue')`);
 ok((await one(`select stage, issued_at from api.budget_year where year = 2027`)).stage === 'issued', '全部对到卡之后财务岗下达');
 
-// 04 申请：只选预算行
+// 04 申请：只选预算行，而且只能选自己在名单里的项目
 await as(U.mem2, D7);
+eq((await q(`select * from api.line_pick where project_id = $1`, [P1])).length, 0, '不在名单里的项目选不到预算行');
+await raises('不在名单里不能从这个项目提支出', /不在这个项目的成员名单里/, `select submit_project_request($1, $2, 'GPU 节点', 1000, '2027-06-30')`, [L1, TY['服务器与 GPU']]);
+await raises('成员不能自己把自己加进名单', /只有项目负责人、副手和财务岗/, `select add_project_member($1, $2)`, [P1, U.mem2]);
+await as(U.lead, D7);
+await q(`select add_project_member($1, $2)`, [P1, U.mem2]);
+await raises('名单里不能重复加', /已经在名单里/, `select add_project_member($1, $2)`, [P1, U.mem2]);
+await as(U.fin, D7);
+await raises('公共开支不设名单', /不设成员名单/, `select add_project_member($1, $2)`, [P0, U.mem2]);
+await as(U.mem2, D7);
+ok((await one(`select member from api.project where id = $1`, [P1])).member === true, '负责人直接加，成员不用确认就在名单里');
 const picks = await q(`select * from api.line_pick`);
 ok(picks.length === 3 && !('fixed' in picks[0]), '成员提交时能选到当年已下达的预算行，看不到金额');
 const sp = `select submit_project_request($1, $2, $3, $4, $5) v`;
@@ -705,7 +749,9 @@ const pr2 = await val(sp, [L1, TY['服务器与 GPU'], '存储扩容', 50000, '2
 await as(U.fin, D7);
 ok((await one(`select card_id from api.request where id = $1`, [pr2])).card_id === C.C, '回收卡上这一行剩的不够时自动落到下一张卡');
 await as(U.mem2, D7);
-await raises('超过预算行的核定数拦截', /核定 200000.*已用 170000.*剩 30000/, sp, [L1, TY['服务器与 GPU'], '超预算', 50000, '2027-06-30']);
+await raises('超出预算的支出不能走紧急通道', /不能走紧急通道/, `select submit_project_request($1, $2, '超预算', 50000, '2027-06-30', true)`, [L1, TY['服务器与 GPU']]);
+await raises('放不下时对成员不说经费卡的细节', /^(?!.*4131).*放不下这笔，请联系财务岗/s, sp, [L1, TY['会员订阅'], '订阅', 100, '2027-06-30']);
+await as(U.fin, D7);
 await raises('卡上不能列支的类型拦截并说明', /4131-G 能否列支「会员订阅」还没有答复/, sp, [L1, TY['会员订阅'], '订阅', 100, '2027-06-30']);
 await raises('下达到的卡都放不下时逐张说明原因', /4131-G 单据 2027-11-04 截止.*2121-C 下达的预算只剩 0/s, sp, [L1, TY['服务器与 GPU'], '年底到货', 20000, '2027-12-01']);
 await as(U.mem2, D);
@@ -720,8 +766,30 @@ eq((await one(`select used from api.line_exec where id = $1`, [L0])).used, 5000,
 await raises('挂上后超出核定数不行', /超出核定数/, `select set_request_line($1, $2)`, [pr1, L0]);
 await q(`select set_request_line($1, null)`, [other]);
 eq((await one(`select used from api.line_exec where id = $1`, [L0])).used, 0, '取消后预算行释放');
+// 层层确认：项目负责人确认 → 财务岗核对
+await as(U.mem2, D7);
+let st7 = await one(`select step, over_amount, card_id, can_confirm from api.request where id = $1`, [pr1]);
+ok(st7.step === 'confirm' && Number(st7.over_amount) === 0 && st7.card_id === null && st7.can_confirm === false, '成员提的支出先等项目负责人确认，成员看不到落在哪张卡', JSON.stringify(st7));
+await raises('自己提的不能自己确认', /只有这个项目的负责人或副手/, `select confirm_request($1, true)`, [pr1]);
 await as(U.dir, D7);
-await q(`select approve_request($1)`, [pr1]);
+await raises('没到中心负责人这一步不能批', /在等项目负责人确认/, `select approve_request($1)`, [pr1]);
+await as(U.fin, D7);
+await raises('没确认财务岗不能核对', /不在等财务岗核对/, `select check_request($1, true)`, [pr1]);
+await as(U.lead, D7);
+ok((await one(`select can_confirm from api.request where id = $1`, [pr1])).can_confirm === true, '项目负责人看到等自己确认');
+await raises('不同意要写原因', /要写原因/, `select confirm_request($1, false)`, [pr1]);
+await q(`select confirm_request($1, true)`, [pr1]);
+await raises('不能重复确认', /不在等项目负责人确认/, `select confirm_request($1, true)`, [pr1]);
+ok((await one(`select step from api.request where id = $1`, [pr1])).step === 'check', '没超预算的确认后直接到财务岗核对');
+await as(U.dir, D7);
+await raises('没超预算不经过中心负责人', /在等财务岗核对/, `select approve_request($1)`, [pr1]);
+await as(U.lead, D7);
+await raises('项目负责人不能代财务岗核对', /需要权限/, `select check_request($1, true)`, [pr1]);
+await as(U.fin, D7);
+await raises('核对退回要写原因', /要写原因/, `select check_request($1, false)`, [pr1]);
+await q(`select check_request($1, true)`, [pr1]);
+st7 = await one(`select status, step, checked_by_name, confirmed_by_name from api.request where id = $1`, [pr1]);
+ok(st7.status === 'committed' && st7.checked_by_name === '财务岗' && st7.confirmed_by_name === '项目负责人', '财务岗核对通过后才承诺', JSON.stringify(st7));
 await db.exec(`reset role`);
 await q(`update expense_request set status = 'posted' where id = $1`, [pr1]);
 await q(`insert into voucher (request_id, posted_on, amount) values ($1, '2027-06-15', 118000)`, [pr1]);
@@ -1057,6 +1125,228 @@ ok((await one(`select count(*) c from api.rbac_log where action = 'self_approve'
 await as(U.mem2, '2028-01-10');
 await db.exec(`reset role`);
 ok((await one(`select count(*) c from audit_log`)).c > 0, '审计日志有记录');
+
+// ====================================================================
+// 上限、名单、层层确认、超预算、调剂、设备归公共、盘点、经费卡总金额（2029 年度的一套新数据）
+// ====================================================================
+{
+await db.exec(`set role app_api`);
+const D8 = '2028-11-20', D9 = '2029-03-10';
+await as(U.fin, D8);
+const BX = await val(`select save_project(null, 'P-09', '可信评测', 'project', $1, true) v`, [U.lead]);
+const PX1 = await val(`select save_project(null, '', '论文：评测基准', null, $1, true, $2) v`, [U.mem, BX]);
+await q(`select open_budget_year(2029, '2028-11-30')`);
+await raises('财务岗不能定上限', /需要权限/, `select set_project_cap(2029, $1, 50000)`, [BX]);
+await as(U.dir, D8);
+await raises('上限按档定', /按档定/, `select set_project_cap(2029, $1, 30000)`, [BX]);
+await raises('上限只给大项目定', /只给大项目定/, `select set_project_cap(2029, $1, 50000)`, [PX1]);
+await raises('公共开支不设上限', /只给大项目定/, `select set_project_cap(2029, $1, 50000)`, [P0]);
+await q(`select set_project_cap(2029, $1, 50000)`, [BX]);
+await as(U.lead, D8);
+const BXL = await val(`select save_budget_line(null, 2029, $1, $2, '公用工作站', 20000, 0, 0, 0) v`, [BX, cE]);
+await q(`select set_project_budget(2029, $1, 'submit')`, [BX]);
+await as(U.mem, D8);
+const PL1 = await val(`select save_budget_line(null, 2029, $1, $2, '算力与设备', 6000, 6000, 6000, 6000) v`, [PX1, cE]);
+const PL2 = await val(`select save_budget_line(null, 2029, $1, $2, '实验耗材', 2000, 2000, 2000, 2000) v`, [PX1, cE]);
+await raises('论文项目的预算连同大项目超过上限就提交不了', /上限是 50000(\.00)?，.*合计 52000(\.00)?，超出 2000/, `select set_project_budget(2029, $1, 'submit')`, [PX1]);
+await raises('论文项目负责人不能申请提高上限', /只有大项目负责人和副手/, `select request_cap(2029, $1, 200000, '要买设备')`, [BX]);
+eq((await q(`select * from api.project_cap`)).length, 0, '论文项目负责人看不到大项目的上限');
+await as(U.lead, D8);
+let cp = await one(`select amount, used from api.project_cap where project_id = $1 and year = 2029`, [BX]);
+ok(Number(cp.amount) === 50000 && Number(cp.used) === 20000, '大项目负责人看到上限和已经占了多少', JSON.stringify(cp));
+await raises('提高上限要写理由', /为什么要提高/, `select request_cap(2029, $1, 200000, ' ')`, [BX]);
+await raises('申请的上限要比现在高', /要高于现在的/, `select request_cap(2029, $1, 20000, '少一点')`, [BX]);
+const cr = await val(`select request_cap(2029, $1, 200000, '论文项目要租算力') v`, [BX]);
+await raises('同时只能有一份提高上限的申请', /已经有一份/, `select request_cap(2029, $1, 500000, '再多一点')`, [BX]);
+await raises('大项目负责人不能自己批', /需要权限/, `select decide_cap_request($1, true)`, [cr]);
+await as(U.dir, D8);
+await raises('不同意提高上限要写原因', /要写原因/, `select decide_cap_request($1, false)`, [cr]);
+await q(`select decide_cap_request($1, true)`, [cr]);
+await raises('提高上限的申请不能批两次', /已经处理过/, `select decide_cap_request($1, true)`, [cr]);
+await as(U.mem, D8);
+await q(`select set_project_budget(2029, $1, 'submit')`, [PX1]);
+await as(U.dir, D8);
+await raises('上限不能低于已提交的预算合计', /上限不能低于/, `select set_project_cap(2029, $1, 50000)`, [BX]);
+await as(U.fin, D8);
+await q(`select advance_budget_year(2029, 'close')`);
+await as(U.dir, D8); await q(`select advance_budget_year(2029, 'approve')`);
+await as(U.fin, D8);
+await q(`select advance_budget_year(2029, 'apply', null, '2028-12-20')`);
+await q(`select advance_budget_year(2029, 'grant', 200000, '2029-01-10')`);
+await as(U.dir, D8);
+await raises('年度总预算不能低于各大项目上限合计', /上限合计/, `select advance_budget_year(2029, 'fix', 100000)`);
+await q(`select advance_budget_year(2029, 'fix', 200000)`);
+await raises('各大项目上限合计不能超过年度总预算', /超过年度总预算/, `select set_project_cap(2029, $1, 500000)`, [BX]);
+await db.exec(`reset role`);
+const H = await id(`insert into fund_card (card_no, name, template_id, start_date, cutoff_date, end_rule) values ('2121-H', '海外人才项目二期', $1, '2029-01-01', '2029-12-31', 'carry')`, [T.P]);
+await q(`insert into budget_line (card_id, subject_id, amount) values ($1,$2,100000), ($1,$3,50000)`, [H, SUB.P.equip, SUB.P.mat]);
+for (const t of ['服务器与 GPU', '耗材']) await q(`insert into reimb_ruling (card_id, expense_type_id, ruled_on, ruled_by, verdict) values ($1,$2,'2029-01-05','财务甲','yes')`, [H, TY[t]]);
+await db.exec(`set role app_api`);
+await as(U.fin, D9);
+for (const [l, s, a] of [[BXL, SUB.P.equip, 20000], [PL1, SUB.P.equip, 24000], [PL2, SUB.P.mat, 8000]])
+  await q(`select allocate_line($1, $2)`, [l, JSON.stringify([{ card_id: H, subject_id: s, amount: a }])]);
+await q(`select advance_budget_year(2029, 'issue')`);
+
+// 经费卡记总金额和执行年限，只有财务岗和中心负责人看得到
+await raises('执行年限的止不能早于起', /不能早于/, `select set_card_total($1, 300000, '2029-01-01', '2028-01-01')`, [H]);
+await q(`select set_card_total($1, 300000, '2029-01-01', '2031-12-31')`, [H]);
+let hc = await one(`select total_amount, period_start::text s, period_end::text e from api.card where card_id = $1`, [H]);
+ok(Number(hc.total_amount) === 300000 && hc.s === '2029-01-01' && hc.e === '2031-12-31', '经费卡记下总金额和执行年限', JSON.stringify(hc));
+await as(U.lead, D9);
+await raises('项目负责人不能改经费卡', /需要权限/, `select set_card_total($1, 1, null, null)`, [H]);
+eq((await q(`select * from api.card`)).length, 0, '项目负责人看不到任何经费卡');
+let ba = await q(`select card_id, card_no, card_name, amount from api.budget_alloc where line_id = $1`, [BXL]);
+ok(ba.length === 1 && ba[0].card_no === null && ba[0].card_name === null && ba[0].card_id === null && Number(ba[0].amount) === 20000, '项目负责人看得到下达了多少，看不到落在哪张卡', JSON.stringify(ba));
+
+// 名单：负责人直接加；大项目负责人看得到论文项目的名单
+await as(U.mem2, D9);
+eq((await q(`select * from api.line_pick where project_id = $1`, [PX1])).length, 0, '不在名单里选不到这个项目的预算行');
+eq((await q(`select * from api.people_pick`)).length > 3 ? 1 : 0, 1, '加人时能按姓名选人');
+ok(!('email' in (await one(`select * from api.people_pick limit 1`))), '选人的名单里只有姓名');
+await as(U.lead, D9);
+await raises('大项目负责人不能替论文项目加人', /只有项目负责人、副手和财务岗/, `select add_project_member($1, $2)`, [PX1, U.mem2]);
+await as(U.mem, D9);
+ok((await one(`select can_roster, member from api.project where id = $1`, [PX1])).can_roster === true, '论文项目负责人能管自己项目的名单');
+await q(`select add_project_member($1, $2)`, [PX1, U.mem2]);
+await as(U.lead, D9);
+const ros = await q(`select user_name, holding from api.project_member where project_id = $1 and left_on is null`, [PX1]);
+ok(ros.length === 1 && ros[0].user_name === '成员乙', '大项目负责人看得到下面论文项目的名单', JSON.stringify(ros));
+ok((await one(`select members from api.project where id = $1`, [PX1])).members === 1, '项目上带着成员人数');
+await as(U.mem2, D9);
+eq((await q(`select * from api.line_pick where project_id = $1`, [PX1])).length, 2, '进了名单就能选这个项目的预算行');
+eq((await q(`select * from api.line_pick where project_id = $1`, [BX])).length, 0, '大项目自己的预算行，论文项目的成员选不到');
+
+// 支出：成员提 → 项目负责人确认 → 财务岗核对；核对不通过退回并写原因
+const sp9 = `select submit_project_request($1, $2, $3, $4, $5) v`;
+const e1 = await val(sp9, [PL2, TY['耗材'], '试剂一批', 3000, '2029-04-30']);
+await as(U.mem, D9);
+await q(`select confirm_request($1, true)`, [e1]);
+await as(U.fin, D9);
+await q(`select check_request($1, false, '报价单没附')`, [e1]);
+await as(U.mem2, D9);
+let e9 = await one(`select status, return_note, card_id from api.request where id = $1`, [e1]);
+ok(e9.status === 'rejected' && e9.return_note === '报价单没附' && e9.card_id === null, '财务岗核对不通过退回，申请人看得到原因', JSON.stringify(e9));
+// 项目负责人不同意
+const e2 = await val(sp9, [PL2, TY['耗材'], '不必要的耗材', 500, '2029-04-30']);
+await as(U.mem, D9);
+await q(`select confirm_request($1, false, '这批先不买')`, [e2]);
+ok((await one(`select status from api.request where id = $1`, [e2])).status === 'rejected', '项目负责人不同意，申请就退回');
+// 超预算：不拦，标出超多少，项目负责人确认后到中心负责人
+await as(U.mem2, D9);
+const e3 = await val(sp9, [PL2, TY['耗材'], '试剂二批', 6000, '2029-04-30']);
+const e4 = await val(sp9, [PL2, TY['耗材'], '试剂三批', 4000, '2029-04-30']);
+e9 = await one(`select step, over_amount from api.request where id = $1`, [e4]);
+ok(e9.step === 'confirm' && Number(e9.over_amount) === 2000, '超出预算行的支出不拦，标出超了多少', JSON.stringify(e9));
+await as(U.mem, D9);
+await q(`select confirm_request($1, true)`, [e3]); await q(`select confirm_request($1, true)`, [e4]);
+ok((await one(`select step from api.request where id = $1`, [e4])).step === 'director', '超预算的确认后到中心负责人');
+await as(U.fin, D9);
+await raises('超预算的没批之前财务岗不能核对', /不在等财务岗核对/, `select check_request($1, true)`, [e4]);
+await q(`select check_request($1, true)`, [e3]);
+await as(U.dir, D9);
+await q(`select approve_request($1)`, [e4]);
+await as(U.mem, D9);
+ok(Number((await one(`select fixed from api.budget_line where id = $1`, [PL2])).fixed) === 10000, '中心负责人批了超预算的，这一行的核定数跟着调高');
+ok((await q(`select note from api.budget_revision where line_id = $1`, [PL2])).some(r => /超预算支出.*中心负责人批准/.test(r.note)), '调高留了一笔版本记录');
+eq((await one(`select sum(amount) v from api.budget_alloc where line_id = $1`, [PL2])).v, 10000, '调高的部分同时下达到这笔支出落的地方');
+await as(U.fin, D9);
+await q(`select check_request($1, true)`, [e4]);
+ok((await one(`select status from api.request where id = $1`, [e4])).status === 'committed', '超预算的经中心负责人批、财务岗核对后承诺');
+// 负责人自己提的：没有副手，记本人确认，直接到财务岗
+await as(U.mem, D9);
+const e5 = await val(sp9, [PL1, TY['服务器与 GPU'], '工作站一台', 9000, '2029-04-30']);
+e9 = await one(`select step, self_confirmed, confirmed_by_name from api.request where id = $1`, [e5]);
+ok(e9.step === 'check' && e9.self_confirmed === true && e9.confirmed_by_name === '成员甲', '负责人自己提的、没有副手，记本人确认', JSON.stringify(e9));
+await as(U.fin, D9);
+eq((await q(`select * from api.request where self_confirmed and project_id = $1`, [PX1])).length, 1, '本人确认的可以筛出来');
+await q(`select check_request($1, true)`, [e5]);
+const ob9 = await q(`select user_id, text from api.outbox`);
+ok(ob9.some(o => o.user_id === U.mem && /^等你确认：「试剂一批」/.test(o.text)), '成员提交后通知项目负责人确认');
+ok(ob9.some(o => o.user_id === U.dir && /^超出预算，等你批：「试剂三批」/.test(o.text)), '超预算的通知中心负责人');
+ok(ob9.some(o => o.user_id === U.mem2 && /^已退回：「试剂一批」.*报价单没附/.test(o.text)), '退回通知申请人并带原因');
+ok(!ob9.some(o => [U.mem, U.mem2].includes(o.user_id) && /海外人才项目二期|2121-H/.test(o.text)), '发给成员和项目负责人的通知里不带经费卡');
+
+// 科目间调剂：全年自己调的累计不超过项目年度预算的 10% 直接生效，超过的交中心负责人
+await as(U.mem2, D9);
+await raises('成员不能调剂预算', /只有项目负责人和副手/, `select shift_budget($1, $2, 1000, '试')`, [PL1, PL2]);
+await as(U.mem, D9);
+await raises('调剂要写原因', /为什么调剂/, `select shift_budget($1, $2, 1000, '')`, [PL1, PL2]);
+await raises('不能跨项目调剂', /同一个项目/, `select shift_budget($1, $2, 1000, '试')`, [PL1, BXL]);
+await raises('调出不能超过这一行剩的', /只剩 15000/, `select shift_budget($1, $2, 16000, '试')`, [PL1, PL2]);
+const s1x = await val(`select shift_budget($1, $2, 3000, '耗材用得比预想多') v`, [PL1, PL2]);
+let sh = await one(`select status, from_purpose, to_purpose from api.budget_shift where id = $1`, [s1x]);
+ok(sh.status === 'applied' && sh.from_purpose === '算力与设备' && sh.to_purpose === '实验耗材', '10% 以内的调剂直接生效', JSON.stringify(sh));
+let fx = await q(`select id, fixed from api.budget_line where id in ($1, $2)`, [PL1, PL2]);
+ok(Number(fx.find(x => x.id === PL1).fixed) === 21000 && Number(fx.find(x => x.id === PL2).fixed) === 13000, '调剂后两行的核定数一减一加');
+eq((await one(`select sum(amount) v from api.budget_alloc where line_id = $1`, [PL1])).v, 21000, '调出的一行多下达的部分收回');
+eq((await q(`select * from api.budget_revision where line_id in ($1, $2) and note like '科目间调剂%'`, [PL1, PL2])).length, 2, '调剂留两笔版本记录');
+const s2x = await val(`select shift_budget($1, $2, 1000, '再补一点') v`, [PL1, PL2]);
+ok((await one(`select status from api.budget_shift where id = $1`, [s2x])).status === 'pending', '累计超过 10% 的调剂等中心负责人批');
+await raises('有一笔在等批时不能再提', /已经有一笔调剂/, `select shift_budget($1, $2, 100, '再来')`, [PL1, PL2]);
+await raises('项目负责人不能自己批调剂', /需要权限/, `select decide_budget_shift($1, true)`, [s2x]);
+await as(U.dir, D9);
+await q(`select decide_budget_shift($1, true)`, [s2x]);
+ok(Number((await one(`select fixed from api.budget_line where id = $1`, [PL2])).fixed) === 14000, '中心负责人批了之后调剂生效');
+await as(U.lead, D9);
+eq((await q(`select * from api.budget_shift where project_id = $1`, [PX1])).length, 2, '大项目负责人看得到论文项目的调剂记录');
+
+// 设备买回来归公共设备，记下哪个项目出的钱；出钱项目的成员优先领用
+await as(U.fin, D9);
+const ws = await val(`select save_resource(null, 'asset', '图形工作站', null, 1, '台') v`);
+await q(`select stock_in($1, 1, 9000, null, '供应商乙', null, $2)`, [ws, e5]);
+const stk = await one(`select project_id, project_name, line_purpose from api.resource_stock where resource_id = $1`, [ws]);
+ok(stk.project_id === PX1 && stk.project_name === '论文：评测基准' && stk.line_purpose === '算力与设备', '入库记下是哪个项目哪一行预算出的钱', JSON.stringify(stk));
+const api9 = await val(`select save_resource(null, 'api', '评测接口二号', 'sk-…9x', 1000, '美元') v`);
+await q(`select set_line_resource($1, $2, 2)`, [PL1, ws]);
+await q(`select set_line_resource($1, $2, 1)`, [BXL, ws]);
+await q(`select set_line_resource($1, $2, 500)`, [PL2, api9]);
+await as(U.mem, D9);
+const pa = await q(`select resource_name, qty, holders, line_purpose from api.project_asset where project_id = $1`, [PX1]);
+ok(pa.length === 1 && pa[0].resource_name === '图形工作站' && pa[0].holders === null, '项目负责人看得到本项目出钱买的设备，现在没人领', JSON.stringify(pa));
+const srq9 = `select save_resource_request(null, $1, $2, $3, $4, $5, $6, $7, $8) v`;
+await as(U.lead, D9);
+const rq9a = await val(srq9, ['asset', null, BXL, 1, null, '组里公用', null, false]);
+await as(U.mem2, D9);
+const rq9b = await val(srq9, ['asset', null, PL1, 2, null, '跑评测', null, false]);
+const rq9c = await val(srq9, ['api', null, PL2, 100, '2029-03-20', '评测调用', null, false]);
+await as(U.mem, D9);
+await q(`select decide_resource_request($1, 'review')`, [rq9b]); await q(`select decide_resource_request($1, 'review')`, [rq9c]);
+await as(U.fin, D9);
+const pr9 = await q(`select id, priority from api.resource_request where id in ($1, $2)`, [rq9a, rq9b]);
+ok(pr9.find(x => x.id === rq9b).priority === true && pr9.find(x => x.id === rq9a).priority === false, '出钱项目成员的申领标着优先');
+for (const x of [rq9a, rq9b, rq9c]) await q(`select decide_resource_request($1, 'approve')`, [x]);
+await raises('出钱项目的申领没发完，不能先发给别人', /优先领用/, `select fulfil_resource_request($1)`, [rq9a]);
+await q(`select fulfil_resource_request($1)`, [rq9b]);
+const al9 = await val(`select fulfil_resource_request($1) v`, [rq9c]);
+await as(U.mem, D9);
+ok((await one(`select holders from api.project_asset where project_id = $1`, [PX1])).holders === '成员乙 ×2', '设备发出去后项目负责人看得到在谁手里');
+const pal = await q(`select * from api.project_allocation where project_id = $1`, [PX1]);
+ok(pal.length === 1 && pal[0].user_name === '成员乙' && Number(pal[0].quota) === 100 && pal[0].current && !('has_secret' in pal[0]) && !('secret_hint' in pal[0]), '项目负责人看得到本项目的接口额度分给了谁，不带密钥', JSON.stringify(pal));
+// 移出成员前要先逐项收回接口额度
+ok((await one(`select holding from api.project_member where project_id = $1 and left_on is null`, [PX1])).holding === 1, '名单上看得到这个人手里还有几项接口额度');
+await raises('接口额度没收回不能移出', /还有 1 项接口额度没有收回/, `select remove_project_member($1, $2)`, [PX1, U.mem2]);
+await as(U.lead, D9);
+await raises('别的项目负责人不能收回', /只有项目负责人、副手和财务岗/, `select recall_project_allocation($1)`, [al9]);
+await as(U.mem, D9);
+await q(`select recall_project_allocation($1)`, [al9]);
+await raises('不能重复收回', /已经收回/, `select recall_project_allocation($1)`, [al9]);
+await q(`select remove_project_member($1, $2)`, [PX1, U.mem2]);
+await raises('不在名单里的不能再移', /不在名单里/, `select remove_project_member($1, $2)`, [PX1, U.mem2]);
+await as(U.mem2, D9);
+eq((await q(`select * from api.line_pick where project_id = $1`, [PX1])).length, 0, '移出后选不到这个项目的预算行');
+await raises('移出后不能再从这个项目提支出', /不在这个项目的成员名单里/, sp9, [PL1, TY['服务器与 GPU'], '再买一台', 100, '2029-04-30']);
+ok((await q(`select * from api.allocation where resource_id = $1 and current`, [ws])).length === 1, '手里的设备是公共设备，不跟着名单走');
+
+// 年末盘点和对账
+await raises('成员不能盘点', /需要权限/, `select save_year_check(2029, $1, 2)`, [ws]);
+await as(U.fin, D9);
+await raises('实际数和账面对不上要写原因', /对不上，要写明原因/, `select save_year_check(2029, $1, 1)`, [ws]);
+await q(`select save_year_check(2029, $1, 1, '一台送修未归')`, [ws]);
+await q(`select save_year_check(2029, $1, 2)`, [ws]);
+const yc = await q(`select resource_id, book, actual, diff from api.year_check where year = 2029`);
+ok(yc.length > 1 && Number(yc.find(x => x.resource_id === ws).diff) === 0 && yc.some(x => x.actual === null), '盘点表每种资源一行，看得出哪些还没盘', String(yc.length));
+await db.exec(`reset role`);
+}
 
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -1,5 +1,5 @@
-import { useViews, type BudgetLine, type BudgetYear, type Card, type CardPick, type Project, type ProjectBudget, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest } from '../api';
-import { Badge, Empty, END_RULE, Flow, Loading, Tile, can, REQ, ROLE, day, money, num, pct, today } from '../ui';
+import { useViews, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Project, type ProjectBudget, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest } from '../api';
+import { Badge, Empty, END_RULE, Flow, Loading, Tile, can, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Bullets, C, Columns, Donut } from '../charts';
 import { cardRisk, nodeState } from './Overview';
 import { STAGE_TEXT, STEP_OF } from './Budget';
@@ -10,11 +10,11 @@ const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
 // 首页：每个预算年度走到三段七步的哪一步，执行中的钱压在哪里，以及轮到当前这个人做什么
 const STEPS = ['申报', '汇总报批', '核定下达', '申请', '承诺', '入账', '复盘结清'];
 export function Home({ me }: { me: Me }) {
-  const seesCards = can(me, 'read.finance', 'card.own') || me.scoped?.includes('card.read');
+  const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
-    years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[] }>({
+    years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[] }>({
     reqs: ['request'], picks: ['card_pick'], cards: ['card'], nodes: ['node'], events: ['fund_event', { done: 'false' }],
-    years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'],
+    years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'], caps: ['cap_request'], shifts: ['budget_shift'],
   });
   if (!data) return <Loading error={error} />;
   const now = today();
@@ -29,7 +29,7 @@ export function Home({ me }: { me: Me }) {
   const to = (path: string, status: ReqStatus) => (seesCards ? path : `#/requests/${status}`);
 
   const stages = [
-    { name: '申请', desc: '先申请、后支出，等中心负责人批准', v: `${pending.length} 笔`, f: `待批准 ${money(amt(pending))}`, href: '#/requests/pending' },
+    { name: '申请', desc: '先申请、后支出；项目负责人确认，财务岗核对', v: `${pending.length} 笔`, f: `待确认、核对 ${money(amt(pending))}`, href: '#/requests/pending' },
     { name: '承诺', desc: '批准后占用额度；涉及采购的走完采购', v: `${committed.length} 笔`, f: `已占用 ${money(amt(committed))}${buying.length ? ` · ${buying.length} 笔采购中` : ''}`, href: to('#/procure', 'committed') },
     { name: '入账', desc: '单据交学校，学校正式入账才算决算', v: `${atSchool.length} 笔`, f: `学校审核中 ${money(amt(atSchool))}${returned.length ? ` · ${returned.length} 笔被退回` : ''} · 已入账 ${posted.length} 笔`, href: to('#/school', 'at_school') },
   ];
@@ -75,8 +75,17 @@ export function Home({ me }: { me: Me }) {
   const add = (rows: Req[], tone: string, tag: string, what: string, go: string, href: string) => {
     if (rows.length > 0) todo.push({ tone, tag, text: `${rows.length} 笔${what}，合计 ${money(amt(rows))}`, go, href });
   };
-  if (can(me, 'request.approve')) add(pending, 'warn', '待你批准', '支出申请等你批准', '去批准', '#/requests/pending');
+  add(pending.filter((r) => r.can_confirm), 'warn', '待你确认', '支出申请挂在你负责的项目上，等你确认', '去确认', '#/requests/mine');
+  if (can(me, 'request.approve')) {
+    add(pending.filter((r) => r.step === 'director' && num(r.over_amount) > 0), 'bad', '超预算待批', '支出超出预算行，等你批', '去批', '#/requests/mine');
+    add(pending.filter((r) => !r.step || (r.step === 'director' && !(num(r.over_amount) > 0))), 'warn', '待你批准', '支出申请等你批准', '去批准', '#/requests/mine');
+  }
+  if (can(me, 'budget.approve')) {
+    for (const c of data.caps.filter((x) => x.status === 'pending')) todo.push({ tone: 'warn', tag: '提高上限', text: `${c.project_name} 申请把 ${c.year} 年的上限从 ${money(c.cap)} 提到 ${money(c.amount)}`, go: '去批', href: '#/projects' });
+    for (const s of data.shifts.filter((x) => x.status === 'pending')) todo.push({ tone: 'warn', tag: '预算调剂', text: `${s.project_name} 申请从「${s.from_purpose}」调 ${money(s.amount)} 到「${s.to_purpose}」，全年累计超过年度预算的 10%`, go: '去批', href: `#/review/${s.year}` });
+  }
   if (can(me, 'request.process')) {
+    add(pending.filter((r) => r.step === 'check'), 'warn', '待你核对', '支出申请项目负责人已确认，等你核对', '去核对', '#/requests/mine');
     add(ready, 'warn', '待交学校', '已批准的申请等你把单据交学校', '去提交', '#/requests/committed');
     add(buying, 'pri', '采购中', '采购还没走到验收', '去推进', '#/procure');
     add(atSchool, 'pri', '待回写', '单据在学校审核，入账后回写', '去回写', '#/school');
@@ -233,9 +242,9 @@ export function Home({ me }: { me: Me }) {
         {mineOpen.length === 0 ? <Empty>你没有进行中的申请。{mine.length > 0 && <> <a href="#/requests/posted">看已入账的</a></>}</Empty> : (
           <ul className="mine">{mineOpen.map((r) => (
             <li key={r.id}><a href={`#/requests/${r.status}`}>
-              <span className="t">{r.title}<span className="sub2">{[r.code, cardName.get(r.card_id), `预计 ${day(r.eta_date)} 入账`].filter(Boolean).join(' · ')}</span></span>
+              <span className="t">{r.title}<span className="sub2">{[r.code, r.project_name ?? cardName.get(r.card_id ?? ''), `预计 ${day(r.eta_date)} 入账`].filter(Boolean).join(' · ')}</span></span>
               <span className="m">{money(r.amount)}</span>
-              <span className="s"><Badge tone={REQ[r.status][1]}>{REQ[r.status][0]}</Badge><Flow status={r.status} /></span>
+              <span className="s"><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge><Flow status={r.status} /></span>
             </a></li>
           ))}</ul>
         )}

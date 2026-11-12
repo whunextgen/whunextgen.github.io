@@ -45,7 +45,7 @@ function BatchPost({ rows, cardName, onDone, onCancel }: { rows: Req[]; cardName
         <thead><tr><th /><th>事项</th><th>经费卡</th><th className="r">申请金额</th><th>入账日期</th><th className="r">入账金额</th><th>凭证号</th></tr></thead>
         <tbody>{rows.map((r) => (
           <tr key={r.id}><td><input type="checkbox" aria-label={`入账：${r.title}`} checked={!!on[r.id]} onChange={(e) => setOn({ ...on, [r.id]: e.target.checked })} /></td>
-            <td className="wrap">{r.title}<div className="sub2">{r.code}</div></td><td>{cardName.get(r.card_id) ?? '—'}</td><td className="r">{money(r.amount)}</td>
+            <td className="wrap">{r.title}<div className="sub2">{r.code}</div></td><td>{cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
             <td><input type="date" required={!!on[r.id]} disabled={!on[r.id]} value={f[r.id].posted_on} onChange={(e) => patch(r.id, { posted_on: e.target.value })} /></td>
             <td className="r"><input type="number" min="0.01" step="0.01" required={!!on[r.id]} disabled={!on[r.id]} value={f[r.id].amount} onChange={(e) => patch(r.id, { amount: e.target.value })} /></td>
             <td><input disabled={!on[r.id]} maxLength={60} value={f[r.id].voucher_no} onChange={(e) => patch(r.id, { voucher_no: e.target.value })} style={{ width: 150 }} /></td></tr>))}</tbody>
@@ -145,7 +145,7 @@ export function School({ me }: { me: Me }) {
           <div className="scroll"><table>
             <thead><tr><th>日期</th><th>经费卡</th><th>类型</th><th className="r">金额</th><th>待办</th><th /></tr></thead>
             <tbody>{shown.map((e) => (
-              <tr key={e.id}><td>{day(e.event_date)}</td><td><a href={`#/card/${e.card_id}`}>{maps.card.get(e.card_id) ?? '—'}</a></td>
+              <tr key={e.id}><td>{day(e.event_date)}</td><td><a href={`#/card/${e.card_id}`}>{maps.card.get(e.card_id ?? '') ?? '—'}</a></td>
                 <td>{e.kind}</td><td className="r">{money(e.amount)}</td>
                 <td className="wrap">{e.done ? <Badge tone="ok">已办</Badge> : <Badge tone="warn">未办</Badge>} {e.todo}</td>
                 <td><div className="acts">{finance && !e.done && <button className="sm ghost" onClick={() => setFinish(e)}>标记已办</button>}</div></td></tr>
@@ -161,7 +161,7 @@ export function School({ me }: { me: Me }) {
             <thead><tr><th>日期</th><th>类型</th><th>事项</th><th>经费卡</th><th className="r">金额</th><th>原因</th></tr></thead>
             <tbody>{log.map((e) => { const r = maps.req.get(e.request_id); return (
               <tr key={e.id}><td>{day(e.at)}</td><td><Badge tone={e.tone}>{e.label}</Badge></td>
-                <td className="wrap">{r?.title ?? '—'}</td><td>{r ? maps.card.get(r.card_id) ?? '—' : '—'}</td>
+                <td className="wrap">{r?.title ?? '—'}</td><td>{r ? maps.card.get(r.card_id ?? '') ?? '—' : '—'}</td>
                 <td className="r">{r ? money(r.amount) : '—'}</td><td className="wrap">{e.note ?? '—'}</td></tr>); })}</tbody>
           </table></div>
         )}
@@ -184,7 +184,7 @@ export function School({ me }: { me: Me }) {
           { name: 'available', label: '可用（元，可不填）', type: 'number', required: false }]}
         onSubmit={async (v) => { await rpc('set_school_balance', { card_id: bal.card_id, ...v }); reload(); }} onClose={() => setBal(null)} />}
       {finish && <ActionDialog title="标记已办" submitLabel="确认已办" fields={[]}
-        hint={`${maps.card.get(finish.card_id) ?? ''} ${day(finish.event_date)} ${finish.kind} ${money(finish.amount)}：${finish.todo ?? ''}`}
+        hint={`${maps.card.get(finish.card_id ?? '') ?? ''} ${day(finish.event_date)} ${finish.kind} ${money(finish.amount)}：${finish.todo ?? ''}`}
         onSubmit={async () => { await rpc('finish_fund_event', { id: finish.id }); reload(); }} onClose={() => setFinish(null)} />}
     </>
   );

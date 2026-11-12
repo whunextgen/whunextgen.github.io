@@ -21,7 +21,8 @@ const VIEWS = new Set(['me', 'users', 'card_pick', 'subject', 'expense_type', 'c
   'project', 'budget_category', 'budget_year', 'project_budget', 'budget_line',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
-  'perm', 'role', 'role_grant', 'rbac_log']);
+  'perm', 'role', 'role_grant', 'rbac_log',
+  'project_member', 'people_pick', 'project_cap', 'cap_request', 'budget_shift', 'project_asset', 'project_allocation', 'year_check']);
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
 const RPC: Record<string, [string, string][]> = {
@@ -71,7 +72,7 @@ const RPC: Record<string, [string, string][]> = {
   merge_user: [['from_id', 'uuid'], ['into_id', 'uuid']],
   set_school_balance: [['card_id', 'uuid'], ['balance', 'numeric'], ['frozen', 'numeric'], ['available', 'numeric']],
   post_vouchers: [['rows', 'jsonb']],
-  save_project: [['id', 'uuid'], ['code', 'text'], ['name', 'text'], ['kind', 'text'], ['owner_id', 'uuid'], ['active', 'boolean']],
+  save_project: [['id', 'uuid'], ['code', 'text'], ['name', 'text'], ['kind', 'text'], ['owner_id', 'uuid'], ['active', 'boolean'], ['parent_id', 'uuid']],
   save_budget_category: [['id', 'uuid'], ['code', 'text'], ['name', 'text'], ['labor', 'boolean'], ['sort', 'int'], ['active', 'boolean']],
   open_budget_year: [['year', 'int'], ['due_date', 'date']],
   save_budget_line: [['id', 'uuid'], ['year', 'int'], ['project_id', 'uuid'], ['category_id', 'uuid'], ['purpose', 'text'], ['q1', 'numeric'], ['q2', 'numeric'], ['q3', 'numeric'], ['q4', 'numeric']],
@@ -109,6 +110,18 @@ const RPC: Record<string, [string, string][]> = {
   set_card_info: [['card_id', 'uuid'], ['fund_kind', 'text'], ['received', 'numeric'], ['priority', 'int']],
   record_expense: [['card_id', 'uuid'], ['subject_id', 'uuid'], ['expense_type_id', 'uuid'], ['title', 'text'], ['amount', 'numeric'], ['posted_on', 'date'], ['voucher_no', 'text'], ['line_id', 'uuid']],
   record_expenses: [['rows', 'jsonb']],
+  set_card_total: [['card_id', 'uuid'], ['total', 'numeric'], ['period_start', 'date'], ['period_end', 'date']],
+  add_project_member: [['project_id', 'uuid'], ['user_id', 'uuid']],
+  remove_project_member: [['project_id', 'uuid'], ['user_id', 'uuid']],
+  recall_project_allocation: [['id', 'uuid']],
+  set_project_cap: [['year', 'int'], ['project_id', 'uuid'], ['amount', 'numeric']],
+  request_cap: [['year', 'int'], ['project_id', 'uuid'], ['amount', 'numeric'], ['reason', 'text']],
+  decide_cap_request: [['id', 'uuid'], ['ok', 'boolean'], ['amount', 'numeric'], ['note', 'text']],
+  confirm_request: [['id', 'uuid'], ['ok', 'boolean'], ['note', 'text']],
+  check_request: [['id', 'uuid'], ['ok', 'boolean'], ['note', 'text']],
+  shift_budget: [['from_line', 'uuid'], ['to_line', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
+  decide_budget_shift: [['id', 'uuid'], ['ok', 'boolean'], ['note', 'text']],
+  save_year_check: [['year', 'int'], ['resource_id', 'uuid'], ['actual', 'numeric'], ['note', 'text']],
 };
 
 const enc = new TextEncoder();

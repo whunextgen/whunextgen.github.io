@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { rpc, useViews, type CardPick, type ExpenseType, type LinePick, type Me, type Project, type QuotaPick, type Req, type ReqStatus, type Subject, type User } from '../api';
-import { ActionDialog, Badge, Empty, Flow, Loading, can, REQ, day, money, num, today, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, Flow, Loading, can, REQ, reqBadge, day, money, num, today, type Field } from '../ui';
 
 export const PATHS = ['直采', '集采', '分散采购'];
 const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
@@ -11,8 +11,19 @@ interface Action { label: string; title: string; hint?: string; fields: Field[];
 export function actionsFor(me: Me, r: Req, targets: [string, string][], lines: [string, string][] = []): Action[] {
   const what = `${r.title}，${money(r.amount)}`;
   const out: Action[] = [];
+  const over = num(r.over_amount);
+  if (r.status === 'pending' && r.can_confirm) {
+    out.push({ label: '确认', title: '确认这笔支出', hint: `${what}。${over > 0 ? `这笔超出预算行 ${money(over)}，确认后交中心负责人批。` : '确认后交财务岗核对。'}`, fields: [], run: () => rpc('confirm_request', { id: r.id, ok: true, note: null }) });
+    out.push({ label: '不同意', title: '不同意这笔支出', hint: what, danger: true, fields: [{ name: 'note', label: '原因' }], run: (v) => rpc('confirm_request', { id: r.id, ok: false, note: v.note }) });
+  }
+  if (can(me, 'request.process') && r.status === 'pending' && r.step === 'check') {
+    out.push({ label: '核对通过', title: '核对通过这笔支出', hint: `${what}。核对通过后占用额度，开始办理。`, fields: [], run: () => rpc('check_request', { id: r.id, ok: true, note: null }) });
+    out.push({ label: '退回', title: '退回这笔申请', hint: `${what}。退回后这笔申请结束，申请人看得到原因，改好后重新提。`, danger: true, fields: [{ name: 'note', label: '退回原因' }], run: (v) => rpc('check_request', { id: r.id, ok: false, note: v.note }) });
+  }
   if (can(me, 'request.approve') && r.status === 'pending') {
-    out.push({ label: '批准', title: '批准这笔支出', hint: `${what}。批准后计入该卡的承诺。`, fields: [], run: () => rpc('approve_request', { id: r.id }) });
+    if (!r.step) out.push({ label: '批准', title: '批准这笔支出', hint: `${what}。批准后计入承诺。`, fields: [], run: () => rpc('approve_request', { id: r.id }) });
+    if (r.step === 'director') out.push({ label: '批准', title: over > 0 ? '批准这笔超预算的支出' : '批准这笔支出',
+      hint: `${what}。${over > 0 ? `这笔超出预算行 ${money(over)}，批准后这一行的核定数相应调高，各项目核定数合计不能超过年度总预算。` : ''}批准后交财务岗核对。`, fields: [], run: () => rpc('approve_request', { id: r.id }) });
     out.push({ label: '驳回', title: '驳回这笔申请', hint: what, danger: true, fields: [{ name: 'note', label: '驳回原因' }],
       run: (v) => rpc('reject_request', { id: r.id, note: v.note }) });
   }
@@ -54,7 +65,7 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
   return (
     <div className="scroll">
       <table>
-        <thead><tr><th>事项</th>{cardName && <th>经费卡</th>}<th>科目</th><th className="r">金额</th><th>预计入账</th><th>状态</th><th /></tr></thead>
+        <thead><tr><th>事项</th>{cardName && <th>经费卡</th>}<th>项目 · 预算行</th><th className="r">金额</th><th>预计入账</th><th>状态</th><th /></tr></thead>
         <tbody>{rows.map((r) => {
           const targets = r.status === 'returned' && can(me, 'request.process') ? (cards ?? []).filter((c) => c.status === 'active' && c.id !== r.card_id)
             .flatMap((c) => (subjects ?? []).filter((s) => s.template_id === c.template_id).sort((a, b) => a.sort - b.sort)
@@ -63,13 +74,15 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
           return (
             <tr key={r.id}>
               <td className="wrap">{r.title}
-                <div className="sub2">{[projectName?.get(r.project_id ?? ''), r.code, userName?.get(r.requested_by ?? ''), r.requested_by === me.id ? '我提交的' : '',
-                  r.path && `${r.path} ${r.stage}/${r.stages}`, r.split_group && '分摊', r.morningstar_quota_id && '晨星额度', r.emergency && '紧急通道'].filter(Boolean).join(' · ')}</div></td>
-              {cardName && <td>{cardName.get(r.card_id) ?? '—'}</td>}
-              <td>{subjectName?.get(r.subject_id) ?? '—'}</td>
-              <td className="r">{money(r.amount)}</td>
+                <div className="sub2">{[r.code, r.requester_name ?? userName?.get(r.requested_by ?? ''), r.requested_by === me.id ? '我提交的' : '',
+                  r.path && `${r.path} ${r.stage}/${r.stages}`, r.split_group && '分摊', r.morningstar_quota_id && '晨星额度', r.emergency && '紧急通道'].filter(Boolean).join(' · ')}</div>
+                {r.status === 'rejected' && r.return_note && <div className="sub2 neg">原因：{r.return_note}</div>}</td>
+              {cardName && <td>{cardName.get(r.card_id ?? '') ?? '—'}</td>}
+              <td className="wrap">{r.project_name ?? projectName?.get(r.project_id ?? '') ?? '—'}<div className="sub2">{r.line_purpose ?? subjectName?.get(r.subject_id) ?? ''}</div></td>
+              <td className="r">{money(r.amount)}{num(r.over_amount) > 0 && <div className="sub2 neg">超预算 {money(r.over_amount)}</div>}</td>
               <td>{r.status === 'posted' ? <>{day(r.posted_on)}<div className="sub2">已入账{r.voucher_no ? ` ${r.voucher_no}` : ''}</div></> : day(r.eta_date)}</td>
-              <td><Badge tone={REQ[r.status][1]}>{REQ[r.status][0]}</Badge><Flow status={r.status} /></td>
+              <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge><Flow status={r.status} />
+                {r.step && (r.confirmed_by_name || r.checked_by_name) && <div className="sub2">{[r.confirmed_by_name && (r.self_confirmed ? '负责人本人提交' : `${r.confirmed_by_name} 已确认`), r.checked_by_name && `${r.checked_by_name} 已核对`].filter(Boolean).join(' · ')}</div>}</td>
               <td><div className="acts">{acts.map((a) => <button key={a.label} className={`sm ghost ${a.danger ? 'danger' : ''}`} onClick={() => setAct(a)}>{a.label}</button>)}</div></td>
             </tr>
           );
@@ -109,7 +122,7 @@ function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: 
     try {
       if (byLine) {
         await rpc('submit_project_request', { line_id: line.id, expense_type_id: v.expense_type_id, title: v.title, amount: v.amount, eta_date: v.eta_date, emergency: v.emergency, path });
-        onDone(`已提交：${v.title}，${money(v.amount)}，计入「${picks.find((x) => x.id === line.id)?.project_name ?? ''}」的预算。等待中心负责人批准。`);
+        onDone(`已提交：${v.title}，${money(v.amount)}，计入「${picks.find((x) => x.id === line.id)?.project_name ?? ''}」的预算。先由项目负责人确认，再由财务岗核对；超出预算行的另由中心负责人批。走到哪一步在下面的列表里看。`);
       } else if (split) {
         await rpc('submit_split', { expense_type_id: v.expense_type_id, title: v.title, eta_date: v.eta_date, path, quota_id: v.quota_id,
           parts: parts.map((p) => ({ card_id: p.card_id, subject_id: p.subject_id, amount: Math.round(num(p.amount) * 100) / 100 })) });
@@ -123,7 +136,7 @@ function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: 
   return (
     <form className="card" onSubmit={submit}>
       <h3>提交支出申请</h3>
-      <p className="hint">{byLine ? '先申请、后支出。选项目和预算行就行，走哪张经费卡由系统在这一行下达到的卡里挑（快到期回收的卡优先）。超出这一行核定数、或者下达的卡都放不下时会说明原因。'
+      <p className="hint">{byLine ? '先申请、后支出。只能从自己在成员名单里的项目提，选项目和预算行就行，钱从哪里出由财务岗安排。提交后先由项目负责人确认，再由财务岗核对；超出这一行预算的不拦，会标出超多少，另由中心负责人批。'
         : '先申请、后支出。提交时按可报销规则、可用额度、单据截止日和采购路径检查，不符合的会说明原因。'}</p>
       {picks.length > 0 && canCard && <div className="tabs" style={{ marginBottom: 12 }}>
         <button type="button" className="sm" aria-pressed={byLine} onClick={() => { setByLine(true); setSplit(false); }}>按项目预算</button>
@@ -194,11 +207,11 @@ function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: 
 }
 
 export function Requests({ me, start = '' }: { me: Me; start?: string }) {
-  const staff = can(me, 'read.finance');
+  const staff = can(me, 'read.finance'), adds = staff || can(me, 'request.process');
   const { data, error, reload } = useViews<{ reqs: Req[]; cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; users: User[]; quotas: QuotaPick[]; picks: LinePick[]; projects: Project[] }>({
     reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], types: ['expense_type'], users: ['users'], quotas: ['quota_pick'], picks: ['line_pick'], projects: ['project'],
   });
-  const [tab, setTab] = useState<'open' | ReqStatus>(start in REQ ? (start as ReqStatus) : 'open');
+  const [tab, setTab] = useState<'open' | 'mine' | 'self' | ReqStatus>(start in REQ || start === 'mine' ? (start as ReqStatus) : 'open');
   const [adding, setAdding] = useState(start === 'new');
   const [done, setDone] = useState('');
   const maps = useMemo(() => ({
@@ -210,10 +223,15 @@ export function Requests({ me, start = '' }: { me: Me; start?: string }) {
   }), [data]);
   if (!data) return <Loading error={error} />;
   const count = (s: ReqStatus) => data.reqs.filter((r) => r.status === s).length;
-  const rows = data.reqs.filter((r) => (tab === 'open' ? OPEN.includes(r.status) : r.status === tab))
+  // 轮到我：等我确认的、等我批的、等我核对的
+  const myTurn = (r: Req) => r.status === 'pending' && (r.can_confirm || (can(me, 'request.approve') && (!r.step || r.step === 'director')) || (can(me, 'request.process') && r.step === 'check'));
+  const selfDone = (r: Req) => !!r.self_confirmed;
+  const rows = data.reqs.filter((r) => (tab === 'open' ? OPEN.includes(r.status) : tab === 'mine' ? myTurn(r) : tab === 'self' ? selfDone(r) : r.status === tab))
     .sort((a, b) => (b.posted_on ?? b.created_at).localeCompare(a.posted_on ?? a.created_at));
   const total = rows.reduce((s, r) => s + num(r.amount), 0);
-  const tabs: ['open' | ReqStatus, string][] = [['open', `进行中 ${OPEN.reduce((s, x) => s + count(x), 0)}`],
+  const tabs: ['open' | 'mine' | 'self' | ReqStatus, string][] = [['open', `进行中 ${OPEN.reduce((s, x) => s + count(x), 0)}`],
+    ...(data.reqs.some(myTurn) || tab === 'mine' ? [['mine', `轮到我 ${data.reqs.filter(myTurn).length}`] as ['mine', string]] : []),
+    ...(staff ? [['self', `负责人本人提交 ${data.reqs.filter(selfDone).length}`] as ['self', string]] : []),
     ...(['pending', 'committed', 'at_school', 'returned', 'posted', 'rejected', 'released'] as ReqStatus[]).map((s) => [s, `${REQ[s][0]} ${count(s)}`] as [ReqStatus, string])];
 
   return (
@@ -221,17 +239,19 @@ export function Requests({ me, start = '' }: { me: Me; start?: string }) {
       <div className="top"><h2>支出申请</h2>
         <button onClick={() => { setAdding(!adding); setDone(''); }} className={adding ? 'ghost' : ''}>{adding ? '收起' : '提交支出申请'}</button></div>
       {done && <div className="msg ok" role="status">{done}</div>}
-      {adding && <NewRequest cards={data.cards} subjects={data.subjects} types={data.types} quotas={data.quotas} picks={data.picks} canCard={can(me, 'read.finance', 'card.own')}
-        onDone={(msg) => { setAdding(false); setDone(msg); setTab('open'); reload(); }} />}
+      {adding && (data.picks.length === 0 && !adds
+        ? <section className="card"><h3>提交支出申请</h3><Empty>你现在不在任何一个有已下达预算的项目的成员名单里，提不了支出。请项目负责人在「项目」页把你加进名单；加上之后这里就能选到那个项目的预算行。</Empty></section>
+        : <NewRequest cards={data.cards} subjects={data.subjects} types={data.types} quotas={data.quotas} picks={data.picks} canCard={staff}
+            onDone={(msg) => { setAdding(false); setDone(msg); setTab('open'); reload(); }} />)}
       <section className="card">
-        <h3>{staff ? '全部申请' : can(me, 'card.own') ? '我的申请和我名下卡的申请' : '我的申请'}</h3>
-        <p className="hint">每笔申请走四步：申请、批准、交学校、入账。状态下面的四格表示走到了哪一步，金色是现在停的地方。</p>
+        <h3>{staff ? '全部申请' : data.projects.some((p) => p.mine) ? '我的申请和我负责的项目的申请' : '我的申请'}</h3>
+        <p className="hint">每笔申请走四步：申请、批准、交学校、入账。状态下面的四格表示走到了哪一步，金色是现在停的地方。从项目预算行提的，批准这一步分成项目负责人确认、财务岗核对两道；超出预算行的中间再加中心负责人批。{staff && '负责人本人提交的没有另一位确认，单独列出来备查。'}</p>
         <div className="tabs" style={{ marginBottom: 12 }}>
           {tabs.map(([k, label]) => <button key={k} className="sm" aria-pressed={tab === k} onClick={() => setTab(k)}>{label}</button>)}
         </div>
-        {rows.length === 0 ? <Empty>{tab === 'open' ? '没有进行中的申请。' : '这个状态下没有申请。'}</Empty> : (
+        {rows.length === 0 ? <Empty>{tab === 'open' ? '没有进行中的申请。' : tab === 'mine' ? '现在没有轮到你处理的申请。' : '这个状态下没有申请。'}</Empty> : (
           <>
-            <RequestTable me={me} rows={rows} cards={data.cards} subjects={data.subjects} cardName={maps.card} subjectName={maps.subject} userName={maps.user} projectName={maps.project} lines={maps.lines} onChange={reload} />
+            <RequestTable me={me} rows={rows} cards={data.cards} subjects={data.subjects} cardName={staff ? maps.card : undefined} subjectName={maps.subject} userName={maps.user} projectName={maps.project} lines={maps.lines} onChange={reload} />
             <p className="sub2">{rows.length} 笔，合计 {money(total)}</p>
           </>
         )}

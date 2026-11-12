@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { rpc, useViews, type BudgetAlloc, type BudgetCategory, type BudgetReview, type BudgetRevision, type BudgetYear, type LineExec, type Me, type Project } from '../api';
+import { rpc, useViews, type BudgetAlloc, type BudgetCategory, type BudgetReview, type BudgetRevision, type BudgetShift, type BudgetYear, type LineExec, type Me, type Project } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, Tile, day, money, num, pct, today, type Field } from '../ui';
 
 interface Act { title: string; hint?: string; fields: Field[]; submitLabel?: string; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
@@ -8,9 +8,9 @@ const QN = ['1–3 月', '4–6 月', '7–9 月', '10–12 月'];
 
 // 07 复盘与决算：每三个月按项目对一次计划和实际，复盘时可以调整核定数；年末做年度决算，未用的预算不结转。
 export function Review({ me, start }: { me: Me; start: string }) {
-  const staff = can(me, 'budget.review'), director = can(me, 'budget.approve');
-  const { data, error, reload } = useViews<{ years: BudgetYear[]; projects: Project[]; cats: BudgetCategory[]; exec: LineExec[]; allocs: BudgetAlloc[]; revisions: BudgetRevision[]; reviews: BudgetReview[] }>({
-    years: ['budget_year'], projects: ['project'], cats: ['budget_category'], exec: ['line_exec'], allocs: ['budget_alloc'], revisions: ['budget_revision'], reviews: ['budget_review'],
+  const staff = can(me, 'budget.review'), director = can(me, 'budget.approve'), seesCards = can(me, 'read.finance');
+  const { data, error, reload } = useViews<{ years: BudgetYear[]; projects: Project[]; cats: BudgetCategory[]; exec: LineExec[]; allocs: BudgetAlloc[]; revisions: BudgetRevision[]; reviews: BudgetReview[]; shifts: BudgetShift[] }>({
+    years: ['budget_year'], projects: ['project'], cats: ['budget_category'], exec: ['line_exec'], allocs: ['budget_alloc'], revisions: ['budget_revision'], reviews: ['budget_review'], shifts: ['budget_shift'],
   });
   const [act, setAct] = useState<Act | null>(null);
   const [open, setOpen] = useState('');
@@ -47,6 +47,16 @@ export function Review({ me, start }: { me: Me; start: string }) {
     hint: `现在核定 ${money(l.fixed)}，已用 ${money(l.used)}（含在途）。调减不能低于已用，多下达的部分自动从经费卡上收回；调增的部分要到年度预算页补下达。各项目核定数合计不能超过年度总预算。`,
     fields: [{ name: 'amount', label: '新的核定数（元）', type: 'number', value: String(num(l.fixed)) }, { name: 'note', label: '调整原因' }],
     run: (v) => rpc('revise_fixed', { id: l.id, amount: v.amount, note: v.note }).then(reload) });
+  // 调剂：项目内各预算行之间挪，全年累计不超过项目年度预算的 10% 负责人自己定，超过的交中心负责人批
+  const shiftAct = (p: Project, rows: LineExec[]): Act => { const total = sum(rows, 'fixed');
+    const done = data.shifts.filter((s) => s.year === year && s.project_id === p.id && s.status === 'applied' && !s.decided_by_name).reduce((t, s) => t + num(s.amount), 0);
+    return { title: `预算调剂：${p.name}`, submitLabel: '调剂',
+      hint: `在这个项目 ${year} 年度的预算行之间挪，项目的核定数合计不变。调出行只能调还没用的部分。今年自己已经调了 ${money(done)}，累计不超过年度预算的 10%（${money(total * 0.1)}）直接生效；超过的交中心负责人批，批之前不生效。`,
+      fields: [{ name: 'from_line', label: '从哪一行调出', options: rows.filter((l) => num(l.fixed) - num(l.used) > 0).map((l): [string, string] => [l.id, `${l.purpose}，还剩 ${money(num(l.fixed) - num(l.used))}`]) },
+        { name: 'to_line', label: '调到哪一行', options: rows.map((l): [string, string] => [l.id, `${l.purpose}，核定 ${money(l.fixed)}`]) },
+        { name: 'amount', label: '金额（元）', type: 'number' }, { name: 'note', label: '原因' }],
+      run: (v) => rpc('shift_budget', { from_line: v.from_line, to_line: v.to_line, amount: v.amount, note: v.note }).then(reload) }; };
+  const pendingShifts = data.shifts.filter((s) => s.year === year && s.status === 'pending');
 
   return (
     <>
@@ -76,30 +86,57 @@ export function Review({ me, start }: { me: Me; start: string }) {
                   <td>{quarter === 0 || pl === 0 ? '—' : ac < pl * 0.7 ? <Badge tone="bad">落后，差 {money(pl - ac)}</Badge> : <Badge tone="ok">正常</Badge>}{quarter > 0 && pl > 0 && <div className="sub2">到第 {quarter} 期末计划 {money(pl)}</div>}</td>
                   <td className="wrap">{rv ? <><Badge tone="ok">已复盘</Badge><span className="sub2">{rv.reviewed_by_name ?? ''} {day(rv.reviewed_at)}</span></> : quarter === 0 ? '—' : <Badge tone="warn">还没复盘</Badge>}</td>
                   <td><div className="acts"><button className="sm ghost" aria-pressed={open === p.id} onClick={() => setOpen(open === p.id ? '' : p.id)}>明细</button>
+                    {p.mine && p.kind !== 'public' && editable && rows.length > 1 && !pendingShifts.some((s) => s.project_id === p.id) && <button className="sm ghost" onClick={() => setAct(shiftAct(p, rows))}>调剂</button>}
                     {staff && editable && quarter > 0 && <button className="sm ghost" onClick={() => setAct(reviewAct(p, rows))}>{rv ? '改复盘' : '写复盘'}</button>}</div></td></tr>); })}</tbody>
             </table></div>
           </section>
 
+          {pendingShifts.length > 0 && (
+            <section className="card">
+              <h3>待批的预算调剂 <span className="h3sub">全年累计超过项目年度预算 10% 的，由中心负责人批</span></h3>
+              <div className="scroll"><table>
+                <thead><tr><th>提交</th><th>项目</th><th>调出</th><th>调入</th><th className="r">金额</th><th>原因</th><th /></tr></thead>
+                <tbody>{pendingShifts.map((s) => (
+                  <tr key={s.id}><td>{day(s.created_at)}<span className="sub2">{s.requester_name ?? ''}</span></td><td>{s.project_name}</td><td className="wrap">{s.from_purpose}</td><td className="wrap">{s.to_purpose}</td>
+                    <td className="r">{money(s.amount)}</td><td className="wrap">{s.note}</td>
+                    <td><div className="acts">{director ? <>
+                      <button className="sm" onClick={() => setAct({ title: `同意调剂：${s.project_name}`, submitLabel: '同意', hint: `从「${s.from_purpose}」调 ${money(s.amount)} 到「${s.to_purpose}」。原因：${s.note}。同意后两行的核定数马上调整。`,
+                        fields: [{ name: 'note', label: '批示（可不填）', required: false }], run: (v) => rpc('decide_budget_shift', { id: s.id, ok: true, note: v.note || null }).then(reload) })}>同意</button>
+                      <button className="sm ghost danger" onClick={() => setAct({ title: `不同意调剂：${s.project_name}`, submitLabel: '不同意', danger: true, hint: `从「${s.from_purpose}」调 ${money(s.amount)} 到「${s.to_purpose}」。原因：${s.note}`,
+                        fields: [{ name: 'note', label: '原因' }], run: (v) => rpc('decide_budget_shift', { id: s.id, ok: false, note: v.note }).then(reload) })}>不同意</button></>
+                      : <Badge tone="warn">等中心负责人批</Badge>}</div></td></tr>
+                ))}</tbody>
+              </table></div>
+            </section>
+          )}
+
           {projects.filter(({ p }) => p.id === open).map(({ p, rows }) => {
             const revs = data.revisions.filter((r) => r.year === year && r.project_id === p.id).sort((a, b) => b.revised_at.localeCompare(a.revised_at));
             const notes = data.reviews.filter((r) => r.year === year && r.project_id === p.id).sort((a, b) => a.quarter - b.quarter);
+            const shifts = data.shifts.filter((s) => s.year === year && s.project_id === p.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
             return (
               <section className="card" key={p.id}>
                 <h3>{p.name}：各行执行</h3>
                 <div className="scroll"><table className="tight">
-                  <thead><tr><th>预算行</th>{QN.map((n) => <th key={n} className="r">{n}<span className="sub2">计划 / 入账</span></th>)}<th className="r">核定数</th><th className="r">剩余</th><th>经费卡</th><th /></tr></thead>
+                  <thead><tr><th>预算行</th>{QN.map((n) => <th key={n} className="r">{n}<span className="sub2">计划 / 入账</span></th>)}<th className="r">核定数</th><th className="r">剩余</th>{seesCards && <th>经费卡</th>}<th /></tr></thead>
                   <tbody>{rows.map((l) => { const left = num(l.fixed) - num(l.used); const al = data.allocs.filter((a) => a.line_id === l.id); return (
                     <tr key={l.id}><td className="wrap">{l.purpose}<div className="sub2">{cat.get(l.category_id) ?? '—'}</div></td>
                       {Q.map((k, i) => <td key={k} className="r">{qp(l, i) > 0 ? money(qp(l, i)) : '—'}<div className="sub2">{num(l[A[i]]) > 0 ? money(l[A[i]]) : '—'}</div></td>)}
                       <td className="r">{money(l.fixed)}{num(l.fixed) > num(l.allocated) && <span className="sub2 neg">{money(num(l.fixed) - num(l.allocated))} 待下达</span>}</td>
                       <td className={`r ${left < 0 ? 'neg' : ''}`}>{money(left)}<div className="sub2">已用 {money(l.used)}</div></td>
-                      <td className="wrap">{al.length === 0 ? '—' : al.map((a) => <div key={a.id}>{a.card_name}<span className="sub2">{money(a.amount)}，已用 {money(a.used)}</span></div>)}</td>
+                      {seesCards && <td className="wrap">{al.length === 0 ? '—' : al.map((a) => <div key={a.id}>{a.card_name ?? '—'}<span className="sub2">{money(a.amount)}，已用 {money(a.used)}</span></div>)}</td>}
                       <td className="r">{director && editable && <button className="ghost sm" onClick={() => setAct(reviseAct(p, l))}>调整</button>}</td></tr>); })}</tbody>
                 </table></div>
                 <h4>复盘记录</h4>
                 {notes.length === 0 ? <Empty>还没有复盘记录。</Empty> : (
                   <div className="scroll"><table><thead><tr><th>预算期</th><th>结论</th><th>记录人</th><th>日期</th></tr></thead>
                     <tbody>{notes.map((r) => <tr key={r.id}><td>第 {r.quarter} 期<span className="sub2">{QN[r.quarter - 1]}</span></td><td className="wrap">{r.note}</td><td>{r.reviewed_by_name ?? '—'}</td><td>{day(r.reviewed_at)}</td></tr>)}</tbody></table></div>)}
+                {shifts.length > 0 && <>
+                  <h4>预算调剂记录</h4>
+                  <div className="scroll"><table><thead><tr><th>日期</th><th>调出</th><th>调入</th><th className="r">金额</th><th>原因</th><th>状态</th></tr></thead>
+                    <tbody>{shifts.map((s) => <tr key={s.id}><td>{day(s.created_at)}<span className="sub2">{s.requester_name ?? ''}</span></td><td className="wrap">{s.from_purpose}</td><td className="wrap">{s.to_purpose}</td><td className="r">{money(s.amount)}</td>
+                      <td className="wrap">{s.note}{s.decide_note && <div className="sub2">批示：{s.decide_note}</div>}</td>
+                      <td>{s.status === 'pending' ? <Badge tone="warn">等中心负责人批</Badge> : s.status === 'rejected' ? <Badge tone="bad">没同意</Badge> : <Badge tone="ok">{s.decided_by_name ? `${s.decided_by_name} 已同意` : '已生效'}</Badge>}</td></tr>)}</tbody></table></div></>}
                 {revs.length > 0 && <>
                   <h4>核定数调整记录</h4>
                   <div className="scroll"><table><thead><tr><th>日期</th><th>预算行</th><th className="r">原核定数</th><th className="r">新核定数</th><th>原因</th><th>调整人</th></tr></thead>

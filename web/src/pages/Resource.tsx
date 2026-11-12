@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { rpc, secretGet, secretSet, useViews, type Allocation, type Me, type Req, type Resource, type ResourcePick, type ResourcePlan, type ResourceRequest, type ResourceStock, type ResReqStatus,
+import { rpc, secretGet, secretSet, useViews, type Allocation, type Me, type Req, type Resource, type ResourcePick, type ResourcePlan, type ResourceRequest, type ResourceStock, type YearCheck, type ResReqStatus,
   type SecretAccess, type User } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, PERSON, Tile, canPublic, day, money, num, today, type Field } from '../ui';
 
@@ -108,7 +108,7 @@ export function ResourcePage({ me }: { me: Me }) {
           <div className="scroll"><table>
             <thead><tr><th>提交</th><th>申请人</th><th>项目 · 预算行</th><th>资源</th><th className="r">数量</th><th>用于</th><th>用途</th><th /></tr></thead>
             <tbody>{toReview.map((r) => (
-              <tr key={r.id}><td>{day(r.created_at)}</td><td>{r.requester_name}{r.urgent && <> <Badge tone="bad">加急</Badge></>}</td><td>{r.project_code} {r.project_name}<div className="sub2">{r.line_purpose}，计划 {qty(r.plan_qty, r.unit)}</div></td>
+              <tr key={r.id}><td>{day(r.created_at)}</td><td>{r.requester_name}{r.urgent && <> <Badge tone="bad">加急</Badge></>}{r.priority && <> <Badge tone="ok">优先</Badge><div className="sub2">出钱项目的成员</div></>}</td><td>{r.project_code} {r.project_name}<div className="sub2">{r.line_purpose}，计划 {qty(r.plan_qty, r.unit)}</div></td>
                 <td>{r.resource_name ?? `${KIND[r.kind]}（未指定）`}</td><td className="r">{qty(r.amount, r.unit)}</td><td>{r.period ? r.period.slice(0, 7) : '—'}</td>
                 <td className="wrap">{r.purpose}{r.usage_note && <div className="sub2">{r.usage_note}</div>}</td>
                 <td><div className="acts"><button className="sm" onClick={() => setAct(decide(r, 'review'))}>同意</button>
@@ -198,7 +198,8 @@ export function PoolPage({ me }: { me: Me }) {
   if (!data) return <Loading error={error} />;
 
   const open = data.reqs.filter((r) => ['pending', 'reviewed', 'approved'].includes(r.status));
-  const shown = [...(all ? data.reqs : open)].sort((a, b) => Number(b.urgent) - Number(a.urgent) || a.created_at.localeCompare(b.created_at));
+  // 出钱买这台设备的项目的成员排在前面
+  const shown = [...(all ? data.reqs : open)].sort((a, b) => Number(b.urgent) - Number(a.urgent) || Number(b.priority) - Number(a.priority) || a.created_at.localeCompare(b.created_at));
   const n = (s: ResReqStatus) => data.reqs.filter((r) => r.status === s).length;
   const active = data.resources.filter((r) => r.active);
   // 需求池：在途需求合计，对着剩余量看缺口；采购量按需求 ×120% 提示，留两成余量
@@ -266,7 +267,7 @@ export function PoolPage({ me }: { me: Me }) {
           <div className="scroll"><table>
             <thead><tr><th>提交</th><th>申请人</th><th>项目 · 预算行</th><th>资源</th><th className="r">申请</th><th className="r">批准</th><th>用于</th><th>用途</th><th>状态</th><th /></tr></thead>
             <tbody>{shown.map((r) => (
-              <tr key={r.id}><td>{day(r.created_at)}</td><td>{r.requester_name}{r.urgent && <> <Badge tone="bad">加急</Badge></>}</td>
+              <tr key={r.id}><td>{day(r.created_at)}</td><td>{r.requester_name}{r.urgent && <> <Badge tone="bad">加急</Badge></>}{r.priority && <> <Badge tone="ok">优先</Badge><div className="sub2">出钱项目的成员</div></>}</td>
                 <td>{r.project_code}<div className="sub2">{r.line_purpose}，计划 {qty(r.plan_qty, r.unit)}</div></td>
                 <td>{r.resource_name ?? '未指定'}<div className="sub2">{KIND[r.kind]}</div></td><td className="r">{qty(r.amount, r.unit)}</td>
                 <td className="r">{r.approved_amount != null ? qty(r.approved_amount, r.unit) : '—'}</td><td>{r.period ? r.period.slice(0, 7) : '—'}</td>
@@ -288,15 +289,25 @@ export function PoolPage({ me }: { me: Me }) {
 
 // ---------- 资源池与库存：财务岗、中心负责人 ----------
 export function StockPage() {
-  const { data, error, reload } = useViews<{ resources: Resource[]; allocs: Allocation[]; users: User[]; stock: ResourceStock[]; access: SecretAccess[]; reqs: Req[] }>({
-    resources: ['resource'], allocs: ['allocation'], users: ['users'], stock: ['resource_stock'], access: ['secret_access'], reqs: ['request'],
+  const { data, error, reload } = useViews<{ resources: Resource[]; allocs: Allocation[]; users: User[]; stock: ResourceStock[]; access: SecretAccess[]; reqs: Req[]; checks: YearCheck[] }>({
+    resources: ['resource'], allocs: ['allocation'], users: ['users'], stock: ['resource_stock'], access: ['secret_access'], reqs: ['request'], checks: ['year_check'],
   });
   const [act, setAct] = useState<Act | null>(null);
   const [key, setKey] = useState<{ kind: 'resource' | 'allocation'; id: string; name: string } | null>(null);
   const [tab, setTab] = useState<'api' | 'asset'>('api');
   const [past, setPast] = useState(false);
+  const [yr, setYr] = useState(0);
   if (!data) return <Loading error={error} />;
 
+  const checkYears = [...new Set(data.checks.map((k) => k.year))].sort((a, b) => b - a);
+  const checkYear = checkYears.includes(yr) ? yr : checkYears[0];
+  const checks = data.checks.filter((k) => k.year === checkYear && k.kind === tab).sort((a, b) => a.resource_name.localeCompare(b.resource_name, 'zh'));
+  const checkAct = (k: YearCheck): Act => ({
+    label: '保存', title: `${k.year} 年末盘点：${k.resource_name}`,
+    hint: `账面现在是 ${qty(k.book_now, k.unit)}。${k.kind === 'api' ? '实盘填服务商那边账户里实际还剩多少。' : '实盘填实际点到的数量。'}实盘和账面不一样的要写明原因。`,
+    fields: [{ name: 'actual', label: `实盘${k.unit ? `（${k.unit}）` : ''}`, type: 'number', value: k.actual != null ? String(num(k.actual)) : String(num(k.book_now)) }, { name: 'note', label: '说明（有差异时必填）', required: false, value: k.note ?? '' }],
+    run: (v) => rpc('save_year_check', { year: k.year, resource_id: k.resource_id, actual: v.actual, note: v.note || null }),
+  });
   const users = data.users.filter((u) => u.active).map((u): [string, string] => [u.id, u.name]);
   const list = data.resources.filter((r) => r.kind === tab).sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, 'zh'));
   const allocs = data.allocs.filter((a) => a.kind === tab && (past || a.current)).sort((a, b) => Number(b.current) - Number(a.current) || b.from_date.localeCompare(a.from_date));
@@ -435,14 +446,34 @@ export function StockPage() {
         <h3>{tab === 'api' ? '充值记录' : '入库记录'}</h3>
         {stock.length === 0 ? <Empty>还没有{tab === 'api' ? '充值' : '入库'}记录。</Empty> : (
           <div className="scroll"><table>
-            <thead><tr><th>日期</th><th>资源</th><th className="r">数量</th><th className="r">{tab === 'api' ? '实付' : '单价'}</th><th>对应支出申请</th><th>供应商</th><th>备注</th><th>经办</th></tr></thead>
+            <thead><tr><th>日期</th><th>资源</th><th className="r">数量</th><th className="r">{tab === 'api' ? '实付' : '单价'}</th><th>出钱的项目</th><th>对应支出申请</th><th>供应商</th><th>备注</th><th>经办</th></tr></thead>
             <tbody>{stock.map((s) => (
               <tr key={s.id}><td>{day(s.received_on)}</td><td>{s.resource_name}</td><td className="r">{qty(s.qty, s.unit)}</td><td className="r">{s.unit_price != null ? money(s.unit_price) : '—'}</td>
+                <td className="wrap">{s.project_name ?? '—'}{s.line_purpose && <div className="sub2">{s.line_purpose}</div>}</td>
                 <td className="wrap">{s.expense_request_id ? reqTitle.get(s.expense_request_id) ?? '已关联' : '—'}</td><td>{s.supplier ?? '—'}</td><td className="wrap">{s.note ?? '—'}</td><td>{s.created_by_name ?? '—'}</td></tr>
             ))}</tbody>
           </table></div>
         )}
       </section>
+
+      {checkYear != null && (
+        <section className="card">
+          <h3>年末盘点 <span className="h3sub">{checkYear} 年度 · {tab === 'api' ? '接口账户余额' : '设备和库存数量'}</span></h3>
+          <p className="hint">年度决算之前把账面和实际对一遍：{tab === 'api' ? '接口对服务商账户里实际剩的余额' : '设备和库存对实际点到的数量'}。设备买回来是中心的公共设备，不分项目，统一在这里盘。实盘和账面不一样的写明原因；年度决算之后盘点结果不能再改。</p>
+          {checkYears.length > 1 && <div className="tabs" style={{ marginBottom: 12 }}>{checkYears.map((n) => <button key={n} className="sm" aria-pressed={n === checkYear} onClick={() => setYr(n)}>{n}</button>)}</div>}
+          {checks.length === 0 ? <Empty>没有要盘点的{KIND[tab]}。</Empty> : (
+            <div className="scroll"><table>
+              <thead><tr><th>{tab === 'api' ? '接口' : '资产'}</th><th className="r">账面</th><th className="r">实盘</th><th className="r">差异</th><th>说明</th><th>盘点</th><th /></tr></thead>
+              <tbody>{checks.map((k) => (
+                <tr key={k.resource_id}><td>{k.resource_name}</td><td className="r">{qty(k.book ?? k.book_now, k.unit)}</td><td className="r">{k.actual != null ? qty(k.actual, k.unit) : '—'}</td>
+                  <td className={`r ${num(k.diff) !== 0 ? 'neg' : ''}`}>{k.actual == null ? '—' : num(k.diff) === 0 ? '一致' : qty(k.diff, k.unit)}</td>
+                  <td className="wrap">{k.note ?? '—'}</td><td>{k.checked_at ? <>{k.checked_by_name ?? ''}<span className="sub2">{day(k.checked_at)}</span></> : <Badge tone="warn">还没盘</Badge>}</td>
+                  <td className="r"><button className="sm ghost" onClick={() => setAct(checkAct(k))}>{k.checked_at ? '重盘' : '盘点'}</button></td></tr>
+              ))}</tbody>
+            </table></div>
+          )}
+        </section>
+      )}
 
       {tab === 'api' && (
         <section className="card">

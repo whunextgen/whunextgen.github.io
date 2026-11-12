@@ -64,7 +64,8 @@ function App() {
   if (me === undefined) return <p className="empty">加载中…</p>;
   if (me === null) return <Login reason={error} />;
 
-  const seesCards = can(me, 'read.finance', 'card.own') || me.scoped?.includes('card.read');
+  // 经费卡只给中心负责人和财务岗看；单独授权了某张卡的人也看得到
+  const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const seesStaff = can(me, 'read.finance');
   const seesPeople = can(me, 'read.people'), seesRes = can(me, 'read.resource');
   const seesDesk = can(me, 'budget.setup', 'ledger.post');
@@ -73,7 +74,7 @@ function App() {
   type Page = [string, string];
   const keep = (...p: (Page | false)[]) => p.filter(Boolean) as Page[];
   const groups = [
-    { label: '预算', no: '01–03', pages: keep(['/budget', '年度预算'], ['/projects', '项目'], ['/rules', '可报销规则']) },
+    { label: '预算', no: '01–03', pages: keep(['/budget', '年度预算'], ['/projects', '项目'], seesCards && ['/rules', '可报销规则']) },
     { label: '执行', no: '04–06', pages: keep(['/requests', '04 支出申请'], seesPeople && ['/staff', '人员费'], seesCards && ['/procure', '05 采购跟踪'], seesCards && ['/school', '06 学校侧进度'], ['/petty', '备用金'], ['/track', '审批跟踪']) },
     { label: '决算', no: '07', pages: keep(['/review', '复盘与决算'], seesCards && ['/settle', '经费卡结清']) },
     { label: '资源', no: '', pages: keep(['/resource', '申请与名下'], seesRes && ['/pool', '需求池与分发'], seesRes && ['/stock', '资源池与库存']) },

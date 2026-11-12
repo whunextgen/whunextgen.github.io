@@ -20,6 +20,10 @@ export const REQ: Record<ReqStatus, [string, string]> = {
   pending: ['待审批', 'warn'], committed: ['已批准', 'pri'], at_school: ['学校审核中', 'pri'], posted: ['已入账', 'ok'],
   returned: ['被退回', 'bad'], released: ['已释放', ''], rejected: ['已驳回', ''],
 };
+// 待批的申请停在哪一步
+export const STEP: Record<string, [string, string]> = { confirm: ['等项目负责人确认', 'warn'], director: ['等中心负责人批', 'warn'], check: ['等财务岗核对', 'warn'] };
+export const reqBadge = (r: { status: ReqStatus; step?: string | null; over_amount?: string | null }): [string, string] =>
+  r.status !== 'pending' || !r.step ? REQ[r.status] : r.step === 'director' && Number(r.over_amount ?? 0) > 0 ? ['超预算，等中心负责人批', 'bad'] : STEP[r.step];
 export const VERDICT: Record<string, [string, string]> = {
   yes: ['可以', 'ok'], conditional: ['有条件', 'warn'], no: ['不可以', 'bad'], disputed: ['有争议', 'warn'],
 };

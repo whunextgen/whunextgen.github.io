@@ -131,6 +131,10 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
         {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '修改经费卡', hint: '已有预算、支出或人员费的卡不能换科目模板。',
           fields: cardFields(data.templates.map((t): [string, string] => [t.id, t.name]), data.users.filter((u) => u.active).map((u): [string, string] => [u.id, `${u.name}（${ROLE[u.role]}）`]), c),
           run: (v) => saveCard(c.card_id, v) })}>修改</button>}
+        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '总金额和执行年限', hint: '按任务书或合同填这张卡整个执行期的总金额和起止日期。这不是某一年的申请金额；各年度下达到这张卡上的预算另外在年度预算里记。',
+          fields: [{ name: 'total', label: '总金额（元）', type: 'number', value: c.total_amount != null ? String(num(c.total_amount)) : '' },
+            { name: 'period_start', label: '执行期开始', type: 'date', value: c.period_start ? day(c.period_start) : '' }, { name: 'period_end', label: '执行期结束', type: 'date', value: c.period_end ? day(c.period_end) : '' }],
+          run: (v) => rpc('set_card_total', { card_id: c.card_id, total: v.total, period_start: v.period_start, period_end: v.period_end }) })}>总金额和年限</button>}
       </div>
       <div className="tiles">
         <Tile k="现行预算" v={money(c.cur)} f={num(c.adj) ? `年初 ${money(c.orig)}，变更 ${money(c.adj)}` : '未做过预算变更'} />
@@ -142,6 +146,8 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       <section className="card">
         <h3>基本情况</h3>
         <table><tbody>
+          <tr><th scope="row">总金额</th><td>{c.total_amount != null ? money(c.total_amount) : <span className="sub2">还没填</span>}</td>
+            <th scope="row">执行年限</th><td>{c.period_start && c.period_end ? `${day(c.period_start)} 至 ${day(c.period_end)}` : <span className="sub2">还没填</span>}</td></tr>
           <tr><th scope="row">科目模板</th><td>{c.template_name}{c.locked && '（科目锁定，不能变更预算）'}</td>
             <th scope="row">下达日</th><td>{day(c.start_date)}</td></tr>
           <tr><th scope="row">单据截止日</th><td>{day(c.cutoff_date)}</td>

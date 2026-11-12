@@ -98,7 +98,7 @@ export function SchoolImport({ finance }: { finance: boolean }) {
     const taken = new Set<string>();
     return body.map((r, i) => { const amount = amt(at(r, 'amount')), on = date(at(r, 'date')), voucher = (at(r, 'voucher') ?? '').trim(), no = (at(r, 'no') ?? '').trim(), memo = at(r, 'memo') ?? '';
       const rid = manual ? at(r, 'rid') : undefined;
-      const cand = amount == null ? [] : rid ? open.filter((q) => q.id === rid) : open.filter((q) => !taken.has(q.id) && Math.abs(num(q.amount) - amount) < 0.005 && (!no || cardNo.get(q.card_id) === no));
+      const cand = amount == null ? [] : rid ? open.filter((q) => q.id === rid) : open.filter((q) => !taken.has(q.id) && Math.abs(num(q.amount) - amount) < 0.005 && (!no || cardNo.get(q.card_id ?? '') === no));
       const why = amount == null || amount <= 0 ? '金额不是正数' : voucher && posted.has(voucher) ? '这个凭证号已经入过账' : cand.length === 0 ? '没有对上审核中的单据' : cand.length > 1 ? `有 ${cand.length} 笔金额相同，请到学校侧进度里手工入账` : !on ? '没有入账日期' : '';
       const req = !why ? cand[0] : undefined; if (req) taken.add(req.id);
       return { i, amount, on, voucher, no, memo, req, why, ok: !why }; });
@@ -139,7 +139,7 @@ export function SchoolImport({ finance }: { finance: boolean }) {
             </table></div>)) : (data.reqs.filter((r) => r.status === 'at_school').length === 0 ? <Empty>没有正在学校审核的单据。</Empty> : (
             <div className="scroll"><table className="tight">
               <thead><tr><th>单据</th><th>经费卡</th><th className="r">申请金额</th><th>入账金额（不填按申请金额）</th><th>入账日期</th><th>凭证号</th></tr></thead>
-              <tbody>{data.reqs.filter((r) => r.status === 'at_school').map((r) => <tr key={r.id}><td className="wrap">{r.title}<span className="sub2">{r.code}</span></td><td>{cardName.get(r.card_id) ?? '—'}</td><td className="r">{money(r.amount)}</td>
+              <tbody>{data.reqs.filter((r) => r.status === 'at_school').map((r) => <tr key={r.id}><td className="wrap">{r.title}<span className="sub2">{r.code}</span></td><td>{cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
                 <td><input inputMode="decimal" aria-label={`${r.title} 入账金额`} style={{ width: 120 }} placeholder={String(r.amount)} value={form[r.id]?.amount ?? ''} onChange={(e) => put(r.id, 'amount', e.target.value)} /></td>
                 <td><input type="date" aria-label={`${r.title} 入账日期`} value={form[r.id]?.date ?? ''} onChange={(e) => put(r.id, 'date', e.target.value)} /></td>
                 <td><input aria-label={`${r.title} 凭证号`} style={{ width: 130 }} value={form[r.id]?.voucher ?? ''} onChange={(e) => put(r.id, 'voucher', e.target.value)} /></td></tr>)}</tbody>
@@ -186,7 +186,7 @@ export function SchoolImport({ finance }: { finance: boolean }) {
                   <thead><tr><th /><th>单据</th><th>经费卡</th><th className="r">申请金额</th><th className="r">入账金额</th><th>入账日期</th><th>凭证号</th></tr></thead>
                   <tbody>{(diff as { i: number; ok: boolean; req: Req; amount: number; on: string; voucher: string }[]).filter((d) => d.ok).map((d) => (
                     <tr key={d.i}><td><input type="checkbox" aria-label={`入账：${d.req.title}`} checked={!off[d.i]} onChange={(e) => setOff({ ...off, [d.i]: !e.target.checked })} /></td>
-                      <td className="wrap">{d.req.title}<span className="sub2">{d.req.code}</span></td><td>{cardName.get(d.req.card_id) ?? '—'}</td>
+                      <td className="wrap">{d.req.title}<span className="sub2">{d.req.code}</span></td><td>{cardName.get(d.req.card_id ?? '') ?? '—'}</td>
                       <td className="r">{money(d.req.amount)}</td><td className="r chg">{money(d.amount)}</td><td>{d.on}</td><td>{d.voucher || '—'}</td></tr>))}</tbody>
                 </table></div>)}
             </>
@@ -264,7 +264,7 @@ export function Backfill() {
           <div className="scroll"><table className="tight">
             <thead><tr><th>入账日期</th><th>经费卡</th><th>科目</th><th>类型</th><th>事项</th><th className="r">金额</th><th>凭证号</th><th /></tr></thead>
             <tbody>{rows.map((r, i) => (
-              <tr key={i}><td>{r.posted_on}</td><td>{name.card.get(r.card_id)}</td><td>{name.subject.get(r.subject_id)}</td><td>{name.type.get(r.expense_type_id)}</td><td className="wrap">{r.title}</td>
+              <tr key={i}><td>{r.posted_on}</td><td>{name.card.get(r.card_id ?? '')}</td><td>{name.subject.get(r.subject_id)}</td><td>{name.type.get(r.expense_type_id)}</td><td className="wrap">{r.title}</td>
                 <td className="r">{money(amt(r.amount) ?? 0)}</td><td>{r.voucher_no || '—'}</td>
                 <td><button className="sm ghost danger" onClick={() => setRows(rows.filter((_, j) => j !== i))}>去掉</button></td></tr>
             ))}</tbody>
