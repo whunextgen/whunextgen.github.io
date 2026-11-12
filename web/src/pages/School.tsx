@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { ApiError, rpc, useViews, type Card, type CardPick, type FundEvent, type Me, type Req, type ReqEvent, type Subject, type User } from '../api';
-import { ActionDialog, Badge, Empty, Loading, day, money, num, today } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, can, day, money, num, today } from '../ui';
 import { RequestTable } from './Requests';
 
 // 批量入账：对着学校的入账清单逐行填，或把清单里的「金额 日期 凭证号」粘进来按金额自动对上。整批一起入，有一行不对就都不入。
@@ -61,7 +61,7 @@ function BatchPost({ rows, cardName, onDone, onCancel }: { rows: Req[]; cardName
 const KINDS = ['到账', '认领', '预借票', '核销', '下达', '冻结', '回收'];
 
 export function School({ me }: { me: Me }) {
-  const finance = me.role === 'finance';
+  const finance = can(me, 'ledger.post', 'card.fund');
   const { data, error, reload } = useViews<{ reqs: Req[]; cards: CardPick[]; subjects: Subject[]; users: User[]; events: FundEvent[]; returns: ReqEvent[]; fails: ReqEvent[]; full: Card[] }>({
     full: ['card'], reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], users: ['users'], events: ['fund_event'],
     returns: ['request_event', { kind: 'return' }], fails: ['procurement_event'],

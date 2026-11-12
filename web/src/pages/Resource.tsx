@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { rpc, secretGet, secretSet, useViews, type Allocation, type Me, type Req, type Resource, type ResourcePick, type ResourcePlan, type ResourceRequest, type ResourceStock, type ResReqStatus,
   type SecretAccess, type User } from '../api';
-import { ActionDialog, Badge, Empty, Loading, PERSON, Tile, canPublic, day, money, num, today, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, can, PERSON, Tile, canPublic, day, money, num, today, type Field } from '../ui';
 
 export interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 export const KIND: Record<string, string> = { api: '接口额度', asset: '资产' };
@@ -45,7 +45,7 @@ const keyAct = (kind: 'resource' | 'allocation', id: string, name: string, has: 
 
 // ---------- 申请与名下：所有人 ----------
 export function ResourcePage({ me }: { me: Me }) {
-  const staff = me.role === 'finance' || me.role === 'director';
+  const staff = can(me, 'read.resource');
   const { data, error, reload } = useViews<{ allocs: Allocation[]; plans: ResourcePlan[]; reqs: ResourceRequest[] }>({
     allocs: ['allocation'], plans: ['resource_plan'], reqs: ['resource_request'],
   });
@@ -273,7 +273,7 @@ export function PoolPage({ me }: { me: Me }) {
                 <td className="wrap">{r.purpose}{r.usage_note && <div className="sub2">{r.usage_note}</div>}{r.decide_note && <div className="sub2">{r.decided_by_name ?? r.reviewed_by_name}：{r.decide_note}</div>}</td>
                 <td><Badge tone={RES_REQ[r.status][1]}>{RES_REQ[r.status][0]}</Badge></td>
                 <td><div className="acts">
-                  {(r.status === 'reviewed' || (r.status === 'pending' && me.role === 'director')) && <button className="sm" onClick={() => setAct(approve(r))}>批准</button>}
+                  {(r.status === 'reviewed' || (r.status === 'pending' && can(me, 'resource.fasttrack'))) && <button className="sm" onClick={() => setAct(approve(r))}>批准</button>}
                   {r.status === 'approved' && <button className="sm" onClick={() => setAct(fulfil(r))}>分发</button>}
                   {['pending', 'reviewed'].includes(r.status) && <button className="sm ghost danger" onClick={() => setAct(reject(r))}>驳回</button>}</div></td></tr>
             ))}</tbody>

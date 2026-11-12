@@ -1,5 +1,5 @@
 import { useViews, type Card, type Me, type Node } from '../api';
-import { Badge, Bar, Empty, END_RULE, FUND_KIND, Loading, Tile, day, money, num, pct, today, useCount } from '../ui';
+import { Badge, Bar, Empty, END_RULE, FUND_KIND, Loading, can, Tile, day, money, num, pct, today, useCount } from '../ui';
 
 // 节点状态：预测 = 已入账 + 预计在节点日前入账的承诺
 export function nodeState(n: Node, now = today()) {
@@ -89,7 +89,7 @@ export function Overview({ me }: { me: Me }) {
       )}
       <section className="card">
         <h3>经费卡</h3>
-        {cards.length === 0 ? <Empty>{me.role === 'leader' ? '还没有归到你名下的经费卡。' : '还没有经费卡。'}</Empty> : (
+        {cards.length === 0 ? <Empty>{!can(me, 'read.finance') ? '还没有归到你名下的经费卡。' : '还没有经费卡。'}</Empty> : (
           <>
             <div className="funds">
               {cards.map((c) => (

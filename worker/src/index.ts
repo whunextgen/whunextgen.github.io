@@ -20,7 +20,8 @@ const VIEWS = new Set(['me', 'users', 'card_pick', 'subject', 'expense_type', 'c
   'legacy_ms_submission', 'legacy_ms_item', 'legacy_budget_adjust', 'legacy_resource_request', 'legacy_quota_ledger', 'legacy_source', 'legacy_record', 'legacy_recon',
   'project', 'budget_category', 'budget_year', 'project_budget', 'budget_line',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
-  'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash']);
+  'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
+  'perm', 'role', 'role_grant', 'rbac_log']);
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
 const RPC: Record<string, [string, string][]> = {
@@ -51,6 +52,10 @@ const RPC: Record<string, [string, string][]> = {
   set_staff: [['person_id', 'uuid'], ['pay_type_id', 'uuid'], ['from_month', 'date'], ['to_month', 'date'], ['card_id', 'uuid'], ['amount', 'numeric']],
   set_user_role: [['user_id', 'uuid'], ['role', 'text'], ['active', 'boolean']],
   set_user_kind: [['user_id', 'uuid'], ['kind', 'text']],
+  save_role: [['id', 'uuid'], ['name', 'text'], ['note', 'text'], ['perms', 'jsonb']],
+  delete_role: [['id', 'uuid']],
+  grant_role: [['user_id', 'uuid'], ['role_id', 'uuid'], ['project_id', 'uuid'], ['card_id', 'uuid'], ['from_date', 'date'], ['to_date', 'date'], ['note', 'text']],
+  revoke_grant: [['id', 'uuid'], ['note', 'text']],
   save_template: [['id', 'uuid'], ['code', 'text'], ['name', 'text'], ['locked', 'boolean']],
   save_subject: [['id', 'uuid'], ['template_id', 'uuid'], ['code', 'text'], ['name', 'text'], ['school_name', 'text'], ['sort', 'int']],
   delete_subject: [['id', 'uuid']],

@@ -362,3 +362,7 @@ table.tight td.wrap{min-width:120px}
 .secret{font:500 13px var(--mono);word-break:break-all;user-select:all;padding:12px 14px;border:1px solid var(--line);border-radius:6px;margin:0 0 12px}
 textarea{border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--raise);width:100%;font:400 13px/1.5 var(--mono)}
 .card.wide{display:block}.card.wide>h3{margin-bottom:14px}.card.wide>h3 .h3sub{display:inline;max-width:none;margin-left:10px}
+/* 权限对照表 */
+td.c,th.c{text-align:center}
+table.matrix th.c{font-size:12px;white-space:normal;min-width:4.5em;vertical-align:bottom}
+table.matrix td.c{color:var(--ink)}

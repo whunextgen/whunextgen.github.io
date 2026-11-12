@@ -950,6 +950,111 @@ await raises('决算后不能再调核定数', /年度决算之前/, `select rev
 await raises('决算后不能再下达', /确定之后才能下达/, `select allocate_line($1, $2)`, [L0, JSON.stringify([])]);
 await as(U.mem2, '2028-01-10');
 await raises('决算后不能再按这一年的预算支出', /已经决算/, sp, [L1, TY['服务器与 GPU'], '迟到', 100, '2028-02-01']);
+// ---------- 权限点、角色、按范围授权 ----------
+const hp = async (code, ...a) => (await one(`select has_perm($1${a.map((_, i) => `, $${i + 2}`).join('')}) v`, [code, ...a])).v;
+const RID = {};
+await as(U.dir, '2028-01-10');
+for (const r of await q(`select id, code from api.role`)) RID[r.code] = r.id;
+ok(Object.keys(RID).length === 13, '中心负责人能看到全部预置角色');
+let myp = (await one(`select perms from api.me`)).perms;
+ok(myp.includes('rbac.manage') && myp.includes('request.approve') && !myp.includes('ledger.post'), '中心负责人的权限点和原来一致：能批不能入账');
+await as(U.fin, '2028-01-10');
+myp = (await one(`select perms from api.me`)).perms;
+ok(myp.includes('ledger.post') && myp.includes('request.process') && !myp.includes('request.approve') && !myp.includes('rbac.manage'), '财务岗的权限点和原来一致：能入账不能批');
+await raises('财务岗不能管授权', /需要权限：管理角色和授权/, `select grant_role($1, $2, null, null, null, null, null)`, [U.mem2, RID.auditor]);
+await as(U.mem2, '2028-01-10');
+myp = (await one(`select perms from api.me`)).perms;
+ok(myp.join() === 'petty.use,request.submit,resource.request', '成员只有提申请的三个权限点', myp.join());
+eq((await one(`select count(*) c from api.role`)).c, 0, '成员看不到角色表');
+eq((await one(`select count(*) c from api.card`)).c, 0, '成员看不到经费卡');
+await raises('成员不能批申请，报错说明缺哪个权限', /需要权限：批准或驳回支出申请/, `select approve_request(gen_random_uuid())`);
+
+await as(U.dir, '2028-01-10');
+const gAud = await val(`select grant_role($1, $2, null, null, null, null, '年度审计') v`, [U.mem2, RID.auditor]);
+await raises('同一范围不能重复授权', /已经有这个角色/, `select grant_role($1, $2, null, null, null, null, null)`, [U.mem2, RID.auditor]);
+await raises('不能给自己授权', /不能给自己授权/, `select grant_role($1, $2, null, null, null, null, null)`, [U.dir, RID.auditor]);
+await raises('中心负责人不能通过授权给人', /只能在用户管理里指定/, `select grant_role($1, $2, null, null, null, null, null)`, [U.mem2, RID.director]);
+await raises('项目负责人角色不用授权', /跟着项目走/, `select grant_role($1, $2, null, null, null, null, null)`, [U.mem2, RID.project_owner]);
+await raises('中心负责人角色不能改', /不能改/, `select save_role($1, '中心负责人', null, '["request.submit"]')`, [RID.director]);
+await as(U.mem2, '2028-01-10');
+ok((await one(`select count(*) c from api.card`)).c > 0, '拿到审计只读后能看到经费卡');
+ok((await one(`select count(*) c from api.users`)).c > 0, '审计只读能看人员');
+await raises('审计只读不能批', /需要权限/, `select approve_request(gen_random_uuid())`);
+await raises('审计只读不能入账', /需要权限：入账/, `select record_expenses('[]')`);
+eq((await one(`select count(*) c from api.role_grant`)).c, 1, '能看到自己名下的授权');
+
+// 代理：带起止日期
+await as(U.dir, '2028-01-10');
+await raises('截止不能早于开始', /不能早于/, `select grant_role($1, $2, null, null, '2028-02-10', '2028-02-01', null)`, [U.lead, RID.deputy_approve]);
+const gDep = await val(`select grant_role($1, $2, null, null, '2028-02-01', '2028-02-10', '主任出差') v`, [U.lead, RID.deputy_approve]);
+ok((await one(`select state from api.role_grant where id = $1`, [gDep])).state === 'upcoming', '没到开始日期的授权显示为未生效');
+await as(U.lead, '2028-01-10'); ok(!(await hp('request.approve')), '代理没到开始日期不生效');
+await as(U.lead, '2028-02-05'); ok(await hp('request.approve'), '代理期内能批');
+await as(U.dir, '2028-02-05');
+await db.exec(`reset role`);
+await raises('有第二位审批人时，自己提的不能自己批', /职责分离：自己提的支出申请不能自己批/, `select sod_self('request.approve', $1, '支出申请')`, [U.dir]);
+await db.exec(`set role app_api`);
+await as(U.lead, '2028-02-11'); ok(!(await hp('request.approve')), '代理过期自动失效');
+await as(U.dir, '2028-02-11');
+ok((await one(`select state from api.role_grant where id = $1`, [gDep])).state === 'expired', '过期的授权显示为已过期');
+
+// 职责分离：批的人不经办
+await as(U.dir, '2028-01-10');
+await raises('财务岗不能再拿审批角色', /职责分离：批准支出申请的人不能同时/, `select grant_role($1, $2, null, null, null, null, null)`, [U.fin, RID.deputy_approve]);
+await raises('手里有代理审批的人不能改成财务岗', /职责分离/, `select set_user_role($1, 'finance', true)`, [U.lead]);
+await raises('同一个角色里不能又批又入账', /不能放进同一个角色/, `select save_role(null, '全能', null, '["request.approve","ledger.post"]')`);
+await raises('不认识的权限点', /不认识的权限点/, `select save_role(null, '乱填', null, '["x.y"]')`);
+
+// 按项目、按经费卡授权
+await raises('含全中心权限的角色不能按项目授权', /不能按项目授权/, `select grant_role($1, $2, $3, null, null, null, null)`, [U.mem2, RID.cashier, P1]);
+await raises('项目副手不能按经费卡授权', /不能按经费卡授权/, `select grant_role($1, $2, null, $3, null, null, null)`, [U.mem2, RID.project_deputy, C.A]);
+await as(U.mem2, '2028-01-10');
+ok(!(await one(`select can_edit_project($1) v`, [P1])).v, '授权前不能动别人的项目预算');
+await as(U.dir, '2028-01-10');
+await q(`select revoke_grant($1, '审计结束')`, [gAud]);
+const gPj = await val(`select grant_role($1, $2, $3, null, null, null, null) v`, [U.mem2, RID.project_deputy, P1]);
+const gCard = await val(`select grant_role($1, $2, null, $3, null, null, null) v`, [U.mem2, RID.card_viewer, C.A]);
+await as(U.mem2, '2028-01-10');
+ok((await one(`select can_edit_project($1) v`, [P1])).v, '项目副手能填被授权的项目');
+ok((await one(`select mine from api.project where id = $1`, [P1])).mine, '被授权的项目算自己的');
+ok(!(await one(`select mine from api.project where id = $1`, [P2])).mine, '别的项目不算');
+ok(await hp('resource.review', P1), '项目副手能批示这个项目的资源申请');
+ok(!(await hp('resource.review')), '项目副手的权限不出这个项目');
+const meS = await one(`select perms, scoped from api.me`);
+ok(meS.scoped.includes('card.read') && meS.scoped.includes('budget.project') && !meS.perms.includes('budget.project'), '按范围拿到的权限点单独列出，不混进全中心的');
+eq((await one(`select count(*) c from api.card`)).c, 1, '经费卡协管只看到被授权的那一张');
+ok((await one(`select count(*) c from api.cell where card_id = $1`, [C.A])).c > 0, '能看这张卡的预算格子');
+
+// 自定义角色
+await as(U.dir, '2028-01-10');
+const rNew = await val(`select save_role(null, '报销助理', '只管交学校', '["request.process"]') v`);
+await raises('角色不能重名', /已经有叫这个名字/, `select save_role(null, '报销助理', null, '["request.process"]')`);
+const gNew = await val(`select grant_role($1, $2, null, null, null, null, null) v`, [U.mem2, rNew]);
+await as(U.mem2, '2028-01-10'); ok(await hp('request.process'), '自定义角色授权后生效');
+await as(U.dir, '2028-01-10');
+await q(`select save_role($1, '报销助理', '只管交学校', '["card.fund"]')`, [rNew]);
+await as(U.mem2, '2028-01-10'); ok(!(await hp('request.process')) && await hp('card.fund'), '改角色的权限点，持有人立即跟着变');
+await as(U.dir, '2028-01-10');
+await raises('有人持有的角色不能删', /先收回授权/, `select delete_role($1)`, [rNew]);
+await raises('预置角色不能删', /预置角色不能删/, `select delete_role($1)`, [RID.finance]);
+await q(`select revoke_grant($1, '试完了')`, [gNew]);
+await raises('不能重复收回', /已经收回/, `select revoke_grant($1, null)`, [gNew]);
+await q(`select delete_role($1)`, [rNew]);
+await q(`select revoke_grant($1, null)`, [gPj]);
+await q(`select revoke_grant($1, null)`, [gCard]);
+await as(U.mem2, '2028-01-10');
+eq((await one(`select count(*) c from api.card`)).c, 0, '收回后立即看不到');
+ok(!(await one(`select can_edit_project($1) v`, [P1])).v, '收回项目副手后不能再动项目预算');
+eq((await one(`select count(*) c from api.rbac_log`)).c, 0, '成员看不到授权记录');
+await as(U.dir, '2028-01-10');
+const lg = await q(`select action, summary from api.rbac_log order by id`);
+ok(lg.filter((x) => x.action === 'grant').length === 5 && lg.filter((x) => x.action === 'revoke').length === 4, '每次授权和收回都有记录', JSON.stringify(lg.map((x) => x.action)));
+ok(lg.some((x) => x.action === 'role_edit' && /加上：登记到款和回收.*去掉：交学校/.test(x.summary)), '改角色记下加了什么去掉什么');
+await db.exec(`reset role`);
+await q(`select sod_self('request.approve', $1, '支出申请')`, [U.dir]);
+await db.exec(`set role app_api`);
+ok((await one(`select count(*) c from api.rbac_log where action = 'self_approve'`)).c > 0, '只有一位审批人时自己批自己的会留一笔记录');
+await as(U.mem2, '2028-01-10');
 await db.exec(`reset role`);
 ok((await one(`select count(*) c from audit_log`)).c > 0, '审计日志有记录');
 

@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ApiError, logout, view, type Me } from './api';
-import { ROLE } from './ui';
+import { ROLE, can } from './ui';
 import { Overview } from './pages/Overview';
 import { Home } from './pages/Home';
 import { History } from './pages/Legacy';
@@ -62,17 +62,20 @@ function App() {
   if (me === undefined) return <p className="empty">加载中…</p>;
   if (me === null) return <Login reason={error} />;
 
-  const seesCards = me.role !== 'member';
-  const seesStaff = me.role === 'finance' || me.role === 'director';
+  const seesCards = can(me, 'read.finance', 'card.own') || me.scoped?.includes('card.read');
+  const seesStaff = can(me, 'read.finance');
+  const seesPeople = can(me, 'read.people'), seesRes = can(me, 'read.resource');
+  const seesDesk = can(me, 'budget.setup', 'ledger.post');
+  const seesAdmin = can(me, 'read.admin', 'rbac.manage', 'user.manage', 'rule.manage', 'card.manage');
   // 导航按一个预算年度走的三段七步排：预算（01 申报、02 汇总报批、03 核定下达）、执行（04 申请、05 承诺、06 入账）、决算（07 复盘结清）
   type Page = [string, string];
   const keep = (...p: (Page | false)[]) => p.filter(Boolean) as Page[];
   const groups = [
     { label: '预算', no: '01–03', pages: keep(['/budget', '年度预算'], ['/projects', '项目'], ['/rules', '可报销规则']) },
-    { label: '执行', no: '04–06', pages: keep(['/requests', '04 支出申请'], seesStaff && ['/staff', '人员费'], seesCards && ['/procure', '05 采购跟踪'], seesCards && ['/school', '06 学校侧进度'], ['/petty', '备用金'], ['/track', '审批跟踪']) },
+    { label: '执行', no: '04–06', pages: keep(['/requests', '04 支出申请'], seesPeople && ['/staff', '人员费'], seesCards && ['/procure', '05 采购跟踪'], seesCards && ['/school', '06 学校侧进度'], ['/petty', '备用金'], ['/track', '审批跟踪']) },
     { label: '决算', no: '07', pages: keep(['/review', '复盘与决算'], seesCards && ['/settle', '经费卡结清']) },
-    { label: '资源', no: '', pages: keep(['/resource', '申请与名下'], seesStaff && ['/pool', '需求池与分发'], seesStaff && ['/stock', '资源池与库存']) },
-    { label: seesStaff ? '财务工作台' : '经费卡', no: '', pages: keep(seesStaff && ['/desk', '预算设置'], seesCards && ['/cards', '经费卡与节点'], seesCards && ['/quota', '晨星额度'], seesStaff && ['/admin', '用户与规则']) },
+    { label: '资源', no: '', pages: keep(['/resource', '申请与名下'], seesRes && ['/pool', '需求池与分发'], seesRes && ['/stock', '资源池与库存']) },
+    { label: seesStaff ? '财务工作台' : '经费卡', no: '', pages: keep(seesDesk && ['/desk', '预算设置'], seesCards && ['/cards', '经费卡与节点'], seesCards && ['/quota', '晨星额度'], seesAdmin && ['/admin', '用户、权限与规则']) },
   ].filter((g) => g.pages.length > 0);
   const main = groups.filter((g) => g.no), desk = groups.filter((g) => !g.no);
   const side = keep(['/history', '旧门户记录']);
@@ -100,7 +103,7 @@ function App() {
     : current === '/stock' ? <StockPage />
     : current === '/petty' ? <PettyPage me={me} />
     : current === '/track' ? <TrackPage me={me} />
-    : current === '/history' ? <History staff={seesStaff} />
+    : current === '/history' ? <History staff={can(me, 'read.legacy')} />
     : current === '/admin' ? <Admin me={me} />
     : <Home me={me} />;
   return (

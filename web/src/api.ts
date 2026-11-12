@@ -45,7 +45,13 @@ export function useViews<T extends Record<string, unknown[]>>(spec: { [K in keyo
 // ---------- 视图的行 ----------
 export type Role = 'finance' | 'director' | 'leader' | 'member';
 export type Kind = 'postdoc' | 'phd' | 'master' | 'ra' | 'ri' | 'visitor';
-export interface Me { id: string; name: string; role: Role; kind?: Kind | null }
+export interface Me { id: string; name: string; role: Role; kind?: Kind | null; perms: string[]; scoped: string[] }
+export interface Perm { code: string; name: string; grp: string; scope: 'global' | 'project' | 'card'; sort: number }
+export interface RoleDef { id: string; code: string | null; name: string; note: string | null; builtin: boolean; locked: boolean; implicit: boolean; sort: number; perms: string[]; holders: number }
+export interface RoleGrant { id: string; user_id: string; user_name: string; role_id: string; role_name: string; project_id: string | null; project_name: string | null;
+  card_id: string | null; card_name: string | null; from_date: string; to_date: string | null; note: string | null; granted_by_name: string | null; granted_at: string;
+  revoked_at: string | null; revoked_by_name: string | null; state: 'active' | 'upcoming' | 'expired' | 'revoked' }
+export interface RbacLog { id: number; at: string; actor_name: string | null; action: string; user_name: string | null; summary: string }
 export interface Card {
   card_id: string; card_no: string; name: string; status: 'active' | 'settled';
   start_date: string; cutoff_date: string; settle_date: string | null; end_rule: 'recall' | 'carry' | 'return';

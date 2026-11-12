@@ -11,6 +11,8 @@ export const today = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice
 export const ROLE: Record<string, string> = { finance: '财务岗', director: '中心负责人', leader: '负责人', member: '成员' };
 // 人员身份只管一件事：公共设备给博士后、博士、硕士和研究助理个人申领
 export const PERSON: Record<string, string> = { postdoc: '博士后', phd: '博士', master: '硕士', ra: '研究助理', ri: '研究实习生', visitor: '访问学生' };
+// 页面上的按钮和入口跟着权限点走；真正的检查在数据库里
+export const can = (me: { perms?: string[] }, ...codes: string[]) => codes.some((c) => me.perms?.includes(c));
 export const canPublic = (k?: string | null) => k === 'postdoc' || k === 'phd' || k === 'master' || k === 'ra';
 export const FUND_KIND: Record<string, string> = { vertical: '纵向', fiscal: '财政', horizontal: '横向' };
 export const END_RULE: Record<string, string> = { recall: '到期回收', carry: '结转', return: '结余上缴' };

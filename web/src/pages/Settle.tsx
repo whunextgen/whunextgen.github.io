@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type Card, type Me, type SettleCheck, type SettleLine, type YearActual } from '../api';
-import { ActionDialog, Badge, Empty, END_RULE, Loading, day, money, num, pct, today } from '../ui';
+import { ActionDialog, Badge, Empty, END_RULE, Loading, can, day, money, num, pct, today } from '../ui';
 
 export function Settle({ me }: { me: Me }) {
   const { data, error, reload } = useViews<{ cards: Card[]; years: YearActual[]; checks: SettleCheck[]; lines: SettleLine[] }>({
@@ -78,7 +78,7 @@ export function Settle({ me }: { me: Me }) {
                 <td className="r">{money(c.avail)}</td>
                 <td>{b.length > 0 ? <Badge tone={reached ? 'bad' : 'warn'}>{b.join('，')}</Badge>
                   : reached ? <Badge tone="ok">可以结清</Badge> : <Badge>未到结清日</Badge>}</td>
-                <td className="r">{me.role === 'director' && reached && b.length === 0 && <button className="sm danger" onClick={() => setTarget(c)}>结清</button>}</td></tr>); })}</tbody>
+                <td className="r">{can(me, 'card.settle') && reached && b.length === 0 && <button className="sm danger" onClick={() => setTarget(c)}>结清</button>}</td></tr>); })}</tbody>
           </table></div>
         )}
         {open.length > 0 && <p className="hint">跨年不结清的卡：{open.map((c) => c.name).join('、')}。</p>}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type BudgetAlloc, type BudgetCategory, type BudgetYear, type Card, type CategorySubject, type Cell, type LineExec, type Me, type Project, type Subject } from '../api';
-import { ActionDialog, Badge, Empty, END_RULE, Loading, day, money, num, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, END_RULE, Loading, can, day, money, num, type Field } from '../ui';
 
 interface Act { title: string; hint?: string; fields: Field[]; submitLabel?: string; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 const RANK: Record<Card['end_rule'], number> = { recall: 0, return: 1, carry: 2 };
@@ -8,7 +8,7 @@ const endOf = (c: Card) => day(c.settle_date ?? c.cutoff_date);
 
 // 03 下达：把每一行的核定数对到经费卡的学校科目上。到期回收的卡先填满，填不满的缺口在这里标出来。
 export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: BudgetYear; projects: Project[]; cats: BudgetCategory[]; onStage: () => void }) {
-  const year = y.year, director = me.role === 'director';
+  const year = y.year, director = can(me, 'budget.approve');
   const { data, error, reload } = useViews<{ exec: LineExec[]; allocs: BudgetAlloc[]; map: CategorySubject[]; subjects: Subject[]; cards: Card[]; cells: Cell[] }>({
     exec: ['line_exec', { year: String(year) }], allocs: ['budget_alloc', { year: String(year) }], map: ['category_subject'], subjects: ['subject'], cards: ['card'], cells: ['cell'],
   }, String(year));

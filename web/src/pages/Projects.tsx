@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { rpc, useViews, type BudgetLine, type BudgetYear, type LineExec, type Me, type Project, type ProjectBudget, type User } from '../api';
-import { ActionDialog, Badge, Empty, Loading, money, num, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, can, money, num, type Field } from '../ui';
 import { KIND, STAGE_TEXT } from './Budget';
 
 // 项目：钱按项目管。每个项目一行，看它各年度的预算走到哪一步、三个数各是多少。
 export function Projects({ me }: { me: Me }) {
-  const staff = me.role === 'finance' || me.role === 'director';
+  const staff = can(me, 'budget.setup');
   const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; users: User[] }>({
     projects: ['project'], years: ['budget_year'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], users: ['users'],
   });

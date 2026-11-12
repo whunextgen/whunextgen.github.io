@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type BudgetCategory, type BudgetYear, type Card, type CategorySubject, type Me, type Subject } from '../api';
-import { ActionDialog, Badge, Empty, Loading, day, today, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, can, day, today, type Field } from '../ui';
 import { STAGE_TEXT } from './Budget';
 import { Backfill, SchoolImport } from './Import';
 
@@ -49,8 +49,8 @@ export function Desk({ me }: { me: Me }) {
         </table></div>
         <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="ghost" onClick={() => setCat('new')}>加科目</button></div>
       </section>
-      <SchoolImport finance={me.role === 'finance'} />
-      {me.role === 'finance' && <Backfill />}
+      <SchoolImport finance={can(me, 'ledger.post')} />
+      {can(me, 'ledger.post') && <Backfill />}
       {link && <ActionDialog title={`${link.name} 对应的学校科目`} submitLabel="保存" onClose={() => setLink(null)}
         hint="勾上这个预算科目的钱可以从哪些学校科目出。不同经费卡的预算模板科目不一样，每个模板里能用的都勾上。"
         fields={[{ name: 'subjects', label: '学校科目', type: 'multi', required: false, value: linked(link.id).map((s) => s.id).join(','),

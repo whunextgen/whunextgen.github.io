@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { rpc, useViews, type CardPick, type ExpenseType, type Me, type Rule, type Ruling } from '../api';
-import { ActionDialog, Badge, Empty, Loading, VERDICT, day, today } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, can, VERDICT, day, today } from '../ui';
 
 const PATH_OPTS: [string, string][] = [['直采', '直采'], ['集采', '集采'], ['分散采购', '分散采购']];
 
@@ -43,7 +43,7 @@ function NewRuling({ cards, types, onDone }: { cards: CardPick[]; types: Expense
 }
 
 export function Rules({ me }: { me: Me }) {
-  const staff = me.role === 'finance' || me.role === 'director';
+  const staff = can(me, 'rule.manage');
   const { data, error, reload } = useViews<{ rules: Rule[]; rulings: Ruling[]; cards: CardPick[]; types: ExpenseType[] }>({
     rules: ['rule'], rulings: ['ruling'], cards: ['card_pick'], types: ['expense_type'],
   });

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { rpc, useViews, type Cap, type Card, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
-import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
+import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, can, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
 import { cardFields, saveCard } from './Admin';
 import { nodeState } from './Overview';
 import { RequestTable } from './Requests';
@@ -77,12 +77,12 @@ function SetBudget({ cardId, cells, first, onDone, onCancel }: { cardId: string;
 
 function changeActs(me: Me, ch: Change): Act[] {
   const out: Act[] = [];
-  if (me.role === 'director' && ch.status === 'pending')
+  if (can(me, 'change.confirm') && ch.status === 'pending')
     out.push({ label: '确认', title: '确认这笔预算变更', hint: `${ch.reason}。确认后报发规办，批复录入前不改变现行预算。`, fields: [], run: () => rpc('confirm_change', { id: ch.id }) });
-  if (me.role === 'finance' && ch.status === 'filed')
+  if (can(me, 'change.record') && ch.status === 'filed')
     out.push({ label: '录入批复', title: '发规办已批复', hint: `${ch.reason}。录入后现行预算立即按这笔变更调整。`,
       fields: [{ name: 'approved_on', label: '批复日期', type: 'date', value: today() }], run: (v) => rpc('approve_change', { id: ch.id, approved_on: v.approved_on }) });
-  if (me.role === 'director' && (ch.status === 'pending' || ch.status === 'filed'))
+  if (can(me, 'change.confirm') && (ch.status === 'pending' || ch.status === 'filed'))
     out.push({ label: '驳回', title: '驳回这笔预算变更', hint: ch.reason, danger: true, fields: [], run: () => rpc('reject_change', { id: ch.id }) });
   return out;
 }
@@ -103,12 +103,12 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   const used = cells.filter((x) => num(x.cur) || num(x.commit) || num(x.actual));
   const name = new Map(cells.map((x) => [x.subject_id, x.subject_name]));
   const open = data.reqs.filter((r) => !['posted', 'released', 'rejected'].includes(r.status));
-  const staff = me.role === 'finance' || me.role === 'director';
+  const staff = can(me, 'card.manage');
   const canChange = staff && c.status === 'active' && !c.locked;
-  const canSettle = me.role === 'director' && c.status === 'active' && !!c.settle_date && day(c.settle_date) <= now;
+  const canSettle = can(me, 'card.settle') && c.status === 'active' && !!c.settle_date && day(c.settle_date) <= now;
   const editable = staff && c.status === 'active';
   const noBudget = !cells.some((x) => num(x.orig));
-  const canBudget = editable && (noBudget ? true : me.role === 'director');
+  const canBudget = editable && (noBudget ? true : can(me, 'card.rebudget'));
   const nodeAct = (n?: Node): Act => ({
     label: n ? '修改' : '加节点', title: n ? `修改 ${day(n.node_date)} 的考核节点` : '加考核节点',
     hint: '到节点日，决算数要达到现行预算的这个比例。同一天只有一个节点。',

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type BudgetCategory, type BudgetLine, type BudgetStage, type BudgetYear, type Card, type Me, type Project, type ProjectBudget, type ResourcePick } from '../api';
-import { ActionDialog, Badge, Empty, Loading, Tile, day, money, num, today, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, can, Tile, day, money, num, today, type Field } from '../ui';
 import { IssuePanel } from './Issue';
 import { amt, parse } from './Import';
 
@@ -20,8 +20,8 @@ const opt = (v: string | null) => (v == null ? '—' : money(v));
 
 // 预算：一个年度从申报、汇总报批到核定下达，都在这一页。每一行并排三个数：申报数、申请数、核定数。
 export function BudgetPage({ me, start }: { me: Me; start: string }) {
-  const staff = me.role === 'finance' || me.role === 'director';
-  const director = me.role === 'director';
+  const staff = can(me, 'budget.compile');
+  const director = can(me, 'budget.approve');
   const { data, error, reload } = useViews<{ years: BudgetYear[]; projects: Project[]; cats: BudgetCategory[]; budgets: ProjectBudget[]; lines: BudgetLine[]; cards: Card[]; picks: ResourcePick[] }>({
     years: ['budget_year'], projects: ['project'], cats: ['budget_category'], budgets: ['project_budget'], lines: ['budget_line'], cards: ['card'], picks: ['resource_pick'],
   });

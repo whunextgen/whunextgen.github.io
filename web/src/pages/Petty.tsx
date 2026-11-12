@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type LinePick, type Me, type PettyCash, type Req, type ResourceRequest, type User } from '../api';
-import { ActionDialog, Badge, Empty, Loading, REQ, Tile, day, money, num, today } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, can, REQ, Tile, day, money, num, today } from '../ui';
 import { KIND, RES_REQ, qty, type Act } from './Resource';
 
 const PETTY: Record<PettyCash['status'], [string, string]> = {
@@ -50,7 +50,7 @@ export function PettyPage({ me }: { me: Me }) {
     <>
       <div className="top"><h2>备用金</h2><button onClick={() => setAct(saveAct())}>申请备用金</button></div>
       <div className="tiles">
-        <Tile k="待审批" v={rows.filter((r) => r.status === 'pending').length} f="等中心负责人审批" tone={me.role === 'director' && rows.some((r) => r.status === 'pending') ? 'warn' : ''} />
+        <Tile k="待审批" v={rows.filter((r) => r.status === 'pending').length} f="等中心负责人审批" tone={can(me, 'petty.approve') && rows.some((r) => r.status === 'pending') ? 'warn' : ''} />
         <Tile k="在外未核销" v={money(sum(out))} f={`${out.length} 笔已领用`} tone={out.length ? 'warn' : ''} />
         <Tile k={`${year} 年已核销`} v={money(sum(settled, 'spent'))} f={`${settled.length} 笔，退回 ${money(sum(settled) - sum(settled, 'spent'))}`} />
         <Tile k="最久未核销" v={out.length ? `${Math.max(...out.map((r) => days(r.decided_at ?? r.created_at)))} 天` : '—'} f="领用后尽快凭票核销" />
@@ -72,11 +72,11 @@ export function PettyPage({ me }: { me: Me }) {
                 <td className="r">{r.spent != null ? money(r.spent) : '—'}{r.settled_on && <div className="sub2">{day(r.settled_on)}</div>}</td>
                 <td className="r">{r.spent != null ? money(num(r.amount) - num(r.spent)) : '—'}</td>
                 <td><div className="acts">
-                  {r.status === 'pending' && me.role === 'director' && <><button className="sm" onClick={() => setAct(decide(r, 'approve'))}>批准</button>
+                  {r.status === 'pending' && can(me, 'petty.approve') && <><button className="sm" onClick={() => setAct(decide(r, 'approve'))}>批准</button>
                     <button className="sm ghost danger" onClick={() => setAct(decide(r, 'reject'))}>驳回</button></>}
                   {r.status === 'pending' && r.requested_by === me.id && <><button className="sm ghost" onClick={() => setAct(saveAct(r))}>修改</button>
                     <button className="sm ghost danger" onClick={() => setAct(decide(r, 'withdraw'))}>撤回</button></>}
-                  {r.status === 'approved' && me.role === 'finance' && <button className="sm" onClick={() => setAct(settle(r))}>核销</button>}</div></td></tr>
+                  {r.status === 'approved' && can(me, 'petty.settle') && <button className="sm" onClick={() => setAct(settle(r))}>核销</button>}</div></td></tr>
             ))}</tbody>
           </table></div>
         )}
@@ -90,7 +90,7 @@ export function PettyPage({ me }: { me: Me }) {
 // ---------- 审批跟踪：所有在途的事项放在一张表里，看每一笔现在等谁 ----------
 interface Item { id: string; type: '支出申请' | '备用金' | '资源申请'; flag: string; title: string; sub: string; who: string; amount: string; at: string; wait: string; badge: [string, string]; href: string }
 export function TrackPage({ me }: { me: Me }) {
-  const staff = me.role === 'finance' || me.role === 'director';
+  const staff = can(me, 'read.finance');
   const { data, error } = useViews<{ reqs: Req[]; petty: PettyCash[]; res: ResourceRequest[]; users: User[] }>({
     reqs: ['request'], petty: ['petty_cash'], res: ['resource_request'], users: ['users'],
   });

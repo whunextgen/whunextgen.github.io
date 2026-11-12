@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { rpc, useViews, type CardPick, type ExpenseType, type LinePick, type Me, type Project, type QuotaPick, type Req, type ReqStatus, type Subject, type User } from '../api';
-import { ActionDialog, Badge, Empty, Flow, Loading, REQ, day, money, num, today, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, Flow, Loading, can, REQ, day, money, num, today, type Field } from '../ui';
 
 export const PATHS = ['直采', '集采', '分散采购'];
 const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
@@ -11,14 +11,14 @@ interface Action { label: string; title: string; hint?: string; fields: Field[];
 export function actionsFor(me: Me, r: Req, targets: [string, string][], lines: [string, string][] = []): Action[] {
   const what = `${r.title}，${money(r.amount)}`;
   const out: Action[] = [];
-  if (me.role === 'director' && r.status === 'pending') {
+  if (can(me, 'request.approve') && r.status === 'pending') {
     out.push({ label: '批准', title: '批准这笔支出', hint: `${what}。批准后计入该卡的承诺。`, fields: [], run: () => rpc('approve_request', { id: r.id }) });
     out.push({ label: '驳回', title: '驳回这笔申请', hint: what, danger: true, fields: [{ name: 'note', label: '驳回原因' }],
       run: (v) => rpc('reject_request', { id: r.id, note: v.note }) });
   }
-  if (me.role === 'finance' && r.status === 'committed')
+  if (can(me, 'request.process') && r.status === 'committed')
     out.push({ label: '提交学校', title: '单据已提交学校', hint: what, fields: [], run: () => rpc('send_to_school', { id: r.id }) });
-  if (me.role === 'finance' && r.status === 'at_school') {
+  if (can(me, 'ledger.post', 'request.process') && r.status === 'at_school') {
     out.push({ label: '入账', title: '回写学校入账', hint: `${what}。决算数只认学校正式入账。`,
       fields: [{ name: 'posted_on', label: '入账日期', type: 'date', value: today() }, { name: 'amount', label: '入账金额', type: 'number', value: String(num(r.amount)) },
         { name: 'voucher_no', label: '凭证号（可不填）', required: false }],
@@ -26,7 +26,7 @@ export function actionsFor(me: Me, r: Req, targets: [string, string][], lines: [
     out.push({ label: '退回', title: '学校退回了这笔单据', hint: `${what}。退回原因会写进可报销规则表。`, danger: true,
       fields: [{ name: 'reason', label: '退回原因' }], run: (v) => rpc('school_return', { id: r.id, reason: v.reason }) });
   }
-  if (me.role === 'finance' && r.status === 'committed' && r.path && r.stage != null && r.stages != null && r.stage < r.stages) {
+  if (can(me, 'request.process') && r.status === 'committed' && r.path && r.stage != null && r.stages != null && r.stage < r.stages) {
     out.push({ label: '推进采购', title: '采购进到下一阶段', hint: `${what}。${r.path}，现在是第 ${r.stage} 阶段，共 ${r.stages} 阶段；到最后一个阶段即验收贴码，之后才能提交学校。`,
       fields: [], run: () => rpc('procurement_advance', { id: r.id }) });
     out.push({ label: '废标/流标', title: '记录废标或流标', hint: `${what}。采购退回挂网阶段，预计入账日顺延。`, danger: true,
@@ -34,14 +34,14 @@ export function actionsFor(me: Me, r: Req, targets: [string, string][], lines: [
         { name: 'delay_days', label: '预计入账顺延天数', type: 'number', value: '30' }],
       run: (v) => rpc('procurement_fail', { id: r.id, kind: v.kind, reason: v.reason, delay_days: Math.round(Number(v.delay_days)) }) });
   }
-  if (me.role === 'finance' && r.status === 'returned' && targets.length > 0)
+  if (can(me, 'request.process') && r.status === 'returned' && targets.length > 0)
     out.push({ label: '改卡', title: '改走另一张卡', hint: `${what}。目标卡要允许这类支出、可用额度够、预计入账不晚于它的单据截止日。`,
       fields: [{ name: 'target', label: '目标经费卡和科目', options: targets }],
       run: (v) => { const [card_id, subject_id] = v.target.split('|'); return rpc('move_request', { id: r.id, card_id, subject_id }); } });
-  if ((me.role === 'finance' || me.role === 'director') && (r.status === 'committed' || r.status === 'returned'))
+  if (can(me, 'request.adjust') && (r.status === 'committed' || r.status === 'returned'))
     out.push({ label: '释放', title: '释放这笔承诺', hint: `${what}。释放后额度回到可用，这笔申请作废。`, danger: true, fields: [],
       run: () => rpc('release_request', { id: r.id }) });
-  if (me.role === 'finance' && !r.budget_line_id && lines.length > 0 && r.status !== 'rejected' && r.status !== 'released')
+  if (can(me, 'request.adjust') && can(me, 'ledger.post') && !r.budget_line_id && lines.length > 0 && r.status !== 'rejected' && r.status !== 'released')
     out.push({ label: '挂到预算', title: '把这笔支出挂到预算行上', hint: `${what}。下达之前按经费卡提交的支出，挂上之后计入那个项目的预算执行。挂上后那一行不能超过核定数。`,
       fields: [{ name: 'line', label: '项目 · 预算行', options: lines }], run: (v) => rpc('set_request_line', { id: r.id, line_id: v.line }) });
   return out;
@@ -56,7 +56,7 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
       <table>
         <thead><tr><th>事项</th>{cardName && <th>经费卡</th>}<th>科目</th><th className="r">金额</th><th>预计入账</th><th>状态</th><th /></tr></thead>
         <tbody>{rows.map((r) => {
-          const targets = r.status === 'returned' && me.role === 'finance' ? (cards ?? []).filter((c) => c.status === 'active' && c.id !== r.card_id)
+          const targets = r.status === 'returned' && can(me, 'request.process') ? (cards ?? []).filter((c) => c.status === 'active' && c.id !== r.card_id)
             .flatMap((c) => (subjects ?? []).filter((s) => s.template_id === c.template_id).sort((a, b) => a.sort - b.sort)
               .map((s): [string, string] => [`${c.id}|${s.id}`, `${c.name} · ${s.name}`])) : [];
           const acts = actionsFor(me, r, targets, lines);
@@ -194,7 +194,7 @@ function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: 
 }
 
 export function Requests({ me, start = '' }: { me: Me; start?: string }) {
-  const staff = me.role === 'finance' || me.role === 'director';
+  const staff = can(me, 'read.finance');
   const { data, error, reload } = useViews<{ reqs: Req[]; cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; users: User[]; quotas: QuotaPick[]; picks: LinePick[]; projects: Project[] }>({
     reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], types: ['expense_type'], users: ['users'], quotas: ['quota_pick'], picks: ['line_pick'], projects: ['project'],
   });
@@ -221,10 +221,10 @@ export function Requests({ me, start = '' }: { me: Me; start?: string }) {
       <div className="top"><h2>支出申请</h2>
         <button onClick={() => { setAdding(!adding); setDone(''); }} className={adding ? 'ghost' : ''}>{adding ? '收起' : '提交支出申请'}</button></div>
       {done && <div className="msg ok" role="status">{done}</div>}
-      {adding && <NewRequest cards={data.cards} subjects={data.subjects} types={data.types} quotas={data.quotas} picks={data.picks} canCard={me.role !== 'member'}
+      {adding && <NewRequest cards={data.cards} subjects={data.subjects} types={data.types} quotas={data.quotas} picks={data.picks} canCard={can(me, 'read.finance', 'card.own')}
         onDone={(msg) => { setAdding(false); setDone(msg); setTab('open'); reload(); }} />}
       <section className="card">
-        <h3>{staff ? '全部申请' : me.role === 'leader' ? '我的申请和我名下卡的申请' : '我的申请'}</h3>
+        <h3>{staff ? '全部申请' : can(me, 'card.own') ? '我的申请和我名下卡的申请' : '我的申请'}</h3>
         <p className="hint">每笔申请走四步：申请、批准、交学校、入账。状态下面的四格表示走到了哪一步，金色是现在停的地方。</p>
         <div className="tabs" style={{ marginBottom: 12 }}>
           {tabs.map(([k, label]) => <button key={k} className="sm" aria-pressed={tab === k} onClick={() => setTab(k)}>{label}</button>)}

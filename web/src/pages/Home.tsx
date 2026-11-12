@@ -1,5 +1,5 @@
 import { useViews, type BudgetLine, type BudgetYear, type Card, type CardPick, type Project, type ProjectBudget, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest } from '../api';
-import { Badge, Bar, Empty, END_RULE, Flow, Loading, REQ, ROLE, day, money, num, pct, today } from '../ui';
+import { Badge, Bar, Empty, END_RULE, Flow, Loading, can, REQ, ROLE, day, money, num, pct, today } from '../ui';
 import { Hero, cardRisk, nodeState } from './Overview';
 import { STAGE_TEXT, STEP_OF } from './Budget';
 
@@ -9,7 +9,7 @@ const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
 // 首页：每个预算年度走到三段七步的哪一步，执行中的钱压在哪里，以及轮到当前这个人做什么
 const STEPS = ['申报', '汇总报批', '核定下达', '申请', '承诺', '入账', '复盘结清'];
 export function Home({ me }: { me: Me }) {
-  const seesCards = me.role !== 'member';
+  const seesCards = can(me, 'read.finance', 'card.own') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
     years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[] }>({
     reqs: ['request'], picks: ['card_pick'], cards: ['card'], nodes: ['node'], events: ['fund_event', { done: 'false' }],
@@ -57,37 +57,37 @@ export function Home({ me }: { me: Me }) {
         if (st === 'returned') todo.push({ tone: 'bad', tag: '预算被退回', text: `${p.name} 的 ${y.year} 年度预算被财务岗退回：${b.get(p.id)!.return_note ?? ''}`, go: '去修改', href });
         else if (st !== 'submitted') todo.push({ tone: 'warn', tag: '待你申报', text: `${p.name} 的 ${y.year} 年度预算还没提交，${day(y.due_date)} 截止`, go: '去填', href });
       }
-      if (me.role === 'finance') {
+      if (can(me, 'budget.compile') && !can(me, 'budget.approve')) {
         const all = data.projects.filter((x) => x.active), done = all.filter((x) => b.get(x.id)?.status === 'submitted').length;
         todo.push({ tone: day(y.due_date) <= now ? 'warn' : 'pri', tag: '年度预算', text: `${y.year} 年度预算申报 ${day(y.due_date)} 截止，${done} / ${all.length} 个项目已提交`, go: day(y.due_date) <= now ? '去截止申报' : '看进度', href });
       }
     }
     const total = (k: 'applied' | 'fixed') => money(data.lines.filter((l) => l.year === y.year).reduce((s, l) => s + num(l[k]), 0));
-    if (y.stage === 'summary') todo.push(me.role === 'director' ? { tone: 'warn', tag: '待你批准', text: `${y.year} 年度预算申请数合计 ${total('applied')}，等你批准后报学校`, go: '去批准', href }
-      : me.role === 'finance' ? { tone: 'pri', tag: '年度预算', text: `${y.year} 年度预算在汇总，申请数合计 ${total('applied')}，调好后请中心负责人批准`, go: '去汇总', href } : null!);
-    if (y.stage === 'approved' && me.role === 'finance') todo.push({ tone: 'warn', tag: '待报学校', text: `${y.year} 年度预算申请数已批准，报学校后登记报送日期`, go: '去登记', href });
-    if (y.stage === 'applied' && me.role === 'finance') todo.push({ tone: 'pri', tag: '等学校批复', text: `${y.year} 年度预算已于 ${day(y.applied_on)} 报学校，批复后录入批复数`, go: '去录入', href });
-    if (y.stage === 'granted') todo.push(me.role === 'director' ? { tone: 'warn', tag: '待你确定', text: `${y.year} 年度学校已批复，各项目核定数合计 ${total('fixed')}，等你确定年度总预算`, go: '去确定', href }
-      : me.role === 'finance' ? { tone: 'warn', tag: '待核定', text: `${y.year} 年度学校已批复，按联席会议的决定填各项目核定数`, go: '去核定', href } : null!);
+    if (y.stage === 'summary') todo.push(can(me, 'budget.approve') ? { tone: 'warn', tag: '待你批准', text: `${y.year} 年度预算申请数合计 ${total('applied')}，等你批准后报学校`, go: '去批准', href }
+      : can(me, 'budget.compile') ? { tone: 'pri', tag: '年度预算', text: `${y.year} 年度预算在汇总，申请数合计 ${total('applied')}，调好后请中心负责人批准`, go: '去汇总', href } : null!);
+    if (y.stage === 'approved' && can(me, 'budget.compile') && !can(me, 'budget.approve')) todo.push({ tone: 'warn', tag: '待报学校', text: `${y.year} 年度预算申请数已批准，报学校后登记报送日期`, go: '去登记', href });
+    if (y.stage === 'applied' && can(me, 'budget.compile') && !can(me, 'budget.approve')) todo.push({ tone: 'pri', tag: '等学校批复', text: `${y.year} 年度预算已于 ${day(y.applied_on)} 报学校，批复后录入批复数`, go: '去录入', href });
+    if (y.stage === 'granted') todo.push(can(me, 'budget.approve') ? { tone: 'warn', tag: '待你确定', text: `${y.year} 年度学校已批复，各项目核定数合计 ${total('fixed')}，等你确定年度总预算`, go: '去确定', href }
+      : can(me, 'budget.compile') ? { tone: 'warn', tag: '待核定', text: `${y.year} 年度学校已批复，按联席会议的决定填各项目核定数`, go: '去核定', href } : null!);
   }
   for (let i = todo.length - 1; i >= 0; i--) if (!todo[i]) todo.splice(i, 1);
   const add = (rows: Req[], tone: string, tag: string, what: string, go: string, href: string) => {
     if (rows.length > 0) todo.push({ tone, tag, text: `${rows.length} 笔${what}，合计 ${money(amt(rows))}`, go, href });
   };
-  if (me.role === 'director') add(pending, 'warn', '待你批准', '支出申请等你批准', '去批准', '#/requests/pending');
-  if (me.role === 'finance') {
+  if (can(me, 'request.approve')) add(pending, 'warn', '待你批准', '支出申请等你批准', '去批准', '#/requests/pending');
+  if (can(me, 'request.process')) {
     add(ready, 'warn', '待交学校', '已批准的申请等你把单据交学校', '去提交', '#/requests/committed');
     add(buying, 'pri', '采购中', '采购还没走到验收', '去推进', '#/procure');
     add(atSchool, 'pri', '待回写', '单据在学校审核，入账后回写', '去回写', '#/school');
   }
-  if (me.role === 'finance' || me.role === 'director') add(returned, 'bad', '被退回', '单据被学校退回，改卡或释放', '去处理', '#/requests/returned');
-  if (me.role === 'finance' && data.events.length > 0) todo.push({ tone: 'warn', tag: '待办', text: `${data.events.length} 笔到账认领或借票核销未办`, go: '去处理', href: '#/school' });
+  if (can(me, 'request.process', 'request.adjust')) add(returned, 'bad', '被退回', '单据被学校退回，改卡或释放', '去处理', '#/requests/returned');
+  if (can(me, 'card.fund') && data.events.length > 0) todo.push({ tone: 'warn', tag: '待办', text: `${data.events.length} 笔到账认领或借票核销未办`, go: '去处理', href: '#/school' });
   // 备用金和资源申请里轮到自己的
   const count = (n: number, tone: string, tag: string, text: string, go: string, href: string) => { if (n > 0) todo.push({ tone, tag, text: `${n} 笔${text}`, go, href }); };
   const pettyOf = (st: PettyCash['status']) => data.petty.filter((r) => r.status === st);
   const resOf = (st: ResourceRequest['status']) => data.res.filter((r) => r.status === st);
-  if (me.role === 'director') count(pettyOf('pending').length, 'warn', '待你审批', `备用金申请等你审批，合计 ${money(pettyOf('pending').reduce((t, r) => t + num(r.amount), 0))}`, '去审批', '#/petty');
-  if (me.role === 'finance') {
+  if (can(me, 'petty.approve')) count(pettyOf('pending').length, 'warn', '待你审批', `备用金申请等你审批，合计 ${money(pettyOf('pending').reduce((t, r) => t + num(r.amount), 0))}`, '去审批', '#/petty');
+  if (can(me, 'petty.settle')) {
     count(pettyOf('approved').length, 'pri', '待核销', `备用金已领用还没核销，合计 ${money(pettyOf('approved').reduce((t, r) => t + num(r.amount), 0))}`, '去核销', '#/petty');
     count(resOf('reviewed').length, 'warn', '资源待批准', '资源申请项目负责人已批示，等你批准', '去批准', '#/pool');
     count(resOf('approved').length, 'warn', '资源待分发', '资源申请已批准，等你分发', '去分发', '#/pool');
@@ -109,7 +109,7 @@ export function Home({ me }: { me: Me }) {
   }
   const mine = data.reqs.filter((r) => r.requested_by === me.id);
   const mineBack = mine.filter((r) => r.status === 'returned');
-  if (me.role !== 'finance' && me.role !== 'director') add(mineBack, 'bad', '被退回', '你的申请被学校退回，财务岗在处理', '看申请', '#/requests/returned');
+  if (!can(me, 'request.process', 'request.adjust')) add(mineBack, 'bad', '被退回', '你的申请被学校退回，财务岗在处理', '看申请', '#/requests/returned');
   const mineOpen = mine.filter((r) => OPEN.includes(r.status)).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const cardName = new Map(data.picks.map((c) => [c.id, c.name]));
 

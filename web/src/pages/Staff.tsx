@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { rpc, useViews, type CardPick, type Me, type PayType, type Person, type Sheet, type Staff, type Subject } from '../api';
-import { ActionDialog, Badge, Empty, Loading, day, money, num, today, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, can, day, money, num, today, type Field } from '../ui';
 
 const SHEET: Record<Sheet['status'], [string, string]> = { draft: ['待发放', 'warn'], submitted: ['已提交', 'pri'], posted: ['已入账', 'ok'] };
 const ym = (d: string) => d.slice(0, 7);
@@ -82,7 +82,7 @@ export function StaffPage({ me }: { me: Me }) {
   return (
     <>
       <div className="top"><h2>人员费</h2>
-        {me.role === 'director' && data.staff.length > 0 && <button className="ghost" onClick={() => setAct(move)}>改挂</button>}
+        {can(me, 'payroll.reassign') && data.staff.length > 0 && <button className="ghost" onClick={() => setAct(move)}>改挂</button>}
         {ready && <button onClick={() => setAct(plan)}>排布</button>}</div>
 
       <section className="card">
@@ -113,7 +113,7 @@ export function StaffPage({ me }: { me: Me }) {
 
       <section className="card">
         <h3>发放表</h3>
-        {me.role === 'finance' && data.staff.length > 0 && <div className="tabs" style={{ marginBottom: 12 }}><button className="sm" aria-pressed="true" onClick={() => setAct(build)}>生成发放表</button></div>}
+        {can(me, 'payroll.run') && data.staff.length > 0 && <div className="tabs" style={{ marginBottom: 12 }}><button className="sm" aria-pressed="true" onClick={() => setAct(build)}>生成发放表</button></div>}
         {sheets.length === 0 ? <Empty>还没有发放表。财务岗按月从排布生成。</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th>月份</th><th>发放类型</th><th>经费卡</th><th className="r">合计</th><th>状态</th><th /></tr></thead>
@@ -121,7 +121,7 @@ export function StaffPage({ me }: { me: Me }) {
               <tr key={s.id}><td>{ym(s.month)}</td><td>{maps.type.get(s.pay_type_id)?.name ?? '—'}</td>
                 <td><a href={`#/card/${s.card_id}`}>{maps.card.get(s.card_id)?.name ?? '—'}</a></td><td className="r">{money(s.total)}</td>
                 <td><Badge tone={SHEET[s.status][1]}>{SHEET[s.status][0]}</Badge>{s.posted_on && <span className="sub2"> {day(s.posted_on)}</span>}</td>
-                <td><div className="acts">{me.role === 'finance' && s.status !== 'posted' && <button className="sm ghost" onClick={() => setAct(post(s))}>入账</button>}</div></td></tr>
+                <td><div className="acts">{can(me, 'payroll.run') && s.status !== 'posted' && <button className="sm ghost" onClick={() => setAct(post(s))}>入账</button>}</div></td></tr>
             ))}</tbody>
           </table></div>
         )}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type BudgetAlloc, type BudgetCategory, type BudgetReview, type BudgetRevision, type BudgetYear, type LineExec, type Me, type Project } from '../api';
-import { ActionDialog, Badge, Empty, Loading, Tile, day, money, num, pct, today, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, can, Tile, day, money, num, pct, today, type Field } from '../ui';
 
 interface Act { title: string; hint?: string; fields: Field[]; submitLabel?: string; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 const Q = ['q1', 'q2', 'q3', 'q4'] as const, A = ['a1', 'a2', 'a3', 'a4'] as const;
@@ -8,7 +8,7 @@ const QN = ['1–3 月', '4–6 月', '7–9 月', '10–12 月'];
 
 // 07 复盘与决算：每三个月按项目对一次计划和实际，复盘时可以调整核定数；年末做年度决算，未用的预算不结转。
 export function Review({ me, start }: { me: Me; start: string }) {
-  const staff = me.role === 'finance' || me.role === 'director', director = me.role === 'director';
+  const staff = can(me, 'budget.review'), director = can(me, 'budget.approve');
   const { data, error, reload } = useViews<{ years: BudgetYear[]; projects: Project[]; cats: BudgetCategory[]; exec: LineExec[]; allocs: BudgetAlloc[]; revisions: BudgetRevision[]; reviews: BudgetReview[] }>({
     years: ['budget_year'], projects: ['project'], cats: ['budget_category'], exec: ['line_exec'], allocs: ['budget_alloc'], revisions: ['budget_revision'], reviews: ['budget_review'],
   });

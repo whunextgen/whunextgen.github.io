@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { rpc, useViews, type CardPick, type Me, type Project, type Quota, type Req, type Subject, type User } from '../api';
-import { ActionDialog, Badge, Empty, Loading, REQ, Tile, day, money, num, pct, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, can, REQ, Tile, day, money, num, pct, type Field } from '../ui';
 
 interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
 // 晨星额度：叠在经费卡之上的内部额度。钱仍从经费卡出，这里只看额度、劳务上限和季度执行。
 export function QuotaPage({ me }: { me: Me }) {
-  const staff = me.role === 'finance' || me.role === 'director';
-  const director = me.role === 'director';
+  const staff = can(me, 'quota.manage');
+  const director = can(me, 'quota.set');
   const { data, error, reload } = useViews<{ quotas: Quota[]; reqs: Req[]; cards: CardPick[]; subjects: Subject[]; users: User[]; projects: Project[] }>({
     quotas: ['quota'], reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], users: ['users'], projects: ['project'],
   });
