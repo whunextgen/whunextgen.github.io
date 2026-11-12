@@ -1,6 +1,6 @@
-import { useViews, type BudgetLine, type BudgetYear, type Card, type CardPick, type Project, type ProjectBudget, type FundEvent, type LineExec, type Me, type Node, type Req, type ReqStatus } from '../api';
+import { useViews, type BudgetLine, type BudgetYear, type Card, type CardPick, type Project, type ProjectBudget, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest } from '../api';
 import { Badge, Bar, Empty, END_RULE, Flow, Loading, REQ, ROLE, day, money, num, pct, today } from '../ui';
-import { Hero, nodeState } from './Overview';
+import { Hero, cardRisk, nodeState } from './Overview';
 import { STAGE_TEXT, STEP_OF } from './Budget';
 
 const wan = (x: number) => (Math.abs(x) >= 1e4 ? `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 ? 0 : 1)} 万` : money(x));
@@ -11,9 +11,9 @@ const STEPS = ['申报', '汇总报批', '核定下达', '申请', '承诺', '�
 export function Home({ me }: { me: Me }) {
   const seesCards = me.role !== 'member';
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
-    years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[] }>({
+    years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[] }>({
     reqs: ['request'], picks: ['card_pick'], cards: ['card'], nodes: ['node'], events: ['fund_event', { done: 'false' }],
-    years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'],
+    years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'],
   });
   if (!data) return <Loading error={error} />;
   const now = today();
@@ -82,12 +82,27 @@ export function Home({ me }: { me: Me }) {
   }
   if (me.role === 'finance' || me.role === 'director') add(returned, 'bad', '被退回', '单据被学校退回，改卡或释放', '去处理', '#/requests/returned');
   if (me.role === 'finance' && data.events.length > 0) todo.push({ tone: 'warn', tag: '待办', text: `${data.events.length} 笔到账认领或借票核销未办`, go: '去处理', href: '#/school' });
+  // 备用金和资源申请里轮到自己的
+  const count = (n: number, tone: string, tag: string, text: string, go: string, href: string) => { if (n > 0) todo.push({ tone, tag, text: `${n} 笔${text}`, go, href }); };
+  const pettyOf = (st: PettyCash['status']) => data.petty.filter((r) => r.status === st);
+  const resOf = (st: ResourceRequest['status']) => data.res.filter((r) => r.status === st);
+  if (me.role === 'director') count(pettyOf('pending').length, 'warn', '待你审批', `备用金申请等你审批，合计 ${money(pettyOf('pending').reduce((t, r) => t + num(r.amount), 0))}`, '去审批', '#/petty');
+  if (me.role === 'finance') {
+    count(pettyOf('approved').length, 'pri', '待核销', `备用金已领用还没核销，合计 ${money(pettyOf('approved').reduce((t, r) => t + num(r.amount), 0))}`, '去核销', '#/petty');
+    count(resOf('reviewed').length, 'warn', '资源待批准', '资源申请项目负责人已批示，等你批准', '去批准', '#/pool');
+    count(resOf('approved').length, 'warn', '资源待分发', '资源申请已批准，等你分发', '去分发', '#/pool');
+  }
+  count(resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id).length, 'warn', '待你批示', '资源申请挂在你负责的项目上，等你批示', '去批示', '#/resource');
   if (seesCards) {
     for (const c of active.filter((x) => num(x.avail) < 0))
       todo.push({ tone: 'bad', tag: '超支', text: `${c.name} 可用为 ${money(c.avail)}`, go: '看这张卡', href: `#/card/${c.card_id}` });
     for (const n of data.nodes.filter((x) => byId.get(x.card_id)?.status === 'active').sort((a, b) => a.node_date.localeCompare(b.node_date))) {
       const s = nodeState(n, now); if (s.gap <= 0) continue;
       todo.push({ tone: s.tone, tag: s.text, text: `${byId.get(n.card_id)!.name}：${day(n.node_date)} 节点要求 ${money(n.need)}，预测 ${money(n.forecast)}，差 ${money(s.gap)}`, go: '看这张卡', href: `#/card/${n.card_id}` });
+    }
+    for (const c of active) {
+      const k = cardRisk(c, now); if (k.level !== 'bad') continue;
+      todo.push({ tone: 'bad', tag: '执行滞后', text: `${c.name}：时间过了 ${k.timePct}，执行 ${k.execPct}，按现在的进度到截止日会剩 ${money(k.left)}（${END_RULE[c.end_rule]}）`, go: '看预警', href: '#/cards' });
     }
     for (const c of active.filter((x) => day(x.cutoff_date) >= now && (Date.parse(day(x.cutoff_date)) - Date.parse(now)) / 864e5 <= 30))
       todo.push({ tone: 'warn', tag: '临近截止', text: `${c.name} 单据截止 ${day(c.cutoff_date)}，还有可用 ${money(c.avail)}`, go: '看这张卡', href: `#/card/${c.card_id}` });

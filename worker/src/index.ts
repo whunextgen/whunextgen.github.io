@@ -9,6 +9,7 @@ export interface Env {
   FEISHU_TENANT_KEY?: string;                 // 设了就只允许本租户
   SESSION_SECRET: string;
   APP_ORIGIN?: string;                        // 前端地址；不设时前端与接口同源（页面由本 Worker 的静态资源提供）
+  VAULT_KEY?: string;                         // 加密密钥与账号用的口令；丢了，库里存的密钥就解不开
   FEISHU_NOTIFY?: string;                     // 设为 on 才真正发飞书通知；不设时消息只在数据库里排队，过 24 小时作废
 }
 
@@ -18,7 +19,8 @@ const VIEWS = new Set(['me', 'users', 'card_pick', 'subject', 'expense_type', 'c
   'template', 'template_cap', 'user_admin', 'outbox', 'quota', 'quota_pick', 'resource', 'allocation',
   'legacy_ms_submission', 'legacy_ms_item', 'legacy_budget_adjust', 'legacy_resource_request', 'legacy_quota_ledger', 'legacy_source', 'legacy_record', 'legacy_recon',
   'project', 'budget_category', 'budget_year', 'project_budget', 'budget_line',
-  'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review']);
+  'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
+  'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash']);
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
 const RPC: Record<string, [string, string][]> = {
@@ -48,6 +50,7 @@ const RPC: Record<string, [string, string][]> = {
   save_pay_type: [['id', 'uuid'], ['name', 'text'], ['subject_code', 'text'], ['monthly_cap', 'numeric']],
   set_staff: [['person_id', 'uuid'], ['pay_type_id', 'uuid'], ['from_month', 'date'], ['to_month', 'date'], ['card_id', 'uuid'], ['amount', 'numeric']],
   set_user_role: [['user_id', 'uuid'], ['role', 'text'], ['active', 'boolean']],
+  set_user_kind: [['user_id', 'uuid'], ['kind', 'text']],
   save_template: [['id', 'uuid'], ['code', 'text'], ['name', 'text'], ['locked', 'boolean']],
   save_subject: [['id', 'uuid'], ['template_id', 'uuid'], ['code', 'text'], ['name', 'text'], ['school_name', 'text'], ['sort', 'int']],
   delete_subject: [['id', 'uuid']],
@@ -87,6 +90,20 @@ const RPC: Record<string, [string, string][]> = {
   save_resource: [['id', 'uuid'], ['kind', 'text'], ['name', 'text'], ['ref', 'text'], ['total', 'numeric'], ['unit', 'text'], ['note', 'text'], ['active', 'boolean']],
   allocate_resource: [['resource_id', 'uuid'], ['user_id', 'uuid'], ['quota', 'numeric'], ['from_date', 'date'], ['to_date', 'date'], ['note', 'text']],
   return_allocation: [['id', 'uuid'], ['returned_on', 'date']],
+  set_resource_info: [['id', 'uuid'], ['info', 'jsonb']],
+  stock_in: [['resource_id', 'uuid'], ['qty', 'numeric'], ['unit_price', 'numeric'], ['received_on', 'date'], ['supplier', 'text'], ['note', 'text'], ['request_id', 'uuid']],
+  set_allocation_info: [['id', 'uuid'], ['used', 'numeric'], ['used_on', 'date'], ['asset_no', 'text'], ['location', 'text']],
+  save_resource_request: [['id', 'uuid'], ['kind', 'text'], ['resource_id', 'uuid'], ['line_id', 'uuid'], ['amount', 'numeric'], ['period', 'date'],
+    ['purpose', 'text'], ['usage_note', 'text'], ['urgent', 'boolean']],
+  decide_resource_request: [['id', 'uuid'], ['action', 'text'], ['amount', 'numeric'], ['note', 'text']],
+  fulfil_resource_request: [['id', 'uuid'], ['resource_id', 'uuid'], ['to_date', 'date'], ['note', 'text']],
+  save_petty_cash: [['id', 'uuid'], ['amount', 'numeric'], ['purpose', 'text'], ['line_id', 'uuid']],
+  set_line_resource: [['line_id', 'uuid'], ['resource_id', 'uuid'], ['qty', 'numeric']],
+  decide_petty_cash: [['id', 'uuid'], ['action', 'text'], ['note', 'text']],
+  settle_petty_cash: [['id', 'uuid'], ['spent', 'numeric'], ['settled_on', 'date'], ['note', 'text'], ['request_id', 'uuid']],
+  set_card_info: [['card_id', 'uuid'], ['fund_kind', 'text'], ['received', 'numeric'], ['priority', 'int']],
+  record_expense: [['card_id', 'uuid'], ['subject_id', 'uuid'], ['expense_type_id', 'uuid'], ['title', 'text'], ['amount', 'numeric'], ['posted_on', 'date'], ['voucher_no', 'text'], ['line_id', 'uuid']],
+  record_expenses: [['rows', 'jsonb']],
 };
 
 const enc = new TextEncoder();
@@ -116,6 +133,24 @@ export async function verify(secret: string, kind: string, token: string | undef
   if (Number(parts[2]) < now / 1000) return null;
   return parts[1];
 }
+
+// ---------- 密钥与账号：明文只在这一层出现，进数据库之前加密 ----------
+const unb64u = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+async function vaultKey(secret: string) {
+  return crypto.subtle.importKey('raw', await crypto.subtle.digest('SHA-256', enc.encode(secret)), 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
+export async function seal(secret: string, owner: string, plain: string) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: enc.encode(owner) }, await vaultKey(secret), enc.encode(plain));
+  return `v1.${b64u(iv)}.${b64u(ct)}`;
+}
+export async function unseal(secret: string, owner: string, cipher: string) {
+  const [v, iv, ct] = cipher.split('.');
+  if (v !== 'v1' || !iv || !ct) throw new Error('bad cipher');
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64u(iv), additionalData: enc.encode(owner) }, await vaultKey(secret), unb64u(ct));
+  return new TextDecoder().decode(pt);
+}
+export const mask = (s: string) => (s.length >= 12 ? `${s.slice(0, 3)}…${s.slice(-4)}` : '已保存');
 
 const cookies = (req: Request) =>
   Object.fromEntries((req.headers.get('cookie') ?? '').split(/;\s*/).filter(Boolean).map((c) => {
@@ -234,6 +269,25 @@ export default {
         const call = `select public.${fn}(${spec.map(([, type], i) => `$${i + 1}::${type}`).join(', ')}) as result`;
         const [row] = await withUser(env, uid, (sql) => sql.unsafe(call, args));
         return json({ result: row?.result ?? null }, 200, cors);
+      }
+      // 密钥与账号：保存时加密，取用时解密；数据库里只有密文，每次取用都留记录
+      const sec = url.pathname.match(/^\/api\/secret\/(set|get)$/)?.[1];
+      if (sec && req.method === 'POST') {
+        if (req.headers.get('origin') !== appOrigin) return json({ error: '来源不允许' }, 403, cors);
+        if (!env.VAULT_KEY) return json({ error: '还没有配置加密口令，暂时不能保存或查看密钥' }, 503, cors);
+        const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+        const kind = String(body.kind ?? ''), id = String(body.id ?? '');
+        if (!['resource', 'allocation'].includes(kind) || !/^[0-9a-f-]{36}$/.test(id)) return json({ error: '参数不对' }, 400, cors);
+        const noStore = { ...cors, 'cache-control': 'no-store' };
+        if (sec === 'set') {
+          const plain = typeof body.secret === 'string' ? body.secret.trim() : '';
+          if (plain.length > 2000) return json({ error: '内容太长' }, 400, cors);
+          const cipher = plain ? await seal(env.VAULT_KEY, `${kind}:${id}`, plain) : null;
+          await withUser(env, uid, (sql) => sql`select public.set_secret(${kind}::text, ${id}::uuid, ${cipher}::text, ${plain ? mask(plain) : null}::text)`);
+          return json({ result: plain ? mask(plain) : null }, 200, noStore);
+        }
+        const [row] = await withUser(env, uid, (sql) => sql`select public.get_secret(${kind}::text, ${id}::uuid) as c`);
+        return json({ result: await unseal(env.VAULT_KEY, `${kind}:${id}`, row.c) }, 200, noStore);
       }
       return json({ error: 'not found' }, 404, cors);
     } catch (e: any) {

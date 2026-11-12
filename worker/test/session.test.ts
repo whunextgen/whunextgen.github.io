@@ -1,4 +1,4 @@
-import { sign, verify } from '../src/index.ts';
+import { sign, verify, seal, unseal, mask } from '../src/index.ts';
 let bad = 0; const ok = (c: boolean, n: string) => { if (!c) { bad++; console.log('FAIL', n); } };
 const t = await sign('s3', 'uid', 'abc-123', 60);
 ok(await verify('s3', 'uid', t) === 'abc-123', 'round trip');
@@ -7,4 +7,10 @@ ok(await verify('s3', 'state', t) === null, 'wrong kind');
 ok(await verify('s3', 'uid', t, Date.now() + 61000) === null, 'expired');
 ok(await verify('s3', 'uid', t.replace('abc-123', 'abc-124')) === null, 'tampered value');
 ok(await verify('s3', 'uid', undefined) === null, 'missing');
+const c = await seal('vault', 'allocation:1', 'demo-value-0123456789');
+ok(/^v1\.[\w-]+\.[\w-]+$/.test(c) && !c.includes('demo-value'), 'sealed form');
+ok(await unseal('vault', 'allocation:1', c) === 'demo-value-0123456789', 'seal round trip');
+ok(await unseal('vault', 'allocation:2', c).then(() => false, () => true), 'bound to owner');
+ok(await unseal('other', 'allocation:1', c).then(() => false, () => true), 'wrong vault key');
+ok(mask('demo-value-0123456789') === 'dem…6789' && mask('short') === '已保存', 'mask');
 console.log(bad ? `${bad} failed` : 'session: all passed'); process.exit(bad ? 1 : 0);

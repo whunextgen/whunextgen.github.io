@@ -14,7 +14,8 @@ import { Settle } from './pages/Settle';
 import { Admin } from './pages/Admin';
 import { QuotaPage } from './pages/Quota';
 import { Procure } from './pages/Procure';
-import { ResourcePage } from './pages/Resource';
+import { PoolPage, ResourcePage, StockPage } from './pages/Resource';
+import { PettyPage, TrackPage } from './pages/Petty';
 import { BudgetPage } from './pages/Budget';
 import { Projects } from './pages/Projects';
 import { Desk } from './pages/Desk';
@@ -68,12 +69,13 @@ function App() {
   const keep = (...p: (Page | false)[]) => p.filter(Boolean) as Page[];
   const groups = [
     { label: '预算', no: '01–03', pages: keep(['/budget', '年度预算'], ['/projects', '项目'], ['/rules', '可报销规则']) },
-    { label: '执行', no: '04–06', pages: keep(['/requests', '04 支出申请'], seesStaff && ['/staff', '人员费'], seesCards && ['/procure', '05 采购跟踪'], seesCards && ['/school', '06 学校侧进度']) },
+    { label: '执行', no: '04–06', pages: keep(['/requests', '04 支出申请'], seesStaff && ['/staff', '人员费'], seesCards && ['/procure', '05 采购跟踪'], seesCards && ['/school', '06 学校侧进度'], ['/petty', '备用金'], ['/track', '审批跟踪']) },
     { label: '决算', no: '07', pages: keep(['/review', '复盘与决算'], seesCards && ['/settle', '经费卡结清']) },
+    { label: '资源', no: '', pages: keep(['/resource', '申请与名下'], seesStaff && ['/pool', '需求池与分发'], seesStaff && ['/stock', '资源池与库存']) },
     { label: seesStaff ? '财务工作台' : '经费卡', no: '', pages: keep(seesStaff && ['/desk', '预算设置'], seesCards && ['/cards', '经费卡与节点'], seesCards && ['/quota', '晨星额度'], seesStaff && ['/admin', '用户与规则']) },
   ].filter((g) => g.pages.length > 0);
   const main = groups.filter((g) => g.no), desk = groups.filter((g) => !g.no);
-  const side = keep(['/resource', '资源'], ['/history', '旧门户记录']);
+  const side = keep(['/history', '旧门户记录']);
 
   const cardId = seesCards ? route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1] : undefined;
   const [, seg = '', arg = ''] = route.split('/');
@@ -94,6 +96,10 @@ function App() {
     : current === '/review' ? <Review me={me} start={arg} />
     : current === '/settle' ? <Settle me={me} />
     : current === '/resource' ? <ResourcePage me={me} />
+    : current === '/pool' ? <PoolPage me={me} />
+    : current === '/stock' ? <StockPage />
+    : current === '/petty' ? <PettyPage me={me} />
+    : current === '/track' ? <TrackPage me={me} />
     : current === '/history' ? <History staff={seesStaff} />
     : current === '/admin' ? <Admin me={me} />
     : <Home me={me} />;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type Card, type Emergency, type Me, type Outbox, type Subject, type Template, type TemplateCap, type User, type UserAdmin } from '../api';
-import { ActionDialog, Badge, Empty, END_RULE, Loading, ROLE, day, money, num, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, Loading, PERSON, ROLE, canPublic, day, money, num, type Field } from '../ui';
 
 interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 type Opt = [string, string];
@@ -17,15 +17,22 @@ export function cardFields(templates: Opt[], owners: Opt[], c?: Card): Field[] {
     { name: 'settle_date', label: '结清日（跨年不结清的不填）', type: 'date', required: false, value: c?.settle_date ? day(c.settle_date) : '' },
     { name: 'end_rule', label: '到期处理', options: Object.entries(END_RULE), value: c?.end_rule ?? 'recall' },
     { name: 'rule_note', label: '备注（可不填）', required: false, value: c?.rule_note ?? '' },
+    { name: 'fund_kind', label: '经费性质（可不选）', options: Object.entries(FUND_KIND), required: false, value: c?.fund_kind ?? '' },
+    { name: 'received', label: '已到账金额（元，可不填）', type: 'number', required: false, value: c?.received != null ? String(num(c.received)) : '' },
+    { name: 'priority', label: '下达优先级（1–99，数字小的先用；不填按到期规则排）', type: 'number', required: false, value: c?.priority != null ? String(c.priority) : '' },
   ];
 }
-export const saveCard = (id: string | null, v: Record<string, string>) => rpc('save_card', { id, ...v });
+// 基本信息和经费性质、到账、优先级分两步存
+export const saveCard = async (id: string | null, { fund_kind, received, priority, ...v }: Record<string, string>) => {
+  const saved = await rpc('save_card', { id, ...v });
+  await rpc('set_card_info', { card_id: id ?? saved, fund_kind, received, priority });
+};
 
 const OUT: Record<string, [string, string]> = { queued: ['排队中', 'warn'], sent: ['已发送', 'ok'], failed: ['未发出', 'bad'], expired: ['已过期', ''] };
 
 export function Admin({ me }: { me: Me }) {
   const director = me.role === 'director';
-  const [tab, setTab] = useState<'cards' | 'templates' | 'users' | 'limits' | 'outbox'>('cards');
+  const [tab, setTab] = useState<'cards' | 'templates' | 'users' | 'kinds' | 'limits' | 'outbox'>('cards');
   const [tpl, setTpl] = useState('');
   const [act, setAct] = useState<Act | null>(null);
   const { data, error, reload } = useViews<{ cards: Card[]; templates: Template[]; subjects: Subject[]; caps: TemplateCap[]; users: User[];
@@ -83,7 +90,13 @@ export function Admin({ me }: { me: Me }) {
   });
 
   const tabs: [typeof tab, string][] = [['cards', `经费卡 ${cards.length}`], ['templates', `科目模板 ${data.templates.length}`],
-    ...(director ? [['users', `用户 ${data.admin.length}`] as [typeof tab, string]] : []), ['limits', '紧急通道限额'], ['outbox', '飞书通知']];
+    ...(director ? [['users', `用户 ${data.admin.length}`] as [typeof tab, string]] : []), ['kinds', '人员身份'], ['limits', '紧急通道限额'], ['outbox', '飞书通知']];
+  const kindAct = (u: User): Act => ({
+    label: u.kind ? '修改' : '登记', title: `登记身份：${u.name}`,
+    hint: '身份只管一件事：公共设备给博士后、博士、硕士和研究助理个人申领。项目里的预算、资源和审批都跟项目负责人走，不看身份。',
+    fields: [{ name: 'kind', label: '身份（不选即清空）', options: Object.entries(PERSON), required: false, value: u.kind ?? '' }],
+    run: (v) => rpc('set_user_kind', { user_id: u.id, kind: v.kind || null }),
+  });
 
   return (
     <>
@@ -180,6 +193,20 @@ export function Admin({ me }: { me: Me }) {
                 <td>{u.linked ? <Badge tone="ok">已绑定</Badge> : <Badge tone="warn">未登录过</Badge>}{u.migrated && <span className="sub2"> 旧系统迁入</span>}</td>
                 <td className="r">{u.cards}</td><td className="r">{u.requests}</td><td>{u.active ? '在用' : <Badge>已停用</Badge>}</td>
                 <td><div className="acts">{btn(userAct(u))}{u.active && u.id !== me.id && btn(mergeAct(u))}</div></td></tr>
+            ))}</tbody>
+          </table></div>
+        </section>
+      )}
+
+      {tab === 'kinds' && (
+        <section className="card">
+          <h3>人员身份</h3>
+          <p className="hint">中心公共的资源只有给博士后、博士、硕士和研究助理个人申领的设备，按这里登记的身份判断；没登记的人申领不了。其余资源都在各项目自己的预算里，谁是项目负责人谁管，不看身份。</p>
+          <div className="scroll"><table>
+            <thead><tr><th>姓名</th><th>角色</th><th>身份</th><th>公共设备</th><th /></tr></thead>
+            <tbody>{data.users.filter((u) => u.active).sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((u) => (
+              <tr key={u.id}><td>{u.name}</td><td>{ROLE[u.role]}</td><td>{u.kind ? PERSON[u.kind] : <Badge tone="warn">未登记</Badge>}</td>
+                <td>{canPublic(u.kind) ? <Badge tone="ok">可申领</Badge> : '—'}</td><td><div className="acts">{btn(kindAct(u))}</div></td></tr>
             ))}</tbody>
           </table></div>
         </section>

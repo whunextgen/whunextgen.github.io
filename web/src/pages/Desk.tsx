@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { rpc, useViews, type BudgetCategory, type BudgetYear, type Card, type CategorySubject, type Me, type Subject } from '../api';
 import { ActionDialog, Badge, Empty, Loading, day, today, type Field } from '../ui';
 import { STAGE_TEXT } from './Budget';
-import { SchoolImport } from './Import';
+import { Backfill, SchoolImport } from './Import';
 
 // 财务工作台：年度预算用到的设置都在这里改，不写死在系统里。
 export function Desk({ me }: { me: Me }) {
@@ -50,6 +50,7 @@ export function Desk({ me }: { me: Me }) {
         <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="ghost" onClick={() => setCat('new')}>加科目</button></div>
       </section>
       <SchoolImport finance={me.role === 'finance'} />
+      {me.role === 'finance' && <Backfill />}
       {link && <ActionDialog title={`${link.name} 对应的学校科目`} submitLabel="保存" onClose={() => setLink(null)}
         hint="勾上这个预算科目的钱可以从哪些学校科目出。不同经费卡的预算模板科目不一样，每个模板里能用的都勾上。"
         fields={[{ name: 'subjects', label: '学校科目', type: 'multi', required: false, value: linked(link.id).map((s) => s.id).join(','),

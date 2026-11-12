@@ -9,6 +9,10 @@ export const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed
 export const today = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);   // 北京时间
 
 export const ROLE: Record<string, string> = { finance: '财务岗', director: '中心负责人', leader: '负责人', member: '成员' };
+// 人员身份只管一件事：公共设备给博士后、博士、硕士和研究助理个人申领
+export const PERSON: Record<string, string> = { postdoc: '博士后', phd: '博士', master: '硕士', ra: '研究助理', ri: '研究实习生', visitor: '访问学生' };
+export const canPublic = (k?: string | null) => k === 'postdoc' || k === 'phd' || k === 'master' || k === 'ra';
+export const FUND_KIND: Record<string, string> = { vertical: '纵向', fiscal: '财政', horizontal: '横向' };
 export const END_RULE: Record<string, string> = { recall: '到期回收', carry: '结转', return: '结余上缴' };
 export const REQ: Record<ReqStatus, [string, string]> = {
   pending: ['待审批', 'warn'], committed: ['已批准', 'pri'], at_school: ['学校审核中', 'pri'], posted: ['已入账', 'ok'],
@@ -59,7 +63,7 @@ export function Loading({ error }: { error?: Error }) {
 }
 
 // 一个带若干输入项的确认框，用于批准以外需要补充信息的操作
-export interface Field { name: string; label: string; type?: 'text' | 'date' | 'number' | 'month' | 'check' | 'multi'; value?: string; required?: boolean; options?: [string, string][] }
+export interface Field { name: string; label: string; type?: 'text' | 'date' | 'number' | 'month' | 'check' | 'multi' | 'area'; value?: string; required?: boolean; options?: [string, string][] }
 export function ActionDialog({ title, hint, fields, submitLabel = '确认', danger, onSubmit, onClose }: {
   title: string; hint?: ReactNode; fields: Field[]; submitLabel?: string; danger?: boolean;
   onSubmit: (values: Record<string, string>) => Promise<unknown>; onClose: () => void;
@@ -95,6 +99,8 @@ export function ActionDialog({ title, hint, fields, submitLabel = '确认', dang
               <select required={f.required ?? true} value={values[f.name]} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}>
                 <option value="">请选择</option>{f.options.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
               </select>
+            ) : f.type === 'area' ? (
+              <textarea rows={8} required={f.required ?? true} value={values[f.name]} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
             ) : (
               <input type={f.type ?? 'text'} step={f.type === 'number' ? '0.01' : undefined} required={f.required ?? true}
                 value={values[f.name]} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />

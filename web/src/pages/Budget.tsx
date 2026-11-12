@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { rpc, useViews, type BudgetCategory, type BudgetLine, type BudgetStage, type BudgetYear, type Card, type Me, type Project, type ProjectBudget } from '../api';
+import { rpc, useViews, type BudgetCategory, type BudgetLine, type BudgetStage, type BudgetYear, type Card, type Me, type Project, type ProjectBudget, type ResourcePick } from '../api';
 import { ActionDialog, Badge, Empty, Loading, Tile, day, money, num, today, type Field } from '../ui';
 import { IssuePanel } from './Issue';
+import { amt, parse } from './Import';
 
 interface Act { title: string; hint?: string; fields: Field[]; submitLabel?: string; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
@@ -21,8 +22,8 @@ const opt = (v: string | null) => (v == null ? '—' : money(v));
 export function BudgetPage({ me, start }: { me: Me; start: string }) {
   const staff = me.role === 'finance' || me.role === 'director';
   const director = me.role === 'director';
-  const { data, error, reload } = useViews<{ years: BudgetYear[]; projects: Project[]; cats: BudgetCategory[]; budgets: ProjectBudget[]; lines: BudgetLine[]; cards: Card[] }>({
-    years: ['budget_year'], projects: ['project'], cats: ['budget_category'], budgets: ['project_budget'], lines: ['budget_line'], cards: ['card'],
+  const { data, error, reload } = useViews<{ years: BudgetYear[]; projects: Project[]; cats: BudgetCategory[]; budgets: ProjectBudget[]; lines: BudgetLine[]; cards: Card[]; picks: ResourcePick[] }>({
+    years: ['budget_year'], projects: ['project'], cats: ['budget_category'], budgets: ['project_budget'], lines: ['budget_line'], cards: ['card'], picks: ['resource_pick'],
   });
   const [act, setAct] = useState<Act | null>(null);
   if (!data) return <Loading error={error} />;
@@ -55,13 +56,50 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
   const submitted = projects.filter((p) => budget.get(p.id)?.status === 'submitted').length;
   const go = (action: string, extra: Record<string, unknown> = {}) => rpc('advance_budget_year', { year, action, amount: null, on_date: null, ...extra }).then(reload);
 
+  const resOpts = (p: Project) => data.picks.filter((r) => p.kind !== 'public' || r.kind === 'asset').map((r): [string, string] => [r.id, `${r.kind === 'api' ? '接口额度' : '资产'} · ${r.name}${r.unit ? `（${r.unit}）` : ''}`]);
+  const planText = (l: BudgetLine) => `${l.resource_name} ${num(l.plan_qty).toLocaleString('zh-CN')}${l.resource_unit ? ` ${l.resource_unit}` : ''}`;
+  const setPlan = (id: string, l: BudgetLine | undefined, v: Record<string, string>) =>
+    (v.resource || l?.resource_id) && (v.resource !== (l?.resource_id ?? '') || Number(v.plan_qty || 0) !== num(l?.plan_qty))
+      ? rpc('set_line_resource', { line_id: id, resource_id: v.resource || null, qty: v.resource ? v.plan_qty : null }) : null;
+  const planFields = (p: Project, l?: BudgetLine): Field[] => [
+    { name: 'resource', label: p.kind === 'public' ? '这一行要配的公共设备（给博士后、博士、硕士、研究助理个人申领；不涉及的不选）' : '这一行要用的资源（接口额度、设备；不涉及的不选）', options: resOpts(p), required: false, value: l?.resource_id ?? '' },
+    { name: 'plan_qty', label: '全年计划数量（选了资源就要填）', type: 'number', required: false, value: l?.plan_qty != null ? String(num(l.plan_qty)) : '' }];
+  const planAct = (p: Project, l: BudgetLine): Act => ({
+    title: `资源计划：${p.name} · ${l.purpose}`, submitLabel: '保存',
+    hint: '预算提交以后，资源计划只有财务岗能调，一般在季度复盘时改。数量不能低于已经申请的；有申请的计划不能去掉或换成别的资源。',
+    fields: planFields(p, l), run: async (v) => { await setPlan(l.id, l, v); reload(); },
+  });
   const lineAct = (p: Project, l?: BudgetLine): Act => ({
-    title: l ? `改一行：${p.name}` : `加一行预算：${p.name}`, hint: '按三个月一期填。哪一期用就填在哪一期，不用的留空。',
+    title: l ? `改一行：${p.name}` : `加一行预算：${p.name}`, hint: '按三个月一期填。哪一期用就填在哪一期，不用的留空。这一行如果是买接口额度、设备或耗材，把资源和全年计划数量一起填上：以后的资源申请只能挂在有资源计划的预算行上，数量不能超过计划。',
     fields: [{ name: 'category', label: '科目', options: data.cats.filter((c) => c.active || c.id === l?.category_id).sort((a, b) => a.sort - b.sort).map((c) => [c.id, c.name]), value: l?.category_id },
       { name: 'purpose', label: '做什么用', value: l?.purpose },
-      ...Q.map((k, i): Field => ({ name: k, label: `${QN[i]}（元）`, type: 'number', required: false, value: l && num(l[k]) > 0 ? String(num(l[k])) : '' }))],
+      ...Q.map((k, i): Field => ({ name: k, label: `${QN[i]}（元）`, type: 'number', required: false, value: l && num(l[k]) > 0 ? String(num(l[k])) : '' })),
+      ...planFields(p, l)],
     submitLabel: '保存',
-    run: (v) => rpc('save_budget_line', { id: l?.id ?? null, year, project_id: p.id, category_id: v.category, purpose: v.purpose, q1: v.q1 || 0, q2: v.q2 || 0, q3: v.q3 || 0, q4: v.q4 || 0 }).then(reload),
+    run: async (v) => {
+      if (v.resource && !(Number(v.plan_qty) > 0)) throw new Error('选了资源就要填全年计划数量。');
+      const id = await rpc('save_budget_line', { id: l?.id ?? null, year, project_id: p.id, category_id: v.category, purpose: v.purpose, q1: v.q1 || 0, q2: v.q2 || 0, q3: v.q3 || 0, q4: v.q4 || 0 });
+      try { await setPlan(l?.id ?? String(id), l, v); } finally { reload(); }
+    },
+  });
+  // 整表粘贴：一行一条预算，列依次是 科目、做什么用、四期金额；和下载的模板同一个格式
+  const TEMPLATE = `data:text/csv;charset=utf-8,${encodeURIComponent(`\ufeff科目,做什么用,${QN.join(',')}\n${data.cats.filter((c) => c.active).sort((a, b) => a.sort - b.sort).map((c) => `${c.name},,,,,`).join('\n')}\n`)}`;
+  const pasteAct = (p: Project): Act => ({
+    title: `整表导入：${p.name}`, submitLabel: '导入',
+    hint: `在 Excel 里按模板填好，选中数据复制后粘贴到这里。每行依次是：科目、做什么用、${QN.join('、')}。科目要和中台里的预算科目同名（${data.cats.filter((c) => c.active).map((c) => c.name).join('、')}）；表头行和金额全空的行会跳过。导入是追加，不会覆盖已经填的行。`,
+    fields: [{ name: 'text', label: '粘贴内容', type: 'area' }],
+    run: async (v) => {
+      const cat = new Map(data.cats.filter((c) => c.active).map((c) => [c.name.trim(), c.id]));
+      const rows = parse(v.text).filter((r) => r[0] !== '科目').map((r, i) => ({ i: i + 1, cat: cat.get(r[0] ?? ''), name: r[0], purpose: r[1] ?? '', q: [2, 3, 4, 5].map((k) => (r[k] ? amt(r[k]) : 0)) }))
+        .filter((r) => r.q.some((x) => x !== 0));
+      if (rows.length === 0) throw new Error('没有读到带金额的行。');
+      const bad = rows.find((r) => !r.cat || !r.purpose || r.q.some((x) => x == null || x < 0));
+      if (bad) throw new Error(`第 ${bad.i} 行：${!bad.cat ? `没有「${bad.name}」这个预算科目` : !bad.purpose ? '没有填做什么用' : '金额不是数字'}。一行都没有导入，改好后重新粘贴。`);
+      let n = 0;
+      try { for (const r of rows) { await rpc('save_budget_line', { id: null, year, project_id: p.id, category_id: r.cat, purpose: r.purpose, q1: r.q[0], q2: r.q[1], q3: r.q[2], q4: r.q[3] }); n++; } }
+      catch (e) { reload(); throw new Error(`第 ${rows[n].i} 行：${(e as Error).message}${n ? `（前 ${n} 行已经导入）` : ''}`); }
+      reload();
+    },
   });
   const adjustAct = (p: Project, l: BudgetLine): Act => {
     const fixing = y.stage === 'granted';
@@ -203,7 +241,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
                 <thead><tr><th>科目</th><th>做什么用</th>{QN.map((n) => <th key={n} className="r">{n}</th>)}<th className="r">申报数</th><th className="r">申请数</th><th className="r">核定数</th><th /></tr></thead>
                 <tbody>{rows.map((l) => (
                   <tr key={l.id}><td>{cat.get(l.category_id)?.name ?? '—'}</td>
-                    <td className="wrap">{l.purpose}{l.adjust_note && <span className="sub2">申请数调整：{l.adjust_note}</span>}</td>
+                    <td className="wrap">{l.purpose}{l.resource_id && <span className="sub2 blk">资源计划：{planText(l)}</span>}{l.adjust_note && <span className="sub2">申请数调整：{l.adjust_note}</span>}</td>
                     {Q.map((k) => <td key={k} className="r">{num(l[k]) > 0 ? money(l[k]) : '—'}</td>)}
                     <td className="r">{money(l.declared)}</td>
                     <td className={`r ${l.applied != null && num(l.applied) !== num(l.declared) ? 'chg' : ''}`}>{opt(l.applied)}</td>
@@ -212,6 +250,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
                       {editable && <><button className="ghost sm" onClick={() => setAct(lineAct(p, l))}>改</button>{' '}
                         <button className="ghost sm" onClick={() => setAct({ title: `删掉这一行：${l.purpose}`, fields: [], danger: true, submitLabel: '删除', run: () => rpc('delete_budget_line', { id: l.id }).then(reload) })}>删</button></>}
                       {adjustable && <button className="ghost sm" onClick={() => setAct(adjustAct(p, l))}>{y.stage === 'granted' ? '核定' : '调整'}</button>}
+                      {staff && !editable && b?.status === 'submitted' && y.stage !== 'closed' && <>{' '}<button className="ghost sm" onClick={() => setAct(planAct(p, l))}>资源计划</button></>}
                     </td></tr>
                 ))}</tbody>
                 <tfoot><tr><td colSpan={2}>合计</td>{Q.map((k) => <td key={k} className="r">{money(tot(rows, k))}</td>)}
@@ -221,6 +260,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
             )}
             <div className="actions" style={{ justifyContent: 'flex-start' }}>
               {editable && <button className="ghost" onClick={() => setAct(lineAct(p))}>加一行</button>}
+              {editable && <><button className="ghost" onClick={() => setAct(pasteAct(p))}>整表导入</button><a className="btn ghost" href={TEMPLATE} download={`年度预算模板-${year}.csv`}>下载模板</a></>}
               {editable && rows.length > 0 && <button onClick={() => setAct({ title: `提交 ${p.name} 的 ${year} 年度预算`, hint: `申报数合计 ${money(tot(rows, 'declared'))}。提交后不能再改；截止前可以撤回。`, fields: [], submitLabel: '提交', run: () => setBudget(p, 'submit') })}>提交</button>}
               {y.stage === 'declare' && b?.status === 'submitted' && <button className="ghost" onClick={() => setAct({ title: '撤回修改', hint: '撤回后可以修改，改完要重新提交。', fields: [], submitLabel: '撤回', run: () => setBudget(p, 'withdraw') })}>撤回修改</button>}
               {staff && y.stage === 'declare' && b?.status === 'submitted' &&
