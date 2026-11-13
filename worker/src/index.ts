@@ -121,6 +121,7 @@ const RPC: Record<string, [string, string][]> = {
   check_request: [['id', 'uuid'], ['ok', 'boolean'], ['note', 'text']],
   shift_budget: [['from_line', 'uuid'], ['to_line', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
   decide_budget_shift: [['id', 'uuid'], ['ok', 'boolean'], ['note', 'text']],
+  move_budget: [['from_line', 'uuid'], ['to_line', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
   save_year_check: [['year', 'int'], ['resource_id', 'uuid'], ['actual', 'numeric'], ['note', 'text']],
 };
 

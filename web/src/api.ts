@@ -146,7 +146,7 @@ export interface ProjectCap { year: number; project_id: string; amount: string; 
 export interface CapRequest { id: string; year: number; project_id: string; project_name: string; amount: string; reason: string; status: 'pending' | 'approved' | 'rejected';
   requester_name: string | null; decide_note: string | null; created_at: string; decided_at: string | null; cap: string | null; used: string }
 export interface BudgetShift { id: string; year: number; project_id: string; project_name: string; from_line: string; from_purpose: string; to_line: string; to_purpose: string;
-  amount: string; note: string; status: 'applied' | 'pending' | 'rejected'; requester_name: string | null; decided_by_name: string | null; decide_note: string | null; created_at: string; decided_at: string | null }
+  amount: string; note: string; status: 'applied' | 'pending' | 'rejected'; requester_name: string | null; decided_by_name: string | null; decide_note: string | null; created_at: string; decided_at: string | null; to_project_id: string | null; to_project_name: string | null }
 export interface ProjectAsset { id: string; project_id: string; resource_id: string; resource_name: string; unit: string | null; qty: string; unit_price: string | null; received_on: string; line_purpose: string | null; holders: string | null }
 export interface ProjectAllocation { id: string; project_id: string; resource_id: string; resource_name: string; unit: string | null; user_id: string; user_name: string;
   quota: string | null; used: string | null; used_on: string | null; from_date: string; to_date: string | null; returned_on: string | null; current: boolean }

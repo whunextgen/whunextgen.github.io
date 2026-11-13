@@ -48,10 +48,20 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
   const stageWord = (l: BudgetLine) => l.fixed != null ? '核定数' : l.applied != null ? '申请数' : '申报数';
 
   // 调剂：项目内各预算行之间挪，全年累计不超过项目年度预算的 10% 负责人自己定，超过的交中心负责人批
-  const shifts = data.shifts.filter((s) => s.project_id === r.id && s.year === year).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  // 跨项目的调剂（大项目负责人在论文项目之间调）在调出、调入两个项目和大项目的页面上都列出来
+  const fam = new Set([r.id, ...kids.map((k) => k.id)]);
+  const shifts = data.shifts.filter((s) => s.year === year && (s.project_id === r.id || s.to_project_id === r.id || (!!s.to_project_id && fam.has(s.project_id)))).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const canShift = r.mine && r.kind !== 'public' && y?.stage === 'issued' && rows.length > 1 && !shifts.some((s) => s.status === 'pending');
+  const famRows = r.layer === 'paper' ? [] : [r, ...kids.filter((k) => k.active)].flatMap((p) => execOf(p.id).map((l) => ({ p, l })));
+  const canMove = r.mine && r.layer !== 'paper' && r.kind !== 'public' && y?.stage === 'issued' && new Set(famRows.map((x) => x.p.id)).size > 1;
+  const moveAct = (): Act => ({ title: `在论文项目之间调预算：${r.name}`, submitLabel: '调',
+    hint: `把 ${year} 年度的预算从一个项目的预算行挪到另一个项目的预算行，只能在这个大项目名下调。大项目连同论文项目的合计不变，不影响上限；调出行只能调还没用的部分。提交后直接生效，两行各留一笔版本记录，两边的负责人和财务岗会收到通知。同一个项目里两行之间的调剂到那个项目的页面做。`,
+    fields: [{ name: 'from_line', label: '从哪一行调出', options: famRows.filter(({ l }) => num(l.fixed) - num(l.used) > 0).map(({ p, l }): [string, string] => [l.id, `${p.name} · ${l.purpose}，还剩 ${money(num(l.fixed) - num(l.used))}`]) },
+      { name: 'to_line', label: '调到哪一行（要在另一个项目里）', options: famRows.map(({ p, l }): [string, string] => [l.id, `${p.name} · ${l.purpose}，核定 ${money(l.fixed)}`]) },
+      { name: 'amount', label: '金额（元）', type: 'number' }, { name: 'note', label: '原因' }],
+    run: (v) => rpc('move_budget', { from_line: v.from_line, to_line: v.to_line, amount: v.amount, note: v.note }) });
   const shiftAct = (): Act => { const total = rows.reduce((s, l) => s + num(l.fixed), 0);
-    const done = shifts.filter((s) => s.status === 'applied' && !s.decided_by_name).reduce((t, s) => t + num(s.amount), 0);
+    const done = shifts.filter((s) => s.status === 'applied' && !s.decided_by_name && !s.to_project_id).reduce((t, s) => t + num(s.amount), 0);
     return { title: `预算调剂：${r.name}`, submitLabel: '调剂',
       hint: `在这个项目 ${year} 年度的预算行之间挪，项目的核定数合计不变。调出行只能调还没用的部分。今年自己已经调了 ${money(done)}，累计不超过年度预算的 10%（${money(total * 0.1)}）直接生效；超过的交中心负责人批，批之前不生效。`,
       fields: [{ name: 'from_line', label: '从哪一行调出', options: rows.filter((l) => num(l.fixed) - num(l.used) > 0).map((l): [string, string] => [l.id, `${l.purpose}，还剩 ${money(num(l.fixed) - num(l.used))}`]) },
@@ -118,7 +128,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
       {kids.length > 0 && (
         <section className="card" id="sec-papers">
           <h3>论文项目 <span className="h3sub">{kids.length} 个 · {year} 年度</span></h3>
-          <p className="hint">论文项目的预算算在这个大项目的上限里。申报期间大项目负责人可以在年度预算页直接改下面各论文项目的预算。</p>
+          <p className="hint">论文项目的预算算在这个大项目的上限里。申报期间大项目负责人可以在年度预算页直接改下面各论文项目的预算；预算下达之后，大项目负责人可以在各论文项目之间调，合计不变。</p>
           <div className="scroll"><table>
             <thead><tr><th>论文项目</th><th>负责人</th><th className="r">预算</th><th className="r">已用（含在途）</th><th className="r">已入账</th><th className="r">剩余</th></tr></thead>
             <tbody>
@@ -130,16 +140,20 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
             <tfoot><tr><th scope="row">合计</th><td /><td className="r">{money(all.budget)}</td><td className="r">{run ? money(all.used) : '—'}</td><td className="r">{run ? money(all.actual) : '—'}</td><td className="r">{run ? money(all.budget - all.used) : '—'}</td></tr>
               {cap && <tr><th scope="row">离上限</th><td /><td className={`r ${num(cap.amount) - num(cap.used) <= 0 ? 'neg' : ''}`}>{money(num(cap.amount) - num(cap.used))}</td><td /><td /><td /></tr>}</tfoot>
           </table></div>
+          {r.mine && r.kind !== 'public' && <div className="actions" style={{ justifyContent: 'flex-start' }}>
+            {canMove ? <button className="sm" onClick={() => setAct(moveAct())}>在论文项目之间调预算</button>
+              : <span className="sub2">{y?.stage !== 'issued' ? '预算下达之后、决算之前才能在论文项目之间调。' : '要有两个以上的项目有预算行才能调。'}</span>}
+          </div>}
         </section>
       )}
 
       {r.kind !== 'public' && <>
         <section className="card" id="sec-shift">
           <h3>调剂 <span className="h3sub">{year} 年度</span></h3>
-          <p className="hint">预算下达之后，项目负责人可以在这个项目的预算行之间挪钱，项目的核定数合计不变。全年累计不超过项目年度预算 10% 的直接生效，超过的交中心负责人批。</p>
+          <p className="hint">预算下达之后，项目负责人可以在这个项目的预算行之间挪钱，项目的核定数合计不变。全年累计不超过项目年度预算 10% 的直接生效，超过的交中心负责人批。论文项目之间的调剂由大项目负责人在大项目的页面里做，直接生效，也列在这里。</p>
           {shifts.length === 0 ? <Empty>{year} 年度还没有调剂过。</Empty> : (
             <div className="scroll"><table><thead><tr><th>日期</th><th>调出</th><th>调入</th><th className="r">金额</th><th>原因</th><th>状态</th></tr></thead>
-              <tbody>{shifts.map((s) => <tr key={s.id}><td>{day(s.created_at)}<span className="sub2">{s.requester_name ?? ''}</span></td><td className="wrap">{s.from_purpose}</td><td className="wrap">{s.to_purpose}</td><td className="r">{money(s.amount)}</td>
+              <tbody>{shifts.map((s) => <tr key={s.id}><td>{day(s.created_at)}<span className="sub2">{s.requester_name ?? ''}</span></td><td className="wrap">{s.to_project_id ? `${s.project_name} · ` : ''}{s.from_purpose}</td><td className="wrap">{s.to_project_id ? `${s.to_project_name} · ` : ''}{s.to_purpose}</td><td className="r">{money(s.amount)}</td>
                 <td className="wrap">{s.note}{s.decide_note && <div className="sub2">批示：{s.decide_note}</div>}</td>
                 <td>{s.status === 'pending' ? <Badge tone="warn">等中心负责人批</Badge> : s.status === 'rejected' ? <Badge tone="bad">没同意</Badge> : <Badge tone="ok">{s.decided_by_name ? `${s.decided_by_name} 已同意` : '已生效'}</Badge>}</td></tr>)}</tbody></table></div>)}
           <div className="actions" style={{ justifyContent: 'flex-start' }}>

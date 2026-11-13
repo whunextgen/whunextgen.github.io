@@ -1293,6 +1293,30 @@ ok(Number((await one(`select fixed from api.budget_line where id = $1`, [PL2])).
 await as(U.lead, D9);
 eq((await q(`select * from api.budget_shift where project_id = $1`, [PX1])).length, 2, '大项目负责人看得到论文项目的调剂记录');
 
+// 下达后跨项目调预算：大项目负责人在同一个大项目名下的预算行之间挪，直接生效，合计不变
+await as(U.mem, D9);
+await raises('论文项目负责人不能跨项目调', /只有大项目负责人和副手/, `select move_budget($1, $2, 1000, '试')`, [BXL, PL2]);
+await as(U.lead, D9);
+await raises('同一个项目里的两行不走跨项目调剂', /用项目内的调剂/, `select move_budget($1, $2, 1000, '试')`, [PL1, PL2]);
+await raises('跨项目调剂要写原因', /为什么调剂/, `select move_budget($1, $2, 1000, ' ')`, [BXL, PL2]);
+await raises('跨项目调出不能超过这一行剩的', /不够调出/, `select move_budget($1, $2, 999999, '试')`, [BXL, PL2]);
+const famSum = async () => Number((await one(`select sum(fixed) v from api.budget_line where id in ($1, $2, $3)`, [BXL, PL1, PL2])).v);
+const fam0 = await famSum(), bxl0 = Number((await one(`select fixed from api.budget_line where id = $1`, [BXL])).fixed);
+const mv = await val(`select move_budget($1, $2, 2000, '论文项目耗材不够') v`, [BXL, PL2]);
+sh = await one(`select status, project_id, to_project_id, to_project_name from api.budget_shift where id = $1`, [mv]);
+ok(sh.status === 'applied' && sh.project_id === BX && sh.to_project_id === PX1 && sh.to_project_name === '论文：评测基准', '跨项目调剂直接生效并记下调到哪个项目', JSON.stringify(sh));
+fx = await q(`select id, fixed from api.budget_line where id in ($1, $2)`, [BXL, PL2]);
+ok(Number(fx.find(x => x.id === BXL).fixed) === bxl0 - 2000 && Number(fx.find(x => x.id === PL2).fixed) === 16000, '跨项目调剂后两行一减一加', JSON.stringify(fx));
+eq(await famSum(), fam0, '跨项目调剂后大项目连同论文项目的合计不变');
+ok(Number((await one(`select coalesce(sum(amount), 0) v from api.budget_alloc where line_id = $1`, [BXL])).v) <= bxl0 - 2000, '跨项目调出的一行多下达的部分收回');
+eq((await q(`select * from api.budget_revision where line_id in ($1, $2) and note like '跨项目调剂%'`, [BXL, PL2])).length, 2, '跨项目调剂留两笔版本记录');
+await as(U.mem, D9);
+eq((await q(`select * from api.budget_shift where id = $1`, [mv])).length, 1, '调入的论文项目负责人看得到这笔调剂');
+await as(U.mem2, D9);
+eq((await q(`select * from api.budget_shift where id = $1`, [mv])).length, 0, '成员看不到跨项目调剂');
+await as(U.fin, D9);
+ok((await q(`select text from api.outbox where user_id = $1`, [U.mem])).some(o => /大项目负责人从「可信评测」调入 2,000\.00 元/.test(o.text)), '跨项目调剂通知调入项目的负责人');
+
 // 设备买回来归公共设备，记下哪个项目出的钱；出钱项目的成员优先领用
 await as(U.fin, D9);
 const ws = await val(`select save_resource(null, 'asset', '图形工作站', null, 1, '台') v`);
