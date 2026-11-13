@@ -22,7 +22,7 @@ const VIEWS = new Set(['me', 'users', 'card_pick', 'subject', 'expense_type', 'c
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
-  'project_member', 'people_pick', 'project_cap', 'cap_request', 'budget_shift', 'project_asset', 'project_allocation', 'year_check', 'rule_lookup']);
+  'project_member', 'people_pick', 'project_cap', 'cap_request', 'budget_shift', 'project_asset', 'project_allocation', 'year_check', 'rule_lookup', 'task', 'task_step']);
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
 const RPC: Record<string, [string, string][]> = {
@@ -122,6 +122,13 @@ const RPC: Record<string, [string, string][]> = {
   shift_budget: [['from_line', 'uuid'], ['to_line', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
   decide_budget_shift: [['id', 'uuid'], ['ok', 'boolean'], ['note', 'text']],
   move_budget: [['from_line', 'uuid'], ['to_line', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
+  create_task: [['title', 'text'], ['assignee', 'uuid'], ['due', 'date'], ['card_id', 'uuid'], ['detail', 'text'], ['steps', 'text']],
+  edit_task: [['id', 'uuid'], ['title', 'text'], ['assignee', 'uuid'], ['due', 'date'], ['detail', 'text']],
+  add_task_steps: [['id', 'uuid'], ['steps', 'text']],
+  tick_task_step: [['step', 'uuid'], ['done', 'boolean'], ['note', 'text']],
+  finish_task: [['id', 'uuid'], ['note', 'text']],
+  cancel_task: [['id', 'uuid'], ['note', 'text']],
+  reopen_task: [['id', 'uuid'], ['note', 'text']],
   save_year_check: [['year', 'int'], ['resource_id', 'uuid'], ['actual', 'numeric'], ['note', 'text']],
 };
 

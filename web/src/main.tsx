@@ -23,6 +23,7 @@ import { Review } from './pages/Review';
 import { Ask } from './pages/Ask';
 import { CapsPage } from './pages/Caps';
 import { ProjectPage } from './pages/Project';
+import { Tasks } from './pages/Tasks';
 import '@fontsource/instrument-serif/latin-400.css';
 import '@fontsource/instrument-serif/latin-400-italic.css';
 import '@fontsource/jetbrains-mono/latin-400.css';
@@ -95,7 +96,7 @@ function App() {
   type Page = [string, string];
   const keep = (...p: (Page | false)[]) => p.filter(Boolean) as Page[];
   const groups = [
-    { label: '我的', pages: keep(['/', '总览'], ['/requests', '支出申请'], ['/resource', '资源与设备'], ['/petty', '备用金'], ['/ask', '能不能报']) },
+    { label: '我的', pages: keep(['/', '总览'], ['/tasks', '任务'], ['/requests', '支出申请'], ['/resource', '资源与设备'], ['/petty', '备用金'], ['/ask', '能不能报']) },
     { label: '项目', pages: keep(['/projects', '项目'], ['/budget', '年度预算']) },
     { label: '财务办理', pages: keep(seesCards && ['/school', '学校侧进度'], seesPeople && ['/staff', '人员费'], seesRes && ['/pool', '资源分发'], seesRes && ['/stock', '库存与盘点']) },
     { label: '经费卡', pages: keep(seesCards && ['/cards', '经费卡'], seesCards && ['/settle', '结清'], seesCards && ['/quota', '晨星额度']) },
@@ -119,6 +120,7 @@ function App() {
     : current === '/budget' ? <BudgetPage me={me} start={arg} />
     : current === '/caps' ? <CapsPage me={me} start={arg} />
     : current === '/ask' ? <Ask me={me} />
+    : current === '/tasks' ? <Tasks me={me} />
     : current === '/projects' ? <Projects me={me} />
     : current === '/desk' ? <Desk me={me} />
     : current === '/cards' ? <Overview me={me} />

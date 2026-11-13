@@ -1375,5 +1375,75 @@ ok(yc.length > 1 && Number(yc.find(x => x.resource_id === ws).diff) === 0 && yc.
 await db.exec(`reset role`);
 }
 
+// ---------- 任务列表 ----------
+{
+const cardA = (await one(`select id from fund_card order by card_no limit 1`)).id;
+const D9 = '2029-03-10';
+await db.exec(`set role app_api`);
+await as(U.mem, D9);
+await raises('成员不能给别人派任务', /只能给自己建任务/, `select create_task('交材料', $1, null, null, null, null)`, [U.mem2]);
+await raises('任务要有名称', /请写任务的名称/, `select create_task('  ', null, null, null, null, null)`);
+await raises('看不到卡的人不能把卡挂到任务上', /看不到这张经费卡/, `select create_task('试', null, null, $1, null, null)`, [cardA]);
+const own = await val(`select create_task('整理发票', null, '2029-03-20', null, null, E'找发票\n\n贴好') v`);
+const ownRow = await one(`select * from api.task where id = $1`, [own]);
+ok(ownRow.mine && ownRow.can_manage && ownRow.steps === 2 && ownRow.steps_done === 0 && ownRow.assignee_id === U.mem, '每个人都能给自己建任务，空行不算步骤', JSON.stringify(ownRow));
+
+await as(U.dir, D9);
+const obBefore = Number(await val(`select count(*) v from api.outbox`));
+const tk = await val(`select create_task('结算基金', $1, '2029-04-30', $2, '样例说明', E'第一步\n第二步\n第三步') v`, [U.fin, cardA]);
+const st = await q(`select id, sort, text, done from api.task_step where task_id = $1 order by sort`, [tk]);
+ok(st.length === 3 && st[0].text === '第一步' && st[2].sort === 3 && !st[0].done, '步骤按行拆开，按顺序排', JSON.stringify(st));
+ok(Number(await val(`select count(*) v from api.outbox`)) === obBefore + 1, '派任务通知办理人');
+ok((await q(`select id from api.task`)).length === 2, '有派任务权限的人看得到全部任务');
+
+await as(U.mem2, D9);
+ok((await q(`select id from api.task`)).length === 0 && (await q(`select id from api.task_step`)).length === 0, '别人的任务和步骤看不到');
+await raises('别人不能勾步骤', /只有办理人和派任务的人能勾/, `select tick_task_step($1, true, null)`, [st[0].id]);
+await raises('别人不能办结', /只有办理人和派任务的人能办结/, `select finish_task($1, null)`, [tk]);
+
+await as(U.fin, D9);
+const mineT = await q(`select * from api.task`);
+ok(mineT.length === 1 && mineT[0].mine && !mineT[0].can_manage && mineT[0].card_id === cardA && mineT[0].card_name && mineT[0].creator_name === '负责人', '办理人看得到派给自己的任务和挂的卡', JSON.stringify(mineT));
+await raises('没勾完不能办结', /还有 3 步没勾/, `select finish_task($1, null)`, [tk]);
+await raises('办理人不能撤销', /只有派任务的人能撤销/, `select cancel_task($1, '试')`, [tk]);
+await raises('办理人不能改任务', /只有派任务的人能改/, `select edit_task($1, '改名', $2, null, null)`, [tk, U.fin]);
+await q(`select tick_task_step($1, true, '已交学校')`, [st[0].id]);
+await q(`select tick_task_step($1, true, null)`, [st[1].id]);
+await q(`select tick_task_step($1, null, '只写备注不勾')`, [st[2].id]);
+const st2 = await q(`select sort, done, done_by_name, note from api.task_step where task_id = $1 order by sort`, [tk]);
+ok(st2[0].done && st2[0].done_by_name === '财务岗' && st2[0].note === '已交学校' && st2[1].done && !st2[2].done && st2[2].note === '只写备注不勾', '勾一步记下谁勾的，备注可以单独写', JSON.stringify(st2));
+await q(`select tick_task_step($1, false, null)`, [st[1].id]);
+ok((await one(`select done, done_by_name from api.task_step where id = $1`, [st[1].id])).done === false, '勾错了可以取消');
+await q(`select add_task_steps($1, '第四步')`, [tk]);
+ok((await one(`select steps, steps_done from api.task where id = $1`, [tk])).steps === 4, '办理人办的过程中可以加步骤');
+for (const x of await q(`select id from api.task_step where task_id = $1 and not done`, [tk])) await q(`select tick_task_step($1, true, null)`, [x.id]);
+await q(`select finish_task($1, '都办完了')`, [tk]);
+const doneT = await one(`select status, closed_by_name, close_note, steps, steps_done from api.task where id = $1`, [tk]);
+ok(doneT.status === 'done' && doneT.closed_by_name === '财务岗' && doneT.close_note === '都办完了' && doneT.steps_done === 4, '全部勾完后办结', JSON.stringify(doneT));
+ok((await q(`select text from api.outbox where user_id = $1 and text like '%办结了任务「结算基金」%'`, [U.dir])).length === 1, '办结通知派任务的人');
+await raises('办结之后不能再勾', /不能再改步骤/, `select tick_task_step($1, false, null)`, [st[0].id]);
+await raises('办理人不能自己退回重办', /只有派任务的人能退回重办/, `select reopen_task($1, '试')`, [tk]);
+
+await as(U.dir, D9);
+await raises('退回重办要写原因', /哪里还要再办/, `select reopen_task($1, ' ')`, [tk]);
+await q(`select reopen_task($1, '第三步的材料不全')`, [tk]);
+ok((await one(`select status, closed_at from api.task where id = $1`, [tk])).status === 'open', '派任务的人可以退回重办');
+await q(`select edit_task($1, '结算基金（改期）', $2, '2029-05-15', null)`, [tk, U.lead]);
+const ed = await one(`select title, assignee_id, due_date, detail from api.task where id = $1`, [tk]);
+ok(ed.title === '结算基金（改期）' && ed.assignee_id === U.lead && ed.detail === null, '派任务的人可以改名称、期限和办理人', JSON.stringify(ed));
+await as(U.lead, D9);
+const leadT = await one(`select mine, card_id, card_name from api.task where id = $1`, [tk]);
+ok(leadT.mine && leadT.card_id === null && leadT.card_name === null, '看不到卡的办理人看不到任务挂的卡', JSON.stringify(leadT));
+await as(U.fin, D9);
+ok((await q(`select id from api.task where id = $1`, [tk])).length === 0, '转给别人之后原办理人不再看到');
+await as(U.dir, D9);
+await raises('撤销要写原因', /为什么撤销/, `select cancel_task($1, '')`, [tk]);
+await q(`select cancel_task($1, '学校通知延期')`, [tk]);
+ok((await one(`select status, close_note from api.task where id = $1`, [tk])).status === 'cancelled', '派任务的人可以撤销');
+await raises('撤销之后不能改', /不能改/, `select edit_task($1, '试', $2, null, null)`, [tk, U.lead]);
+await db.exec(`reset role`);
+ok((await one(`select count(*) v from audit_log where table_name = 'task'`).catch(() => ({ v: 1 }))).v > 0, '任务的改动留审计记录');
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

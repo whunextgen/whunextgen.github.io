@@ -142,6 +142,10 @@ export interface Project { id: string; code: string; name: string; kind: 'projec
   member: boolean; can_roster: boolean; members: number }
 export interface ProjectMember { id: string; project_id: string; user_id: string; user_name: string; joined_on: string; left_on: string | null; added_by_name: string | null; holding: number }
 export interface PeoplePick { id: string; name: string }
+export interface Task { id: string; title: string; detail: string | null; assignee_id: string; assignee_name: string | null; due_date: string | null; card_id: string | null; card_name: string | null;
+  status: 'open' | 'done' | 'cancelled'; created_by: string; creator_name: string | null; created_at: string; closed_by_name: string | null; closed_at: string | null; close_note: string | null;
+  steps: number; steps_done: number; mine: boolean; can_manage: boolean }
+export interface TaskStep { id: string; task_id: string; sort: number; text: string; done: boolean; done_by_name: string | null; done_at: string | null; note: string | null }
 export interface ProjectCap { year: number; project_id: string; amount: string; used: string }
 export interface CapRequest { id: string; year: number; project_id: string; project_name: string; amount: string; reason: string; status: 'pending' | 'approved' | 'rejected';
   requester_name: string | null; decide_note: string | null; created_at: string; decided_at: string | null; cap: string | null; used: string }

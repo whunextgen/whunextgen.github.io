@@ -1,8 +1,9 @@
-import { useViews, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Project, type ProjectBudget, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest } from '../api';
+import { useViews, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Project, type ProjectBudget, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task } from '../api';
 import { Badge, Empty, END_RULE, Flow, Loading, Tile, can, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Bullets, C, Columns, Donut } from '../charts';
 import { cardRisk, nodeState } from './Overview';
 import { STAGE_TEXT, STEP_OF } from './Budget';
+import { taskDue } from './Tasks';
 
 const wan = (x: number) => (Math.abs(x) >= 1e4 ? `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 ? 0 : 1)} 万` : money(x));
 const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
@@ -12,9 +13,9 @@ const STEPS = ['申报', '汇总报批', '核定下达', '申请', '承诺', '�
 export function Home({ me }: { me: Me }) {
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
-    years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[] }>({
+    years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[]; tasks: Task[] }>({
     reqs: ['request'], picks: ['card_pick'], cards: ['card'], nodes: ['node'], events: ['fund_event', { done: 'false' }],
-    years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'], caps: ['cap_request'], shifts: ['budget_shift'],
+    years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'], caps: ['cap_request'], shifts: ['budget_shift'], tasks: ['task', { status: 'open' }],
   });
   if (!data) return <Loading error={error} />;
   const now = today();
@@ -49,6 +50,11 @@ export function Home({ me }: { me: Me }) {
   // 轮到当前这个人做的事
   const byId = new Map(data.cards.map((c) => [c.card_id, c]));
   const todo: { tone: string; tag: string; text: string; go: string; href: string }[] = [];
+  // 派给自己的任务排在最前，先到期的在上
+  for (const t of data.tasks.filter((x) => x.mine).sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))) {
+    const [dueText, dueTone] = taskDue(t, now);
+    todo.push({ tone: dueTone || 'pri', tag: '任务', text: `${t.title}${t.steps > 0 ? `，${t.steps_done} / ${t.steps} 步` : ''}，${dueText}${t.created_by !== me.id && t.creator_name ? ` · ${t.creator_name} 派的` : ''}`, go: '去办', href: '#/tasks' });
+  }
   for (const y of data.years) {
     const b = new Map(data.budgets.filter((x) => x.year === y.year).map((x) => [x.project_id, x]));
     const href = `#/budget/${y.year}`;
