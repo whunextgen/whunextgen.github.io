@@ -32,10 +32,14 @@ for (const p of displayed) {
 for (const file of fixture.duplicates) assert.ok(!all.some(p => `${p.slug}.yml` === file), `Duplicate removed: ${file}`);
 assert.deepEqual(all.filter(p => p.isPublished === false).map(p => p.id).sort(), fixture.unverified.slice().sort());
 const students = people.filter(p => ['PhD', 'Master', 'Academic Master', 'Professional Master'].includes(p.category) && !p.isAlumni && !p.leftAt);
-assert.equal(students.length, 25);
-assert.deepEqual(students.map(p => p.slug).sort(), fixture.members.map(p => p.slug).sort(), 'Audit covers every active PhD/master student');
+const roster = JSON.parse(readFileSync(new URL('fixtures/people-2026-11-11.json', import.meta.url), 'utf8'));
+const expectedStudents = roster.active.filter(p => ['PhD', 'Master', 'Academic Master', 'Professional Master'].includes(p.category));
+assert.deepEqual(students.map(p => p.nameZh || p.name).sort(), expectedStudents.map(p => p.name).sort(), 'Audit covers every active PhD/master student in the current roster');
+assert.ok(students.every(p => fixture.members.some(m => m.slug === p.slug)), 'Every current student has a verified publication audit');
 for (const member of fixture.members) {
-  const person = students.find(p => p.slug === member.slug);
+  // Keep checking audited coauthors after a move to RA or research intern.
+  const person = people.find(p => p.slug === member.slug);
+  assert.ok(person, `${member.nameZh}: audited member still has a profile`);
   assert.deepEqual(publicationsForPerson(person, all).map(p => p.id).sort(), member.papers.slice().sort(), `${member.nameZh}: complete verified coauthor list`);
 }
 // Non-first authors must receive the same paper on their individual pages.

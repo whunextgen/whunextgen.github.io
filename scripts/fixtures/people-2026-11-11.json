@@ -1,5 +1,5 @@
 {
-  "asOf": "2026-11-11",
+  "asOf": "2026-11-13",
   "active": [
     {
       "name": "彭敏",
@@ -131,13 +131,11 @@
     },
     {
       "name": "陈鹳嫒",
-      "category": "PhD",
-      "grade": "2027"
+      "category": "RA"
     },
     {
       "name": "魏宏宇",
-      "category": "PhD",
-      "grade": "2027"
+      "category": "RA"
     },
     {
       "name": "韩祖臣",
@@ -201,18 +199,15 @@
     },
     {
       "name": "史彦承",
-      "category": "Professional Master",
-      "grade": "2027"
+      "category": "Intern"
     },
     {
       "name": "孔令尧",
-      "category": "Professional Master",
-      "grade": "2027"
+      "category": "Intern"
     },
     {
       "name": "翁振昊",
-      "category": "Professional Master",
-      "grade": "2027"
+      "category": "Intern"
     },
     {
       "name": "刘志翔",
@@ -324,7 +319,7 @@
     },
     {
       "name": "张若宸",
-      "category": "Intern"
+      "category": "RA"
     },
     {
       "name": "彭颖",
@@ -355,10 +350,6 @@
       "category": "Intern"
     },
     {
-      "name": "肖天博",
-      "category": "Intern"
-    },
-    {
       "name": "赵晨旭",
       "category": "Intern"
     },
@@ -371,7 +362,7 @@
       "category": "Intern"
     },
     {
-      "name": "朱耀宇",
+      "name": "朱曜宇",
       "category": "Intern"
     },
     {
@@ -385,6 +376,10 @@
     {
       "name": "王菲",
       "category": "Secretary"
+    },
+    {
+      "name": "彭睿博",
+      "category": "Intern"
     }
   ],
   "alumni": [
@@ -440,6 +435,10 @@
     },
     {
       "name": "杨镜池",
+      "category": "Intern"
+    },
+    {
+      "name": "肖天博",
       "category": "Intern"
     }
   ]

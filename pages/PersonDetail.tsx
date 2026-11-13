@@ -75,7 +75,7 @@ const PersonDetail: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           <aside className="md:col-span-1">
             <div className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-slate-50 border border-slate-100 mb-6">
-              <PersonAvatar src={person.avatar} alt={name} className="w-full h-full object-cover" />
+              <PersonAvatar src={person.avatar} rotation={person.avatarRotation} alt={name} className="w-full h-full object-cover" />
             </div>
             <div className="flex gap-3">
               {person.email && (

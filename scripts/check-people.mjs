@@ -22,24 +22,34 @@ const people = readdirSync(dir).filter(f => f.endsWith('.yml')).map(file => ({
 const displayName = p => p.nameZh || p.name;
 const active = people.filter(p => !hasLeftLab(p));
 const alumni = people.filter(hasLeftLab);
+// Photos supplied by members in the November 12–13 website review.
+const photoUpdates = new Set(["jiacheng-dai", "shan-hua", "chenying-lin", "jiarong-song", "luyuan-jiao", "qiyi-xu", "yao-xiong", "xiudong-chen", "ruochen-zhang", "tianyu-hao", "yicheng-he", "xuelin-zhang", "ruiyu-wang", "keying-wu", "xingyue-ren", "zhentao-li", "bingquan-zhang", "sichen-hui", "sijia-li", "yaoyu-zhu", "liuyisheng-zhou", "yijia-liu", "fei-wang", "ziyan-kuang", "yihang-tang", "ruiyu-zhang", "lingyao-kong", "baojie-qu"]);
 const originalFiles = execFileSync('git', ['ls-tree', '-r', '--name-only', 'HEAD', 'content/people'], { cwd: root, encoding: 'utf8' }).trim().split('\n');
 for (const file of originalFiles) {
   const original = load(execFileSync('git', ['show', `HEAD:${file}`], { cwd: root, encoding: 'utf8' }));
   const current = people.find(p => p.slug === file.split('/').pop().replace(/\.yml$/, ''));
   assert.ok(current, `Retain existing profile: ${file}`);
   for (const field of ['name', 'nameZh', 'avatar', 'bio', 'bioZh', 'email', 'homepage', 'advisor', 'teacherProfile']) {
+    if (field === 'avatar' && photoUpdates.has(current.slug)) continue;
+    if (field === 'nameZh' && current.slug === 'yaoyu-zhu') {
+      assert.equal(current[field], '朱曜宇', 'Member-confirmed name spelling');
+      continue;
+    }
     assert.deepEqual(current[field], original[field], `${displayName(current)}: preserve existing ${field}`);
   }
   if (['Teachers', 'Visiting Scholars'].includes(original.category)) {
-    for (const [field, value] of Object.entries(original)) assert.deepEqual(current[field], value, `${displayName(current)}: preserve original faculty/visiting profile`);
+    for (const [field, value] of Object.entries(original)) {
+      if (field === 'avatar' && photoUpdates.has(current.slug)) continue;
+      assert.deepEqual(current[field], value, `${displayName(current)}: preserve original faculty/visiting profile`);
+    }
   }
 }
 
-assert.equal(people.length, 101, '101 total records');
+assert.equal(people.length, expected.active.length + expected.alumni.length, 'Total roster records');
 assert.equal(new Set(people.map(displayName)).size, people.length, 'No duplicate people');
 assert.equal(new Set(people.map(p => p.id || p.slug)).size, people.length, 'No duplicate card IDs');
-assert.equal(active.length, 90, '90 active members');
-assert.equal(alumni.length, 11, '11 former members');
+assert.equal(active.length, expected.active.length, 'Active roster count');
+assert.equal(alumni.length, expected.alumni.length, 'Former member count');
 
 for (const [actual, targets, label] of [[active, expected.active, 'active'], [alumni, expected.alumni, 'alumni']]) {
   assert.deepEqual(actual.map(displayName).sort(), targets.map(p => p.name).sort(), `${label} membership`);
@@ -56,7 +66,7 @@ assert.equal(hasLeftLab({}), false);
 assert.equal(hasLeftLab({ isAlumni: false }), false);
 assert.equal(hasLeftLab({ isAlumni: true }), true);
 assert.equal(hasLeftLab({ leftAt: '2026-08', isAlumni: false }), true, 'Original dates remain authoritative');
-assert.ok(!people.some(p => ['黄济民', '黄鸿杰', '朱曜宇'].includes(displayName(p))), 'Excluded and superseded names must not appear');
+assert.ok(!people.some(p => ['黄济民', '黄鸿杰', '朱耀宇'].includes(displayName(p))), 'Excluded and superseded names must not appear');
 
 const locales = readFileSync(join(root, 'i18n/locales.ts'), 'utf8');
 const cms = load(readFileSync(join(root, 'public/admin/config.yml'), 'utf8'));
@@ -74,5 +84,5 @@ for (const p of people) {
   if (p.avatar?.startsWith('/')) assert.ok(readFileSync(join(root, 'public', p.avatar.slice(1))).length, `Local avatar exists: ${displayName(p)}`);
 }
 
-console.log(`Roster ${expected.asOf}: 90 active, 11 alumni; names, categories, entry years and departure dates verified.`);
+console.log(`Roster ${expected.asOf}: ${active.length} active, ${alumni.length} alumni; names, categories, entry years and departure dates verified.`);
 console.log(Object.fromEntries([...new Set(active.map(p => p.category))].map(c => [c, active.filter(p => p.category === c).length])));

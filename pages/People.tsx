@@ -58,7 +58,7 @@ const TeacherCard: React.FC<{ person: Person }> = ({ person }) => {
         <div className="w-full md:w-64 md:flex-shrink-0 bg-slate-50 relative group border-b md:border-b-0 md:border-r border-slate-100">
           <div className="aspect-[3/4] w-full">
             <PersonAvatar
-              src={person.avatar}
+              src={person.avatar} rotation={person.avatarRotation}
               alt={name}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               loading="lazy"
@@ -232,7 +232,7 @@ const CompactPersonCard: React.FC<{ person: Person }> = ({ person }) => {
       <div className="flex items-start gap-4">
         <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-50 flex-shrink-0 border border-slate-100">
           <PersonAvatar
-            src={person.avatar}
+            src={person.avatar} rotation={person.avatarRotation}
             alt={name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
             loading="lazy"

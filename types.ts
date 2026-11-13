@@ -69,6 +69,8 @@ export interface Person {
   title?: string;
   titleZh?: string;
   avatar: string;
+  /** Display correction for a sideways source portrait, in degrees. */
+  avatarRotation?: -90 | 90 | 180;
   email?: string;
   homepage?: string;
   bio: string;
