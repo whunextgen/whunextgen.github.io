@@ -7,6 +7,7 @@
 - `scripts/`：旧门户数据的导出和导入
 - `worker/`：API 与飞书登录，同时托管前端静态文件
 - `web/`：前端（Vite + React）。`npm run build` 生成 `web/dist`，再在 `worker/` 下 `npx wrangler deploy` 一并发布；本地开发在 `web/.env.local` 里设 `API_TARGET` 后 `npm run dev`
+- `pages/`：国内访问入口。`workers.dev` 在国内不稳定，所以另开一个 Cloudflare Pages 项目，用服务绑定把请求原样交给上面的 Worker，对外地址是 `pages.dev`。只在改转发逻辑时才需要在 `pages/` 下 `npx wrangler pages deploy --branch main`；平时发版只部署 Worker。新地址的登录回调要加进飞书应用的重定向白名单。
 - `docs/prototype.html`：前端原型（数据为虚构）
 - `.env`（不提交）：`DATABASE_URL`、旧表标识 `FEISHU_BITABLE_APP` `LEGACY_USERS_TABLE` `LEGACY_ENTITY_TABLE` `LEGACY_SKIP_TABLES`
 

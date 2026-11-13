@@ -1,0 +1,8 @@
+name = "clain-finance"
+pages_build_output_dir = "site"
+compatibility_date = "2026-10-01"
+
+# 页面和接口都由 worker/ 里的 Worker 提供，这里只转发。发布新版只需部署 Worker，这个项目不用重发
+[[services]]
+binding = "API"
+service = "finance-portal-api"
