@@ -186,6 +186,33 @@ async function feishu(path: string, init: RequestInit) {
   return (await r.json()) as any;
 }
 
+// 连接不取类型表，数组列回来是 {a,b} 这样的字符串，这里还原成数组
+const ARRAY_OIDS = new Set([1000, 1005, 1007, 1009, 1015, 1016, 1182, 1231, 2951]);
+export function pgArray(v: unknown): unknown {
+  if (typeof v !== 'string' || v[0] !== '{' || v[v.length - 1] !== '}') return v;
+  const out: (string | null)[] = [];
+  let i = 1;
+  while (i < v.length - 1) {
+    if (v[i] === ',') { i++; continue; }
+    if (v[i] === '"') {
+      let s = '';
+      for (i++; i < v.length && v[i] !== '"'; i++) s += v[i] === '\\' ? v[++i] : v[i];
+      out.push(s); i++;
+    } else {
+      let j = i;
+      while (j < v.length - 1 && v[j] !== ',') j++;
+      const s = v.slice(i, j);
+      out.push(s === 'NULL' ? null : s); i = j;
+    }
+  }
+  return out;
+}
+function fixArrays<R extends Record<string, unknown>>(rows: R[] & { columns?: { name: string; type: number }[] }): R[] {
+  const cols = (rows.columns ?? []).filter((c) => ARRAY_OIDS.has(c.type)).map((c) => c.name);
+  if (cols.length === 0) return rows;
+  return rows.map((r) => { const o: Record<string, unknown> = { ...r }; for (const c of cols) o[c] = pgArray(o[c]); return o as R; });
+}
+
 async function withUser<T>(env: Env, uid: string | null, fn: (sql: postgres.TransactionSql) => Promise<T>): Promise<T> {
   const sql = postgres(env.HYPERDRIVE.connectionString, { max: 1, fetch_types: false, prepare: false });
   try {
@@ -270,7 +297,7 @@ export default {
           const where = filters.map(([k], i) => `${k}::text = $${i + 1}`).join(' and ');
           return sql.unsafe(`select * from api.${view}${where ? ' where ' + where : ''} limit 2000`, filters.map(([, v]) => v));
         });
-        return json(rows, 200, cors);
+        return json(fixArrays(rows as any), 200, cors);
       }
 
       const fn = url.pathname.match(/^\/api\/rpc\/([a-z_]+)$/)?.[1];

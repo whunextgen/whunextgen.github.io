@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from 'react';
+import { Component, StrictMode, useEffect, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ApiError, logout, view, type Me } from './api';
 import { ROLE, can, today } from './ui';
@@ -49,6 +49,23 @@ function Login({ reason }: { reason?: string }) {
       <div className="login-word" aria-hidden="true">预算<i>与</i><br />决算</div>
     </div>
   );
+}
+
+// 一个页面出错只影响这个页面，导航还在，可以去别的页面
+class PageGuard extends Component<{ children: ReactNode }, { err: Error | null }> {
+  state = { err: null as Error | null };
+  static getDerivedStateFromError(err: Error) { return { err }; }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return (
+      <section className="card">
+        <h3>这个页面出错了</h3>
+        <p className="hint">其他页面不受影响。可以重新加载再试；还是不行的话把下面这行发给管理员。</p>
+        <p className="sub2" style={{ wordBreak: 'break-all' }}>{this.state.err.message}</p>
+        <button onClick={() => location.reload()}>重新加载</button>
+      </section>
+    );
+  }
 }
 
 function App() {
@@ -135,7 +152,7 @@ function App() {
           <div className="bc">{group && current !== '/' && <>{group.label}<i>/</i></>}<b>{title}</b></div>
           <span>{today()}</span>
         </header>
-        <main key={route}>{page}</main>
+        <main key={route}><PageGuard key={route}>{page}</PageGuard></main>
         <footer className="ft"><span>预算 · 执行 · 决算</span><span>决算数只认学校正式入账</span></footer>
       </div>
     </div>
