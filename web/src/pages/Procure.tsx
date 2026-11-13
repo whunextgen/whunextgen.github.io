@@ -45,7 +45,7 @@ export function Procure({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>学校侧进度：采购</h2></div>
+      <div className="top"><h2>入账跟踪：采购</h2></div>
       <div className="tiles">
         <Tile k="采购进行中" v={doing.length} f={money(doing.reduce((s, r) => s + num(r.amount), 0))} />
         <Tile k="已验收，待提交学校" v={ready.length} f={money(ready.reduce((s, r) => s + num(r.amount), 0))} />

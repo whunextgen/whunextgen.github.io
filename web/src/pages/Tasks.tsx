@@ -36,7 +36,7 @@ export function Tasks({ me }: { me: Me }) {
     setBusy('');
   };
   const createAct = (): Act => ({ title: '新建任务', submitLabel: '建任务',
-    hint: assign ? `选办理人就是派给这个人，对方在总览的「轮到你处理」里看到。${STEPS_HINT}` : `给自己建的任务只有你和中心负责人看得到。${STEPS_HINT}`,
+    hint: assign ? `选办理人就是派给这个人，对方在工作台的「轮到你处理」里看到。${STEPS_HINT}` : `给自己建的任务只有你和中心负责人看得到。${STEPS_HINT}`,
     fields: [{ name: 'title', label: '任务名称' },
       ...(assign ? [{ name: 'assignee', label: '办理人', options: people, value: me.id }] : []),
       { name: 'due', label: '期限（可不填）', type: 'date' as const, required: false },
@@ -96,7 +96,7 @@ export function Tasks({ me }: { me: Me }) {
   return (
     <>
       <div className="top">
-        <h2>任务</h2>
+        <h2>任务管理</h2>
         <button onClick={() => setAct(createAct())}>新建任务</button>
       </div>
       <p className="lede">一件要办的事派给一个人，拆成几步，办一步勾一步，全部勾完后办结。{assign ? '你能派给任何人，也看得到全部任务。' : '你能给自己建任务；派给你的任务也在这里。'}</p>

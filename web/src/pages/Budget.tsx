@@ -37,7 +37,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
   const dialog = act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.submitLabel} danger={act.danger} onSubmit={act.run} onClose={() => setAct(null)} />;
   if (years.length === 0) return (
     <>
-      <div className="top"><h2>年度预算</h2>{staff && <button onClick={() => setAct(openAct())}>开始 {next} 年度预算</button>}</div>
+      <div className="top"><h2>预算编制</h2>{staff && <button onClick={() => setAct(openAct())}>开始 {next} 年度预算</button>}</div>
       <Empty>还没有开始任何年度的预算。{staff ? '定一个申报截止日，各项目就可以开始填。' : '财务岗开始之后，这里会出现申报表。'}</Empty>
       {dialog}
     </>
@@ -158,7 +158,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
           {y.stage === 'applied' && <p className="hint">已于 {day(y.applied_on)} 报学校，申请数合计 {money(tot(summed, 'applied'))}。学校批复后录入批复数。</p>}
           {y.stage === 'granted' && <p className="hint">学校批复 {opt(y.granted_amount)}。按联席会议的决定逐行填核定数，合计不能超过年度总预算；{director ? '填好后确定年度总预算。' : '填好后请中心负责人确定年度总预算。'}</p>}
           {y.stage === 'fixed' && <p className="hint">年度总预算 {opt(y.fixed_total)} 已确定。在下面把每一行核定数对到经费卡上，全部对完后下达。</p>}
-          {y.stage === 'issued' && <p className="hint">预算已于 {day(y.issued_at)} 下达，各项目按预算提交支出。每三个月复盘一次，年末做年度决算。<a href="#/review">去复盘与决算</a></p>}
+          {y.stage === 'issued' && <p className="hint">预算已于 {day(y.issued_at)} 下达，各项目按预算提交支出。每三个月复盘一次，年末做年度决算。<a href="#/review">去年度决算</a></p>}
           {y.stage === 'closed' && <p className="hint">{year} 年度已于 {day(y.closed_at)} 决算，未用的预算不结转。<a href="#/review">看决算</a></p>}
           <div className="actions" style={{ justifyContent: 'flex-start' }}>
             {y.stage === 'declare' && <>

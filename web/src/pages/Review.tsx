@@ -18,7 +18,7 @@ export function Review({ me, start }: { me: Me; start: string }) {
   const years = data.years.filter((x) => x.stage === 'issued' || x.stage === 'closed').sort((a, b) => b.year - a.year);
   if (years.length === 0) return (
     <>
-      <div className="top"><h2>复盘与决算</h2></div>
+      <div className="top"><h2>年度决算</h2></div>
       <Empty>还没有下达过年度预算。预算下达之后，这里按项目看执行，每三个月复盘一次，年末做年度决算。</Empty>
     </>
   );
@@ -54,7 +54,7 @@ export function Review({ me, start }: { me: Me; start: string }) {
     <>
       <div className="top">
         <div className="crumb">{y.stage === 'closed' ? `${day(y.closed_at)} 已决算` : quarter > 0 ? `执行中 · 现在是第 ${quarter} 期（${QN[quarter - 1]}）` : '已下达，还没开始执行'}</div>
-        <h2>{year} 年度复盘与决算</h2>
+        <h2>{year} 年度决算</h2>
       </div>
       {years.length > 1 && <div className="tabs" style={{ marginBottom: 16 }}>{years.map((n) => <a key={n.year} className="btn sm" aria-current={n.year === year ? 'page' : undefined} href={`#/review/${n.year}`}>{n.year}</a>)}</div>}
 
@@ -157,8 +157,8 @@ export function Review({ me, start }: { me: Me; start: string }) {
 
           {can(me, 'read.resource') && (
             <section className="card">
-              <h3>年末盘点差异 <span className="h3sub">{checked.length === 0 ? '还没盘' : `已盘 ${checked.length} 项，${off.length} 项对不上`}</span><a className="more" href="#/stock">库存与盘点 →</a></h3>
-              <p className="hint">年末把接口额度和设备实盘一遍，和账面对不上的列在这里，决算之前要有说明。盘点在「库存与盘点」里登记。</p>
+              <h3>年末盘点差异 <span className="h3sub">{checked.length === 0 ? '还没盘' : `已盘 ${checked.length} 项，${off.length} 项对不上`}</span><a className="more" href="#/stock">资产盘点 →</a></h3>
+              <p className="hint">年末把接口额度和设备实盘一遍，和账面对不上的列在这里，决算之前要有说明。盘点在「资产盘点」里登记。</p>
               {checked.length === 0 ? <Empty>{year} 年末盘点还没有登记。</Empty> : off.length === 0 ? <Empty>已盘的 {checked.length} 项和账面都对得上。</Empty> : (
                 <div className="scroll"><table>
                   <thead><tr><th>资源</th><th>类型</th><th className="r">账面</th><th className="r">实盘</th><th className="r">差异</th><th>说明</th><th>盘点</th></tr></thead>

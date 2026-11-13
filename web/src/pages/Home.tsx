@@ -177,7 +177,7 @@ export function Home({ me }: { me: Me }) {
     <>
       <div className="top">
         <div className="crumb">{me.name} · {ROLE[me.role]}</div>
-        <h2>总览</h2>
+        <h2>工作台</h2>
         <a className="btn" href="#/requests/new">提交支出申请</a>
       </div>
 
@@ -204,7 +204,7 @@ export function Home({ me }: { me: Me }) {
               : <Columns labels={['一季度', '二季度', '三季度', '四季度']} mark={Math.floor((Number(now.slice(5, 7)) - 1) / 3)} series={[{ name: '计划', color: C.plan, values: qsum('q') }, { name: '已入账', color: C.actual, values: qsum('a') }]} />}
           </section>
           <section className="card">
-            <h3>每月入账 <span className="h3sub">{thisYear} 年</span><a className="more" href="#/school">学校侧进度 →</a></h3>
+            <h3>每月入账 <span className="h3sub">{thisYear} 年</span><a className="more" href="#/school">入账跟踪 →</a></h3>
             <Columns labels={monthly.map((_, m) => `${m + 1}月`)} mark={Number(now.slice(5, 7)) - 1} series={[{ name: '已入账', color: C.actual, values: monthly }]} />
           </section>
         </div>

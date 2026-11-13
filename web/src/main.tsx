@@ -96,15 +96,15 @@ function App() {
   type Page = [string, string];
   const keep = (...p: (Page | false)[]) => p.filter(Boolean) as Page[];
   const groups = [
-    { label: '', no: '', note: '', pages: keep(['/', '总览'], ['/tasks', '任务']) },
-    { label: '预算', no: '01', note: '定每个项目今年花多少', pages: keep(['/projects', '项目'], ['/budget', '年度预算'], seesCaps && ['/caps', '上限与机动'], seesDesk && ['/desk', '预算设置']) },
-    { label: '执行', no: '02', note: '申请、审批、发放', pages: keep(['/requests', '支出申请'], ['/petty', '备用金'], ['/resource', '资源与设备'], seesRes && ['/pool', '资源分发'], seesPeople && ['/staff', '人员费'], ['/ask', '能不能报']) },
-    { label: '入账', no: '03', note: '钱在哪张卡，学校记到哪', pages: keep(seesCards && ['/cards', '经费卡'], seesCards && ['/school', '学校侧进度'], seesCards && ['/quota', '晨星额度']) },
-    { label: '决算', no: '04', note: '结清、盘点、复盘', pages: keep(seesCards && ['/settle', '结清'], seesRes && ['/stock', '库存与盘点'], seesReview && ['/review', '复盘与决算']) },
-    { label: '系统', no: '', note: '', pages: keep(seesAdmin && ['/admin', '用户与权限'], seesLegacy && ['/history', '旧门户记录']) },
+    { label: '', no: '', note: '', pages: keep(['/', '工作台'], ['/tasks', '任务管理']) },
+    { label: '预算', no: '01', note: '编制、控制、下达', pages: keep(['/projects', '项目管理'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesDesk && ['/desk', '预算参数']) },
+    { label: '执行', no: '02', note: '申请、审批、发放', pages: keep(['/requests', '支出申请'], ['/petty', '备用金管理'], ['/resource', '资源申领'], seesRes && ['/pool', '资源调配'], seesPeople && ['/staff', '人员经费'], ['/ask', '报销咨询']) },
+    { label: '入账', no: '03', note: '经费到卡、学校入账', pages: keep(seesCards && ['/cards', '经费卡管理'], seesCards && ['/school', '入账跟踪'], seesCards && ['/quota', '晨星额度管理']) },
+    { label: '决算', no: '04', note: '结清、盘点、决算', pages: keep(seesCards && ['/settle', '经费结清'], seesRes && ['/stock', '资产盘点'], seesReview && ['/review', '年度决算']) },
+    { label: '系统', no: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesLegacy && ['/history', '历史数据']) },
   ].filter((g) => g.pages.length > 0);
   // 不在导航里、从别的页面点进去的页面
-  const side = keep(['/track', '在途事项'], seesCards && ['/rules', '按经费卡的答复记录'], !seesReview && ['/review', '复盘与决算'], !seesLegacy && ['/history', '旧门户记录']);
+  const side = keep(['/track', '在途事项'], seesCards && ['/rules', '报销答复记录'], !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
 
   const cardId = seesCards ? route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1] : undefined;
   const proj = route.match(/^\/project\/([^/]+)(?:\/(\d{4}))?$/);
@@ -145,7 +145,7 @@ function App() {
     : current === '/admin' ? <Admin me={me} />
     : <Home me={me} />;
   const link = ([to, label]: Page) => <a key={to} href={`#${to}`} className={current === to ? 'on' : ''} aria-current={current === to ? 'page' : undefined}>{label}</a>;
-  const title = [...groups.flatMap((g) => g.pages), ...side].find(([to]) => to === current)?.[1] ?? '总览';
+  const title = [...groups.flatMap((g) => g.pages), ...side].find(([to]) => to === current)?.[1] ?? '工作台';
   return (
     <div className={`shell${open ? ' nav-open' : ''}`}>
       <aside className="sb">

@@ -37,7 +37,7 @@ export function QuotaPage({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>晨星额度</h2>
+      <div className="top"><h2>晨星额度管理</h2>
         {director && <button onClick={() => setAct(quotaAct())}>下达额度</button>}</div>
       <div className="tiles">
         <Tile k={`${year} 年额度`} v={money(sum('amount'))} f={`${rows.length} 位负责人`} />

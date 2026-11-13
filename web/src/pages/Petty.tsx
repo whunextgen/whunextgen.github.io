@@ -48,7 +48,7 @@ export function PettyPage({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>备用金</h2><button onClick={() => setAct(saveAct())}>申请备用金</button></div>
+      <div className="top"><h2>备用金管理</h2><button onClick={() => setAct(saveAct())}>申请备用金</button></div>
       <div className="tiles">
         <Tile k="待审批" v={rows.filter((r) => r.status === 'pending').length} f="等中心负责人审批" tone={can(me, 'petty.approve') && rows.some((r) => r.status === 'pending') ? 'warn' : ''} />
         <Tile k="在外未核销" v={money(sum(out))} f={`${out.length} 笔已领用`} tone={out.length ? 'warn' : ''} />

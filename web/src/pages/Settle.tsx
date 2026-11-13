@@ -39,7 +39,7 @@ export function Settle({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>结清</h2></div>
+      <div className="top"><h2>经费结清</h2></div>
 
       <section className="card">
         <h3>年度汇总</h3>

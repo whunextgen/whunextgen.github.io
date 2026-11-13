@@ -81,7 +81,7 @@ export function StaffPage({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>人员费</h2>
+      <div className="top"><h2>人员经费</h2>
         {can(me, 'payroll.reassign') && data.staff.length > 0 && <button className="ghost" onClick={() => setAct(move)}>改挂</button>}
         {ready && <button onClick={() => setAct(plan)}>排布</button>}</div>
 

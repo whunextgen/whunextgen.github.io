@@ -93,7 +93,7 @@ export function ResourcePage({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>资源与设备</h2>
+      <div className="top"><h2>资源申领</h2>
         <div className="acts"><button onClick={() => setAct(reqAct('api'))}>申请接口额度</button><button className="ghost" onClick={() => setAct(reqAct('asset'))}>申领资产</button></div></div>
       <div className="tiles">
         <Tile k="名下接口" v={mine.filter((a) => a.kind === 'api').length} f="正在生效的额度" />
@@ -233,7 +233,7 @@ export function PoolPage({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>资源分发</h2></div>
+      <div className="top"><h2>资源调配</h2></div>
       <div className="tiles">
         <Tile k="待项目负责人批示" v={n('pending')} f="每笔都挂在预算行上，先过负责人" />
         <Tile k="待批准" v={n('reviewed')} f="财务岗或中心负责人批准" tone={n('reviewed') ? 'warn' : ''} />
@@ -373,7 +373,7 @@ export function StockPage() {
 
   return (
     <>
-      <div className="top"><h2>库存与盘点</h2><button onClick={() => setAct(resAct())}>登记{KIND[tab]}</button></div>
+      <div className="top"><h2>资产盘点</h2><button onClick={() => setAct(resAct())}>登记{KIND[tab]}</button></div>
       <div className="tiles">
         <Tile k="接口账号" v={apis.length} f={`${apis.filter((r) => r.has_secret).length} 个已保存密钥`} />
         <Tile k="资产" v={assets.length} f={`${assets.filter((r) => r.total == null).length} 件单件，${assets.filter((r) => r.total != null).length} 种成批`} />

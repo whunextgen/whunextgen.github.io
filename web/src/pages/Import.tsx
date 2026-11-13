@@ -99,7 +99,7 @@ export function SchoolImport({ finance }: { finance: boolean }) {
     return body.map((r, i) => { const amount = amt(at(r, 'amount')), on = date(at(r, 'date')), voucher = (at(r, 'voucher') ?? '').trim(), no = (at(r, 'no') ?? '').trim(), memo = at(r, 'memo') ?? '';
       const rid = manual ? at(r, 'rid') : undefined;
       const cand = amount == null ? [] : rid ? open.filter((q) => q.id === rid) : open.filter((q) => !taken.has(q.id) && Math.abs(num(q.amount) - amount) < 0.005 && (!no || cardNo.get(q.card_id ?? '') === no));
-      const why = amount == null || amount <= 0 ? '金额不是正数' : voucher && posted.has(voucher) ? '这个凭证号已经入过账' : cand.length === 0 ? '没有对上审核中的单据' : cand.length > 1 ? `有 ${cand.length} 笔金额相同，请到学校侧进度里手工入账` : !on ? '没有入账日期' : '';
+      const why = amount == null || amount <= 0 ? '金额不是正数' : voucher && posted.has(voucher) ? '这个凭证号已经入过账' : cand.length === 0 ? '没有对上审核中的单据' : cand.length > 1 ? `有 ${cand.length} 笔金额相同，请到入账跟踪里手工入账` : !on ? '没有入账日期' : '';
       const req = !why ? cand[0] : undefined; if (req) taken.add(req.id);
       return { i, amount, on, voucher, no, memo, req, why, ok: !why }; });
   }, [data, table, head, cols, kind, manual]);

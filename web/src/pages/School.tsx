@@ -96,7 +96,7 @@ export function School({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>学校侧进度：报销与入账</h2>
+      <div className="top"><h2>入账跟踪：报销</h2>
         {finance && <button onClick={() => setAdding(true)}>登记一笔</button>}</div>
 
       <section className="card">

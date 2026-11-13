@@ -18,14 +18,14 @@ export function Ask({ me }: { me: Me }) {
   const rows = data.rows.filter((r) => r.name.includes(kw.trim())).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
   return (
     <>
-      <div className="top"><h2>能不能报</h2>{can(me, 'read.finance') && <a className="btn ghost" href="#/rules">按经费卡看答复记录</a>}</div>
+      <div className="top"><h2>报销咨询</h2>{can(me, 'read.finance') && <a className="btn ghost" href="#/rules">报销答复记录</a>}</div>
       <p className="lede">花钱之前先在这里查这一类支出能不能报。结论来自学校财务的答复，由财务岗登记；查不到或者有争议的，先问财务岗再花。</p>
       <section className="card">
         <h3>按支出类型查</h3>
         <label className="field" style={{ maxWidth: 320 }}><span>支出类型</span><input value={kw} onChange={(e) => setKw(e.target.value)} placeholder="输入几个字，比如 差旅、接口" /></label>
         {rows.length === 0 ? <Empty>{data.rows.length === 0 ? '还没有登记支出类型。' : '没有叫这个名字的支出类型，换个说法试试，或者直接问财务岗。'}</Empty> : (
           <div className="scroll"><table>
-            <thead><tr><th>支出类型</th><th>能不能报</th><th>说明</th><th>最近答复</th></tr></thead>
+            <thead><tr><th>支出类型</th><th>结论</th><th>说明</th><th>最近答复</th></tr></thead>
             <tbody>{rows.map((r) => { const [text, tone, tip] = answer(r); return (
               <tr key={r.expense_type_id}><td>{r.name}{r.required_path && <span className="sub2">走{r.required_path}</span>}</td>
                 <td><Badge tone={tone}>{text}</Badge></td>

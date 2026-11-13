@@ -151,7 +151,7 @@ export function History({ staff }: { staff: boolean }) {
 
   return (
     <>
-      <div className="top"><h2>旧门户记录</h2></div>
+      <div className="top"><h2>历史数据</h2></div>
       <p className="lede">旧门户的数据按新系统的五步归类，只读。{staff ? '每一类都列出旧门户里有多少、转入新系统多少、新系统里现在实际有多少，三个数现算现比。' : '这里是你在旧门户里提交过的申请和领到的额度。'}</p>
       {staff && recon.length > 0 && (
         <div className="tiles">

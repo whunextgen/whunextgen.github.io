@@ -69,7 +69,7 @@ export function Overview({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>经费卡</h2>{can(me, 'card.manage') && <button onClick={() => setAdding(true)}>新建经费卡</button>}</div>
+      <div className="top"><h2>经费卡管理</h2>{can(me, 'card.manage') && <button onClick={() => setAdding(true)}>新建经费卡</button>}</div>
       <div className="tiles">
         <Tile k="现行预算" v={money(sum('cur'))} f={`${active.length} 张在用的卡`} />
         <Tile k="决算数 · 学校已入账" color={C.actual} v={money(sum('actual'))} meter={sum('cur') > 0 ? sum('actual') / sum('cur') : 0} f={`执行率 ${pct(sum('actual'), sum('cur'))}`} />

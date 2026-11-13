@@ -49,7 +49,7 @@ export function CapsPage({ me, start }: { me: Me; start: string }) {
   const [act, setAct] = useState<Act | null>(null);
   if (!data) return <Loading error={error} />;
   const years = data.years.slice().sort((a, b) => b.year - a.year);
-  if (years.length === 0) return <><div className="top"><h2>上限与机动</h2></div><Empty>还没有开始任何年度的预算。年度开始之后，在这里给每个大项目定上限。</Empty></>;
+  if (years.length === 0) return <><div className="top"><h2>预算控制</h2></div><Empty>还没有开始任何年度的预算。年度开始之后，在这里给每个大项目定上限。</Empty></>;
   const y = years.find((x) => x.year === Number(start)) ?? years.find((x) => x.stage !== 'closed') ?? years[0];
   const year = y.year, open = y.stage !== 'closed';
   const bigs = data.projects.filter((p) => capped(p) && p.active).sort((a, b) => a.code.localeCompare(b.code));
@@ -60,7 +60,7 @@ export function CapsPage({ me, start }: { me: Me; start: string }) {
   const pending = data.reqs.filter((x) => x.status === 'pending'), past = data.reqs.filter((x) => x.status !== 'pending' && x.year === year).sort((a, b) => b.created_at.localeCompare(a.created_at));
   return (
     <>
-      <div className="top"><div className="crumb">{STAGE_TEXT[y.stage]}</div><h2>{year} 年度上限与机动</h2></div>
+      <div className="top"><div className="crumb">{STAGE_TEXT[y.stage]}</div><h2>{year} 年度预算控制</h2></div>
       {years.length > 1 && <div className="tabs" style={{ marginBottom: 16 }}>{years.map((n) => <a key={n.year} className="btn sm" aria-current={n.year === year ? 'page' : undefined} href={`#/caps/${n.year}`}>{n.year}</a>)}</div>}
       <p className="lede">每个大项目一年能排多少预算，由中心负责人按档定上限；大项目连同下面论文项目的预算合计不能超过它。各项目上限合计比年度总预算少的那一块是机动，留给年中提高上限和超预算的支出。</p>
       <div className="tiles">
