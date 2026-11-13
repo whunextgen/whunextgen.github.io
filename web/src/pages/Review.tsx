@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { rpc, useViews, type BudgetAlloc, type BudgetCategory, type BudgetReview, type BudgetRevision, type BudgetShift, type BudgetYear, type LineExec, type Me, type Project } from '../api';
+import { rpc, useViews, type BudgetAlloc, type BudgetCategory, type BudgetReview, type BudgetRevision, type BudgetShift, type BudgetYear, type LineExec, type Me, type Project, type YearCheck } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, Tile, day, money, num, pct, today, type Field } from '../ui';
 
 interface Act { title: string; hint?: string; fields: Field[]; submitLabel?: string; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
@@ -9,8 +9,8 @@ const QN = ['1–3 月', '4–6 月', '7–9 月', '10–12 月'];
 // 07 复盘与决算：每三个月按项目对一次计划和实际，复盘时可以调整核定数；年末做年度决算，未用的预算不结转。
 export function Review({ me, start }: { me: Me; start: string }) {
   const staff = can(me, 'budget.review'), director = can(me, 'budget.approve'), seesCards = can(me, 'read.finance');
-  const { data, error, reload } = useViews<{ years: BudgetYear[]; projects: Project[]; cats: BudgetCategory[]; exec: LineExec[]; allocs: BudgetAlloc[]; revisions: BudgetRevision[]; reviews: BudgetReview[]; shifts: BudgetShift[] }>({
-    years: ['budget_year'], projects: ['project'], cats: ['budget_category'], exec: ['line_exec'], allocs: ['budget_alloc'], revisions: ['budget_revision'], reviews: ['budget_review'], shifts: ['budget_shift'],
+  const { data, error, reload } = useViews<{ years: BudgetYear[]; projects: Project[]; cats: BudgetCategory[]; exec: LineExec[]; allocs: BudgetAlloc[]; revisions: BudgetRevision[]; reviews: BudgetReview[]; shifts: BudgetShift[]; checks: YearCheck[] }>({
+    years: ['budget_year'], projects: ['project'], cats: ['budget_category'], exec: ['line_exec'], allocs: ['budget_alloc'], revisions: ['budget_revision'], reviews: ['budget_review'], shifts: ['budget_shift'], checks: ['year_check'],
   });
   const [act, setAct] = useState<Act | null>(null);
   const [open, setOpen] = useState('');
@@ -47,16 +47,8 @@ export function Review({ me, start }: { me: Me; start: string }) {
     hint: `现在核定 ${money(l.fixed)}，已用 ${money(l.used)}（含在途）。调减不能低于已用，多下达的部分自动从经费卡上收回；调增的部分要到年度预算页补下达。各项目核定数合计不能超过年度总预算。`,
     fields: [{ name: 'amount', label: '新的核定数（元）', type: 'number', value: String(num(l.fixed)) }, { name: 'note', label: '调整原因' }],
     run: (v) => rpc('revise_fixed', { id: l.id, amount: v.amount, note: v.note }).then(reload) });
-  // 调剂：项目内各预算行之间挪，全年累计不超过项目年度预算的 10% 负责人自己定，超过的交中心负责人批
-  const shiftAct = (p: Project, rows: LineExec[]): Act => { const total = sum(rows, 'fixed');
-    const done = data.shifts.filter((s) => s.year === year && s.project_id === p.id && s.status === 'applied' && !s.decided_by_name).reduce((t, s) => t + num(s.amount), 0);
-    return { title: `预算调剂：${p.name}`, submitLabel: '调剂',
-      hint: `在这个项目 ${year} 年度的预算行之间挪，项目的核定数合计不变。调出行只能调还没用的部分。今年自己已经调了 ${money(done)}，累计不超过年度预算的 10%（${money(total * 0.1)}）直接生效；超过的交中心负责人批，批之前不生效。`,
-      fields: [{ name: 'from_line', label: '从哪一行调出', options: rows.filter((l) => num(l.fixed) - num(l.used) > 0).map((l): [string, string] => [l.id, `${l.purpose}，还剩 ${money(num(l.fixed) - num(l.used))}`]) },
-        { name: 'to_line', label: '调到哪一行', options: rows.map((l): [string, string] => [l.id, `${l.purpose}，核定 ${money(l.fixed)}`]) },
-        { name: 'amount', label: '金额（元）', type: 'number' }, { name: 'note', label: '原因' }],
-      run: (v) => rpc('shift_budget', { from_line: v.from_line, to_line: v.to_line, amount: v.amount, note: v.note }).then(reload) }; };
   const pendingShifts = data.shifts.filter((s) => s.year === year && s.status === 'pending');
+  const checked = data.checks.filter((k) => k.year === year && k.actual != null), off = checked.filter((k) => num(k.diff) !== 0);
 
   return (
     <>
@@ -77,16 +69,15 @@ export function Review({ me, start }: { me: Me; start: string }) {
 
           <section className="card">
             <h3>按项目复盘</h3>
-            <p className="hint">每三个月对一次：到这一期末计划花多少、学校实际入账多少。各期计划按申报时的分期比例摊到核定数上。入账不到计划的 70% 标为落后。复盘结论由财务岗和中心负责人记，项目负责人看得到。</p>
+            <p className="hint">每三个月对一次：到这一期末计划花多少、学校实际入账多少。各期计划按申报时的分期比例摊到核定数上。入账不到计划的 70% 标为落后。复盘结论由财务岗和中心负责人记，项目负责人看得到。预算行之间的调剂在项目页里做，点项目名进去。</p>
             <div className="scroll"><table>
               <thead><tr><th>项目</th><th className="r">核定数</th><th className="r">已入账</th><th>进度</th><th>本期复盘</th><th /></tr></thead>
               <tbody>{projects.map(({ p, rows }) => { const pl = plan(rows, Math.max(quarter, 1)), ac = sum(rows, 'actual'), rv = reviewOf(p.id, Math.max(quarter, 1)); return (
-                <tr key={p.id}><td>{p.name}<span className="sub2">{p.code}{p.owner_name ? ` · ${p.owner_name}` : ''}</span></td>
+                <tr key={p.id}><td><a href={`#/project/${p.id}/${year}`}>{p.name}</a><span className="sub2">{p.code}{p.owner_name ? ` · ${p.owner_name}` : ''}</span></td>
                   <td className="r">{money(sum(rows, 'fixed'))}</td><td className="r">{money(ac)}<div className="sub2">在途 {money(sum(rows, 'used') - ac)}</div></td>
                   <td>{quarter === 0 || pl === 0 ? '—' : ac < pl * 0.7 ? <Badge tone="bad">落后，差 {money(pl - ac)}</Badge> : <Badge tone="ok">正常</Badge>}{quarter > 0 && pl > 0 && <div className="sub2">到第 {quarter} 期末计划 {money(pl)}</div>}</td>
                   <td className="wrap">{rv ? <><Badge tone="ok">已复盘</Badge><span className="sub2">{rv.reviewed_by_name ?? ''} {day(rv.reviewed_at)}</span></> : quarter === 0 ? '—' : <Badge tone="warn">还没复盘</Badge>}</td>
                   <td><div className="acts"><button className="sm ghost" aria-pressed={open === p.id} onClick={() => setOpen(open === p.id ? '' : p.id)}>明细</button>
-                    {p.mine && p.kind !== 'public' && editable && rows.length > 1 && !pendingShifts.some((s) => s.project_id === p.id) && <button className="sm ghost" onClick={() => setAct(shiftAct(p, rows))}>调剂</button>}
                     {staff && editable && quarter > 0 && <button className="sm ghost" onClick={() => setAct(reviewAct(p, rows))}>{rv ? '改复盘' : '写复盘'}</button>}</div></td></tr>); })}</tbody>
             </table></div>
           </section>
@@ -163,6 +154,24 @@ export function Review({ me, start }: { me: Me; start: string }) {
                 : <span className="sub2">可以决算了，请中心负责人确认。</span>}
             </div>}
           </section>
+
+          {can(me, 'read.resource') && (
+            <section className="card">
+              <h3>年末盘点差异 <span className="h3sub">{checked.length === 0 ? '还没盘' : `已盘 ${checked.length} 项，${off.length} 项对不上`}</span><a className="more" href="#/stock">库存与盘点 →</a></h3>
+              <p className="hint">年末把接口额度和设备实盘一遍，和账面对不上的列在这里，决算之前要有说明。盘点在「库存与盘点」里登记。</p>
+              {checked.length === 0 ? <Empty>{year} 年末盘点还没有登记。</Empty> : off.length === 0 ? <Empty>已盘的 {checked.length} 项和账面都对得上。</Empty> : (
+                <div className="scroll"><table>
+                  <thead><tr><th>资源</th><th>类型</th><th className="r">账面</th><th className="r">实盘</th><th className="r">差异</th><th>说明</th><th>盘点</th></tr></thead>
+                  <tbody>{off.map((k) => (
+                    <tr key={k.resource_id}><td>{k.resource_name}</td><td>{k.kind === 'api' ? '接口额度' : '设备'}</td>
+                      <td className="r">{num(k.book)}{k.unit ? ` ${k.unit}` : ''}</td><td className="r">{num(k.actual)}{k.unit ? ` ${k.unit}` : ''}</td>
+                      <td className="r neg">{num(k.diff) > 0 ? '+' : ''}{num(k.diff)}</td><td className="wrap">{k.note ?? <Badge tone="warn">还没写说明</Badge>}</td>
+                      <td>{k.checked_by_name ?? '—'}<span className="sub2">{k.checked_at ? day(k.checked_at) : ''}</span></td></tr>
+                  ))}</tbody>
+                </table></div>
+              )}
+            </section>
+          )}
         </>
       )}
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.submitLabel} danger={act.danger} onSubmit={act.run} onClose={() => setAct(null)} />}

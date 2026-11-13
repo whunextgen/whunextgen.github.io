@@ -17,7 +17,7 @@ export const canPublic = (k?: string | null) => k === 'postdoc' || k === 'phd' |
 export const FUND_KIND: Record<string, string> = { vertical: '纵向', fiscal: '财政', horizontal: '横向' };
 export const END_RULE: Record<string, string> = { recall: '到期回收', carry: '结转', return: '结余上缴' };
 export const REQ: Record<ReqStatus, [string, string]> = {
-  pending: ['待审批', 'warn'], committed: ['已批准', 'pri'], at_school: ['学校审核中', 'pri'], posted: ['已入账', 'ok'],
+  pending: ['待确认', 'warn'], committed: ['待交学校', 'pri'], at_school: ['学校审核中', 'pri'], posted: ['已入账', 'ok'],
   returned: ['被退回', 'bad'], released: ['已释放', ''], rejected: ['已驳回', ''],
 };
 // 待批的申请停在哪一步
@@ -126,8 +126,8 @@ export function ActionDialog({ title, hint, fields, submitLabel = '确认', dang
   );
 }
 
-// 一笔申请走到哪一步：申请 → 批准 → 交学校 → 入账。已驳回、已释放的不画
-export const FLOW = ['申请', '批准', '交学校', '入账'];
+// 一笔申请走到哪一步：申请 → 确认 → 交学校 → 入账。已驳回、已释放的不画
+export const FLOW = ['申请', '确认', '交学校', '入账'];
 export function Flow({ status }: { status: ReqStatus }) {
   const at = ({ pending: 1, committed: 2, returned: 2, at_school: 3, posted: 4, released: -1, rejected: -1 } as Record<ReqStatus, number>)[status];
   if (at < 0) return null;

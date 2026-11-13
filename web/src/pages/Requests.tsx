@@ -126,10 +126,10 @@ function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: 
       } else if (split) {
         await rpc('submit_split', { expense_type_id: v.expense_type_id, title: v.title, eta_date: v.eta_date, path, quota_id: v.quota_id,
           parts: parts.map((p) => ({ card_id: p.card_id, subject_id: p.subject_id, amount: Math.round(num(p.amount) * 100) / 100 })) });
-        onDone(`已提交：${v.title}，分摊 ${parts.length} 处，合计 ${money(total)}。等待中心负责人逐笔批准。`);
+        onDone(`已提交：${v.title}，分摊 ${parts.length} 处，合计 ${money(total)}。接下来逐笔确认、核对。`);
       } else {
         await rpc('submit_request_quota', { ...v, path });
-        onDone(`已提交：${v.title}，${money(v.amount)}。等待中心负责人批准。`);
+        onDone(`已提交：${v.title}，${money(v.amount)}。接下来等项目负责人确认、财务岗核对。`);
       }
     } catch (err) { setError((err as Error).message); setBusy(false); }
   };
@@ -245,7 +245,7 @@ export function Requests({ me, start = '' }: { me: Me; start?: string }) {
             onDone={(msg) => { setAdding(false); setDone(msg); setTab('open'); reload(); }} />)}
       <section className="card">
         <h3>{staff ? '全部申请' : data.projects.some((p) => p.mine) ? '我的申请和我负责的项目的申请' : '我的申请'}</h3>
-        <p className="hint">每笔申请走四步：申请、批准、交学校、入账。状态下面的四格表示走到了哪一步，金色是现在停的地方。从项目预算行提的，批准这一步分成项目负责人确认、财务岗核对两道；超出预算行的中间再加中心负责人批。{staff && '负责人本人提交的没有另一位确认，单独列出来备查。'}</p>
+        <p className="hint">每笔申请走四步：申请、确认、交学校、入账。状态下面的四格表示走到了哪一步，金色是现在停的地方。确认这一步分成项目负责人确认、财务岗核对两道；超出预算行的中间再加中心负责人批。{staff && '负责人本人提交的没有另一位确认，单独列出来备查。'}</p>
         <div className="tabs" style={{ marginBottom: 12 }}>
           {tabs.map(([k, label]) => <button key={k} className="sm" aria-pressed={tab === k} onClick={() => setTab(k)}>{label}</button>)}
         </div>

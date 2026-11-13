@@ -1,6 +1,8 @@
-import { useViews, type Card, type Me, type Node } from '../api';
+import { useState } from 'react';
+import { useViews, type Card, type Me, type Node, type Template, type User } from '../api';
+import { cardFields, saveCard } from './Admin';
 import { Bullets, C, Donut } from '../charts';
-import { Badge, Bar, Empty, END_RULE, FUND_KIND, Loading, can, Tile, day, money, num, pct, today, useCount } from '../ui';
+import { ActionDialog, ROLE, Badge, Bar, Empty, END_RULE, FUND_KIND, Loading, can, Tile, day, money, num, pct, today, useCount } from '../ui';
 
 // 节点状态：预测 = 已入账 + 预计在节点日前入账的承诺
 export function nodeState(n: Node, now = today()) {
@@ -43,14 +45,15 @@ export function Hero({ cur, actual, commit, avail, cards, now }: { cur: number; 
       <dl className="hero-stats">
         <div><dt><i className="key r" />现行预算</dt><dd>{money(cur)}</dd></div>
         <div><dt><i className="key a" />决算数 · 学校已入账</dt><dd>{money(actual)}<span>{pct(actual, cur)}</span></dd></div>
-        <div><dt><i className="key c" />承诺 · 已批准未入账</dt><dd>{money(commit)}<span>{pct(commit, cur)}</span></dd></div>
+        <div><dt><i className="key c" />承诺 · 已核对未入账</dt><dd>{money(commit)}<span>{pct(commit, cur)}</span></dd></div>
       </dl>
     </section>
   );
 }
 
 export function Overview({ me }: { me: Me }) {
-  const { data, error } = useViews<{ cards: Card[]; nodes: Node[] }>({ cards: ['card'], nodes: ['node'] });
+  const { data, error, reload } = useViews<{ cards: Card[]; nodes: Node[]; templates: Template[]; users: User[] }>({ cards: ['card'], nodes: ['node'], templates: ['template'], users: ['users'] });
+  const [adding, setAdding] = useState(false);
   if (!data) return <Loading error={error} />;
   const now = today();
   const cards = [...data.cards].sort((a, b) => a.cutoff_date.localeCompare(b.cutoff_date));
@@ -66,11 +69,11 @@ export function Overview({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>经费卡与节点</h2></div>
+      <div className="top"><h2>经费卡</h2>{can(me, 'card.manage') && <button onClick={() => setAdding(true)}>新建经费卡</button>}</div>
       <div className="tiles">
         <Tile k="现行预算" v={money(sum('cur'))} f={`${active.length} 张在用的卡`} />
         <Tile k="决算数 · 学校已入账" color={C.actual} v={money(sum('actual'))} meter={sum('cur') > 0 ? sum('actual') / sum('cur') : 0} f={`执行率 ${pct(sum('actual'), sum('cur'))}`} />
-        <Tile k="承诺 · 已批准未入账" color={C.commit} v={money(sum('commit'))} meter={sum('cur') > 0 ? sum('commit') / sum('cur') : 0} f={`占预算 ${pct(sum('commit'), sum('cur'))}`} />
+        <Tile k="承诺 · 已核对未入账" color={C.commit} v={money(sum('commit'))} meter={sum('cur') > 0 ? sum('commit') / sum('cur') : 0} f={`占预算 ${pct(sum('commit'), sum('cur'))}`} />
         <Tile k="可用" v={money(sum('avail'))} tone={sum('avail') < 0 ? 'bad' : ''} f="预算 − 承诺 − 决算" />
       </div>
       {active.length > 0 && (
@@ -117,6 +120,7 @@ export function Overview({ me }: { me: Me }) {
                   <div className="fund-num"><span>可用</span><b className={num(c.avail) < 0 ? 'neg' : ''}>{money(c.avail)}</b></div>
                   <Bar cur={num(c.cur)} actual={num(c.actual)} commit={num(c.commit)} />
                   <div className="fund-foot"><span>执行 {pct(num(c.actual), num(c.cur))}</span><span>预算 {money(c.cur)}</span><span>截止 {day(c.cutoff_date)}</span></div>
+                  <div className="fund-foot"><span>总金额 {c.total_amount != null ? money(c.total_amount) : '没填'}</span><span>执行年限 {c.period_start && c.period_end ? `${day(c.period_start)} 至 ${day(c.period_end)}` : '没填'}</span></div>
                 </a>
               ))}
             </div>
@@ -137,6 +141,8 @@ export function Overview({ me }: { me: Me }) {
           </table></div>
         )}
       </section>
+      {adding && <ActionDialog title="新建经费卡" fields={cardFields(data.templates.map((t): [string, string] => [t.id, t.name]), data.users.filter((u) => u.active).map((u): [string, string] => [u.id, `${u.name}（${ROLE[u.role]}）`]))}
+        submitLabel="新建" onSubmit={(v) => saveCard(null, v).then(reload)} onClose={() => setAdding(false)} />}
     </>
   );
 }

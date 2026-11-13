@@ -20,7 +20,7 @@ export function Desk({ me }: { me: Me }) {
   const linked = (id: string) => subs.filter((s) => data.map.some((m) => m.category_id === id && m.subject_id === s.id));
   return (
     <>
-      <div className="top"><h2>财务工作台</h2></div>
+      <div className="top"><h2>预算设置</h2></div>
       <p className="lede">年度预算的截止日、预算科目和它对应的学校科目在这里调整，学校系统导出的文件也在这里导入；经费卡、对账和用户在上面的分页里。</p>
       <section className="card">
         <h3>年度预算</h3>

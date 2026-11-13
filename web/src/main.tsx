@@ -20,6 +20,9 @@ import { BudgetPage } from './pages/Budget';
 import { Projects } from './pages/Projects';
 import { Desk } from './pages/Desk';
 import { Review } from './pages/Review';
+import { Ask } from './pages/Ask';
+import { CapsPage } from './pages/Caps';
+import { ProjectPage } from './pages/Project';
 import '@fontsource/instrument-serif/latin-400.css';
 import '@fontsource/instrument-serif/latin-400-italic.css';
 import '@fontsource/jetbrains-mono/latin-400.css';
@@ -87,26 +90,35 @@ function App() {
   const seesPeople = can(me, 'read.people'), seesRes = can(me, 'read.resource');
   const seesDesk = can(me, 'budget.setup', 'ledger.post');
   const seesAdmin = can(me, 'read.admin', 'rbac.manage', 'user.manage', 'rule.manage', 'card.manage');
-  // 导航按谁来办分组：每个人都用的、按项目看的、财务岗办理的、经费卡、设置
+  const seesCaps = can(me, 'budget.approve', 'budget.setup'), seesReview = can(me, 'budget.review'), seesLegacy = can(me, 'read.legacy') || seesAdmin;
+  // 导航按谁来办分组：每个人都用的、按项目看的、财务岗办理的、经费卡、年度、设置
   type Page = [string, string];
   const keep = (...p: (Page | false)[]) => p.filter(Boolean) as Page[];
   const groups = [
-    { label: '我的', pages: keep(['/', '总览'], ['/requests', '支出申请'], ['/resource', '资源申领'], ['/petty', '备用金']) },
-    { label: '项目', pages: keep(['/projects', '项目'], ['/budget', '年度预算'], ['/review', '复盘与决算']) },
-    { label: '财务办理', pages: keep(seesCards && ['/procure', '采购跟踪'], seesCards && ['/school', '学校侧进度'], seesPeople && ['/staff', '人员费'], seesRes && ['/pool', '需求池与分发'], seesRes && ['/stock', '资源池与库存']) },
-    { label: '经费卡', pages: keep(seesCards && ['/cards', '经费卡与节点'], seesCards && ['/settle', '经费卡结清'], seesCards && ['/rules', '可报销规则'], seesCards && ['/quota', '晨星额度']) },
-    { label: '设置', pages: keep(seesDesk && ['/desk', '预算设置'], seesAdmin && ['/admin', '用户、权限与规则'], ['/history', '旧门户记录']) },
+    { label: '我的', pages: keep(['/', '总览'], ['/requests', '支出申请'], ['/resource', '资源与设备'], ['/petty', '备用金'], ['/ask', '能不能报']) },
+    { label: '项目', pages: keep(['/projects', '项目'], ['/budget', '年度预算']) },
+    { label: '财务办理', pages: keep(seesCards && ['/school', '学校侧进度'], seesPeople && ['/staff', '人员费'], seesRes && ['/pool', '资源分发'], seesRes && ['/stock', '库存与盘点']) },
+    { label: '经费卡', pages: keep(seesCards && ['/cards', '经费卡'], seesCards && ['/settle', '结清'], seesCards && ['/quota', '晨星额度']) },
+    { label: '年度', pages: keep(seesCaps && ['/caps', '上限与机动'], seesReview && ['/review', '复盘与决算'], seesDesk && ['/desk', '预算设置']) },
+    { label: '设置', pages: keep(seesAdmin && ['/admin', '用户与权限'], seesLegacy && ['/history', '旧门户记录']) },
   ].filter((g) => g.pages.length > 0);
   // 不在导航里、从别的页面点进去的页面
-  const side = keep(['/track', '在途事项']);
+  const side = keep(['/track', '在途事项'], seesCards && ['/rules', '按经费卡的答复记录'], !seesReview && ['/review', '复盘与决算'], !seesLegacy && ['/history', '旧门户记录']);
 
   const cardId = seesCards ? route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1] : undefined;
-  const [, seg = '', arg = ''] = route.split('/');
+  const proj = route.match(/^\/project\/([^/]+)(?:\/(\d{4}))?$/);
+  const [, seg0 = '', arg = ''] = route.split('/');
+  // 采购并进学校侧进度，旧的 #/procure 链接照样能用
+  const procure = seg0 === 'procure' || (seg0 === 'school' && arg === 'procure');
+  const seg = seg0 === 'procure' ? 'school' : seg0;
   const allowed = new Set([...groups.flatMap((g) => g.pages), ...side].map(([to]) => to));
-  const current = cardId ? '/cards' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
+  const current = cardId ? '/cards' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
   const group = groups.find((g) => g.pages.some(([to]) => to === current));
   const page = cardId ? <CardPage me={me} id={cardId} />
+    : proj ? <ProjectPage me={me} id={proj[1]} start={proj[2] ?? ''} />
     : current === '/budget' ? <BudgetPage me={me} start={arg} />
+    : current === '/caps' ? <CapsPage me={me} start={arg} />
+    : current === '/ask' ? <Ask me={me} />
     : current === '/projects' ? <Projects me={me} />
     : current === '/desk' ? <Desk me={me} />
     : current === '/cards' ? <Overview me={me} />
@@ -114,8 +126,12 @@ function App() {
     : current === '/rules' ? <Rules me={me} />
     : current === '/requests' ? <Requests me={me} start={arg} />
     : current === '/staff' ? <StaffPage me={me} />
-    : current === '/procure' ? <Procure me={me} />
-    : current === '/school' ? <School me={me} />
+    : current === '/school' ? <>
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        <a className="btn sm" aria-current={procure ? undefined : 'page'} href="#/school">报销与入账</a>
+        <a className="btn sm" aria-current={procure ? 'page' : undefined} href="#/school/procure">采购</a>
+      </div>
+      {procure ? <Procure me={me} /> : <School me={me} />}</>
     : current === '/review' ? <Review me={me} start={arg} />
     : current === '/settle' ? <Settle me={me} />
     : current === '/resource' ? <ResourcePage me={me} />

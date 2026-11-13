@@ -144,7 +144,7 @@ export function Admin({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>用户、权限与规则</h2></div>
+      <div className="top"><h2>用户与权限</h2></div>
       <div className="tabs" style={{ marginBottom: 18 }}>
         {tabs.map(([k, label]) => <button key={k} className="sm" aria-pressed={tab === k} onClick={() => setTab(k)}>{label}</button>)}
       </div>

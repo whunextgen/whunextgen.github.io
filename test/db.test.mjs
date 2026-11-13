@@ -236,6 +236,9 @@ await raises('未登录不能提交', /当前角色/, submit, [C.A, sub('A', 'ma
 await as(U.mem, '2026-09-05');
 eq((await q(`select * from api.card_pick`)).length, 0, '成员看不到经费卡，也选不了卡');
 eq((await q(`select * from api.rule`)).length, 0, '成员看不到按卡的报销规则');
+{ const lk = await q(`select * from api.rule_lookup`);
+  ok(lk.length > 0 && lk.some((r) => r.can_yes || r.has_no || r.has_cond), '成员能查一类支出能不能报');
+  ok(lk.every((r) => !('card_id' in r) && !('card_no' in r)), '能不能报的查询里不带经费卡'); }
 eq((await q(`select * from api.card`)).length, 0, '成员看不到卡的金额');
 eq((await q(`select * from api.staff`)).length, 0, '成员看不到人员费');
 ok((await q(`select * from api.request`)).every(r => r.requested_by === U.mem), '成员只看到自己的申请');

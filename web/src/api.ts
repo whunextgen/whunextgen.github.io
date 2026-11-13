@@ -152,6 +152,7 @@ export interface ProjectAllocation { id: string; project_id: string; resource_id
   quota: string | null; used: string | null; used_on: string | null; from_date: string; to_date: string | null; returned_on: string | null; current: boolean }
 export interface YearCheck { year: number; resource_id: string; kind: 'api' | 'asset'; resource_name: string; unit: string | null; book_now: string; book: string | null; actual: string | null; diff: string | null;
   note: string | null; checked_by_name: string | null; checked_at: string | null }
+export interface RuleLookup { expense_type_id: string; name: string; required_path: string | null; can_yes: boolean; has_cond: boolean; has_no: boolean; disputed: boolean; notes: string | null; ruled_on: string | null }
 export interface BudgetCategory { id: string; code: string; name: string; labor: boolean; sort: number; active: boolean }
 export interface BudgetYear { year: number; due_date: string; stage: BudgetStage; applied_on: string | null; granted_on: string | null; approved_at: string | null; approved_by_name: string | null;
   granted_amount: string | null; fixed_total: string | null; issued_at: string | null; closed_at: string | null }

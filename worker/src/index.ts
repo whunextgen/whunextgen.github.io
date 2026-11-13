@@ -22,7 +22,7 @@ const VIEWS = new Set(['me', 'users', 'card_pick', 'subject', 'expense_type', 'c
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
-  'project_member', 'people_pick', 'project_cap', 'cap_request', 'budget_shift', 'project_asset', 'project_allocation', 'year_check']);
+  'project_member', 'people_pick', 'project_cap', 'cap_request', 'budget_shift', 'project_asset', 'project_allocation', 'year_check', 'rule_lookup']);
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
 const RPC: Record<string, [string, string][]> = {

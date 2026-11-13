@@ -60,7 +60,7 @@ export function Rules({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>可报销规则</h2>
+      <div className="top"><h2>按经费卡的答复记录</h2>
         {staff && <button onClick={() => setAdding(!adding)} className={adding ? 'ghost' : ''}>{adding ? '收起' : '记录一条答复'}</button>}</div>
       {adding && <NewRuling cards={cards} types={types} onDone={() => { setAdding(false); reload(); }} />}
 

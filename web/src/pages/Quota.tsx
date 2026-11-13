@@ -57,7 +57,7 @@ export function QuotaPage({ me }: { me: Me }) {
               <th className="r">第 {rows[0].quarter} 季度末应执行</th><th>执行</th><th className="r">劳务类</th><th /></tr></thead>
             <tbody>{rows.map((q) => { const left = num(q.amount) - num(q.used); return (
               <tr key={q.id}><td>{q.leader_name}{q.leader_id === me.id && <span className="sub2"> 我</span>}</td>
-                <td>{q.project_id ? <a href="#/projects">{maps.project.get(q.project_id)?.name ?? '已转成项目'}<span className="sub2">{maps.project.get(q.project_id)?.code ?? ''}</span></a> : <Badge tone="warn">还没转</Badge>}</td>
+                <td>{q.project_id ? <a href={`#/project/${q.project_id}`}>{maps.project.get(q.project_id)?.name ?? '已转成项目'}<span className="sub2">{maps.project.get(q.project_id)?.code ?? ''}</span></a> : <Badge tone="warn">还没转</Badge>}</td>
                 <td className="r">{money(q.amount)}</td><td className="r">{money(q.used)}</td><td className={`r ${left < 0 ? 'neg' : ''}`}>{money(left)}</td>
                 <td className="r">{money(q.actual)}</td><td className="r">{money(q.due)}</td>
                 <td>{q.quarter === 0 ? '—' : q.behind ? <Badge tone="bad">落后，差 {money(num(q.due) - num(q.actual))}</Badge> : <Badge tone="ok">正常</Badge>}</td>

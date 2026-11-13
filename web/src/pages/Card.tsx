@@ -122,7 +122,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   return (
     <>
       <div className="top">
-        <div className="crumb"><a href="#/cards">经费卡与节点</a> / {c.card_no}</div>
+        <div className="crumb"><a href="#/cards">经费卡</a> / {c.card_no}</div>
         <h2>{c.name}</h2>
         {c.status === 'settled' ? <Badge>已结清</Badge> : <Badge tone={day(c.cutoff_date) < now ? 'bad' : 'ok'}>{day(c.cutoff_date) < now ? '已过单据截止' : '在用'}</Badge>}
         {canSettle && <button className="ghost" onClick={() => setAct({ label: '结清', title: '结清这张卡',
