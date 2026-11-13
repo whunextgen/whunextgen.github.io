@@ -101,7 +101,7 @@ export function TrackPage({ me }: { me: Me }) {
   const WAIT: Record<string, string> = { pending: '中心负责人批准', committed: '财务岗把单据交学校', at_school: '学校入账', returned: '财务岗改卡或释放' };
   const items: Item[] = [
     ...data.reqs.filter((r) => r.status in WAIT).map((r): Item => ({ id: r.id, type: '支出申请', flag: r.emergency ? '紧急' : '', title: r.title, sub: r.code ?? '',
-      who: r.requested_by === me.id ? '我' : name.get(r.requested_by ?? '') ?? '—', amount: money(r.amount), at: r.created_at, wait: WAIT[r.status], badge: REQ[r.status], href: `#/requests/${r.status}` })),
+      who: r.requested_by === me.id ? '我' : name.get(r.requested_by ?? '') ?? '—', amount: money(r.amount), at: r.created_at, wait: r.status === 'pending' && r.step ? { confirm: '项目负责人确认', director: '中心负责人批准', check: '财务岗核对' }[r.step] ?? WAIT.pending : WAIT[r.status], badge: REQ[r.status], href: `#/requests/${r.status}` })),
     ...data.petty.filter((r) => r.status === 'pending' || r.status === 'approved').map((r): Item => ({ id: r.id, type: '备用金', flag: '', title: r.purpose, sub: '',
       who: r.requested_by === me.id ? '我' : r.requester_name, amount: money(r.amount), at: r.created_at, wait: r.status === 'pending' ? '中心负责人审批' : '财务岗凭票核销', badge: PETTY[r.status], href: '#/petty' })),
     ...data.res.filter((r) => ['pending', 'reviewed', 'approved'].includes(r.status)).map((r): Item => ({ id: r.id, type: '资源申请', flag: r.urgent ? '加急' : '', title: r.purpose,
@@ -114,7 +114,7 @@ export function TrackPage({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>审批跟踪</h2></div>
+      <div className="top"><h2>在途事项</h2></div>
       <div className="tiles">
         <Tile k="在途事项" v={items.length} f={types.map((t) => `${t} ${items.filter((i) => i.type === t).length}`).join(' · ')} />
         <Tile k="紧急、加急" v={items.filter((i) => i.flag).length} f="排在最前面" tone={items.some((i) => i.flag) ? 'bad' : ''} />

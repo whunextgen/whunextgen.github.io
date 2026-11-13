@@ -229,7 +229,7 @@ export function Home({ me }: { me: Me }) {
 
       <div className="g2">
       <section className="card">
-        <h3>轮到你处理 {todo.length > 0 && <span className="h3sub">{todo.length} 件</span>}</h3>
+        <h3>轮到你处理 {todo.length > 0 && <span className="h3sub">{todo.length} 件</span>}<a className="more" href="#/track">全部在途事项 →</a></h3>
         {todo.length === 0 ? <Empty>现在没有等你处理的事。</Empty> : (
           <ul className="todo">{todo.map((t, i) => (
             <li key={i}><a href={t.href}><Badge tone={t.tone}>{t.tag}</Badge><span>{t.text}</span><span className="go">{t.go} →</span></a></li>
