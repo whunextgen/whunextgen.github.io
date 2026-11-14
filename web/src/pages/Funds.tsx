@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type Card, type FundProject, type Me, type Template, type User } from '../api';
-import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, FUND_SOURCE, Loading, ROLE, Tile, can, cardGranted, cardTotal, day, money, num, today, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, FUND_SOURCE, Loading, ROLE, Tile, can, cardGap, cardGranted, day, money, num, today, type Field } from '../ui';
 
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
@@ -151,7 +151,7 @@ export function Funds({ me }: { me: Me }) {
                 <thead><tr><th>年度</th><th>经费卡号</th><th>名称</th><th className="r">申请数</th><th className="r">下达数</th><th className="r">上年结转</th><th className="r">已用</th><th className="r">可用</th><th>单据截止</th><th>状态</th>{staff && <th />}</tr></thead>
                 <tbody>{cs.map((c) => (
                   <tr key={c.card_id}><td>{c.year}{outOf(p, c) && <> <Badge tone="warn">期限外</Badge></>}</td><td><a className="mono" href={`#/card/${c.card_id}`}>{c.card_no}</a></td><td>{c.name === p.name ? <span className="sub2">同项目</span> : c.name}</td>
-                    <td className="r">{c.applied != null ? money(c.applied) : '—'}</td><td className="r">{money(cardGranted(c))}{cardTotal(c) - num(c.cur) >= 0.005 && <div className="sub2" style={{ marginLeft: 0 }}>未分到科目 {money(cardTotal(c) - num(c.cur))}</div>}</td>
+                    <td className="r">{c.applied != null ? money(c.applied) : '—'}</td><td className="r">{money(cardGranted(c))}{cardGap(c) >= 0.005 && <div className="sub2" style={{ marginLeft: 0 }}>未分到科目 {money(cardGap(c))}</div>}</td>
                     <td className="r">{num(c.carried_in) > 0 ? money(c.carried_in) : '—'}</td><td className="r">{money(num(c.actual) + num(c.commit))}</td>
                     <td className={`r ${num(c.avail) < 0 ? 'neg' : ''}`}>{c.status === 'settled' ? '—' : money(c.avail)}</td>
                     <td>{day(c.cutoff_date)}{spans(c) && <> <Badge tone="warn">跨年</Badge></>}</td><td>{fate(c)}</td>

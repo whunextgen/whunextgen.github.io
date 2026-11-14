@@ -1576,6 +1576,26 @@ const kv = await val(`select open_card($1, 2032, '7021-N', null, '2032-01-05', '
 await q(`select set_budget($1, $2)`, [kv, lines({ biz: 50000 })]);
 await q(recH, [kv, SUB.N.biz, TY['耗材'], '纵向未填到账', 20000]);
 ok(Number((await card(kv)).actual) === 20000, '纵向经费不受到账限制');
+// 在经费卡上导入学校的明细账
+const fl = await val(`select save_fund_project(null, '海外样例项目', 'national', 'vertical', null, null, null, null, $1, 'carry') v`, [T.N]);
+const kl = await val(`select open_card($1, 2032, '7030-N', null, '2032-01-05', '2032-12-20', '2032-12-31') v`, [fl]);
+const led = JSON.stringify([
+  { posted_on: '2032-02-01', voucher_no: '(B)001', title: '样例差旅', amount: 700, school_code: '72-3021101', school_name: '非财政支出-国内差旅费' },
+  { posted_on: '2032-02-01', voucher_no: '(B)001', title: '样例盒饭', amount: 300, school_code: '72-3020103', school_name: '非财政支出-工作盒饭' }]);
+const imp = `select import_ledger($1, $2, $3, $4, $5, $6) v`;
+await raises('学校科目对不上又没选归属时不能导入', /未对应到该经费卡的科目/, imp, [kl, led, 100000, 99000, TY['耗材'], null]);
+await as(U.mem, '2032-06-01');
+await raises('成员不能导入明细账', /无权导入明细账/, imp, [kl, led, 100000, 99000, TY['耗材'], SUB.N.biz]);
+await as(U.fin, '2032-06-01');
+let ir = await val(imp, [kl, led, 100000, 99000, TY['耗材'], SUB.N.biz]);
+ok(ir.added === 2 && ir.skipped === 0 && Number(ir.amount) === 1000, '导入明细账：支出行记为已入账', JSON.stringify(ir));
+c = await card(kl);
+ok(Number(c.granted) === 100000 && Number(c.received) === 100000 && Number(c.cur) === 100000 && Number(c.actual) === 1000 && Number(c.avail) === 99000 && Number(c.school_balance) === 99000,
+  '导入明细账：收入合计写入下达数和已到账，余额写入学校余额，可用与学校余额一致', JSON.stringify([c.granted, c.received, c.cur, c.actual, c.avail, c.school_balance]));
+ir = await val(imp, [kl, led, 100000, 99000, TY['耗材'], SUB.N.biz]);
+ok(ir.added === 0 && ir.skipped === 2, '重复导入同一份明细账不重复写入', JSON.stringify(ir));
+const ss = await q(`select * from api.card_school_subject where card_id = $1 order by school_name`, [kl]);
+ok(ss.length === 2 && ss.some(x => x.school_name === '非财政支出-国内差旅费' && Number(x.amount) === 700), '已入账支出可按学校科目汇总', JSON.stringify(ss));
 // 旧入口直接建的卡自动补上经费项目
 await db.exec(`reset role`);
 const legacyCard = await one(`select c.year, p.name from fund_card c join fund_project p on p.id = c.project_id where c.card_no = '4131-A'`);

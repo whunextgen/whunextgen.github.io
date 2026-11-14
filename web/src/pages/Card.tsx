@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import { rpc, useViews, type Cap, type Card, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
-import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, can, cardGranted, cardTotal, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
+import { rpc, useViews, type Cap, type Card, type CardSchoolSubject, type ExpenseType, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
+import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, can, cardGap, cardGranted, cardTotal, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
 import { cardFields, saveCard } from './Admin';
+import { LedgerImport } from './Ledger';
 import { nodeState } from './Overview';
 import { RequestTable } from './Requests';
 import { LegacyAdjustList } from './Legacy';
@@ -92,8 +93,8 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   const [act, setAct] = useState<Act | null>(null);
   const [adding, setAdding] = useState(false);
   const [budgeting, setBudgeting] = useState(false);
-  const { data, error, reload } = useViews<{ card: Card[]; cells: Cell[]; nodes: Node[]; caps: Cap[]; changes: Change[]; reqs: Req[]; settle: SettleLine[]; templates: Template[]; users: User[] }>({
-    templates: ['template'], users: ['users'], card: ['card', f], cells: ['cell', f], nodes: ['node', f], caps: ['cap', f], changes: ['budget_change', f], reqs: ['request', f], settle: ['settlement', f],
+  const { data, error, reload } = useViews<{ card: Card[]; cells: Cell[]; nodes: Node[]; caps: Cap[]; changes: Change[]; reqs: Req[]; settle: SettleLine[]; templates: Template[]; users: User[]; types: ExpenseType[]; school: CardSchoolSubject[] }>({
+    types: ['expense_type'], school: ['card_school_subject', f], templates: ['template'], users: ['users'], card: ['card', f], cells: ['cell', f], nodes: ['node', f], caps: ['cap', f], changes: ['budget_change', f], reqs: ['request', f], settle: ['settlement', f],
   }, id);
   if (!data) return <Loading error={error} />;
   const c = data.card[0];
@@ -119,7 +120,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
     run: (v) => rpc('set_node', { card_id: c.card_id, node_date: n ? day(n.node_date) : v.node_date, ratio: Number(v.ratio) / 100, consequence: v.consequence }),
   });
   const diff = c.school_available != null ? num(c.avail) - num(c.school_available) : null;
-  const gap = cardTotal(c) - num(c.cur);   // 下达了但还没分到科目的部分
+  const gap = cardGap(c);   // 下达了但还没分到科目的部分
 
   return (
     <>
@@ -183,13 +184,27 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
                   <td className={`r ${num(x.avail) < 0 ? 'neg' : ''}`}>{money(x.avail)}</td>
                   <td><Bar cur={num(x.cur)} actual={num(x.actual)} commit={num(x.commit)} /></td></tr>
               ))}
-              <tr className="sum"><td>合计</td><td className="r">{money(c.orig)}</td><td className="r">{num(c.adj) ? money(c.adj) : '—'}</td><td className="r">{money(c.cur)}</td>
-                <td className="r">{money(c.actual)}</td><td className="r">{money(c.commit)}</td><td className="r">{money(c.avail)}</td><td /></tr>
+              <tr className="sum"><td>合计</td><td className="r">{money(c.orig)}</td><td className="r">{num(c.adj) ? money(c.adj) : '—'}</td><td className="r">{money(c.assigned ?? c.cur)}</td>
+                <td className="r">{money(c.actual)}</td><td className="r">{money(c.commit)}</td><td className="r">{money(num(c.assigned ?? c.cur) - num(c.actual) - num(c.commit))}</td><td /></tr>
             </tbody>
           </table></div>
         )}
         {cells.length > used.length && <p className="sub2">另有 {cells.length - used.length} 个科目无预算且无支出，未列出。</p>}
+        {gap >= 0.005 && <p className="sub2">当年下达数连同上年结转共 {money(c.cur)}，其中 {money(gap)} 尚未分到科目；本表合计为已分到科目的部分。</p>}
       </section>
+
+      {editable && <LedgerImport card={c} cells={cells} reqs={data.reqs} types={data.types} onDone={reload} />}
+
+      {data.school.length > 0 && (
+        <section className="card">
+          <h3>已入账支出 · 按学校科目 <span className="h3sub">来自导入的明细账</span></h3>
+          <div className="scroll"><table>
+            <thead><tr><th>学校科目</th><th>科目编号</th><th className="r">笔数</th><th className="r">金额</th></tr></thead>
+            <tbody>{[...data.school].sort((a, b) => num(b.amount) - num(a.amount)).map((s) => <tr key={s.school_name}><td>{s.school_name}</td><td className="code">{s.school_code ?? '—'}</td><td className="r">{s.n}</td><td className="r">{money(s.amount)}</td></tr>)}
+              <tr className="sum"><td>合计</td><td /><td className="r">{data.school.reduce((t, s) => t + s.n, 0)}</td><td className="r">{money(data.school.reduce((t, s) => t + num(s.amount), 0))}</td></tr></tbody>
+          </table></div>
+        </section>
+      )}
 
       <section className="card">
         <h3>比例上限</h3>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useViews, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task } from '../api';
-import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, cardGranted, cardTotal, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
+import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, cardGap, cardGranted, cardTotal, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Track, TreeNode, execSegs, type Seg } from '../tree';
 import { cardRisk, nodeState } from './Overview';
 import { KIND, STAGE_TEXT, STEP_OF } from './Budget';
@@ -135,7 +135,7 @@ export function Home({ me }: { me: Me }) {
   const ysum = (k: 'actual' | 'commit') => yearCards.reduce((s, c) => s + num(c[k]), 0);
   // 当年下达连同上年结转；填了下达数的卡取所填的数，没填的取明细合计
   const cur = yearCards.reduce((s, c) => s + cardTotal(c), 0), actual = ysum('actual'), commit = ysum('commit'), avail = cur - actual - commit;
-  const unassigned = yearCards.reduce((s, c) => s + Math.max(cardTotal(c) - num(c.cur), 0), 0);
+  const unassigned = yearCards.reduce((s, c) => s + cardGap(c), 0);
   const y0 = Date.parse(`${thisYear}-01-01`), y1 = Date.parse(`${thisYear + 1}-01-01`);
   const timeNow = Math.min(1, Math.max(0, (Date.parse(now) - y0) / (y1 - y0)));
   const funds = data.funds.filter((p) => !p.auto && p.status === 'active');
@@ -169,7 +169,7 @@ export function Home({ me }: { me: Me }) {
         {cs.map((c) => {
           const cells = data.cells.filter((x) => x.card_id === c.card_id && (num(x.cur) || num(x.commit) || num(x.actual))).sort((a, b) => a.sort - b.sort);
           const give = new Map<string, number>(); for (const a of data.allocs.filter((x) => x.card_id === c.card_id)) give.set(a.project_id, (give.get(a.project_id) ?? 0) + num(a.amount));
-          const out = [...give.values()].reduce((s, v) => s + v, 0), total = cardTotal(c), gap = Math.max(total - num(c.cur), 0), left = total - num(c.actual) - num(c.commit);
+          const out = [...give.values()].reduce((s, v) => s + v, 0), total = cardTotal(c), gap = cardGap(c), left = total - num(c.actual) - num(c.commit);
           const mark = c.status === 'active' && c.year === thisYear ? cardRisk(c, now).time : undefined;
           return (
             <TreeNode key={c.card_id} level={2} lv="经费卡" title={c.name === p.name ? `${c.year} 年` : `${c.year} 年 · ${c.name}`} meta={`${c.card_no}${c.year === thisYear ? ' · 本年度' : ''}`} href={`#/card/${c.card_id}`} open={pi === 0 && c.year === thisYear}
