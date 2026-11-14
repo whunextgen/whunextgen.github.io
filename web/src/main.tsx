@@ -46,7 +46,7 @@ function Login({ reason }: { reason?: string }) {
       <div className="login-in">
         <span className="eyebrow">CLAIN 中心</span>
         <h1>科研财务中台</h1>
-        <p>按项目编年度预算，按经费卡执行，按学校入账决算。用中心的飞书账号登录。</p>
+        <p>按项目编制年度预算，按经费卡执行，按学校入账决算。请使用中心飞书账号登录。</p>
         {reason && <div className="msg bad" role="alert">{reason}</div>}
         <a className="btn" href="/auth/feishu/login">飞书登录 →</a>
       </div>
@@ -63,8 +63,8 @@ class PageGuard extends Component<{ children: ReactNode }, { err: Error | null }
     if (!this.state.err) return this.props.children;
     return (
       <section className="card">
-        <h3>这个页面出错了</h3>
-        <p className="hint">其他页面不受影响。可以重新加载再试；还是不行的话把下面这行发给管理员。</p>
+        <h3>页面加载异常</h3>
+        <p className="hint">其他页面不受影响。可重新加载后重试；仍无法恢复的，请将以下信息发送管理员。</p>
         <p className="sub2" style={{ wordBreak: 'break-all' }}>{this.state.err.message}</p>
         <button onClick={() => location.reload()}>重新加载</button>
       </section>
@@ -172,7 +172,7 @@ function App() {
           <span>{today()}</span>
         </header>
         <main key={route}><PageGuard key={route}>{page}</PageGuard></main>
-        <footer className="ft"><span>预算 · 执行 · 决算</span><span>决算数只认学校正式入账</span></footer>
+        <footer className="ft"><span>预算 · 执行 · 决算</span><span>决算数以学校正式入账为准</span></footer>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ export const day = (v: string | null | undefined) => (v ? v.slice(0, 10) : '—'
 export const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1)}%` : '—');
 export const today = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);   // 北京时间
 
-export const ROLE: Record<string, string> = { finance: '财务岗', director: '中心负责人', leader: '负责人', member: '成员' };
+export const ROLE: Record<string, string> = { finance: '财务岗', director: '中心负责人', leader: '项目负责人', member: '成员' };
 // 人员身份只管一件事：公共设备给博士后、博士、硕士和研究助理个人申领
 export const PERSON: Record<string, string> = { postdoc: '博士后', phd: '博士', master: '硕士', ra: '研究助理', ri: '研究实习生', visitor: '访问学生' };
 // 页面上的按钮和入口跟着权限点走；真正的检查在数据库里
@@ -17,15 +17,15 @@ export const canPublic = (k?: string | null) => k === 'postdoc' || k === 'phd' |
 export const FUND_KIND: Record<string, string> = { vertical: '纵向', fiscal: '财政', horizontal: '横向' };
 export const END_RULE: Record<string, string> = { recall: '到期回收', carry: '结转', return: '结余上缴' };
 export const REQ: Record<ReqStatus, [string, string]> = {
-  pending: ['待确认', 'warn'], committed: ['待交学校', 'pri'], at_school: ['学校审核中', 'pri'], posted: ['已入账', 'ok'],
-  returned: ['被退回', 'bad'], released: ['已释放', ''], rejected: ['已驳回', ''],
+  pending: ['待确认', 'warn'], committed: ['待提交学校', 'pri'], at_school: ['学校审核中', 'pri'], posted: ['已入账', 'ok'],
+  returned: ['已退回', 'bad'], released: ['已释放', ''], rejected: ['已驳回', ''],
 };
 // 待批的申请停在哪一步
-export const STEP: Record<string, [string, string]> = { confirm: ['等项目负责人确认', 'warn'], director: ['等中心负责人批', 'warn'], check: ['等财务岗核对', 'warn'] };
+export const STEP: Record<string, [string, string]> = { confirm: ['待项目负责人确认', 'warn'], director: ['待中心负责人审批', 'warn'], check: ['待财务岗核对', 'warn'] };
 export const reqBadge = (r: { status: ReqStatus; step?: string | null; over_amount?: string | null }): [string, string] =>
-  r.status !== 'pending' || !r.step ? REQ[r.status] : r.step === 'director' && Number(r.over_amount ?? 0) > 0 ? ['超预算，等中心负责人批', 'bad'] : STEP[r.step];
+  r.status !== 'pending' || !r.step ? REQ[r.status] : r.step === 'director' && Number(r.over_amount ?? 0) > 0 ? ['超预算，待中心负责人审批', 'bad'] : STEP[r.step];
 export const VERDICT: Record<string, [string, string]> = {
-  yes: ['可以', 'ok'], conditional: ['有条件', 'warn'], no: ['不可以', 'bad'], disputed: ['有争议', 'warn'],
+  yes: ['可报销', 'ok'], conditional: ['有条件报销', 'warn'], no: ['不可报销', 'bad'], disputed: ['有争议', 'warn'],
 };
 export const CHANGE: Record<string, [string, string]> = {
   pending: ['待负责人确认', 'warn'], filed: ['已报发规办', 'pri'], approved: ['已批复', 'ok'], rejected: ['已驳回', ''],
@@ -127,12 +127,12 @@ export function ActionDialog({ title, hint, fields, submitLabel = '确认', dang
 }
 
 // 一笔申请走到哪一步：申请 → 确认 → 交学校 → 入账。已驳回、已释放的不画
-export const FLOW = ['申请', '确认', '交学校', '入账'];
+export const FLOW = ['申请', '确认', '提交学校', '入账'];
 export function Flow({ status }: { status: ReqStatus }) {
   const at = ({ pending: 1, committed: 2, returned: 2, at_school: 3, posted: 4, released: -1, rejected: -1 } as Record<ReqStatus, number>)[status];
   if (at < 0) return null;
   return (
-    <ol className="flow" aria-label={at >= FLOW.length ? '四步都已完成' : `已完成 ${at} 步，现在等${FLOW[at]}`}>
+    <ol className="flow" aria-label={at >= FLOW.length ? '四个环节均已完成' : `已完成 ${at} 个环节，当前等待${FLOW[at]}`}>
       {FLOW.map((s, i) => <li key={s} title={s} className={i < at ? 'done' : i === at ? (status === 'returned' ? 'now bad' : 'now') : ''} />)}
     </ol>
   );

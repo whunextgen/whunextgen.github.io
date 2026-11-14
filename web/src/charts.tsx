@@ -88,7 +88,7 @@ export function Bullets({ rows, legend }: { rows: BulletRow[]; legend: { name: s
           <span className="bl-t" {...on(<><b>{r.name}</b>
             <span><i style={{ background: C.actual }} />已入账 {money(r.actual)} 元 · {pct(r.actual, r.cur)}</span>
             <span><i style={{ background: C.commit }} />承诺或在途 {money(r.commit)} 元 · {pct(r.commit, r.cur)}</span>
-            <span><i style={{ background: C.rest }} />还没用 {money(r.cur - r.actual - r.commit)} 元</span>
+            <span><i style={{ background: C.rest }} />未使用 {money(r.cur - r.actual - r.commit)} 元</span>
             {r.time != null && <span><i className="mk" />时间进度 {(r.time * 100).toFixed(0)}%</span>}</>)}>
             <span className="bl-bar"><i style={{ width: w(r.actual, r.cur), background: C.actual }} /><i style={{ width: w(r.commit, r.cur), background: C.commit }} /></span>
             {r.time != null && <b className="bl-mk" style={{ left: `${Math.min(100, Math.max(0, r.time * 100))}%` }} />}

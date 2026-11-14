@@ -7,9 +7,9 @@ import type { Act } from './Caps';
 export const taskDue = (t: Task, now: string): [string, string] => {
   if (!t.due_date) return ['不限期', ''];
   const left = Math.round((Date.parse(day(t.due_date)) - Date.parse(now)) / 864e5);
-  return left < 0 ? [`过期 ${-left} 天`, 'bad'] : left === 0 ? ['今天到期', 'warn'] : left <= 7 ? [`还有 ${left} 天`, 'warn'] : [`${day(t.due_date)} 前`, ''];
+  return left < 0 ? [`逾期 ${-left} 天`, 'bad'] : left === 0 ? ['今日到期', 'warn'] : left <= 7 ? [`剩余 ${left} 天`, 'warn'] : [`${day(t.due_date)} 前`, ''];
 };
-const STEPS_HINT = '一行一步，办的人办完一步勾一步。';
+const STEPS_HINT = '每行一步，办理人逐步勾选完成。';
 
 // 任务列表：派给我的、我派出去的；有派任务权限的人看得到全部
 export function Tasks({ me }: { me: Me }) {
@@ -23,7 +23,7 @@ export function Tasks({ me }: { me: Me }) {
   const [showDone, setShowDone] = useState(false);
   if (!data) return <Loading error={error} />;
   const now = today();
-  const people: [string, string][] = data.people.map((p) => [p.id, p.id === me.id ? `${p.name}（我自己）` : p.name]);
+  const people: [string, string][] = data.people.map((p) => [p.id, p.id === me.id ? `${p.name}（本人）` : p.name]);
   const stepsOf = (id: string) => data.steps.filter((s) => s.task_id === id).sort((a, b) => a.sort - b.sort);
   const byDue = (a: Task, b: Task) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.created_at.localeCompare(b.created_at);
   const open = data.tasks.filter((t) => t.status === 'open').sort(byDue);
@@ -35,20 +35,20 @@ export function Tasks({ me }: { me: Me }) {
     try { await rpc('tick_task_step', { step: s.id, done: !s.done, note: null }); reload(); } catch (e) { setErr((e as Error).message); }
     setBusy('');
   };
-  const createAct = (): Act => ({ title: '新建任务', submitLabel: '建任务',
-    hint: assign ? `选办理人就是派给这个人，对方在工作台的「轮到你处理」里看到。${STEPS_HINT}` : `给自己建的任务只有你和中心负责人看得到。${STEPS_HINT}`,
+  const createAct = (): Act => ({ title: '新建任务', submitLabel: '创建',
+    hint: assign ? `选定办理人即指派给该人员，对方可在工作台的「待办事项」中查看。${STEPS_HINT}` : `为本人创建的任务仅本人和中心负责人可见。${STEPS_HINT}`,
     fields: [{ name: 'title', label: '任务名称' },
       ...(assign ? [{ name: 'assignee', label: '办理人', options: people, value: me.id }] : []),
-      { name: 'due', label: '期限（可不填）', type: 'date' as const, required: false },
-      ...(seesCards && data.cards.length > 0 ? [{ name: 'card', label: '关联的经费卡（可不选）', options: data.cards.map((c): [string, string] => [c.id, `${c.name} · ${c.card_no}`]), required: false }] : []),
-      { name: 'detail', label: '说明（可不填）', type: 'area' as const, required: false },
-      { name: 'steps', label: '步骤（一行一步，可不填）', type: 'area' as const, required: false }],
+      { name: 'due', label: '期限（选填）', type: 'date' as const, required: false },
+      ...(seesCards && data.cards.length > 0 ? [{ name: 'card', label: '关联经费卡（选填）', options: data.cards.map((c): [string, string] => [c.id, `${c.name} · ${c.card_no}`]), required: false }] : []),
+      { name: 'detail', label: '说明（选填）', type: 'area' as const, required: false },
+      { name: 'steps', label: '步骤（每行一步，选填）', type: 'area' as const, required: false }],
     run: (v) => rpc('create_task', { title: v.title, assignee: v.assignee || null, due: v.due || null, card_id: v.card || null, detail: v.detail || null, steps: v.steps || null }) });
-  const editAct = (t: Task): Act => ({ title: `修改任务：${t.title}`, submitLabel: '保存', hint: '换办理人、改期限，对方会收到通知。步骤在任务上直接加。',
+  const editAct = (t: Task): Act => ({ title: `修改任务：${t.title}`, submitLabel: '保存', hint: '变更办理人、期限，对方将收到通知。步骤在任务上直接新增。',
     fields: [{ name: 'title', label: '任务名称', value: t.title },
       { name: 'assignee', label: '办理人', options: assign ? people : people.filter(([id]) => id === me.id || id === t.assignee_id), value: t.assignee_id },
-      { name: 'due', label: '期限（可不填）', type: 'date', required: false, value: t.due_date ? day(t.due_date) : '' },
-      { name: 'detail', label: '说明（可不填）', type: 'area', required: false, value: t.detail ?? '' }],
+      { name: 'due', label: '期限（选填）', type: 'date', required: false, value: t.due_date ? day(t.due_date) : '' },
+      { name: 'detail', label: '说明（选填）', type: 'area', required: false, value: t.detail ?? '' }],
     run: (v) => rpc('edit_task', { id: t.id, title: v.title, assignee: v.assignee, due: v.due || null, detail: v.detail || null }) });
 
   const card = (t: Task) => {
@@ -61,7 +61,7 @@ export function Tasks({ me }: { me: Me }) {
           {steps.length > 0 && <span className="h3sub">{t.steps_done} / {t.steps} 步</span>}
         </h3>
         <p className="hint">
-          {t.mine ? '办理人：我' : `办理人：${t.assignee_name ?? '—'}`} · {t.created_by === me.id ? '我建的' : `${t.creator_name ?? '—'} 派的`} · {day(t.created_at)}
+          {t.mine ? '办理人：本人' : `办理人：${t.assignee_name ?? '—'}`} · {t.created_by === me.id ? '本人创建' : `${t.creator_name ?? '—'} 指派`} · {day(t.created_at)}
           {t.due_date && <> · 期限 {day(t.due_date)}</>}
           {t.card_id && <> · <a href={`#/card/${t.card_id}`}>{t.card_name}</a></>}
         </p>
@@ -71,23 +71,23 @@ export function Tasks({ me }: { me: Me }) {
             <li key={s.id} className={s.done ? 'done' : ''}>
               <label><input type="checkbox" checked={s.done} disabled={!canDo || busy === s.id} onChange={() => tick(s)} /><span>{s.text}</span></label>
               <span className="sub2">{[s.done && `${s.done_by_name ?? ''} ${day(s.done_at)}`, s.note].filter(Boolean).join(' · ')}</span>
-              {canDo && <button className="ghost sm" onClick={() => setAct({ title: `备注：${s.text}`, submitLabel: '保存', hint: '写办到哪了、单号、交给了谁。',
+              {canDo && <button className="ghost sm" onClick={() => setAct({ title: `备注：${s.text}`, submitLabel: '保存', hint: '填写办理进度、单号、移交对象。',
                 fields: [{ name: 'note', label: '备注', value: s.note ?? '' }], run: (v) => rpc('tick_task_step', { step: s.id, done: null, note: v.note }) })}>备注</button>}
             </li>
           ))}</ul>
         )}
         {!live && t.close_note && <p className="sub2">{t.status === 'done' ? '办结说明' : '撤销原因'}：{t.close_note}{t.closed_by_name ? `（${t.closed_by_name} ${day(t.closed_at)}）` : ''}</p>}
         <div className="acts">
-          {canDo && <button className="sm" disabled={t.steps_done < t.steps} title={t.steps_done < t.steps ? '每一步都勾了才能办结' : undefined}
-            onClick={() => setAct({ title: `办结：${t.title}`, submitLabel: '办结', hint: t.steps > 0 ? `${t.steps} 步都已勾完。` : '这个任务没有拆步骤，办完直接办结。',
-              fields: [{ name: 'note', label: '办结说明（可不填）', required: false }], run: (v) => rpc('finish_task', { id: t.id, note: v.note || null }) })}>办结</button>}
-          {canDo && <button className="sm ghost" onClick={() => setAct({ title: `加步骤：${t.title}`, submitLabel: '加上', hint: `加在现有步骤后面。${STEPS_HINT}`,
-            fields: [{ name: 'steps', label: '要加的步骤', type: 'area' }], run: (v) => rpc('add_task_steps', { id: t.id, steps: v.steps }) })}>加步骤</button>}
+          {canDo && <button className="sm" disabled={t.steps_done < t.steps} title={t.steps_done < t.steps ? '全部步骤勾选后方可办结' : undefined}
+            onClick={() => setAct({ title: `办结：${t.title}`, submitLabel: '办结', hint: t.steps > 0 ? `${t.steps} 个步骤均已勾选。` : '该任务未分步骤，办理完成后直接办结。',
+              fields: [{ name: 'note', label: '办结说明（选填）', required: false }], run: (v) => rpc('finish_task', { id: t.id, note: v.note || null }) })}>办结</button>}
+          {canDo && <button className="sm ghost" onClick={() => setAct({ title: `新增步骤：${t.title}`, submitLabel: '新增', hint: `追加在现有步骤之后。${STEPS_HINT}`,
+            fields: [{ name: 'steps', label: '新增步骤', type: 'area' }], run: (v) => rpc('add_task_steps', { id: t.id, steps: v.steps }) })}>新增步骤</button>}
           {live && t.can_manage && <button className="sm ghost" onClick={() => setAct(editAct(t))}>修改</button>}
-          {live && t.can_manage && <button className="sm ghost danger" onClick={() => setAct({ title: `撤销：${t.title}`, submitLabel: '撤销', danger: true, hint: '撤销之后办理人不用再办，记录留着。',
-            fields: [{ name: 'note', label: '为什么撤销' }], run: (v) => rpc('cancel_task', { id: t.id, note: v.note }) })}>撤销</button>}
-          {!live && t.can_manage && <button className="sm ghost" onClick={() => setAct({ title: `退回重办：${t.title}`, submitLabel: '退回重办', hint: '任务重新打开，已勾的步骤不变，办理人会收到通知。',
-            fields: [{ name: 'note', label: '哪里还要再办' }], run: (v) => rpc('reopen_task', { id: t.id, note: v.note }) })}>退回重办</button>}
+          {live && t.can_manage && <button className="sm ghost danger" onClick={() => setAct({ title: `撤销：${t.title}`, submitLabel: '撤销', danger: true, hint: '撤销后办理人无需继续办理，记录保留。',
+            fields: [{ name: 'note', label: '撤销原因' }], run: (v) => rpc('cancel_task', { id: t.id, note: v.note }) })}>撤销</button>}
+          {!live && t.can_manage && <button className="sm ghost" onClick={() => setAct({ title: `退回重办：${t.title}`, submitLabel: '退回重办', hint: '任务重新开启，已勾选的步骤不变，办理人将收到通知。',
+            fields: [{ name: 'note', label: '需重新办理的事项' }], run: (v) => rpc('reopen_task', { id: t.id, note: v.note }) })}>退回重办</button>}
         </div>
       </section>
     );
@@ -99,15 +99,15 @@ export function Tasks({ me }: { me: Me }) {
         <h2>任务管理</h2>
         <button onClick={() => setAct(createAct())}>新建任务</button>
       </div>
-      <p className="lede">一件要办的事派给一个人，拆成几步，办一步勾一步，全部勾完后办结。{assign ? '你能派给任何人，也看得到全部任务。' : '你能给自己建任务；派给你的任务也在这里。'}</p>
+      <p className="lede">每项任务指派一名办理人，可分若干步骤，逐步勾选，全部完成后办结。{assign ? '可指派给任何人员，并可查看全部任务。' : '可为本人创建任务；指派给本人的任务也在此列示。'}</p>
       {err && <div className="msg bad" role="alert">{err}</div>}
 
-      <h3 className="sec">派给我的 <span className="h3sub">{mine.length} 件</span></h3>
-      {mine.length === 0 ? <section className="card"><Empty>现在没有派给你的任务。</Empty></section> : mine.map(card)}
+      <h3 className="sec">指派给本人的任务 <span className="h3sub">{mine.length} 件</span></h3>
+      {mine.length === 0 ? <section className="card"><Empty>暂无指派给本人的任务。</Empty></section> : mine.map(card)}
 
       {(others.length > 0 || assign) && <>
-        <h3 className="sec">{assign ? '别人在办的' : '我派出去的'} <span className="h3sub">{others.length} 件</span></h3>
-        {others.length === 0 ? <section className="card"><Empty>没有别人在办的任务。</Empty></section> : others.map(card)}
+        <h3 className="sec">{assign ? '他人办理中的任务' : '本人指派的任务'} <span className="h3sub">{others.length} 件</span></h3>
+        {others.length === 0 ? <section className="card"><Empty>暂无他人办理中的任务。</Empty></section> : others.map(card)}
       </>}
 
       {closed.length > 0 && <>

@@ -26,7 +26,7 @@ export function Settle({ me }: { me: Me }) {
   const blockers = (c: Card) => {
     const k = check.get(c.card_id); const out: string[] = [];
     if (k?.open_requests) out.push(`${k.open_requests} 笔支出未结`);
-    if (k?.open_changes) out.push(`${k.open_changes} 笔调整在办`);
+    if (k?.open_changes) out.push(`${k.open_changes} 笔调整办理中`);
     if (k?.open_staff) out.push(`${k.open_staff} 条人员费未入账`);
     return out;
   };
@@ -46,7 +46,7 @@ export function Settle({ me }: { me: Me }) {
         <div className="tabs" style={{ marginBottom: 12 }}>
           {years.map((y) => <button key={y} className="sm" aria-pressed={y === year} onClick={() => setYear(y)}>{y} 年</button>)}
         </div>
-        {rows.length === 0 ? <Empty>这一年没有经费卡。</Empty> : (
+        {rows.length === 0 ? <Empty>该年度暂无经费卡。</Empty> : (
           <>
             <div className="scroll"><table>
               <thead><tr><th>经费卡</th><th>状态</th><th className="r">现行预算</th><th className="r">{year} 年决算</th><th className="r">累计决算</th>
@@ -63,30 +63,30 @@ export function Settle({ me }: { me: Me }) {
                 <td className="r">{pct(total((c) => num(c.actual)), total((c) => num(c.cur)))}</td><td className="r">{money(total((c) => num(c.commit)))}</td>
                 <td className="r">{money(total((c) => (c.status === 'settled' ? 0 : num(c.avail))))}</td></tr></tfoot>
             </table></div>
-            <p className="hint">年度决算按学校入账日归年。预算、累计决算、承诺和可用是各卡截至今天的数，不随年份切换。</p>
+            <p className="hint">年度决算按学校入账日归属年度。预算、累计决算、承诺和可用为各经费卡截至当日的数据，不随年度切换。</p>
           </>
         )}
       </section>
 
       <section className="card">
-        <h3>待结清的卡</h3>
-        {due.length === 0 ? <Empty>没有设了结清日的在用卡。</Empty> : (
+        <h3>待结清经费卡</h3>
+        {due.length === 0 ? <Empty>暂无已设结清日的在用经费卡。</Empty> : (
           <div className="scroll"><table>
-            <thead><tr><th>结清日</th><th>经费卡</th><th>到期处理</th><th className="r">可用</th><th>结清前还差</th><th /></tr></thead>
+            <thead><tr><th>结清日</th><th>经费卡</th><th>到期处理</th><th className="r">可用</th><th>结清前待办</th><th /></tr></thead>
             <tbody>{due.map((c) => { const b = blockers(c); const reached = day(c.settle_date) <= now; return (
               <tr key={c.card_id}><td>{day(c.settle_date)}</td><td><a href={`#/card/${c.card_id}`}>{c.name}</a></td><td>{END_RULE[c.end_rule]}</td>
                 <td className="r">{money(c.avail)}</td>
                 <td>{b.length > 0 ? <Badge tone={reached ? 'bad' : 'warn'}>{b.join('，')}</Badge>
-                  : reached ? <Badge tone="ok">可以结清</Badge> : <Badge>未到结清日</Badge>}</td>
+                  : reached ? <Badge tone="ok">可结清</Badge> : <Badge>未到结清日</Badge>}</td>
                 <td className="r">{can(me, 'card.settle') && reached && b.length === 0 && <button className="sm danger" onClick={() => setTarget(c)}>结清</button>}</td></tr>); })}</tbody>
           </table></div>
         )}
-        {open.length > 0 && <p className="hint">跨年不结清的卡：{open.map((c) => c.name).join('、')}。</p>}
+        {open.length > 0 && <p className="hint">跨年度不结清的经费卡：{open.map((c) => c.name).join('、')}。</p>}
       </section>
 
       <section className="card">
         <h3>已结清</h3>
-        {settled.length === 0 ? <Empty>还没有结清的卡。</Empty> : (
+        {settled.length === 0 ? <Empty>暂无已结清的经费卡。</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th>结清日期</th><th>经费卡</th><th className="r">预算</th><th className="r">决算</th><th className="r">结余</th><th>结余去向</th></tr></thead>
             <tbody>{settled.map(({ c, on, budget, actual, balance }) => (
@@ -98,7 +98,7 @@ export function Settle({ me }: { me: Me }) {
       </section>
 
       {target && <ActionDialog title={`结清 ${target.name}`} danger submitLabel="确认结清" fields={[]}
-        hint={`结清后各科目的预算、决算和结余固定下来，这张卡不能再提支出和调整。结余 ${money(num(target.cur) - num(target.actual))} 按「${END_RULE[target.end_rule]}」处理。`}
+        hint={`结清后各科目的预算、决算和结余即固定，该经费卡不得再提交支出和调整。结余 ${money(num(target.cur) - num(target.actual))} 按「${END_RULE[target.end_rule]}」处理。`}
         onSubmit={() => rpc('settle_card', { card_id: target.card_id }).then(reload)} onClose={() => setTarget(null)} />}
     </>
   );

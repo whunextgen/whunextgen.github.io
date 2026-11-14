@@ -9,11 +9,11 @@ interface Act { title: string; hint?: string; fields: Field[]; submitLabel?: str
 // 年度预算走到第几步：1 申报，2 汇总报批，3 核定下达，4 以后是执行和决算
 export const STEP_OF: Record<BudgetStage, number> = { declare: 1, summary: 2, approved: 2, applied: 2, granted: 3, fixed: 3, issued: 4, closed: 7 };
 export const STAGE_TEXT: Record<BudgetStage, string> = {
-  declare: '各项目申报中', summary: '财务岗汇总中', approved: '已批准，待报学校', applied: '已报学校，等批复',
+  declare: '各项目申报中', summary: '财务岗汇总中', approved: '已批准，待报学校', applied: '已报学校，待批复',
   granted: '学校已批复，核定中', fixed: '已核定，待下达到经费卡', issued: '已下达，执行中', closed: '已决算',
 };
 export const KIND: Record<Project['kind'], string> = { project: '研究项目', line: '独立研究线', public: '中心公共开支' };
-const PB: Record<ProjectBudget['status'] | 'none', [string, string]> = { none: ['未填', ''], draft: ['填写中', 'warn'], submitted: ['已提交', 'ok'], returned: ['被退回', 'bad'] };
+const PB: Record<ProjectBudget['status'] | 'none', [string, string]> = { none: ['未填报', ''], draft: ['填报中', 'warn'], submitted: ['已提交', 'ok'], returned: ['已退回', 'bad'] };
 const Q = ['q1', 'q2', 'q3', 'q4'] as const;
 const QN = ['1–3 月', '4–6 月', '7–9 月', '10–12 月'];
 const opt = (v: string | null) => (v == null ? '—' : money(v));
@@ -30,15 +30,15 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
   const years = data.years.map((y) => y.year).sort((a, b) => b - a);
   const next = Number(today().slice(0, 4)) + 1;
   const openAct = (y?: BudgetYear): Act => ({
-    title: y ? `改 ${y.year} 年度预算的申报截止日` : '开始一个年度的预算', hint: '截止日之前各项目自己填、自己提交；到期由财务岗截止申报，进入汇总。',
+    title: y ? `修改 ${y.year} 年度预算申报截止日` : '启动新年度预算', hint: '截止日前由各项目自行填报并提交；到期后由财务岗截止申报，进入汇总。',
     fields: [...(y ? [] : [{ name: 'year', label: '年度', type: 'number', value: String(next) } as Field]), { name: 'due', label: '申报截止日', type: 'date', value: y ? day(y.due_date) : '' }],
     run: (v) => rpc('open_budget_year', { year: y?.year ?? Math.round(Number(v.year)), due_date: v.due }).then(reload),
   });
   const dialog = act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.submitLabel} danger={act.danger} onSubmit={act.run} onClose={() => setAct(null)} />;
   if (years.length === 0) return (
     <>
-      <div className="top"><h2>预算编制</h2>{staff && <button onClick={() => setAct(openAct())}>开始 {next} 年度预算</button>}</div>
-      <Empty>还没有开始任何年度的预算。{staff ? '定一个申报截止日，各项目就可以开始填。' : '财务岗开始之后，这里会出现申报表。'}</Empty>
+      <div className="top"><h2>预算编制</h2>{staff && <button onClick={() => setAct(openAct())}>启动 {next} 年度预算</button>}</div>
+      <Empty>暂无已启动的年度预算。{staff ? '设定申报截止日后，各项目即可开始填报。' : '财务岗启动后，此处显示申报表。'}</Empty>
       {dialog}
     </>
   );
@@ -62,49 +62,49 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
     (v.resource || l?.resource_id) && (v.resource !== (l?.resource_id ?? '') || Number(v.plan_qty || 0) !== num(l?.plan_qty))
       ? rpc('set_line_resource', { line_id: id, resource_id: v.resource || null, qty: v.resource ? v.plan_qty : null }) : null;
   const planFields = (p: Project, l?: BudgetLine): Field[] => [
-    { name: 'resource', label: p.kind === 'public' ? '这一行要配的公共设备（给博士后、博士、硕士、研究助理个人申领；不涉及的不选）' : '这一行要用的资源（接口额度、设备；不涉及的不选）', options: resOpts(p), required: false, value: l?.resource_id ?? '' },
-    { name: 'plan_qty', label: '全年计划数量（选了资源就要填）', type: 'number', required: false, value: l?.plan_qty != null ? String(num(l.plan_qty)) : '' }];
+    { name: 'resource', label: p.kind === 'public' ? '该预算行拟配置的公共设备（供博士后、博士、硕士、研究助理个人申领；不涉及的留空）' : '该预算行拟使用的资源（接口额度、设备；不涉及的留空）', options: resOpts(p), required: false, value: l?.resource_id ?? '' },
+    { name: 'plan_qty', label: '全年计划数量（已选资源时必填）', type: 'number', required: false, value: l?.plan_qty != null ? String(num(l.plan_qty)) : '' }];
   const planAct = (p: Project, l: BudgetLine): Act => ({
     title: `资源计划：${p.name} · ${l.purpose}`, submitLabel: '保存',
-    hint: '预算提交以后，资源计划只有财务岗能调，一般在季度复盘时改。数量不能低于已经申请的；有申请的计划不能去掉或换成别的资源。',
+    hint: '预算提交后，资源计划仅财务岗可调整，一般在季度复盘时修改。数量不得低于已申请数量；已有申请的计划不得取消或更换资源。',
     fields: planFields(p, l), run: async (v) => { await setPlan(l.id, l, v); reload(); },
   });
   const lineAct = (p: Project, l?: BudgetLine): Act => ({
-    title: l ? `改一行：${p.name}` : `加一行预算：${p.name}`, hint: '按三个月一期填。哪一期用就填在哪一期，不用的留空。这一行如果是买接口额度、设备或耗材，把资源和全年计划数量一起填上：以后的资源申请只能挂在有资源计划的预算行上，数量不能超过计划。',
+    title: l ? `修改预算行：${p.name}` : `新增预算行：${p.name}`, hint: '按三个月一期填报。金额填入实际使用的期次，不使用的期次留空。该预算行用于购置接口额度、设备或耗材的，须同时填写资源和全年计划数量：此后的资源申请只能关联到有资源计划的预算行，数量不得超过计划。',
     fields: [{ name: 'category', label: '科目', options: data.cats.filter((c) => c.active || c.id === l?.category_id).sort((a, b) => a.sort - b.sort).map((c) => [c.id, c.name]), value: l?.category_id },
-      { name: 'purpose', label: '做什么用', value: l?.purpose },
+      { name: 'purpose', label: '用途', value: l?.purpose },
       ...Q.map((k, i): Field => ({ name: k, label: `${QN[i]}（元）`, type: 'number', required: false, value: l && num(l[k]) > 0 ? String(num(l[k])) : '' })),
       ...planFields(p, l)],
     submitLabel: '保存',
     run: async (v) => {
-      if (v.resource && !(Number(v.plan_qty) > 0)) throw new Error('选了资源就要填全年计划数量。');
+      if (v.resource && !(Number(v.plan_qty) > 0)) throw new Error('已选资源时须填写全年计划数量。');
       const id = await rpc('save_budget_line', { id: l?.id ?? null, year, project_id: p.id, category_id: v.category, purpose: v.purpose, q1: v.q1 || 0, q2: v.q2 || 0, q3: v.q3 || 0, q4: v.q4 || 0 });
       try { await setPlan(l?.id ?? String(id), l, v); } finally { reload(); }
     },
   });
   // 整表粘贴：一行一条预算，列依次是 科目、做什么用、四期金额；和下载的模板同一个格式
-  const TEMPLATE = `data:text/csv;charset=utf-8,${encodeURIComponent(`\ufeff科目,做什么用,${QN.join(',')}\n${data.cats.filter((c) => c.active).sort((a, b) => a.sort - b.sort).map((c) => `${c.name},,,,,`).join('\n')}\n`)}`;
+  const TEMPLATE = `data:text/csv;charset=utf-8,${encodeURIComponent(`\ufeff科目,用途,${QN.join(',')}\n${data.cats.filter((c) => c.active).sort((a, b) => a.sort - b.sort).map((c) => `${c.name},,,,,`).join('\n')}\n`)}`;
   const pasteAct = (p: Project): Act => ({
     title: `整表导入：${p.name}`, submitLabel: '导入',
-    hint: `在 Excel 里按模板填好，选中数据复制后粘贴到这里。每行依次是：科目、做什么用、${QN.join('、')}。科目要和中台里的预算科目同名（${data.cats.filter((c) => c.active).map((c) => c.name).join('、')}）；表头行和金额全空的行会跳过。导入是追加，不会覆盖已经填的行。`,
+    hint: `在 Excel 中按模板填写，选中数据复制后粘贴至此处。每行依次为：科目、用途、${QN.join('、')}。科目须与中台预算科目同名（${data.cats.filter((c) => c.active).map((c) => c.name).join('、')}）；表头行和金额全空的行自动跳过。导入为追加方式，不覆盖已填报的行。`,
     fields: [{ name: 'text', label: '粘贴内容', type: 'area' }],
     run: async (v) => {
       const cat = new Map(data.cats.filter((c) => c.active).map((c) => [c.name.trim(), c.id]));
       const rows = parse(v.text).filter((r) => r[0] !== '科目').map((r, i) => ({ i: i + 1, cat: cat.get(r[0] ?? ''), name: r[0], purpose: r[1] ?? '', q: [2, 3, 4, 5].map((k) => (r[k] ? amt(r[k]) : 0)) }))
         .filter((r) => r.q.some((x) => x !== 0));
-      if (rows.length === 0) throw new Error('没有读到带金额的行。');
+      if (rows.length === 0) throw new Error('未读取到含金额的行。');
       const bad = rows.find((r) => !r.cat || !r.purpose || r.q.some((x) => x == null || x < 0));
-      if (bad) throw new Error(`第 ${bad.i} 行：${!bad.cat ? `没有「${bad.name}」这个预算科目` : !bad.purpose ? '没有填做什么用' : '金额不是数字'}。一行都没有导入，改好后重新粘贴。`);
+      if (bad) throw new Error(`第 ${bad.i} 行：${!bad.cat ? `预算科目「${bad.name}」不存在` : !bad.purpose ? '未填写用途' : '金额非数字'}。全部未导入，请修改后重新粘贴。`);
       let n = 0;
       try { for (const r of rows) { await rpc('save_budget_line', { id: null, year, project_id: p.id, category_id: r.cat, purpose: r.purpose, q1: r.q[0], q2: r.q[1], q3: r.q[2], q4: r.q[3] }); n++; } }
-      catch (e) { reload(); throw new Error(`第 ${rows[n].i} 行：${(e as Error).message}${n ? `（前 ${n} 行已经导入）` : ''}`); }
+      catch (e) { reload(); throw new Error(`第 ${rows[n].i} 行：${(e as Error).message}${n ? `（前 ${n} 行已导入）` : ''}`); }
       reload();
     },
   });
   const adjustAct = (p: Project, l: BudgetLine): Act => {
     const fixing = y.stage === 'granted';
     return { title: `${fixing ? '核定数' : '申请数'}：${p.name} · ${l.purpose}`,
-      hint: fixing ? `申报 ${money(l.declared)}，申请 ${opt(l.applied)}。核定数按联席会议的决定填。` : `申报 ${money(l.declared)}。申请数和申报数不一样时要写原因，项目负责人看得到。`,
+      hint: fixing ? `申报 ${money(l.declared)}，申请 ${opt(l.applied)}。核定数按联席会议决定填写。` : `申报 ${money(l.declared)}。申请数与申报数不一致时须填写原因，项目负责人可见。`,
       fields: [{ name: 'amount', label: `${fixing ? '核定数' : '申请数'}（元）`, type: 'number', value: String(num(fixing ? l.fixed ?? l.applied : l.applied ?? l.declared)) },
         ...(fixing ? [] : [{ name: 'note', label: '调整原因', required: false, value: l.adjust_note ?? '' } as Field])],
       submitLabel: '保存', run: (v) => rpc('adjust_budget_line', { id: l.id, amount: v.amount, note: v.note ?? null }).then(reload) };
@@ -124,9 +124,9 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
 
   const steps = [
     { no: '01', name: '申报', on: step === 1, done: step > 1, lines: [`截止 ${day(y.due_date)}`, `${submitted} / ${projects.length} 个项目已提交`] },
-    { no: '02', name: '汇总报批', on: step === 2, done: step > 2, lines: step < 2 ? ['财务岗汇总成年度总预算草案', '中心负责人批准后报学校']
-      : [y.approved_at ? `${y.approved_by_name ?? '中心负责人'} ${day(y.approved_at)} 批准` : '等中心负责人批准', y.applied_on ? `${day(y.applied_on)} 报学校` : '还没报学校'] },
-    { no: '03', name: '核定下达', on: step === 3, done: step > 3, lines: step < 3 ? ['学校批复后，在批复总额内定各项目预算', '下达后才能支出']
+    { no: '02', name: '汇总报批', on: step === 2, done: step > 2, lines: step < 2 ? ['财务岗汇总形成年度总预算草案', '中心负责人批准后报学校']
+      : [y.approved_at ? `${y.approved_by_name ?? '中心负责人'} ${day(y.approved_at)} 批准` : '待中心负责人批准', y.applied_on ? `${day(y.applied_on)} 报学校` : '尚未报学校'] },
+    { no: '03', name: '核定下达', on: step === 3, done: step > 3, lines: step < 3 ? ['学校批复后，在批复总额内核定各项目预算', '下达后方可支出']
       : [staff ? `学校批复 ${opt(y.granted_amount)}（${day(y.granted_on)}）` : `学校 ${day(y.granted_on)} 批复`, y.stage === 'granted' ? '各项目核定数待确定' : staff ? `年度总预算 ${opt(y.fixed_total)}` : '年度总预算已确定',
         ...(y.stage === 'fixed' ? ['待下达到经费卡'] : y.issued_at ? [`${day(y.issued_at)} 下达`] : [])] },
   ];
@@ -136,14 +136,14 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
       <div className="top">
         <div className="crumb">{STAGE_TEXT[y.stage]}</div>
         <h2>{year} 年度预算</h2>
-        {staff && <button className="ghost" onClick={() => setAct(openAct())}>开始新年度</button>}
+        {staff && <button className="ghost" onClick={() => setAct(openAct())}>启动新年度预算</button>}
       </div>
       {years.length > 1 && <div className="tabs" style={{ marginBottom: 16 }}>{years.map((n) => <a key={n} className="btn sm" aria-current={n === year ? 'page' : undefined} href={`#/budget/${n}`}>{n}</a>)}</div>}
 
       <ol className="steps3">
         {steps.map((s) => (
           <li key={s.no} className={s.on ? 'on' : s.done ? 'done' : ''}>
-            <span className="no">{s.no}</span><span className="nm">{s.name}{s.on && <Badge tone="pri">现在</Badge>}{s.done && <Badge tone="ok">完成</Badge>}</span>
+            <span className="no">{s.no}</span><span className="nm">{s.name}{s.on && <Badge tone="pri">当前</Badge>}{s.done && <Badge tone="ok">已完成</Badge>}</span>
             {s.lines.map((t) => <span key={t} className="ds">{t}</span>)}
           </li>
         ))}
@@ -151,28 +151,28 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
 
       {staff && (
         <section className="card">
-          <h3>这一步要做的</h3>
-          {y.stage === 'declare' && <p className="hint">申报截止日 {day(y.due_date)}。到期后截止申报，没提交的项目不进汇总；截止前可以把填得不对的退回去重填。</p>}
-          {y.stage === 'summary' && <p className="hint">在下面的表里逐行调整申请数，凑成报学校的年度总预算草案。{director ? '确认无误后批准。' : '调好后请中心负责人批准。'}</p>}
-          {y.stage === 'approved' && <p className="hint">申请数已批准，合计 {money(tot(summed, 'applied'))}。到学校系统里报送后，在这里登记报送日期。</p>}
+          <h3>本阶段工作</h3>
+          {y.stage === 'declare' && <p className="hint">申报截止日 {day(y.due_date)}。到期后截止申报，未提交的项目不纳入汇总；截止前可将填报有误的预算退回重新填报。</p>}
+          {y.stage === 'summary' && <p className="hint">在下表中逐行调整申请数，形成报学校的年度总预算草案。{director ? '确认无误后批准。' : '调整完成后提请中心负责人批准。'}</p>}
+          {y.stage === 'approved' && <p className="hint">申请数已批准，合计 {money(tot(summed, 'applied'))}。在学校系统报送后，在此登记报送日期。</p>}
           {y.stage === 'applied' && <p className="hint">已于 {day(y.applied_on)} 报学校，申请数合计 {money(tot(summed, 'applied'))}。学校批复后录入批复数。</p>}
-          {y.stage === 'granted' && <p className="hint">学校批复 {opt(y.granted_amount)}。按联席会议的决定逐行填核定数，合计不能超过年度总预算；{director ? '填好后确定年度总预算。' : '填好后请中心负责人确定年度总预算。'}</p>}
-          {y.stage === 'fixed' && <p className="hint">年度总预算 {opt(y.fixed_total)} 已确定。在下面把每一行核定数对到经费卡上，全部对完后下达。</p>}
-          {y.stage === 'issued' && <p className="hint">预算已于 {day(y.issued_at)} 下达，各项目按预算提交支出。每三个月复盘一次，年末做年度决算。<a href="#/review">去年度决算</a></p>}
-          {y.stage === 'closed' && <p className="hint">{year} 年度已于 {day(y.closed_at)} 决算，未用的预算不结转。<a href="#/review">看决算</a></p>}
+          {y.stage === 'granted' && <p className="hint">学校批复 {opt(y.granted_amount)}。按联席会议决定逐行填写核定数，合计不得超过年度总预算；{director ? '填写完成后确定年度总预算。' : '填写完成后提请中心负责人确定年度总预算。'}</p>}
+          {y.stage === 'fixed' && <p className="hint">年度总预算 {opt(y.fixed_total)} 已确定。在下方将各行核定数分配至经费卡，全部分配完毕后下达。</p>}
+          {y.stage === 'issued' && <p className="hint">预算已于 {day(y.issued_at)} 下达，各项目按预算提交支出申请。每三个月复盘一次，年末办理年度决算。<a href="#/review">前往年度决算</a></p>}
+          {y.stage === 'closed' && <p className="hint">{year} 年度已于 {day(y.closed_at)} 决算，未使用的预算不结转。<a href="#/review">查看决算</a></p>}
           <div className="actions" style={{ justifyContent: 'flex-start' }}>
             {y.stage === 'declare' && <>
-              <button onClick={() => setAct({ title: `截止 ${year} 年度预算申报`, hint: `${submitted} 个项目已提交，${projects.length - submitted} 个没有提交。截止后没提交的不进汇总。`, fields: [], submitLabel: '截止申报', run: () => go('close') })}>截止申报，开始汇总</button>
-              <button className="ghost" onClick={() => setAct(openAct(y))}>改截止日</button></>}
+              <button onClick={() => setAct({ title: `截止 ${year} 年度预算申报`, hint: `${submitted} 个项目已提交，${projects.length - submitted} 个尚未提交。截止后未提交的不纳入汇总。`, fields: [], submitLabel: '截止申报', run: () => go('close') })}>截止申报，开始汇总</button>
+              <button className="ghost" onClick={() => setAct(openAct(y))}>修改截止日</button></>}
             {y.stage === 'summary' && <>
-              {director && <button onClick={() => setAct({ title: `批准 ${year} 年度预算申请数`, hint: `申请数合计 ${money(tot(summed, 'applied'))}，申报数合计 ${money(tot(summed, 'declared'))}。批准后财务岗按这个数报学校。`, fields: [], submitLabel: '批准', run: () => go('approve') })}>批准申请数</button>}
-              <button className="ghost" onClick={() => setAct({ title: '退回申报阶段', hint: '各项目可以重新修改和提交；已经调整的申请数会清空。', fields: [], danger: true, submitLabel: '退回', run: () => go('reopen') })}>退回申报阶段</button></>}
+              {director && <button onClick={() => setAct({ title: `批准 ${year} 年度预算申请数`, hint: `申请数合计 ${money(tot(summed, 'applied'))}，申报数合计 ${money(tot(summed, 'declared'))}。批准后财务岗按此数报学校。`, fields: [], submitLabel: '批准', run: () => go('approve') })}>批准申请数</button>}
+              <button className="ghost" onClick={() => setAct({ title: '退回申报阶段', hint: '各项目可重新修改并提交；已调整的申请数将清空。', fields: [], danger: true, submitLabel: '退回', run: () => go('reopen') })}>退回申报阶段</button></>}
             {y.stage === 'approved' && <>
               <button onClick={() => setAct({ title: '登记已报学校', fields: [{ name: 'on', label: '报送日期', type: 'date', value: today() }], run: (v) => go('apply', { on_date: v.on }) })}>登记已报学校</button>
-              {director && <button className="ghost" onClick={() => setAct({ title: '撤回批准', hint: '回到汇总阶段，财务岗可以继续调整申请数。', fields: [], danger: true, submitLabel: '撤回', run: () => go('reopen') })}>撤回批准</button>}</>}
+              {director && <button className="ghost" onClick={() => setAct({ title: '撤回批准', hint: '退回汇总阶段，财务岗可继续调整申请数。', fields: [], danger: true, submitLabel: '撤回', run: () => go('reopen') })}>撤回批准</button>}</>}
             {(y.stage === 'applied' || y.stage === 'granted') &&
-              <button className={y.stage === 'granted' ? 'ghost' : ''} onClick={() => setAct({ title: y.stage === 'granted' ? '改学校批复数' : '录入学校批复数', fields: [{ name: 'amount', label: '批复数（元）', type: 'number', value: y.granted_amount ? String(num(y.granted_amount)) : '' }, { name: 'on', label: '批复日期', type: 'date', value: day(y.granted_on) === '—' ? today() : day(y.granted_on) }],
-                run: (v) => go('grant', { amount: v.amount, on_date: v.on }) })}>{y.stage === 'granted' ? '改批复数' : '录入学校批复数'}</button>}
+              <button className={y.stage === 'granted' ? 'ghost' : ''} onClick={() => setAct({ title: y.stage === 'granted' ? '修改学校批复数' : '录入学校批复数', fields: [{ name: 'amount', label: '批复数（元）', type: 'number', value: y.granted_amount ? String(num(y.granted_amount)) : '' }, { name: 'on', label: '批复日期', type: 'date', value: day(y.granted_on) === '—' ? today() : day(y.granted_on) }],
+                run: (v) => go('grant', { amount: v.amount, on_date: v.on }) })}>{y.stage === 'granted' ? '修改批复数' : '录入学校批复数'}</button>}
             {y.stage === 'granted' && director &&
               <button onClick={() => setAct({ title: `确定 ${year} 年度总预算`, hint: `各项目核定数合计 ${money(tot(summed, 'fixed'))}，学校批复 ${opt(y.granted_amount)}。`, fields: [{ name: 'amount', label: '年度总预算（元）', type: 'number', value: String(num(y.granted_amount)) }], submitLabel: '确定',
                 run: (v) => go('fix', { amount: v.amount }) })}>确定年度总预算</button>}
@@ -183,33 +183,33 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
       {staff && (
         <>
           <div className="tiles">
-            <Tile k="申报数" v={money(tot(step === 1 ? lines : summed, 'declared'))} f={step === 1 ? `含填写中的；已提交 ${money(tot(summed, 'declared'))}` : `${submitted} 个项目`} />
-            <Tile k="申请数" v={step >= 2 ? money(tot(summed, 'applied')) : '—'} f={step >= 2 ? '报学校的数' : '截止申报后生成'} />
+            <Tile k="申报数" v={money(tot(step === 1 ? lines : summed, 'declared'))} f={step === 1 ? `含填报中的；已提交 ${money(tot(summed, 'declared'))}` : `${submitted} 个项目`} />
+            <Tile k="申请数" v={step >= 2 ? money(tot(summed, 'applied')) : '—'} f={step >= 2 ? '报学校数' : '截止申报后生成'} />
             <Tile k="学校批复" v={opt(y.granted_amount)} f={y.granted_on ? day(y.granted_on) : '学校一般 4 月批复'} />
             <Tile k="核定数" v={step >= 3 ? money(tot(summed, 'fixed')) : '—'} f={y.fixed_total ? `年度总预算 ${money(y.fixed_total)}` : '批复后确定'}
               tone={step >= 3 && y.granted_amount != null && tot(summed, 'fixed') > num(y.granted_amount) ? 'bad' : ''} />
           </div>
           <section className="card">
             <h3>经费来源核对</h3>
-            <p className="hint">两件事要在编预算时就对上：到期回收的经费卡必须在节点前花完；学校的年度经费 4 月才批复下来，之前的支出只能从可结转的卡里出。下面用{baseName}来比。</p>
+            <p className="hint">编制预算时须核对两项：到期回收的经费卡须在节点前使用完毕；学校年度经费 4 月批复，此前的支出只能由可结转的经费卡列支。以下按{baseName}比较。</p>
             <div className="scroll"><table>
               <thead><tr><th>核对项</th><th className="r">要求</th><th className="r">预算安排</th><th className="r">差额</th><th>说明</th></tr></thead>
               <tbody>
-                <tr><td>到期回收的卡要花完<span className="sub2">{recall.length === 0 ? '没有跨到这一年的回收卡' : recall.map((c) => `${c.name}（${day(c.settle_date ?? c.cutoff_date)}）`).join('、')}</span></td>
+                <tr><td>到期回收的经费卡须使用完毕<span className="sub2">{recall.length === 0 ? '无跨入本年度的回收经费卡' : recall.map((c) => `${c.name}（${day(c.settle_date ?? c.cutoff_date)}）`).join('、')}</span></td>
                   <td className="r">{money(mustSpend)}</td><td className="r">{money(planned)}</td>
                   <td className={`r ${planned < mustSpend ? 'neg' : ''}`}>{money(planned - mustSpend)}</td>
-                  <td>{recall.length === 0 ? '—' : planned < mustSpend ? <Badge tone="bad">预算不够把回收卡花完</Badge> : <Badge tone="ok">够</Badge>}</td></tr>
-                <tr><td>批复前（1–3 月）的支出<span className="sub2">只能从可结转的卡里出：{carry.length === 0 ? '没有可结转的卡' : carry.map((c) => c.name).join('、')}</span></td>
+                  <td>{recall.length === 0 ? '—' : planned < mustSpend ? <Badge tone="bad">预算不足以用完回收经费卡</Badge> : <Badge tone="ok">充足</Badge>}</td></tr>
+                <tr><td>批复前（1–3 月）的支出<span className="sub2">只能由可结转的经费卡列支：{carry.length === 0 ? '无可结转的经费卡' : carry.map((c) => c.name).join('、')}</span></td>
                   <td className="r">{money(early)}</td><td className="r">{money(carryAvail)}</td>
                   <td className={`r ${carryAvail < early ? 'neg' : ''}`}>{money(carryAvail - early)}</td>
-                  <td>{early === 0 ? '—' : carryAvail < early ? <Badge tone="bad">可结转的钱不够垫</Badge> : <Badge tone="ok">够</Badge>}</td></tr>
+                  <td>{early === 0 ? '—' : carryAvail < early ? <Badge tone="bad">可结转资金不足以垫付</Badge> : <Badge tone="ok">充足</Badge>}</td></tr>
               </tbody>
             </table></div>
-            <p className="hint">回收卡的要求取各卡现在的可用额；1–3 月的预算安排取可结转卡现在的可用额。差额怎么处理由联席会议定。</p>
+            <p className="hint">回收经费卡的要求取各卡当前可用额；1–3 月的预算安排取可结转经费卡当前可用额。差额的处理由联席会议决定。</p>
           </section>
           <section className="card">
             <h3>按科目汇总</h3>
-            {summed.length + (step === 1 ? lines.length : 0) === 0 ? <Empty>还没有预算行。</Empty> : (
+            {summed.length + (step === 1 ? lines.length : 0) === 0 ? <Empty>暂无预算行。</Empty> : (
               <div className="scroll"><table>
                 <thead><tr><th>科目</th>{QN.map((n) => <th key={n} className="r">{n}</th>)}<th className="r">申报数</th><th className="r">申请数</th><th className="r">核定数</th></tr></thead>
                 <tbody>{data.cats.slice().sort((a, b) => a.sort - b.sort).map((c) => {
@@ -224,7 +224,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
 
       {staff && step >= 3 && y.stage !== 'granted' && <IssuePanel me={me} y={y} projects={projects} cats={data.cats} onStage={reload} />}
 
-      {!staff && projects.filter((p) => p.mine).length === 0 && <Empty>你名下没有项目。项目的年度预算由项目负责人填；需要新立项目请联系财务岗。</Empty>}
+      {!staff && projects.filter((p) => p.mine).length === 0 && <Empty>本人名下暂无项目。项目年度预算由项目负责人填报；需新立项目请联系财务岗。</Empty>}
 
       {projects.filter((p) => p.mine).map((p) => {
         const b = budget.get(p.id); const rows = lines.filter((l) => l.project_id === p.id);
@@ -236,9 +236,9 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
             <h3>{p.name} <Badge tone={tone}>{st}</Badge></h3>
             <p className="hint">{p.code} · {KIND[p.kind]}{p.owner_name ? ` · 负责人 ${p.owner_name}` : ''}{b?.submitted_at ? ` · ${b.submitted_by_name ?? ''} ${day(b.submitted_at)} 提交` : ''}</p>
             {b?.status === 'returned' && <div className="msg bad">财务岗退回：{b.return_note}</div>}
-            {rows.length === 0 ? <Empty>{y.stage === 'declare' ? '还没有填。' : '这个项目没有申报。'}</Empty> : (
+            {rows.length === 0 ? <Empty>{y.stage === 'declare' ? '尚未填报。' : '该项目未申报。'}</Empty> : (
               <div className="scroll"><table className="tight">
-                <thead><tr><th>科目</th><th>做什么用</th>{QN.map((n) => <th key={n} className="r">{n}</th>)}<th className="r">申报数</th><th className="r">申请数</th><th className="r">核定数</th><th /></tr></thead>
+                <thead><tr><th>科目</th><th>用途</th>{QN.map((n) => <th key={n} className="r">{n}</th>)}<th className="r">申报数</th><th className="r">申请数</th><th className="r">核定数</th><th /></tr></thead>
                 <tbody>{rows.map((l) => (
                   <tr key={l.id}><td>{cat.get(l.category_id)?.name ?? '—'}</td>
                     <td className="wrap">{l.purpose}{l.resource_id && <span className="sub2 blk">资源计划：{planText(l)}</span>}{l.adjust_note && <span className="sub2">申请数调整：{l.adjust_note}</span>}</td>
@@ -247,8 +247,8 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
                     <td className={`r ${l.applied != null && num(l.applied) !== num(l.declared) ? 'chg' : ''}`}>{opt(l.applied)}</td>
                     <td className={`r ${l.fixed != null && num(l.fixed) !== num(l.applied) ? 'chg' : ''}`}>{opt(l.fixed)}</td>
                     <td className="r nowrap">
-                      {editable && <><button className="ghost sm" onClick={() => setAct(lineAct(p, l))}>改</button>{' '}
-                        <button className="ghost sm" onClick={() => setAct({ title: `删掉这一行：${l.purpose}`, fields: [], danger: true, submitLabel: '删除', run: () => rpc('delete_budget_line', { id: l.id }).then(reload) })}>删</button></>}
+                      {editable && <><button className="ghost sm" onClick={() => setAct(lineAct(p, l))}>修改</button>{' '}
+                        <button className="ghost sm" onClick={() => setAct({ title: `删除预算行：${l.purpose}`, fields: [], danger: true, submitLabel: '删除', run: () => rpc('delete_budget_line', { id: l.id }).then(reload) })}>删除</button></>}
                       {adjustable && <button className="ghost sm" onClick={() => setAct(adjustAct(p, l))}>{y.stage === 'granted' ? '核定' : '调整'}</button>}
                       {staff && !editable && b?.status === 'submitted' && y.stage !== 'closed' && <>{' '}<button className="ghost sm" onClick={() => setAct(planAct(p, l))}>资源计划</button></>}
                     </td></tr>
@@ -259,12 +259,12 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
               </table></div>
             )}
             <div className="actions" style={{ justifyContent: 'flex-start' }}>
-              {editable && <button className="ghost" onClick={() => setAct(lineAct(p))}>加一行</button>}
+              {editable && <button className="ghost" onClick={() => setAct(lineAct(p))}>新增预算行</button>}
               {editable && <><button className="ghost" onClick={() => setAct(pasteAct(p))}>整表导入</button><a className="btn ghost" href={TEMPLATE} download={`年度预算模板-${year}.csv`}>下载模板</a></>}
-              {editable && rows.length > 0 && <button onClick={() => setAct({ title: `提交 ${p.name} 的 ${year} 年度预算`, hint: `申报数合计 ${money(tot(rows, 'declared'))}。提交后不能再改；截止前可以撤回。`, fields: [], submitLabel: '提交', run: () => setBudget(p, 'submit') })}>提交</button>}
-              {y.stage === 'declare' && b?.status === 'submitted' && <button className="ghost" onClick={() => setAct({ title: '撤回修改', hint: '撤回后可以修改，改完要重新提交。', fields: [], submitLabel: '撤回', run: () => setBudget(p, 'withdraw') })}>撤回修改</button>}
+              {editable && rows.length > 0 && <button onClick={() => setAct({ title: `提交 ${p.name} 的 ${year} 年度预算`, hint: `申报数合计 ${money(tot(rows, 'declared'))}。提交后不可修改；截止前可撤回。`, fields: [], submitLabel: '提交', run: () => setBudget(p, 'submit') })}>提交</button>}
+              {y.stage === 'declare' && b?.status === 'submitted' && <button className="ghost" onClick={() => setAct({ title: '撤回修改', hint: '撤回后可修改，修改后须重新提交。', fields: [], submitLabel: '撤回', run: () => setBudget(p, 'withdraw') })}>撤回修改</button>}
               {staff && y.stage === 'declare' && b?.status === 'submitted' &&
-                <button className="ghost" onClick={() => setAct({ title: `退回 ${p.name} 的预算`, fields: [{ name: 'note', label: '退回原因' }], danger: true, submitLabel: '退回', run: (v) => setBudget(p, 'return', v.note) })}>退回重填</button>}
+                <button className="ghost" onClick={() => setAct({ title: `退回 ${p.name} 的预算`, fields: [{ name: 'note', label: '退回原因' }], danger: true, submitLabel: '退回', run: (v) => setBudget(p, 'return', v.note) })}>退回重新填报</button>}
             </div>
           </section>
         );

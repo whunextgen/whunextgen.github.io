@@ -9,7 +9,7 @@ const STAGES: Record<string, string[]> = {
   集采: ['申报', '集中采购（约 2.5 个月）', '到货', '验收贴码'],
   分散采购: ['备案', '论证', '挂网竞价', '合同', '到货', '验收贴码'],
 };
-const EVENT: Record<string, string> = { advance: '进到下一阶段' };
+const EVENT: Record<string, string> = { advance: '进入下一阶段' };
 const daysTo = (d: string, from: string) => Math.round((Date.parse(day(d)) - Date.parse(from)) / 864e5);
 
 function Steps({ r }: { r: Req }) {
@@ -54,13 +54,13 @@ export function Procure({ me }: { me: Me }) {
       </div>
       <section className="card">
         <h3>涉及采购的支出</h3>
-        <p className="hint">直采单件 5 万以内，审批约 14 天；集采约 2.5 个月；分散采购要备案、论证、挂网、签合同。验收贴码之后才能提交学校。
-          分摊到多张卡的支出共用一条采购，进度记在第一笔上。</p>
+        <p className="hint">直采单件 5 万以内，审批约 14 天；集采约 2.5 个月；分散采购须备案、论证、挂网、签订合同。验收贴码后方可提交学校。
+          分摊至多张经费卡的支出共用一条采购，进度记录在第一笔上。</p>
         <div className="tabs" style={{ marginBottom: 12 }}>
           {([['doing', `进行中 ${doing.length}`], ['ready', `待提交学校 ${ready.length}`], ['done', `已结束 ${done.length}`]] as const).map(([k, label]) =>
             <button key={k} className="sm" aria-pressed={tab === k} onClick={() => setTab(k)}>{label}</button>)}
         </div>
-        {rows.length === 0 ? <Empty>{tab === 'doing' ? '没有进行中的采购。' : tab === 'ready' ? '没有等待提交学校的采购。' : '还没有结束的采购。'}</Empty> : (
+        {rows.length === 0 ? <Empty>{tab === 'doing' ? '暂无进行中的采购。' : tab === 'ready' ? '暂无待提交学校的采购。' : '暂无已结束的采购。'}</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th>事项与进度</th><th>经费卡</th><th className="r">金额</th><th>预计入账</th><th>状态</th><th /></tr></thead>
             <tbody>{rows.map((r) => {
@@ -77,7 +77,7 @@ export function Procure({ me }: { me: Me }) {
                   <td className="r">{money(r.amount)}</td>
                   <td>{day(r.posted_on ?? r.eta_date)}
                     {live(r) && <div className="sub2">{c && day(r.eta_date) > day(c.cutoff_date) ? <Badge tone="bad">晚于单据截止日</Badge>
-                      : left < 0 ? <Badge tone="bad">已过 {-left} 天</Badge> : left <= 30 ? <Badge tone="warn">还有 {left} 天</Badge> : `还有 ${left} 天`}</div>}</td>
+                      : left < 0 ? <Badge tone="bad">已过 {-left} 天</Badge> : left <= 30 ? <Badge tone="warn">剩余 {left} 天</Badge> : `剩余 ${left} 天`}</div>}</td>
                   <td><Badge tone={REQ[r.status][1]}>{REQ[r.status][0]}</Badge></td>
                   <td><div className="acts">{acts.map((a) => <button key={a.label} className={`sm ghost ${a.danger ? 'danger' : ''}`} onClick={() => setAct(a)}>{a.label}</button>)}</div></td>
                 </tr>);

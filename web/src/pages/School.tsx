@@ -27,7 +27,7 @@ function BatchPost({ rows, cardName, onDone, onCancel }: { rows: Req[]; cardName
       const d = date ? date.replace(/[/.]/g, '-').split('-').map((x, i) => (i ? x.padStart(2, '0') : x)).join('-') : nf[same[0].id].posted_on;
       nf[same[0].id] = { posted_on: d, amount: amount!, voucher_no: voucher ?? '' }; non[same[0].id] = true; hit++;
     }
-    setF(nf); setOn(non); setNote(`对上 ${hit} 行${miss ? `，${miss} 行没有对上（金额没有或不唯一），请手工勾选` : ''}。`);
+    setF(nf); setOn(non); setNote(`已匹配 ${hit} 行${miss ? `，${miss} 行未匹配（金额缺失或不唯一），请手工勾选` : ''}。`);
   };
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setError('');
@@ -36,10 +36,10 @@ function BatchPost({ rows, cardName, onDone, onCancel }: { rows: Req[]; cardName
   };
   return (
     <form onSubmit={submit} className="change">
-      <p className="hint">勾选学校已经入账的单据，填入账日期、金额和凭证号。决算数只认这里回写的学校入账。</p>
-      <label className="field"><span>从学校的入账清单粘贴（每行：金额、日期、凭证号，顺序不限；可不用）</span>
+      <p className="hint">勾选学校已入账的单据，填写入账日期、金额和凭证号。决算数仅以此处回写的学校入账为准。</p>
+      <label className="field"><span>从学校入账清单粘贴（每行：金额、日期、凭证号，顺序不限；选填）</span>
         <textarea rows={3} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={'9800.00 2026-11-05 PZ-1105-021'} /></label>
-      <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 0 }}><button type="button" className="sm ghost" disabled={!paste.trim()} onClick={match}>按金额对上</button>
+      <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 0 }}><button type="button" className="sm ghost" disabled={!paste.trim()} onClick={match}>按金额匹配</button>
         {note && <span className="sub2">{note}</span>}</div>
       <div className="scroll"><table>
         <thead><tr><th /><th>事项</th><th>经费卡</th><th className="r">申请金额</th><th>入账日期</th><th className="r">入账金额</th><th>凭证号</th></tr></thead>
@@ -97,12 +97,12 @@ export function School({ me }: { me: Me }) {
   return (
     <>
       <div className="top"><h2>入账跟踪：报销</h2>
-        {finance && <button onClick={() => setAdding(true)}>登记一笔</button>}</div>
+        {finance && <button onClick={() => setAdding(true)}>登记</button>}</div>
 
       <section className="card">
-        <h3>被学校退回</h3>
-        <p className="hint">退回的单据仍占用额度。财务岗可以改到别的卡或科目重新送审，也可以释放。</p>
-        {returned.length === 0 ? <Empty>没有被退回的单据。</Empty> : table(returned)}
+        <h3>学校退回</h3>
+        <p className="hint">退回的单据仍占用额度。财务岗可改至其他经费卡或科目重新送审，也可释放。</p>
+        {returned.length === 0 ? <Empty>暂无退回单据。</Empty> : table(returned)}
       </section>
 
       <section className="card">
@@ -112,15 +112,15 @@ export function School({ me }: { me: Me }) {
           <button className="sm" onClick={() => { setBatch(true); setDone(''); }}>批量入账</button></div>}
         {batch && <BatchPost rows={atSchool} cardName={maps.card} onCancel={() => setBatch(false)}
           onDone={(n) => { setBatch(false); setDone(`已入账 ${n} 笔。`); reload(); }} />}
-        {atSchool.length === 0 ? <Empty>没有在学校审核的单据。</Empty> : batch ? null : (
+        {atSchool.length === 0 ? <Empty>暂无学校审核中的单据。</Empty> : batch ? null : (
           <>{table(atSchool)}<p className="sub2">{atSchool.length} 笔，合计 {money(atSchool.reduce((s, r) => s + num(r.amount), 0))}</p></>
         )}
       </section>
 
       <section className="card">
         <h3>学校余额对账</h3>
-        <p className="hint">学校财务系统没有接口，余额、冻结和可用三个数由财务岗对着学校系统回写。学校的可用和本系统的可用对不上时，通常是有单据没登记或入账没回写。</p>
-        {recon.length === 0 ? <Empty>没有在用的经费卡。</Empty> : (
+        <p className="hint">学校财务系统未提供接口，余额、冻结和可用三项数据由财务岗对照学校系统回写。学校可用与本系统可用不一致时，通常是有单据未登记或入账未回写。</p>
+        {recon.length === 0 ? <Empty>暂无在用的经费卡。</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th>经费卡</th><th className="r">本系统可用</th><th className="r">学校余额</th><th className="r">学校冻结</th><th className="r">学校可用</th><th className="r">相差</th><th>回写日</th><th /></tr></thead>
             <tbody>{recon.map((c) => { const d = c.school_available != null ? num(c.avail) - num(c.school_available) : null; return (
@@ -136,12 +136,12 @@ export function School({ me }: { me: Me }) {
 
       <section className="card">
         <h3>到账认领与借票核销</h3>
-        <p className="hint">项目经费到校后要在科研系统认领才能使用；预借的发票要在款到后核销。登记时写了待办的记录，办结前列在这里。</p>
+        <p className="hint">项目经费到校后须在科研系统认领方可使用；预借的发票须在款项到账后核销。登记时填写了待办的记录，办结前在此列出。</p>
         <div className="tabs" style={{ marginBottom: 12 }}>
           <button className="sm" aria-pressed={!all} onClick={() => setAll(false)}>未办 {open.length}</button>
           <button className="sm" aria-pressed={all} onClick={() => setAll(true)}>全部 {events.length}</button>
         </div>
-        {shown.length === 0 ? <Empty>{all ? '还没有登记过学校侧的记录。' : '没有未办的认领或核销。'}</Empty> : (
+        {shown.length === 0 ? <Empty>{all ? '暂无学校侧记录。' : '暂无未办的认领或核销。'}</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th>日期</th><th>经费卡</th><th>类型</th><th className="r">金额</th><th>待办</th><th /></tr></thead>
             <tbody>{shown.map((e) => (
@@ -156,7 +156,7 @@ export function School({ me }: { me: Me }) {
 
       <section className="card">
         <h3>退单与废标记录</h3>
-        {log.length === 0 ? <Empty>还没有退单、废标或流标的记录。</Empty> : (
+        {log.length === 0 ? <Empty>暂无退单、废标或流标记录。</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th>日期</th><th>类型</th><th>事项</th><th>经费卡</th><th className="r">金额</th><th>原因</th></tr></thead>
             <tbody>{log.map((e) => { const r = maps.req.get(e.request_id); return (
@@ -168,20 +168,20 @@ export function School({ me }: { me: Me }) {
       </section>
 
       {adding && <ActionDialog title="登记学校侧记录" submitLabel="登记"
-        hint="需要后续办理的（例如到账后去认领、借票后等款到核销）写上待办；不写待办的只作为记录。"
+        hint="需后续办理的（例如到账后认领、借票后待款项到账核销）填写待办；未填写待办的仅作为记录。"
         fields={[
           { name: 'card_id', label: '经费卡', options: data.cards.map((c): [string, string] => [c.id, `${c.card_no} ${c.name}`]) },
           { name: 'kind', label: '类型', options: KINDS.map((k): [string, string] => [k, k]) },
           { name: 'event_date', label: '日期', type: 'date', value: today() },
           { name: 'amount', label: '金额（元）', type: 'number' },
-          { name: 'todo', label: '待办（没有就不填）', required: false },
+          { name: 'todo', label: '待办（选填）', required: false },
         ]}
         onSubmit={async (v) => { await rpc('add_fund_event', v); reload(); }} onClose={() => setAdding(false)} />}
       {bal && <ActionDialog title={`回写学校余额：${bal.name}`} submitLabel="回写"
-        hint={`对着学校财务系统填。本系统可用 ${money(bal.avail)}。可用不填时按余额减冻结算。`}
+        hint={`对照学校财务系统填写。本系统可用 ${money(bal.avail)}。可用留空时按余额减冻结计算。`}
         fields={[{ name: 'balance', label: '余额（元）', type: 'number', value: bal.school_balance != null ? String(num(bal.school_balance)) : '' },
           { name: 'frozen', label: '冻结（元）', type: 'number', value: String(num(bal.school_frozen)) },
-          { name: 'available', label: '可用（元，可不填）', type: 'number', required: false }]}
+          { name: 'available', label: '可用（元，选填）', type: 'number', required: false }]}
         onSubmit={async (v) => { await rpc('set_school_balance', { card_id: bal.card_id, ...v }); reload(); }} onClose={() => setBal(null)} />}
       {finish && <ActionDialog title="标记已办" submitLabel="确认已办" fields={[]}
         hint={`${maps.card.get(finish.card_id ?? '') ?? ''} ${day(finish.event_date)} ${finish.kind} ${money(finish.amount)}：${finish.todo ?? ''}`}

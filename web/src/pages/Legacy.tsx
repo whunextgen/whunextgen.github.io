@@ -24,7 +24,7 @@ function MsTable({ subs, items }: { subs: LegacyMsSub[]; items: LegacyMsItem[] }
           const req = sum(rows), file = s.total == null ? null : num(s.total); return (
           <Fragment key={s.id}>
             <tr><td>{bj(s.submitted_at)}</td><td>{s.leader_name}</td><td className="wrap">{s.file_name || '—'}
-                {file != null && Math.abs(file - req) > 0.005 && <div className="sub2">预算表合计 {money(file)}，进入审核的是其中 {rows.length} 行</div>}
+                {file != null && Math.abs(file - req) > 0.005 && <div className="sub2">预算表合计 {money(file)}，其中 {rows.length} 行进入审核</div>}
                 {s.comment && <div className="sub2">{s.comment}</div>}</td>
               <td className="r">{money(req)}</td><td className="r">{money(sum(rows, isOk))}</td><td className="r">{money(sum(rows, isWait))}</td><td className="r">{money(sum(rows, isOff))}</td><td><St s={s.status} /></td>
               <td><div className="acts"><button className="sm ghost" aria-pressed={open === s.id} onClick={() => setOpen(open === s.id ? '' : s.id)}>{rows.length} 行</button></div></td></tr>
@@ -47,8 +47,8 @@ export function LegacyAdjustList({ cardId }: { cardId: string }) {
   if (!data || data.rows.length === 0) return null;
   return (
     <section className="card">
-      <h3>旧门户的预算调整记录</h3>
-      <p className="hint">这张卡在旧门户里做过的预算调整，仅供查阅；现行预算以上面的预算表为准。</p>
+      <h3>旧门户预算调整记录</h3>
+      <p className="hint">该经费卡在旧门户办理过的预算调整，仅供查阅；现行预算以上方预算表为准。</p>
       <div className="scroll"><table>
         <thead><tr><th>时间</th><th>科目</th><th className="r">调整前</th><th className="r">调整后</th><th>原因</th></tr></thead>
         <tbody>{[...data.rows].sort((a, b) => (a.adjusted_at ?? '').localeCompare(b.adjusted_at ?? '')).map((r) => (
@@ -81,7 +81,7 @@ function LedgerTable({ ledger }: { ledger: LegacyLedger[] }) {
   const tot = (k: 'total' | 'used' | 'remaining') => money(ledger.reduce((s, r) => s + num(r[k]), 0));
   return (
     <div>
-      <h4 className="subhd">额度台账 <span className="sub2">{ledger.length} 条 · 按周期发给个人的接口额度</span></h4>
+      <h4 className="subhd">额度台账 <span className="sub2">{ledger.length} 条 · 按周期发放至个人的接口额度</span></h4>
       <div className="scroll"><table>
         <thead><tr><th>使用人</th><th>资源</th><th>项目</th><th>周期</th><th className="r">总额度</th><th className="r">已用</th><th className="r">剩余</th><th>有效期</th></tr></thead>
         <tbody>{ledger.map((r) => (
@@ -122,7 +122,7 @@ function LegacyRows({ source, title }: { source: string; title: string }) {
           <tr key={r.record_id}>{entity && <td>{r.status ?? '—'}</td>}{keys.map((k) => <td key={k} className="wrap">{show(r.data?.[k])}</td>)}</tr>
         ))}</tbody>
       </table></div>
-      {data.rows.length > 500 && <p className="hint">只显示前 500 条。</p>}
+      {data.rows.length > 500 && <p className="hint">仅显示前 500 条。</p>}
     </section>
   );
 }
@@ -130,8 +130,8 @@ function LegacyRows({ source, title }: { source: string; title: string }) {
 // 旧门户的记录统一放在这一页，按新系统的五步归类：预算、申请、承诺、入账、结清，再加资源和存档。
 // 财务岗和中心负责人看到每一类的对账（旧门户多少、转入多少、新系统现有多少）；其他人只看到自己的申请和额度。
 const STEPS: [number, string, string][] = [
-  [1, '预算', '经费项目、科目、预算和考核节点'], [2, '申请', '旧门户里提交过的申请，没走到批准的'], [3, '承诺', '批准了但没有入账的'],
-  [4, '入账', '学校已入账的支出'], [5, '结清', ''], [6, '资源', '资产和接口额度'], [7, '存档', '新系统里没有对应位置的原件'],
+  [1, '预算', '经费项目、科目、预算和考核节点'], [2, '申请', '旧门户已提交但未获批准的申请'], [3, '承诺', '已批准但尚未入账的'],
+  [4, '入账', '学校已入账的支出'], [5, '结清', ''], [6, '资源', '资产和接口额度'], [7, '存档', '新系统中无对应位置的原件'],
 ];
 const cnt = (n: number | null, a: string | null) => (n == null ? '—' : <>{n} 条{a != null && <span className="sub2"> · {money(a)}</span>}</>);
 
@@ -152,32 +152,32 @@ export function History({ staff }: { staff: boolean }) {
   return (
     <>
       <div className="top"><h2>历史数据</h2></div>
-      <p className="lede">旧门户的数据按新系统的五步归类，只读。{staff ? '每一类都列出旧门户里有多少、转入新系统多少、新系统里现在实际有多少，三个数现算现比。' : '这里是你在旧门户里提交过的申请和领到的额度。'}</p>
+      <p className="lede">旧门户数据按新系统的五个环节归类，只读。{staff ? '每类分别列出旧门户数量、转入新系统数量和新系统现有数量，三项数据实时计算比对。' : '此处为本人在旧门户提交的申请和获得的额度。'}</p>
       {staff && recon.length > 0 && (
         <div className="tiles">
-          <div className="tile"><div className="k">旧门户记录</div><div className="v">{all}</div><div className="f">{total === all ? `各类相加 ${total} 条，一条不少` : `各类相加 ${total} 条，差 ${all - total} 条`}</div></div>
+          <div className="tile"><div className="k">旧门户记录</div><div className="v">{all}</div><div className="f">{total === all ? `各类合计 ${total} 条，无缺漏` : `各类合计 ${total} 条，相差 ${all - total} 条`}</div></div>
           <div className="tile"><div className="k">转入新系统</div><div className="v">{moved.reduce((s, r) => s + (r.in_n ?? 0), 0)}</div><div className="f">{moved.length} 类，继续使用</div></div>
-          <div className="tile"><div className="k">只存档</div><div className="v">{all - moved.reduce((s, r) => s + (r.in_n ?? 0), 0)}</div><div className="f">原样保留，只读</div></div>
-          <div className="tile"><div className="k">核对结果</div><div className={`v${bad.length > 0 || total !== all ? ' bad' : ''}`}>{bad.length > 0 ? `${bad.length} 类对不上` : '全部一致'}</div><div className="f">转入的 {moved.length} 类逐类比对</div></div>
+          <div className="tile"><div className="k">仅存档</div><div className="v">{all - moved.reduce((s, r) => s + (r.in_n ?? 0), 0)}</div><div className="f">原样保留，只读</div></div>
+          <div className="tile"><div className="k">核对结果</div><div className={`v${bad.length > 0 || total !== all ? ' bad' : ''}`}>{bad.length > 0 ? `${bad.length} 类不一致` : '全部一致'}</div><div className="f">转入的 {moved.length} 类逐类比对</div></div>
         </div>
       )}
-      {nothing && <Empty>没有旧门户记录。</Empty>}
+      {nothing && <Empty>暂无旧门户记录。</Empty>}
       {STEPS.map(([step, name, desc]) => { const rows = recon.filter((r) => r.step === step);
         if (rows.length === 0 && !extra(step) && !(staff && step === 5 && recon.length > 0)) return null; return (
         <Fragment key={step}>
           <section className="card">
             <h3>{name}{desc && <span className="sub2 h3sub">{desc}</span>}</h3>
             <div className="stack">
-              {step === 5 && <Empty>旧门户没有结清记录。经费卡的结清从新系统开始做。</Empty>}
+              {step === 5 && <Empty>旧门户无结清记录。经费卡结清自新系统起办理。</Empty>}
               {rows.length > 0 && (
                 <div className="scroll"><table className="recon">
                   <thead><tr><th>数据</th><th>旧门户</th><th>转入新系统</th><th>新系统现有</th><th>核对</th><th /></tr></thead>
                   <tbody>{rows.map((r) => (
                     <tr key={r.key}><td className="wrap">{r.label}{r.note && <div className="sub2">{r.note}</div>}</td>
                       <td>{cnt(r.old_n, r.old_amt)}</td>
-                      <td>{r.in_n == null ? <span className="sub2">只存档</span> : <>{cnt(r.in_n, r.in_amt)}{r.place && <div className="sub2">→ {r.place}</div>}</>}</td>
+                      <td>{r.in_n == null ? <span className="sub2">仅存档</span> : <>{cnt(r.in_n, r.in_amt)}{r.place && <div className="sub2">→ {r.place}</div>}</>}</td>
                       <td>{r.in_n == null ? '—' : cnt(r.new_n ?? 0, r.new_amt)}</td>
-                      <td>{r.in_n == null ? '' : <Badge tone={r.ok ? 'ok' : 'bad'}>{r.ok ? '一致' : '对不上'}</Badge>}</td>
+                      <td>{r.in_n == null ? '' : <Badge tone={r.ok ? 'ok' : 'bad'}>{r.ok ? '一致' : '不一致'}</Badge>}</td>
                       <td><div className="acts">
                         {r.source && <button className="sm ghost" aria-pressed={src?.source === r.source && src.step === step} onClick={() => pick(step, r.source!, r.label)}>原始记录</button>}
                         {r.key === 'attach' && <button className="sm ghost" aria-pressed={files} onClick={() => setFiles(!files)}>{attach.length} 张表</button>}

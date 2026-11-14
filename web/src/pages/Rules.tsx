@@ -16,8 +16,8 @@ function NewRuling({ cards, types, onDone }: { cards: CardPick[]; types: Expense
   };
   return (
     <form className="card" onSubmit={submit}>
-      <h3>记录一条答复</h3>
-      <p className="hint">每问一次财务处或发规办就记一条。同一张卡同一类支出，前后答复相反时标为有争议。</p>
+      <h3>新增答复记录</h3>
+      <p className="hint">每次咨询财务处或发规办后记录一条。同一经费卡同一类支出，前后答复相反的标为有争议。</p>
       <div className="grid">
         <label className="field"><span>经费卡</span>
           <select required value={v.card_id} onChange={(e) => set({ card_id: e.target.value })}>
@@ -29,11 +29,11 @@ function NewRuling({ cards, types, onDone }: { cards: CardPick[]; types: Expense
           </select></label>
         <label className="field"><span>答复</span>
           <select required value={v.verdict} onChange={(e) => set({ verdict: e.target.value })}>
-            <option value="">请选择</option><option value="yes">可以</option><option value="conditional">有条件</option><option value="no">不可以</option>
+            <option value="">请选择</option><option value="yes">可报销</option><option value="conditional">有条件报销</option><option value="no">不可报销</option>
           </select></label>
         <label className="field"><span>答复日期</span><input required type="date" max={today()} value={v.ruled_on} onChange={(e) => set({ ruled_on: e.target.value })} /></label>
         <label className="field"><span>答复人或部门</span><input required maxLength={100} value={v.ruled_by} onChange={(e) => set({ ruled_by: e.target.value })} /></label>
-        <label className="field"><span>条件或说明{v.verdict === 'yes' ? '（可不填）' : ''}</span>
+        <label className="field"><span>条件或说明{v.verdict === 'yes' ? '（选填）' : ''}</span>
           <input required={v.verdict !== 'yes'} maxLength={500} value={v.note} onChange={(e) => set({ note: e.target.value })} /></label>
       </div>
       {error && <div className="msg bad" role="alert">{error}</div>}
@@ -61,17 +61,17 @@ export function Rules({ me }: { me: Me }) {
   return (
     <>
       <div className="top"><h2>报销答复记录</h2>
-        {staff && <button onClick={() => setAdding(!adding)} className={adding ? 'ghost' : ''}>{adding ? '收起' : '记录一条答复'}</button>}</div>
+        {staff && <button onClick={() => setAdding(!adding)} className={adding ? 'ghost' : ''}>{adding ? '收起' : '新增答复记录'}</button>}</div>
       {adding && <NewRuling cards={cards} types={types} onDone={() => { setAdding(false); reload(); }} />}
 
       <section className="card">
-        <h3>哪张卡能列支什么</h3>
-        <p className="hint">没有答复的组合不能提交支出申请，要先问清楚并记录。学校退单的原因会自动记成不可以。</p>
-        {cards.length === 0 || types.length === 0 ? <Empty>还没有在用的经费卡或支出类型。</Empty> : (
+        <h3>各经费卡可列支范围</h3>
+        <p className="hint">无答复的组合不得提交支出申请，须先咨询并记录。学校退单的原因自动记为不可报销。</p>
+        {cards.length === 0 || types.length === 0 ? <Empty>暂无在用的经费卡或支出类型。</Empty> : (
           <div className="scroll"><table className="matrix">
             <thead><tr><th>支出类型</th>{cards.map((c) => <th key={c.id}>{c.name}</th>)}</tr></thead>
             <tbody>{types.map((t) => (
-              <tr key={t.id}><th scope="row">{t.name}{t.required_path && <div className="sub2">必须走{t.required_path}</div>}</th>
+              <tr key={t.id}><th scope="row">{t.name}{t.required_path && <div className="sub2">须采用{t.required_path}</div>}</th>
                 {cards.map((c) => { const r = by.get(`${c.id}|${t.id}`); const v = r && VERDICT[r.verdict]; return (
                   <td key={c.id} title={r?.note ?? undefined}>{v ? <Badge tone={v[1]}>{v[0]}</Badge> : <span className="none">未答复</span>}
                     {r?.note && <div className="sub2 wrap">{r.note}</div>}</td>); })}</tr>
@@ -83,7 +83,7 @@ export function Rules({ me }: { me: Me }) {
       {staff && (
         <section className="card">
           <h3>支出类型</h3>
-          <p className="hint">提交支出申请时要选类型，规则按类型记录。类型只能新增和修改，不能删除。</p>
+          <p className="hint">提交支出申请时须选择类型，规则按类型记录。类型仅可新增和修改，不可删除。</p>
           <div className="tabs">
             {types.map((t) => <button key={t.id} className="sm" onClick={() => setEdit(t)} title="修改">{t.name}{t.required_path ? ` · ${t.required_path}` : ''}</button>)}
             <button className="sm" aria-pressed="true" onClick={() => setEdit('new')}>新增类型</button>
@@ -91,9 +91,9 @@ export function Rules({ me }: { me: Me }) {
         </section>
       )}
       {edit && <ActionDialog title={edit === 'new' ? '新增支出类型' : '修改支出类型'} submitLabel="保存"
-        hint={edit === 'new' ? '例如：电脑、差旅、会议、劳务、云服务。' : '改名会同时改变已有答复和申请里显示的名称。'}
+        hint={edit === 'new' ? '例如：电脑、差旅、会议、劳务、云服务。' : '更名将同步变更已有答复和申请中显示的名称。'}
         fields={[{ name: 'name', label: '名称', value: edit === 'new' ? '' : edit.name },
-          { name: 'required_path', label: '必须走的采购路径（没有就不选）', required: false, options: PATH_OPTS, value: edit === 'new' ? '' : edit.required_path ?? '' }]}
+          { name: 'required_path', label: '须采用的采购路径（无要求的留空）', required: false, options: PATH_OPTS, value: edit === 'new' ? '' : edit.required_path ?? '' }]}
         onSubmit={async (v) => { await rpc('save_expense_type', { id: edit === 'new' ? null : edit.id, name: v.name, required_path: v.required_path || null }); reload(); }}
         onClose={() => setEdit(null)} />}
 
@@ -104,7 +104,7 @@ export function Rules({ me }: { me: Me }) {
           {cards.map((c) => <button key={c.id} className="sm" aria-pressed={pick === c.id} onClick={() => setPick(c.id)}>
             {c.name} {data.rulings.filter((r) => r.card_id === c.id).length}</button>)}
         </div>
-        {history.length === 0 ? <Empty>还没有答复记录。</Empty> : (
+        {history.length === 0 ? <Empty>暂无答复记录。</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th>日期</th><th>经费卡</th><th>支出类型</th><th>答复</th><th>答复人</th><th>说明</th></tr></thead>
             <tbody>{history.map((r) => { const v = VERDICT[r.verdict] ?? [r.verdict, '']; return (

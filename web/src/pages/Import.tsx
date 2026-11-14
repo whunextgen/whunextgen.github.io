@@ -23,8 +23,8 @@ const COLS: Record<Kind, Col[]> = {
   ],
 };
 const KIND_TEXT: Record<Kind, [string, string]> = {
-  balance: ['经费卡余额', '学校系统里各经费卡的余额、冻结和可用。导入后更新「学校余额对账」，用来发现没登记的单据和没回写的入账。'],
-  post: ['入账明细', '学校系统里已经入账的支出明细。按金额（有卡号时加上卡号）对到正在学校审核的单据上，对上的回写入账日期、金额和凭证号。'],
+  balance: ['经费卡余额', '学校系统中各经费卡的余额、冻结和可用。导入后更新学校余额对账，用于发现未登记的单据和未回写的入账。'],
+  post: ['入账明细', '学校系统中已入账的支出明细。按金额（有卡号时一并按卡号）匹配学校审核中的单据，匹配成功的回写入账日期、金额和凭证号。'],
 };
 
 const decode = (buf: ArrayBuffer) => { const u = new TextDecoder('utf-8').decode(buf); return u.includes('�') ? new TextDecoder('gb18030').decode(buf) : u; };
@@ -62,7 +62,7 @@ export function SchoolImport({ finance }: { finance: boolean }) {
 
   const load = (text: string, k = kind) => {
     const t = parse(text); setMsg(null); setOff({}); setManual(false);
-    if (t.length < 2) { setTable(null); setMsg(['bad', '没有读到数据。请导出为 CSV，或在 Excel 里选中表头和数据复制后粘贴到这里。']); return; }
+    if (t.length < 2) { setTable(null); setMsg(['bad', '未读取到数据。请导出为 CSV，或在 Excel 中选中表头和数据，复制后粘贴至此处。']); return; }
     // 表头不一定在第一行：取前 10 行里能认出列名最多的一行
     const score = (r: string[]) => COLS[k].filter((c) => r.some((h) => c.guess.test(h) && !c.not?.test(h))).length;
     const h = t.slice(0, 10).reduce((best, r, i) => (score(r) > score(t[best]) ? i : best), 0);
@@ -78,7 +78,7 @@ export function SchoolImport({ finance }: { finance: boolean }) {
       ? data.cards.filter((c) => form[c.card_id]?.balance?.trim()).map((c) => [c.card_no.trim(), form[c.card_id].balance, form[c.card_id].frozen ?? '', form[c.card_id].available ?? '', ''])
       : data.reqs.filter((r) => r.status === 'at_school' && form[r.id]?.date).map((r) => [form[r.id].amount?.trim() || String(r.amount), form[r.id].date, form[r.id].voucher ?? '', '', '', r.id]);
     setMsg(null); setOff({});
-    if (rows.length === 0) { setMsg(['bad', kind === 'balance' ? '还没有填任何一张卡的余额。' : '还没有填任何一笔的入账日期。']); return; }
+    if (rows.length === 0) { setMsg(['bad', kind === 'balance' ? '尚未填写任何经费卡的余额。' : '尚未填写任何单据的入账日期。']); return; }
     setTable([[...COLS[kind].map((c) => c.label), ''], ...rows]); setHead(0); setManual(true);
     setCols(Object.fromEntries(keys.map((k, i) => [k, i])));
   };
@@ -89,7 +89,7 @@ export function SchoolImport({ finance }: { finance: boolean }) {
     if (kind === 'balance') {
       const byNo = new Map(data.cards.map((c) => [c.card_no.trim(), c]));
       return body.map((r, i) => { const no = (at(r, 'no') ?? '').trim(), card = byNo.get(no), balance = amt(at(r, 'balance')), frozen = amt(at(r, 'frozen')) ?? 0, available = amt(at(r, 'available'));
-        const why = !no ? '没有卡号' : /^(合计|小计|总计)/.test(no) ? '合计行，不是经费卡' : !card ? '中台里没有这张卡' : balance == null ? '余额不是数字' : '';
+        const why = !no ? '缺少卡号' : /^(合计|小计|总计)/.test(no) ? '合计行，非经费卡' : !card ? '中台无该经费卡' : balance == null ? '余额非数字' : '';
         const changed = !!card && !why && !(same(balance, card.school_balance) && same(frozen, card.school_frozen ?? '0') && same(available ?? balance! - frozen, card.school_available));
         return { i, no, card, balance, frozen, available: available ?? (balance == null ? null : balance - frozen), why, changed, ok: !why && changed }; });
     }
@@ -99,7 +99,7 @@ export function SchoolImport({ finance }: { finance: boolean }) {
     return body.map((r, i) => { const amount = amt(at(r, 'amount')), on = date(at(r, 'date')), voucher = (at(r, 'voucher') ?? '').trim(), no = (at(r, 'no') ?? '').trim(), memo = at(r, 'memo') ?? '';
       const rid = manual ? at(r, 'rid') : undefined;
       const cand = amount == null ? [] : rid ? open.filter((q) => q.id === rid) : open.filter((q) => !taken.has(q.id) && Math.abs(num(q.amount) - amount) < 0.005 && (!no || cardNo.get(q.card_id ?? '') === no));
-      const why = amount == null || amount <= 0 ? '金额不是正数' : voucher && posted.has(voucher) ? '这个凭证号已经入过账' : cand.length === 0 ? '没有对上审核中的单据' : cand.length > 1 ? `有 ${cand.length} 笔金额相同，请到入账跟踪里手工入账` : !on ? '没有入账日期' : '';
+      const why = amount == null || amount <= 0 ? '金额非正数' : voucher && posted.has(voucher) ? '该凭证号已入账' : cand.length === 0 ? '未匹配到审核中的单据' : cand.length > 1 ? `有 ${cand.length} 笔金额相同，请在入账跟踪中手工入账` : !on ? '缺少入账日期' : '';
       const req = !why ? cand[0] : undefined; if (req) taken.add(req.id);
       return { i, amount, on, voucher, no, memo, req, why, ok: !why }; });
   }, [data, table, head, cols, kind, manual]);
@@ -117,62 +117,62 @@ export function SchoolImport({ finance }: { finance: boolean }) {
         await rpc('set_school_balance', { card_id: d.card.card_id, balance: d.balance, frozen: d.frozen, available: d.available }); n++; }
       else { await rpc('post_vouchers', { rows: (picked as { req: Req; on: string; amount: number; voucher: string }[]).map((d) => ({ id: d.req.id, posted_on: d.on, amount: d.amount, voucher_no: d.voucher })) }); n = picked.length; }
       setMsg(['ok', kind === 'balance' ? `已更新 ${n} 张经费卡的学校余额。` : `已入账 ${n} 笔。`]); setTable(null); setPaste(''); setForm({});
-    } catch (e) { setMsg(['bad', `${(e as ApiError).message}${kind === 'balance' && n > 0 ? `（前 ${n} 张已经更新）` : ''}`]); }
+    } catch (e) { setMsg(['bad', `${(e as ApiError).message}${kind === 'balance' && n > 0 ? `（前 ${n} 张已更新）` : ''}`]); }
     setBusy(false); reload();
   };
 
   return (
     <section className="card">
       <h3>从学校系统导入</h3>
-      <p className="hint">财务岗在学校财务系统里导出，在这里上传、粘贴，或者对着学校系统逐项填写。系统先列出和现有数据的差异，勾选确认后才写入；中台不直接连学校系统，也不保存学校系统的密码，文件只在浏览器里读取。</p>
+      <p className="hint">财务岗在学校财务系统中导出后，在此上传、粘贴，或对照学校系统逐项填写。系统先列出与现有数据的差异，勾选确认后写入；中台不直接连接学校系统，不保存学校系统的密码，文件仅在浏览器中读取。</p>
       <div className="tabs" style={{ marginBottom: 12 }}>{(Object.keys(KIND_TEXT) as Kind[]).map((k) => <button key={k} className="sm" aria-pressed={k === kind} onClick={() => reset(k)}>{KIND_TEXT[k][0]}</button>)}</div>
       <p className="sub2">{KIND_TEXT[kind][1]}</p>
       {msg && <div className={`msg ${msg[0]}`} role={msg[0] === 'bad' ? 'alert' : 'status'}>{msg[1]}</div>}
       {!finance ? <Empty>导入由财务岗操作。</Empty> : !table && mode === 'form' ? (
         <>
           <div className="tabs" style={{ margin: '12px 0' }}><button className="sm ghost" aria-pressed={false} onClick={() => setMode('file')}>上传或粘贴</button><button className="sm ghost" aria-pressed>逐项填写</button></div>
-          {kind === 'balance' ? (data.cards.length === 0 ? <Empty>还没有经费卡。</Empty> : (
+          {kind === 'balance' ? (data.cards.length === 0 ? <Empty>暂无经费卡。</Empty> : (
             <div className="scroll"><table className="tight">
-              <thead><tr><th>经费卡</th><th className="r">中台里记的学校余额</th><th>余额</th><th>冻结（可不填）</th><th>可用（不填按余额减冻结）</th></tr></thead>
+              <thead><tr><th>经费卡</th><th className="r">中台记录的学校余额</th><th>余额</th><th>冻结（选填）</th><th>可用（留空按余额减冻结）</th></tr></thead>
               <tbody>{data.cards.map((c) => <tr key={c.card_id}><td>{c.name}<span className="sub2">{c.card_no}</span></td><td className="r">{c.school_balance != null ? money(c.school_balance) : '—'}</td>
                 {['balance', 'frozen', 'available'].map((k) => <td key={k}><input inputMode="decimal" aria-label={`${c.name} ${k === 'balance' ? '余额' : k === 'frozen' ? '冻结' : '可用'}`} style={{ width: 130 }} value={form[c.card_id]?.[k] ?? ''} onChange={(e) => put(c.card_id, k, e.target.value)} /></td>)}</tr>)}</tbody>
-            </table></div>)) : (data.reqs.filter((r) => r.status === 'at_school').length === 0 ? <Empty>没有正在学校审核的单据。</Empty> : (
+            </table></div>)) : (data.reqs.filter((r) => r.status === 'at_school').length === 0 ? <Empty>暂无学校审核中的单据。</Empty> : (
             <div className="scroll"><table className="tight">
-              <thead><tr><th>单据</th><th>经费卡</th><th className="r">申请金额</th><th>入账金额（不填按申请金额）</th><th>入账日期</th><th>凭证号</th></tr></thead>
+              <thead><tr><th>单据</th><th>经费卡</th><th className="r">申请金额</th><th>入账金额（留空按申请金额）</th><th>入账日期</th><th>凭证号</th></tr></thead>
               <tbody>{data.reqs.filter((r) => r.status === 'at_school').map((r) => <tr key={r.id}><td className="wrap">{r.title}<span className="sub2">{r.code}</span></td><td>{cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
                 <td><input inputMode="decimal" aria-label={`${r.title} 入账金额`} style={{ width: 120 }} placeholder={String(r.amount)} value={form[r.id]?.amount ?? ''} onChange={(e) => put(r.id, 'amount', e.target.value)} /></td>
                 <td><input type="date" aria-label={`${r.title} 入账日期`} value={form[r.id]?.date ?? ''} onChange={(e) => put(r.id, 'date', e.target.value)} /></td>
                 <td><input aria-label={`${r.title} 凭证号`} style={{ width: 130 }} value={form[r.id]?.voucher ?? ''} onChange={(e) => put(r.id, 'voucher', e.target.value)} /></td></tr>)}</tbody>
             </table></div>))}
-          <p className="sub2">{kind === 'balance' ? '只填要更新的卡，没填余额的卡不动。' : '只填已经入账的单据，没填入账日期的不动。'}填完先看差异，确认后才写入。</p>
-          <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 0 }}><button className="sm" onClick={loadForm}>看差异</button></div>
+          <p className="sub2">{kind === 'balance' ? '仅填写需更新的经费卡，未填余额的不作变更。' : '仅填写已入账的单据，未填入账日期的不作变更。'}填写后先查看差异，确认后写入。</p>
+          <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 0 }}><button className="sm" onClick={loadForm}>查看差异</button></div>
         </>
       ) : !table ? (
         <>
           <div className="tabs" style={{ margin: '12px 0' }}><button className="sm ghost" aria-pressed>上传或粘贴</button><button className="sm ghost" aria-pressed={false} onClick={() => setMode('form')}>逐项填写</button></div>
           <label className="field"><span>上传导出的文件（CSV 或制表符分隔的文本；Excel 文件请先另存为 CSV）</span>
             <input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" onChange={(e) => { const f = e.target.files?.[0]; if (f) f.arrayBuffer().then((b) => load(decode(b))); e.target.value = ''; }} /></label>
-          <label className="field"><span>或者在 Excel 里选中表头和数据，复制后粘贴到这里</span>
+          <label className="field"><span>或在 Excel 中选中表头和数据，复制后粘贴至此处</span>
             <textarea rows={4} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={COLS[kind].map((c) => c.label).join('\t')} /></label>
           <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 0 }}><button className="sm" disabled={!paste.trim()} onClick={() => load(paste)}>读取</button></div>
         </>
       ) : (
         <>
           {!manual && <><h4>列对应</h4>
-          <p className="sub2">读到 {table.length - head - 1} 行，表头在第 {head + 1} 行。系统按列名猜了对应关系，不对的在这里改。</p></>}
+          <p className="sub2">读取到 {table.length - head - 1} 行，表头在第 {head + 1} 行。系统已按列名推定对应关系，有误的可在此调整。</p></>}
           <div className="row" style={manual ? { display: 'none' } : undefined}>{COLS[kind].map((c) => (
-            <label className="field" key={c.key}><span>{c.label}{c.required ? '' : '（可没有）'}</span>
+            <label className="field" key={c.key}><span>{c.label}{c.required ? '' : '（选填）'}</span>
               <select value={cols[c.key] ?? -1} onChange={(e) => { setCols({ ...cols, [c.key]: Number(e.target.value) }); setOff({}); }}>
-                <option value={-1}>没有这一列</option>{table[head].map((h, i) => <option key={i} value={i}>{h || `第 ${i + 1} 列`}</option>)}</select></label>))}</div>
-          {missing.length > 0 ? <div className="msg bad" role="alert">还没有指定：{missing.map((c) => c.label).join('、')}。</div> : kind === 'balance' ? (
+                <option value={-1}>无此列</option>{table[head].map((h, i) => <option key={i} value={i}>{h || `第 ${i + 1} 列`}</option>)}</select></label>))}</div>
+          {missing.length > 0 ? <div className="msg bad" role="alert">尚未指定：{missing.map((c) => c.label).join('、')}。</div> : kind === 'balance' ? (
             <>
-              <h4>和现有数据的差异</h4>
-              {(diff ?? []).filter((d) => d.ok).length === 0 ? <Empty>没有需要更新的经费卡：导入的数和中台里记的学校余额一致。</Empty> : (
+              <h4>与现有数据的差异</h4>
+              {(diff ?? []).filter((d) => d.ok).length === 0 ? <Empty>暂无需要更新的经费卡：导入数据与中台记录的学校余额一致。</Empty> : (
                 <div className="scroll"><table>
-                  <thead><tr><th /><th>经费卡</th><th className="r">学校余额<span className="sub2">现在 → 导入</span></th><th className="r">冻结</th><th className="r">学校可用</th><th className="r">本系统可用</th><th className="r">相差</th></tr></thead>
+                  <thead><tr><th /><th>经费卡</th><th className="r">学校余额<span className="sub2">当前 → 导入</span></th><th className="r">冻结</th><th className="r">学校可用</th><th className="r">本系统可用</th><th className="r">相差</th></tr></thead>
                   <tbody>{(diff as { i: number; ok: boolean; card: Card; balance: number; frozen: number; available: number }[]).filter((d) => d.ok).map((d) => { const gap = num(d.card.avail) - d.available; return (
                     <tr key={d.i}><td><input type="checkbox" aria-label={`更新 ${d.card.name}`} checked={!off[d.i]} onChange={(e) => setOff({ ...off, [d.i]: !e.target.checked })} /></td>
-                      <td>{d.card.name}<span className="sub2">{d.card.card_no}{d.card.school_synced_at ? ` · 上次回写 ${day(d.card.school_synced_at)}` : ' · 还没回写过'}</span></td>
+                      <td>{d.card.name}<span className="sub2">{d.card.card_no}{d.card.school_synced_at ? ` · 上次回写 ${day(d.card.school_synced_at)}` : ' · 尚未回写'}</span></td>
                       <td className="r">{d.card.school_balance != null ? money(d.card.school_balance) : '—'} → <span className="chg">{money(d.balance)}</span></td>
                       <td className="r">{money(d.frozen)}</td><td className="r">{money(d.available)}</td><td className="r">{money(d.card.avail)}</td>
                       <td className="r">{Math.abs(gap) < 0.005 ? <Badge tone="ok">一致</Badge> : <span className="neg">{money(gap)}</span>}</td></tr>); })}</tbody>
@@ -180,8 +180,8 @@ export function SchoolImport({ finance }: { finance: boolean }) {
             </>
           ) : (
             <>
-              <h4>对上的单据</h4>
-              {(diff ?? []).filter((d) => d.ok).length === 0 ? <Empty>没有对上正在学校审核的单据。</Empty> : (
+              <h4>已匹配的单据</h4>
+              {(diff ?? []).filter((d) => d.ok).length === 0 ? <Empty>暂无匹配到的学校审核中单据。</Empty> : (
                 <div className="scroll"><table>
                   <thead><tr><th /><th>单据</th><th>经费卡</th><th className="r">申请金额</th><th className="r">入账金额</th><th>入账日期</th><th>凭证号</th></tr></thead>
                   <tbody>{(diff as { i: number; ok: boolean; req: Req; amount: number; on: string; voucher: string }[]).filter((d) => d.ok).map((d) => (
@@ -193,12 +193,12 @@ export function SchoolImport({ finance }: { finance: boolean }) {
           )}
           {missing.length === 0 && skipped.length > 0 && (
             <>
-              <h4>没有处理的 {skipped.length} 行</h4>
+              <h4>未处理的 {skipped.length} 行</h4>
               <div className="scroll"><table className="tight">
-                <thead><tr><th>{manual ? '第几行' : '文件第几行'}</th><th>内容</th><th>原因</th></tr></thead>
+                <thead><tr><th>{manual ? '行号' : '文件行号'}</th><th>内容</th><th>原因</th></tr></thead>
                 <tbody>{skipped.slice(0, 50).map((d) => <tr key={d.i}><td>{manual ? d.i + 1 : head + 2 + d.i}</td><td className="wrap">{table[head + 1 + d.i].filter(Boolean).slice(0, 6).join(' · ')}</td><td>{d.why}</td></tr>)}</tbody>
               </table></div>
-              {skipped.length > 50 && <p className="sub2">只列出前 50 行。</p>}
+              {skipped.length > 50 && <p className="sub2">仅列出前 50 行。</p>}
             </>
           )}
           <div className="actions"><button className="ghost" onClick={() => reset(kind)}>{manual ? '返回修改' : '取消'}</button>
@@ -226,47 +226,47 @@ export function Backfill() {
   const set = (p: Partial<typeof blank>) => setV({ ...v, ...p });
   const name = { card: new Map(cards.map((c) => [c.id, c.name])), subject: new Map(data.subjects.map((s) => [s.id, s.name])), type: new Map(data.types.map((t) => [t.id, t.name])) };
   const add = (e: React.FormEvent) => { e.preventDefault(); setMsg(null);
-    if (amt(v.amount) == null || amt(v.amount)! <= 0) { setMsg(['bad', '金额要是大于 0 的数字。']); return; }
+    if (amt(v.amount) == null || amt(v.amount)! <= 0) { setMsg(['bad', '金额须为大于 0 的数字。']); return; }
     setRows([...rows, v]); setV({ ...blank, card_id: v.card_id, posted_on: v.posted_on }); };
   const save = async () => {
     setBusy(true); setMsg(null);
-    try { const n = await rpc('record_expenses', { rows: rows.map((r) => ({ ...r, amount: amt(r.amount) })) }); setMsg(['ok', `已补登 ${n} 笔，计入各卡的决算数。`]); setRows([]); reload(); }
+    try { const n = await rpc('record_expenses', { rows: rows.map((r) => ({ ...r, amount: amt(r.amount) })) }); setMsg(['ok', `已补登 ${n} 笔，计入各经费卡的决算数。`]); setRows([]); reload(); }
     catch (e) { setMsg(['bad', (e as ApiError).message]); }
     setBusy(false);
   };
   return (
     <section className="card">
-      <h3>补登支出 <span className="h3sub">学校已入账、没在中台走过申请的</span></h3>
-      <p className="hint">中台启用以前的支出、学校直接扣的款，在这里一笔一笔填好，先放进下面的清单，核对后一次写入。写入后直接算已入账，计入决算数，不经过申请和批准；只有财务岗能补登，每一笔都留记录。正常的支出仍然走 04 支出申请。</p>
+      <h3>补登支出 <span className="h3sub">学校已入账、未经中台申请的支出</span></h3>
+      <p className="hint">中台启用前的支出、学校直接扣划的款项，在此逐笔填写，先加入下方清单，核对后一次写入。写入后直接计为已入账，计入决算数，不经申请和批准；仅财务岗可补登，每笔均留存记录。正常支出仍按支出申请办理。</p>
       {msg && <div className={`msg ${msg[0]}`} role={msg[0] === 'bad' ? 'alert' : 'status'}>{msg[1]}</div>}
       <form onSubmit={add}>
         <div className="row">
           <label className="field"><span>经费卡</span><select required value={v.card_id} onChange={(e) => set({ card_id: e.target.value, subject_id: '' })}>
             <option value="">请选择</option>{cards.map((c) => <option key={c.id} value={c.id}>{c.name}（{c.card_no}）</option>)}</select></label>
           <label className="field"><span>学校科目</span><select required value={v.subject_id} onChange={(e) => set({ subject_id: e.target.value })} disabled={!card}>
-            <option value="">{card ? '请选择' : '先选经费卡'}</option>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+            <option value="">{card ? '请选择' : '请先选择经费卡'}</option>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
           <label className="field"><span>支出类型</span><select required value={v.expense_type_id} onChange={(e) => set({ expense_type_id: e.target.value })}>
             <option value="">请选择</option>{data.types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
-          <label className="field"><span>挂到项目预算行（可不选）</span><select value={v.line_id} onChange={(e) => set({ line_id: e.target.value })}>
-            <option value="">不挂</option>{data.lines.map((l) => <option key={l.id} value={l.id}>{l.project_code} · {l.category_name} · {l.purpose}</option>)}</select></label>
+          <label className="field"><span>关联项目预算行（选填）</span><select value={v.line_id} onChange={(e) => set({ line_id: e.target.value })}>
+            <option value="">不关联</option>{data.lines.map((l) => <option key={l.id} value={l.id}>{l.project_code} · {l.category_name} · {l.purpose}</option>)}</select></label>
         </div>
         <div className="row">
           <label className="field"><span>事项</span><input required value={v.title} onChange={(e) => set({ title: e.target.value })} /></label>
           <label className="field"><span>入账金额（元）</span><input required inputMode="decimal" value={v.amount} onChange={(e) => set({ amount: e.target.value })} /></label>
           <label className="field"><span>入账日期</span><input required type="date" max={today()} value={v.posted_on} onChange={(e) => set({ posted_on: e.target.value })} /></label>
-          <label className="field"><span>凭证号（可不填）</span><input value={v.voucher_no} onChange={(e) => set({ voucher_no: e.target.value })} /></label>
+          <label className="field"><span>凭证号（选填）</span><input value={v.voucher_no} onChange={(e) => set({ voucher_no: e.target.value })} /></label>
         </div>
-        <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 0 }}><button type="submit" className="sm ghost">加进清单</button></div>
+        <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 0 }}><button type="submit" className="sm ghost">加入清单</button></div>
       </form>
       {rows.length > 0 && (
         <>
-          <h4>待写入的 {rows.length} 笔，合计 {money(rows.reduce((s, r) => s + (amt(r.amount) ?? 0), 0))}</h4>
+          <h4>待写入 {rows.length} 笔，合计 {money(rows.reduce((s, r) => s + (amt(r.amount) ?? 0), 0))}</h4>
           <div className="scroll"><table className="tight">
             <thead><tr><th>入账日期</th><th>经费卡</th><th>科目</th><th>类型</th><th>事项</th><th className="r">金额</th><th>凭证号</th><th /></tr></thead>
             <tbody>{rows.map((r, i) => (
               <tr key={i}><td>{r.posted_on}</td><td>{name.card.get(r.card_id ?? '')}</td><td>{name.subject.get(r.subject_id)}</td><td>{name.type.get(r.expense_type_id)}</td><td className="wrap">{r.title}</td>
                 <td className="r">{money(amt(r.amount) ?? 0)}</td><td>{r.voucher_no || '—'}</td>
-                <td><button className="sm ghost danger" onClick={() => setRows(rows.filter((_, j) => j !== i))}>去掉</button></td></tr>
+                <td><button className="sm ghost danger" onClick={() => setRows(rows.filter((_, j) => j !== i))}>移除</button></td></tr>
             ))}</tbody>
           </table></div>
           <div className="actions"><button className="ghost" onClick={() => setRows([])}>清空</button><button disabled={busy} onClick={save}>{busy ? '写入中…' : `确认补登 ${rows.length} 笔`}</button></div>

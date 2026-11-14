@@ -25,7 +25,7 @@ function NewChange({ cardId, cells, onDone, onCancel }: { cardId: string; cells:
   };
   return (
     <form onSubmit={submit} className="change">
-      <p className="hint">调出填负数，调入填正数，合计为零。提交后由中心负责人确认，报发规办，批复录入后才生效。</p>
+      <p className="hint">调出填负数，调入填正数，合计为零。提交后由中心负责人确认并报发规办，批复录入后生效。</p>
       <div className="scroll"><table>
         <thead><tr><th>科目</th><th className="r">现行预算</th><th className="r">可用</th><th className="r">调整（元）</th><th className="r">调整后</th></tr></thead>
         <tbody>{cells.map((x) => { const d = Number(delta[x.subject_id] || 0); return (
@@ -34,7 +34,7 @@ function NewChange({ cardId, cells, onDone, onCancel }: { cardId: string; cells:
               onChange={(e) => setDelta({ ...delta, [x.subject_id]: e.target.value })} /></td>
             <td className={`r ${num(x.cur) + d < 0 || -d > num(x.avail) ? 'neg' : ''}`}>{d ? money(num(x.cur) + d) : '—'}</td></tr>); })}</tbody>
       </table></div>
-      <p className="sub2">调出 {money(out)}，调入 {money(out + net)}{Math.abs(net) >= 0.005 && `，还差 ${money(-net)} 没有配平`}</p>
+      <p className="sub2">调出 {money(out)}，调入 {money(out + net)}{Math.abs(net) >= 0.005 && `，尚有 ${money(-net)} 未配平`}</p>
       <label className="field"><span>变更原因</span><input required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
       {error && <div className="msg bad" role="alert">{error}</div>}
       <div className="actions"><button type="button" className="ghost" onClick={onCancel}>取消</button>
@@ -57,8 +57,8 @@ function SetBudget({ cardId, cells, first, onDone, onCancel }: { cardId: string;
   };
   return (
     <form onSubmit={submit} className="change">
-      <p className="hint">{first ? '按任务书或下达通知逐科目填年初预算，不用的科目留空。保存时检查模板的比例上限。'
-        : '更正年初预算。已做过的预算变更照旧叠加在上面；改后每个科目的现行预算不能低于已承诺和已入账的合计。'}</p>
+      <p className="hint">{first ? '按任务书或下达通知逐科目填写年初预算，不使用的科目留空。保存时校验模板的比例上限。'
+        : '更正年初预算。已办理的预算变更继续叠加；更正后各科目的现行预算不得低于已承诺和已入账的合计。'}</p>
       <div className="scroll"><table>
         <thead><tr><th>科目</th><th className="r">年初预算（元）</th>{!first && <><th className="r">变更</th><th className="r">已承诺和已入账</th></>}</tr></thead>
         <tbody>{cells.map((x) => (
@@ -78,12 +78,12 @@ function SetBudget({ cardId, cells, first, onDone, onCancel }: { cardId: string;
 function changeActs(me: Me, ch: Change): Act[] {
   const out: Act[] = [];
   if (can(me, 'change.confirm') && ch.status === 'pending')
-    out.push({ label: '确认', title: '确认这笔预算变更', hint: `${ch.reason}。确认后报发规办，批复录入前不改变现行预算。`, fields: [], run: () => rpc('confirm_change', { id: ch.id }) });
+    out.push({ label: '确认', title: '确认预算变更', hint: `${ch.reason}。确认后报发规办，批复录入前不改变现行预算。`, fields: [], run: () => rpc('confirm_change', { id: ch.id }) });
   if (can(me, 'change.record') && ch.status === 'filed')
-    out.push({ label: '录入批复', title: '发规办已批复', hint: `${ch.reason}。录入后现行预算立即按这笔变更调整。`,
+    out.push({ label: '录入批复', title: '发规办已批复', hint: `${ch.reason}。录入后现行预算立即按该笔变更调整。`,
       fields: [{ name: 'approved_on', label: '批复日期', type: 'date', value: today() }], run: (v) => rpc('approve_change', { id: ch.id, approved_on: v.approved_on }) });
   if (can(me, 'change.confirm') && (ch.status === 'pending' || ch.status === 'filed'))
-    out.push({ label: '驳回', title: '驳回这笔预算变更', hint: ch.reason, danger: true, fields: [], run: () => rpc('reject_change', { id: ch.id }) });
+    out.push({ label: '驳回', title: '驳回预算变更', hint: ch.reason, danger: true, fields: [], run: () => rpc('reject_change', { id: ch.id }) });
   return out;
 }
 
@@ -97,7 +97,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   }, id);
   if (!data) return <Loading error={error} />;
   const c = data.card[0];
-  if (!c) return <><div className="top"><h2>经费卡</h2></div><Empty>没有这张卡，或者你看不到它。<a href="#/cards">回到经费卡</a></Empty></>;
+  if (!c) return <><div className="top"><h2>经费卡管理</h2></div><Empty>经费卡不存在或无权查看。<a href="#/cards">返回经费卡管理</a></Empty></>;
   const now = today();
   const cells = [...data.cells].sort((a, b) => a.sort - b.sort || a.subject_code.localeCompare(b.subject_code));
   const used = cells.filter((x) => num(x.cur) || num(x.commit) || num(x.actual));
@@ -110,11 +110,11 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   const noBudget = !cells.some((x) => num(x.orig));
   const canBudget = editable && (noBudget ? true : can(me, 'card.rebudget'));
   const nodeAct = (n?: Node): Act => ({
-    label: n ? '修改' : '加节点', title: n ? `修改 ${day(n.node_date)} 的考核节点` : '加考核节点',
-    hint: '到节点日，决算数要达到现行预算的这个比例。同一天只有一个节点。',
+    label: n ? '修改' : '新增节点', title: n ? `修改 ${day(n.node_date)} 的考核节点` : '新增考核节点',
+    hint: '至节点日，决算数应达到现行预算的该比例。同一日期仅可设置一个节点。',
     fields: [...(n ? [] : [{ name: 'node_date', label: '节点日', type: 'date' } as Field]),
       { name: 'ratio', label: '要求比例（%）', type: 'number', value: n ? String(num(n.ratio) * 100) : '' },
-      { name: 'consequence', label: '达不到的后果（如通报、回收、清零、结题）', value: n?.consequence }],
+      { name: 'consequence', label: '未达标的后果（如通报、回收、清零、结题）', value: n?.consequence }],
     run: (v) => rpc('set_node', { card_id: c.card_id, node_date: n ? day(n.node_date) : v.node_date, ratio: Number(v.ratio) / 100, consequence: v.consequence }),
   });
   const diff = c.school_available != null ? num(c.avail) - num(c.school_available) : null;
@@ -122,22 +122,22 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   return (
     <>
       <div className="top">
-        <div className="crumb"><a href="#/cards">经费卡</a> / {c.card_no}</div>
+        <div className="crumb"><a href="#/cards">经费卡管理</a> / {c.card_no}</div>
         <h2>{c.name}</h2>
         {c.status === 'settled' ? <Badge>已结清</Badge> : <Badge tone={day(c.cutoff_date) < now ? 'bad' : 'ok'}>{day(c.cutoff_date) < now ? '已过单据截止' : '在用'}</Badge>}
-        {canSettle && <button className="ghost" onClick={() => setAct({ label: '结清', title: '结清这张卡',
-          hint: `${c.name}。结清后按科目固定预算、决算和结余，这张卡不能再提交支出，也不能撤销。还有在途支出、在途变更或未入账人员费时不能结清。`,
+        {canSettle && <button className="ghost" onClick={() => setAct({ label: '结清', title: '结清经费卡',
+          hint: `${c.name}。结清后按科目固定预算、决算和结余，该经费卡不得再提交支出，结清不可撤销。存在在途支出、在途变更或未入账人员费时不得结清。`,
           danger: true, fields: [], run: () => rpc('settle_card', { card_id: c.card_id }) })}>结清</button>}
-        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '修改经费卡', hint: '已有预算、支出或人员费的卡不能换科目模板。',
+        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '修改经费卡', hint: '已有预算、支出或人员费的经费卡不得更换科目模板。',
           fields: cardFields(data.templates.map((t): [string, string] => [t.id, t.name]), data.users.filter((u) => u.active).map((u): [string, string] => [u.id, `${u.name}（${ROLE[u.role]}）`]), c),
           run: (v) => saveCard(c.card_id, v) })}>修改</button>}
-        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '总金额和执行年限', hint: '按任务书或合同填这张卡整个执行期的总金额和起止日期。这不是某一年的申请金额；各年度下达到这张卡上的预算另外在年度预算里记。',
+        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '总金额和执行年限', hint: '按任务书或合同填写该经费卡整个执行期的总金额和起止日期。此项不是某一年度的申请金额；各年度下达到该经费卡的预算另在年度预算中记录。',
           fields: [{ name: 'total', label: '总金额（元）', type: 'number', value: c.total_amount != null ? String(num(c.total_amount)) : '' },
             { name: 'period_start', label: '执行期开始', type: 'date', value: c.period_start ? day(c.period_start) : '' }, { name: 'period_end', label: '执行期结束', type: 'date', value: c.period_end ? day(c.period_end) : '' }],
           run: (v) => rpc('set_card_total', { card_id: c.card_id, total: v.total, period_start: v.period_start, period_end: v.period_end }) })}>总金额和年限</button>}
       </div>
       <div className="tiles">
-        <Tile k="现行预算" v={money(c.cur)} f={num(c.adj) ? `年初 ${money(c.orig)}，变更 ${money(c.adj)}` : '未做过预算变更'} />
+        <Tile k="现行预算" v={money(c.cur)} f={num(c.adj) ? `年初 ${money(c.orig)}，变更 ${money(c.adj)}` : '未办理预算变更'} />
         <Tile k="决算数" v={money(c.actual)} f={`执行率 ${pct(num(c.actual), num(c.cur))}`} />
         <Tile k="承诺" v={money(c.commit)} f={`${open.length} 笔在途`} />
         <Tile k="可用" v={money(c.avail)} tone={num(c.avail) < 0 ? 'bad' : ''} />
@@ -146,14 +146,14 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       <section className="card">
         <h3>基本情况</h3>
         <table><tbody>
-          <tr><th scope="row">总金额</th><td>{c.total_amount != null ? money(c.total_amount) : <span className="sub2">还没填</span>}</td>
-            <th scope="row">执行年限</th><td>{c.period_start && c.period_end ? `${day(c.period_start)} 至 ${day(c.period_end)}` : <span className="sub2">还没填</span>}</td></tr>
-          <tr><th scope="row">科目模板</th><td>{c.template_name}{c.locked && '（科目锁定，不能变更预算）'}</td>
+          <tr><th scope="row">总金额</th><td>{c.total_amount != null ? money(c.total_amount) : <span className="sub2">尚未填写</span>}</td>
+            <th scope="row">执行年限</th><td>{c.period_start && c.period_end ? `${day(c.period_start)} 至 ${day(c.period_end)}` : <span className="sub2">尚未填写</span>}</td></tr>
+          <tr><th scope="row">科目模板</th><td>{c.template_name}{c.locked && '（科目锁定，不得变更预算）'}</td>
             <th scope="row">下达日</th><td>{day(c.start_date)}</td></tr>
           <tr><th scope="row">单据截止日</th><td>{day(c.cutoff_date)}</td>
-            <th scope="row">到期处理</th><td>{END_RULE[c.end_rule]}{c.settle_date ? `，结清日 ${day(c.settle_date)}` : '，跨年不结清'}</td></tr>
+            <th scope="row">到期处理</th><td>{END_RULE[c.end_rule]}{c.settle_date ? `，结清日 ${day(c.settle_date)}` : '，跨年度不结清'}</td></tr>
           <tr><th scope="row">学校财务系统</th>
-            <td colSpan={3}>{c.school_synced_at == null ? '还没有回写过学校侧的余额，无法对账。'
+            <td colSpan={3}>{c.school_synced_at == null ? '尚未回写学校侧余额，无法对账。'
               : <>余额 {money(c.school_balance)}，冻结 {money(c.school_frozen)}，可用 {money(c.school_available)}（{day(c.school_synced_at)} 回写）
                 {diff != null && Math.abs(diff) >= 0.005 && <> <Badge tone="bad">与本系统可用相差 {money(diff)}</Badge></>}</>}</td></tr>
           {c.rule_note && <tr><th scope="row">备注</th><td colSpan={3} className="wrap">{c.rule_note}</td></tr>}
@@ -165,7 +165,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
         {canBudget && !budgeting && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
           <button className={noBudget ? 'sm' : 'sm ghost'} onClick={() => setBudgeting(true)}>{noBudget ? '录入年初预算' : '更正年初预算'}</button></div>}
         {budgeting && <SetBudget cardId={c.card_id} cells={cells} first={noBudget} onDone={() => { setBudgeting(false); reload(); }} onCancel={() => setBudgeting(false)} />}
-        {used.length === 0 ? (!budgeting && <Empty>这张卡还没有预算。{editable && !canBudget && '年初预算由财务岗录入。'}</Empty>) : (
+        {used.length === 0 ? (!budgeting && <Empty>该经费卡暂无预算。{editable && !canBudget && '年初预算由财务岗录入。'}</Empty>) : (
           <div className="scroll"><table>
             <thead><tr><th>科目</th><th className="r">年初预算</th><th className="r">变更</th><th className="r">现行预算</th><th className="r">决算数</th>
               <th className="r">承诺</th><th className="r">可用</th><th>执行</th></tr></thead>
@@ -181,12 +181,12 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
             </tbody>
           </table></div>
         )}
-        {cells.length > used.length && <p className="sub2">另有 {cells.length - used.length} 个科目没有预算也没有支出，未列出。</p>}
+        {cells.length > used.length && <p className="sub2">另有 {cells.length - used.length} 个科目无预算且无支出，未列出。</p>}
       </section>
 
       <section className="card">
         <h3>比例上限</h3>
-        {data.caps.length === 0 ? <Empty>这张卡的模板没有设置比例上限。</Empty> : (
+        {data.caps.length === 0 ? <Empty>该经费卡的模板未设置比例上限。</Empty> : (
           <table>
             <thead><tr><th>规则</th><th className="r">上限</th><th className="r">上限金额</th><th className="r">现行预算中</th><th>状态</th></tr></thead>
             <tbody>{data.caps.map((k) => (
@@ -199,8 +199,8 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
 
       <section className="card">
         <h3>考核节点</h3>
-        {editable && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}><button className="sm" onClick={() => setAct(nodeAct())}>加节点</button></div>}
-        {data.nodes.length === 0 ? <Empty>这张卡的考核节点还没有录入。</Empty> : (
+        {editable && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}><button className="sm" onClick={() => setAct(nodeAct())}>新增节点</button></div>}
+        {data.nodes.length === 0 ? <Empty>该经费卡暂无考核节点。</Empty> : (
           <table>
             <thead><tr><th>节点日</th><th className="r">要求比例</th><th className="r">要求金额</th><th className="r">预测</th><th>状态</th><th>后果</th><th /></tr></thead>
             <tbody>{[...data.nodes].sort((a, b) => a.node_date.localeCompare(b.node_date)).map((n) => { const s = nodeState(n, now); return (
@@ -216,7 +216,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
         <h3>预算变更</h3>
         {canChange && !adding && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}><button className="sm" onClick={() => setAdding(true)}>发起预算变更</button></div>}
         {adding && <NewChange cardId={c.card_id} cells={cells} onDone={() => { setAdding(false); reload(); }} onCancel={() => setAdding(false)} />}
-        {data.changes.length === 0 ? (!adding && <Empty>没有预算变更记录。{c.locked && '这张卡科目锁定，不能变更预算。'}</Empty>) : (
+        {data.changes.length === 0 ? (!adding && <Empty>暂无预算变更记录。{c.locked && '该经费卡科目锁定，不得变更预算。'}</Empty>) : (
           <div className="scroll"><table>
             <thead><tr><th>发起日</th><th>原因</th><th>调整</th><th>状态</th><th>批复日</th><th /></tr></thead>
             <tbody>{[...data.changes].sort((a, b) => b.created_at.localeCompare(a.created_at)).map((ch) => (
@@ -230,16 +230,16 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       </section>
 
       <section className="card">
-        <h3>在途的支出</h3>
-        <p className="hint">已入账的历史支出在 <a href="#/requests">支出与承诺</a> 里按状态查看。</p>
-        {open.length === 0 ? <Empty>这张卡没有在途的支出。</Empty>
+        <h3>在途支出</h3>
+        <p className="hint">已入账的历史支出可在 <a href="#/requests">支出申请</a> 中按状态查看。</p>
+        {open.length === 0 ? <Empty>该经费卡暂无在途支出。</Empty>
           : <RequestTable me={me} rows={open} subjectName={name} onChange={reload} />}
       </section>
 
       {data.settle.length > 0 && (
         <section className="card">
           <h3>结清</h3>
-          <p className="hint">{day(data.settle[0].settled_on)} 结清，以下数字已固定。</p>
+          <p className="hint">{day(data.settle[0].settled_on)} 结清，以下数据已固定。</p>
           <div className="scroll"><table>
             <thead><tr><th>科目</th><th className="r">预算</th><th className="r">决算</th><th className="r">结余</th></tr></thead>
             <tbody>{data.settle.filter((l) => num(l.budget) || num(l.actual)).map((l) => (
