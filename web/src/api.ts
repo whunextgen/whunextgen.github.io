@@ -69,7 +69,7 @@ export interface Card {
   assigned: string;         // 已分到各学校科目的合计；填了下达数时 cur 是下达数连同结转，assigned 可能小于 cur
   pooled: boolean;          // 只控总额，不按科目控制
 }
-export interface CardSchoolSubject { card_id: string; school_name: string; school_code: string | null; n: number; amount: string }
+export interface CardSchoolSubject { card_id: string; subject_id: string; school_name: string; school_code: string | null; n: number; amount: string }
 // 项目：额度和期限在这里；每年下来的经费是它下面当年的一张经费卡
 export interface FundProject { id: string; name: string; source: 'school' | 'national' | 'provincial' | 'enterprise' | 'other' | null; fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null;
   owner_id: string | null; owner_name: string | null; quota: string | null; period_start: string | null; period_end: string | null; template_id: string; template_name: string;

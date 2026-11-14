@@ -121,6 +121,11 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   });
   const diff = c.school_available != null ? num(c.avail) - num(c.school_available) : null;
   const gap = cardGap(c);   // 下达了但还没分到科目的部分
+  // 只控总额的卡按学校科目列支出：同名的学校科目合并；没有学校科目的支出（在中台里申请的）按本卡科目列
+  const bySchool = new Map<string, { school_name: string; school_code: string | null; n: number; amount: number }>();
+  for (const r of data.school) { const o = bySchool.get(r.school_name) ?? { school_name: r.school_name, school_code: r.school_code, n: 0, amount: 0 }; o.n += r.n; o.amount += num(r.amount); bySchool.set(r.school_name, o); }
+  const schoolRows = [...bySchool.values()].sort((a, b) => b.amount - a.amount);
+  const otherRows = cells.map((x) => ({ ...x, rest: num(x.actual) - data.school.filter((r) => r.subject_id === x.subject_id).reduce((t, r) => t + num(r.amount), 0) })).filter((x) => x.rest >= 0.005 || num(x.commit) >= 0.005);
 
   return (
     <>
@@ -173,42 +178,57 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       </section>
 
       <section className="card">
-        <h3>明细与执行 <span className="h3sub">{c.pooled ? '该经费卡只控总额，下表各科目的下达数和可用不作为支出依据' : '当年下达数按学校科目分到明细，支出按科目核对'}</span></h3>
-        {canBudget && !budgeting && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
-          <button className={noBudget ? 'sm' : 'sm ghost'} onClick={() => setBudgeting(true)}>{noBudget ? '录入明细' : '更正明细'}</button></div>}
-        {budgeting && <SetBudget cardId={c.card_id} cells={cells} first={noBudget} onDone={() => { setBudgeting(false); reload(); }} onCancel={() => setBudgeting(false)} />}
-        {used.length === 0 ? (!budgeting && <Empty>该经费卡尚未录入明细。{editable && !canBudget && '明细由财务岗录入。'}</Empty>) : (
-          <div className="scroll"><table>
-            <thead><tr><th>科目</th><th className="r">下达数</th><th className="r">变更</th><th className="r">现行预算</th><th className="r">决算数</th>
-              <th className="r">承诺</th><th className="r">可用</th><th>执行</th></tr></thead>
-            <tbody>
-              {used.map((x) => (
-                <tr key={x.subject_id}><td>{x.subject_name}</td><td className="r">{money(x.orig)}</td><td className="r">{num(x.adj) ? money(x.adj) : '—'}</td>
-                  <td className="r">{money(x.cur)}</td><td className="r">{money(x.actual)}</td><td className="r">{money(x.commit)}</td>
-                  <td className={`r ${num(x.avail) < 0 ? 'neg' : ''}`}>{money(x.avail)}</td>
-                  <td><Bar cur={num(x.cur)} actual={num(x.actual)} commit={num(x.commit)} /></td></tr>
-              ))}
-              <tr className="sum"><td>合计</td><td className="r">{money(c.orig)}</td><td className="r">{num(c.adj) ? money(c.adj) : '—'}</td><td className="r">{money(c.assigned ?? c.cur)}</td>
-                <td className="r">{money(c.actual)}</td><td className="r">{money(c.commit)}</td><td className="r">{money(num(c.assigned ?? c.cur) - num(c.actual) - num(c.commit))}</td><td /></tr>
-            </tbody>
-          </table></div>
+        <h3>明细与执行 <span className="h3sub">{c.pooled ? '只控总额，按学校科目列支出' : '当年下达数按科目分到明细，支出按科目核对'}</span></h3>
+        {c.pooled ? (
+          <>
+            <p className="hint">该经费卡只控总额：当年下达数连同上年结转 {money(c.cur)}，已入账 {money(c.actual)}，已承诺 {money(c.commit)}，可用 {money(c.avail)}。支出只与可用总额核对，下表按学校科目列出已入账的支出。</p>
+            {schoolRows.length + otherRows.length === 0 ? <Empty>暂无支出。可在下方导入学校的明细账。</Empty> : (
+              <div className="scroll"><table>
+                <thead><tr><th>学校科目</th><th>科目编号</th><th className="r">笔数</th><th className="r">已入账</th><th className="r">已承诺</th></tr></thead>
+                <tbody>
+                  {schoolRows.map((r) => <tr key={r.school_name}><td>{r.school_name}</td><td className="code">{r.school_code ?? '—'}</td><td className="r">{r.n}</td><td className="r">{money(r.amount)}</td><td className="r">—</td></tr>)}
+                  {otherRows.map((x) => <tr key={x.subject_id}><td>{x.subject_name}<span className="sub2"> 未注明学校科目</span></td><td className="code">—</td><td className="r">—</td><td className="r">{money(x.rest)}</td><td className="r">{money(x.commit)}</td></tr>)}
+                  <tr className="sum"><td>合计</td><td /><td className="r">{schoolRows.reduce((t, r) => t + r.n, 0) || '—'}</td><td className="r">{money(c.actual)}</td><td className="r">{money(c.commit)}</td></tr>
+                </tbody>
+              </table></div>
+            )}
+            {num(c.assigned ?? 0) > 0 && <p className="sub2">该卡此前按科目录入过预算（合计 {money(c.assigned)}），改为只控总额后不再作为支出依据，也无需更正。</p>}
+          </>
+        ) : (
+          <>
+            {canBudget && !budgeting && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
+              <button className={noBudget ? 'sm' : 'sm ghost'} onClick={() => setBudgeting(true)}>{noBudget ? '录入明细' : '更正明细'}</button></div>}
+            {budgeting && <SetBudget cardId={c.card_id} cells={cells} first={noBudget} onDone={() => { setBudgeting(false); reload(); }} onCancel={() => setBudgeting(false)} />}
+            {used.length === 0 ? (!budgeting && <Empty>该经费卡尚未录入明细。{editable && !canBudget && '明细由财务岗录入。'}</Empty>) : (
+              <div className="scroll"><table>
+                <thead><tr><th>科目</th><th className="r">下达数</th><th className="r">变更</th><th className="r">现行预算</th><th className="r">决算数</th>
+                  <th className="r">承诺</th><th className="r">可用</th><th>执行</th></tr></thead>
+                <tbody>
+                  {used.flatMap((x) => [
+                    <tr key={x.subject_id}><td>{x.subject_code === 'school' ? '学校明细账（未对应本卡科目的支出）' : x.subject_name}</td><td className="r">{money(x.orig)}</td><td className="r">{num(x.adj) ? money(x.adj) : '—'}</td>
+                      <td className="r">{money(x.cur)}</td><td className="r">{money(x.actual)}</td><td className="r">{money(x.commit)}</td>
+                      <td className={`r ${num(x.avail) < 0 ? 'neg' : ''}`}>{money(x.avail)}</td>
+                      <td><Bar cur={num(x.cur)} actual={num(x.actual)} commit={num(x.commit)} /></td></tr>,
+                    ...data.school.filter((r) => r.subject_id === x.subject_id).sort((a, b) => num(b.amount) - num(a.amount)).map((r) => (
+                      <tr key={`${x.subject_id}-${r.school_name}`}><td style={{ paddingLeft: 24 }}><span className="sub2">{r.school_name} · {r.n} 笔</span></td><td /><td /><td /><td className="r"><span className="sub2">{money(r.amount)}</span></td><td /><td /><td /></tr>)),
+                  ])}
+                  <tr className="sum"><td>合计</td><td className="r">{money(c.orig)}</td><td className="r">{num(c.adj) ? money(c.adj) : '—'}</td><td className="r">{money(c.assigned ?? c.cur)}</td>
+                    <td className="r">{money(c.actual)}</td><td className="r">{money(c.commit)}</td><td className="r">{money(num(c.assigned ?? c.cur) - num(c.actual) - num(c.commit))}</td><td /></tr>
+                </tbody>
+              </table></div>
+            )}
+            {cells.length > used.length && <p className="sub2">另有 {cells.length - used.length} 个科目无预算且无支出，未列出。</p>}
+            {gap >= 0.005 && <p className="sub2">当年下达数连同上年结转共 {money(c.cur)}，其中 {money(gap)} 尚未分到科目；本表合计为已分到科目的部分。</p>}
+            {data.school.length > 0 && editable && (
+              <div className="msg warn" role="status">该卡已导入学校的明细账，学校按支出性质记账，与本卡的科目对不上，所以这些支出列在「学校明细账」一项下，该项没有预算、可用为负。学校对该卡只控总额、不按科目控制的，请改为只控总额：改后支出只与可用总额核对，此前按科目录入的预算不再作为依据。
+                <button className="sm" style={{ marginLeft: 8 }} onClick={() => rpc('set_card_pooled', { card_id: c.card_id, pooled: true }).then(reload)}>改为只控总额</button></div>
+            )}
+          </>
         )}
-        {cells.length > used.length && <p className="sub2">另有 {cells.length - used.length} 个科目无预算且无支出，未列出。</p>}
-        {gap >= 0.005 && <p className="sub2">当年下达数连同上年结转共 {money(c.cur)}，其中 {money(gap)} 尚未分到科目；本表合计为已分到科目的部分。</p>}
       </section>
 
       {editable && <LedgerImport card={c} reqs={data.reqs} onDone={reload} />}
 
-      {data.school.length > 0 && (
-        <section className="card">
-          <h3>已入账支出 · 按学校科目 <span className="h3sub">来自导入的明细账</span></h3>
-          <div className="scroll"><table>
-            <thead><tr><th>学校科目</th><th>科目编号</th><th className="r">笔数</th><th className="r">金额</th></tr></thead>
-            <tbody>{[...data.school].sort((a, b) => num(b.amount) - num(a.amount)).map((s) => <tr key={s.school_name}><td>{s.school_name}</td><td className="code">{s.school_code ?? '—'}</td><td className="r">{s.n}</td><td className="r">{money(s.amount)}</td></tr>)}
-              <tr className="sum"><td>合计</td><td /><td className="r">{data.school.reduce((t, s) => t + s.n, 0)}</td><td className="r">{money(data.school.reduce((t, s) => t + num(s.amount), 0))}</td></tr></tbody>
-          </table></div>
-        </section>
-      )}
 
       <section className="card">
         <h3>比例上限</h3>

@@ -458,3 +458,5 @@ h3.sec{display:flex;align-items:center;gap:10px;margin:22px 0 10px;font-size:14p
 
 /* 菜单里缩进的下一级 */
 .sb nav a.sub{padding-left:24px;position:relative}.sb nav a.sub::before{content:"";position:absolute;left:14px;top:50%;width:5px;height:1px;background:var(--faint)}
+
+.msg.warn{border-color:#f0dcae;background:#fdf6e6;color:var(--warn)}
