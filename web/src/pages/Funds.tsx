@@ -18,15 +18,19 @@ export function Funds({ me }: { me: Me }) {
   const owners = data.users.filter((u) => u.active).map((u): [string, string] => [u.id, `${u.name}（${ROLE[u.role]}）`]);
   const cardsOf = (p: FundProject) => data.cards.filter((c) => c.project_id === p.id).sort((a, b) => b.year - a.year);
   const left = (p: FundProject) => (p.quota != null ? num(p.quota) - num(p.granted) : null);
-  const projects = [...data.projects].sort((a, b) => a.status.localeCompare(b.status) || (a.period_end ?? '9').localeCompare(b.period_end ?? '9') || a.name.localeCompare(b.name, 'zh'));
+  // 由经费卡自动生成的占位不算经费项目：它名下的卡列在「尚未归入经费项目的经费卡」里
+  const pending = data.projects.filter((p) => p.auto);
+  const loose = pending.flatMap((p) => cardsOf(p).map((c) => ({ p, c }))).sort((a, b) => a.c.card_no.localeCompare(b.c.card_no));
+  const projects = data.projects.filter((p) => !p.auto).sort((a, b) => a.status.localeCompare(b.status) || (a.period_end ?? '9').localeCompare(b.period_end ?? '9') || a.name.localeCompare(b.name, 'zh'));
   const active = projects.filter((p) => p.status === 'active');
   const shown = showClosed ? projects : active;
   const withQuota = active.filter((p) => p.quota != null);
   const sum = (f: (p: FundProject) => number, ps = active) => ps.reduce((s, p) => s + f(p), 0);
-  const nowCards = data.cards.filter((c) => c.year === thisYear && c.status === 'active');
+  const realIds = new Set(projects.map((p) => p.id));
+  const nowCards = data.cards.filter((c) => c.year === thisYear && c.status === 'active' && realIds.has(c.project_id));
 
   const projectAct = (p?: FundProject): Act => ({
-    title: p ? `修改经费项目：${p.name}` : '新建经费项目', label: p ? '保存' : '新建',
+    title: !p ? '新建经费项目' : p.auto ? `据经费卡新建经费项目：${p.name}` : `修改经费项目：${p.name}`, label: p && !p.auto ? '保存' : '新建',
     hint: '额度为该项目批复的总数，期限为项目起止日期，均按任务书或合同填写。每年实际申请下来的经费另在项目下开当年的经费卡。',
     fields: [
       { name: 'name', label: '项目名称', value: p?.name },
@@ -60,6 +64,17 @@ export function Funds({ me }: { me: Me }) {
       run: (v) => rpc('open_card', { project_id: p.id, ...v }),
     };
   };
+  // 把一张卡归到已有的经费项目下：科目模板相同、该年度还没有卡的项目才可选
+  const moveAct = (c: Card): Act => {
+    const targets = active.filter((t) => t.id !== c.project_id && t.template_id === c.template_id && !data.cards.some((x) => x.project_id === t.id && x.year === c.year));
+    return {
+      title: `归入经费项目：${c.card_no} · ${c.year} 年`, label: '归入',
+      hint: targets.length === 0 ? '暂无可归入的经费项目：须先新建经费项目，且其科目模板与该经费卡相同、该年度尚无经费卡。'
+        : '归入后该经费卡成为所选经费项目当年的经费卡，名称、负责人和经费性质随项目。卡上的预算、支出和入账记录不变。',
+      fields: targets.length === 0 ? [] : [{ name: 'project_id', label: '经费项目', options: targets.map((t): [string, string] => [t.id, t.name]) }],
+      run: (v) => (targets.length === 0 ? Promise.resolve() : rpc('move_card', { card_id: c.card_id, project_id: v.project_id })),
+    };
+  };
   const closeAct = (p: FundProject): Act => ({
     title: `结题：${p.name}`, label: '确认结题', danger: true, fields: [],
     hint: '结题后该经费项目不得再修改或开经费卡。各年的经费卡须已全部结清。',
@@ -76,13 +91,31 @@ export function Funds({ me }: { me: Me }) {
       <div className="top"><h2>经费项目</h2>{staff && <button onClick={() => setAct(projectAct())}>新建经费项目</button>}</div>
       <p className="lede">经费项目是学校、国家等渠道批复的项目，记额度和期限。额度不是当年可用的钱：每年申请下来的经费记在项目下当年的经费卡上，支出只与当年的经费卡核对，年底按规则回收或结转。</p>
       <div className="tiles">
-        <Tile k="在执行的经费项目" v={String(active.length)} f={`${nowCards.length} 张 ${thisYear} 年的在用经费卡`} />
+        <Tile k="在执行的经费项目" v={String(active.length)} f={loose.length > 0 ? `另有 ${loose.length} 张经费卡尚未归入项目` : `${nowCards.length} 张 ${thisYear} 年的在用经费卡`} tone={loose.length > 0 ? 'warn' : ''} />
         <Tile k="额度合计" v={money(sum((p) => num(p.quota), withQuota))} f={withQuota.length < active.length ? `${active.length - withQuota.length} 个项目尚未填写额度` : '各项目批复总数'} />
         <Tile k="历年下达合计" v={money(sum((p) => num(p.granted)))} f={`历年回收 ${money(sum((p) => num(p.recalled)))}`} />
         <Tile k={`${thisYear} 年可用`} v={money(nowCards.reduce((s, c) => s + num(c.avail), 0))} tone={nowCards.reduce((s, c) => s + num(c.avail), 0) < 0 ? 'bad' : ''} f="当年经费卡的下达数 − 承诺 − 决算" />
       </div>
 
-      {shown.length === 0 ? <section className="card"><Empty>暂无经费项目。{staff && '先新建经费项目，再在项目下开当年的经费卡。'}</Empty></section> : shown.map((p) => {
+      {loose.length > 0 && (
+        <section className="card">
+          <h3>尚未归入经费项目的经费卡 <Badge tone="warn">{loose.length} 张</Badge></h3>
+          <p className="hint">这些是此前直接登记的经费卡，还没有对应的经费项目。先确定它属于哪个经费项目：属于已建项目的，归入该项目；项目尚未建立的，据此新建经费项目并补全来源渠道、额度和期限。几张卡属于同一个项目的，先据其中一张新建项目，再把其余的归入。</p>
+          <div className="scroll"><table>
+            <thead><tr><th>经费卡号</th><th>名称</th><th>年度</th><th className="r">现行预算</th><th className="r">已用</th><th>下达日</th><th>单据截止</th><th /></tr></thead>
+            <tbody>{loose.map(({ p, c }) => (
+              <tr key={c.card_id}><td><a className="mono" href={`#/card/${c.card_id}`}>{c.card_no}</a></td><td>{c.name}</td><td>{c.year}</td>
+                <td className="r">{money(c.cur)}</td><td className="r">{money(num(c.actual) + num(c.commit))}</td><td>{day(c.start_date)}</td>
+                <td>{day(c.cutoff_date)}{spans(c) && <> <Badge tone="warn">跨年</Badge></>}</td>
+                <td><div className="acts">{staff && c.status === 'active' && <>
+                  <button className="sm" onClick={() => setAct(moveAct(c))}>归入经费项目</button>
+                  <button className="sm ghost" onClick={() => setAct(projectAct(p))}>据此新建经费项目</button></>}</div></td></tr>
+            ))}</tbody>
+          </table></div>
+          {loose.some(({ c }) => spans(c)) && <p className="hint">标有「跨年」的经费卡，单据截止日是按整个项目期限填写的。归入经费项目后，请将单据截止日和结清日改到当年，下达数改为当年实际下来的数。</p>}
+        </section>
+      )}
+      {shown.length === 0 ? <section className="card"><Empty>暂无经费项目。{staff && (loose.length > 0 ? '请先新建经费项目，再把上面的经费卡归入。' : '先新建经费项目，再在项目下开当年的经费卡。')}</Empty></section> : shown.map((p) => {
         const cs = cardsOf(p); const rest = left(p); const cur = cs.find((c) => c.year === thisYear);
         const facts = [p.source && FUND_SOURCE[p.source], p.fund_kind && FUND_KIND[p.fund_kind], p.owner_name && `负责人 ${p.owner_name}`, p.template_name, `年底${END_RULE[p.end_rule]}`].filter(Boolean).join(' · ');
         return (
@@ -114,6 +147,7 @@ export function Funds({ me }: { me: Me }) {
               <div className="actions" style={{ justifyContent: 'flex-start' }}>
                 <button className="sm" onClick={() => setAct(openAct(p))}>开经费卡</button>
                 <button className="sm ghost" onClick={() => setAct(projectAct(p))}>修改</button>
+                {cs.filter((c) => c.status === 'active').map((c) => <button key={c.card_id} className="sm ghost" onClick={() => setAct(moveAct(c))}>{c.year} 年的卡改归属</button>)}
                 {cs.length > 0 && cs.every((c) => c.status === 'settled') && <button className="sm ghost" onClick={() => setAct(closeAct(p))}>结题</button>}
               </div>
             )}

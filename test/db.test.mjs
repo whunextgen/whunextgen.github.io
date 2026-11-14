@@ -1519,6 +1519,23 @@ eq((await one(`select recalled from api.fund_project where id = $1`, [f2])).reca
 await q(`select close_fund_project($1)`, [f2]);
 ok((await one(`select status from api.fund_project where id = $1`, [f2])).status === 'closed', '各年的卡都结清后可以结题');
 await raises('结题后不能再开卡', /已结题/, `select open_card($1, 2031, '7005-N', 1, '2031-02-01', '2031-12-20')`, [f2]);
+// 现有的卡不是项目：自动补的只是占位，归入正式的经费项目后占位删掉
+await q(`select save_fund_project($1, '国家重点项目', 'national', 'vertical', $2, 300000, '2031-01-01', '2033-12-31', $3, 'carry', '任务书编号 X') v`, [fp, U.lead, T.N]);
+ok((await one(`select note, auto from api.fund_project where id = $1`, [fp])).note === '任务书编号 X', '经费项目可以修改');
+const loose = await val(`select save_card(null, '7009-N', '散卡', $1, null, '2033-01-05', '2033-12-20', '2033-12-31', 'carry') v`, [T.N]);
+const ph = (await card(loose)).project_id;
+ok((await one(`select auto from api.fund_project where id = $1`, [ph])).auto === true, '不经经费项目建的卡，自动补的项目标为占位');
+await raises('不能归入占位项目', /占位/, `select move_card($1, $2)`, [k2, ph]);
+await raises('同一项目同一年不能有两张卡', /2032 年已有经费卡/, `select move_card($1, $2)`, [a2, fp]);
+await raises('科目模板不一致不能归入', /科目模板与经费项目不一致/, `select move_card($1, $2)`, [C.A, fp]);
+await q(`select move_card($1, $2)`, [loose, fp]);
+c = await card(loose);
+ok(c.project_id === fp && c.name === '国家重点项目', '经费卡归入正式的经费项目，名称随项目');
+eq((await q(`select 1 from api.fund_project where id = $1`, [ph])).length, 0, '归走之后空的占位项目删掉');
+const loose2 = await val(`select save_card(null, '7010-N', '散卡二', $1, null, '2033-01-05', '2033-12-20', '2033-12-31', 'recall') v`, [T.N]);
+const ph2 = (await card(loose2)).project_id;
+await q(`select save_fund_project($1, '散卡二项目', 'school', null, null, 80000, '2033-01-01', '2033-12-31', $2, 'recall')`, [ph2, T.N]);
+ok((await one(`select auto from api.fund_project where id = $1`, [ph2])).auto === false, '占位项目补全后即为正式的经费项目');
 // 旧入口直接建的卡自动补上经费项目
 await db.exec(`reset role`);
 const legacyCard = await one(`select c.year, p.name from fund_card c join fund_project p on p.id = c.project_id where c.card_no = '4131-A'`);
