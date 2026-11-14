@@ -274,7 +274,7 @@ export default {
         const info = await feishu('/authen/v1/user_info', { headers: { authorization: `Bearer ${tok.access_token}` } });
         const u = info?.data;
         if (info?.code !== 0 || !u?.open_id) return json({ error: '读取飞书身份失败' }, 401);
-        if (env.FEISHU_TENANT_KEY && u.tenant_key !== env.FEISHU_TENANT_KEY) return json({ error: '只允许本单位飞书账号登录' }, 403);
+        if (env.FEISHU_TENANT_KEY && u.tenant_key !== env.FEISHU_TENANT_KEY) return json({ error: '仅限本单位飞书账号登录' }, 403);
         const [row] = await withUser(env, null, (sql) =>
           sql`select (login_feishu(${u.open_id}, ${u.name ?? ''}, ${u.enterprise_email || u.email || null})).id as id`);
         const headers = new Headers({ location: appOrigin });
@@ -327,14 +327,14 @@ export default {
       const sec = url.pathname.match(/^\/api\/secret\/(set|get)$/)?.[1];
       if (sec && req.method === 'POST') {
         if (req.headers.get('origin') !== appOrigin) return json({ error: '来源不允许' }, 403, cors);
-        if (!env.VAULT_KEY) return json({ error: '还没有配置加密口令，暂时不能保存或查看密钥' }, 503, cors);
+        if (!env.VAULT_KEY) return json({ error: '尚未配置加密口令，暂不可保存或查看密钥' }, 503, cors);
         const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
         const kind = String(body.kind ?? ''), id = String(body.id ?? '');
-        if (!['resource', 'allocation'].includes(kind) || !/^[0-9a-f-]{36}$/.test(id)) return json({ error: '参数不对' }, 400, cors);
+        if (!['resource', 'allocation'].includes(kind) || !/^[0-9a-f-]{36}$/.test(id)) return json({ error: '参数有误' }, 400, cors);
         const noStore = { ...cors, 'cache-control': 'no-store' };
         if (sec === 'set') {
           const plain = typeof body.secret === 'string' ? body.secret.trim() : '';
-          if (plain.length > 2000) return json({ error: '内容太长' }, 400, cors);
+          if (plain.length > 2000) return json({ error: '内容过长' }, 400, cors);
           const cipher = plain ? await seal(env.VAULT_KEY, `${kind}:${id}`, plain) : null;
           await withUser(env, uid, (sql) => sql`select public.set_secret(${kind}::text, ${id}::uuid, ${cipher}::text, ${plain ? mask(plain) : null}::text)`);
           return json({ result: plain ? mask(plain) : null }, 200, noStore);
@@ -363,7 +363,7 @@ export default {
       body: JSON.stringify({ app_id: env.FEISHU_APP_ID, app_secret: env.FEISHU_APP_SECRET }) }).catch(() => null);
     const results: [string, boolean, string | null][] = [];
     for (const m of batch) {
-      if (!tok?.tenant_access_token) { results.push([String(m.msg_id), false, '取不到应用凭证']); continue; }
+      if (!tok?.tenant_access_token) { results.push([String(m.msg_id), false, '无法获取应用凭证']); continue; }
       const body = typeof m.body === 'string' ? JSON.parse(m.body) : m.body;
       const r = await feishu('/im/v1/messages?receive_id_type=open_id', {
         method: 'POST',
