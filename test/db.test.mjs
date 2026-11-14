@@ -530,6 +530,14 @@ await raises('两个都绑定飞书的账号不能合并', /两个飞书身份/,
 await q(`select merge_user($1, $2)`, [dup, U.mem2]);
 const ua = await q(`select * from api.user_admin where id in ($1, $2)`, [dup, U.mem2]);
 ok(ua.find(u => u.id === dup).active === false && ua.find(u => u.id === U.mem2).email === 'dup@example.com' && ua.find(u => u.id === U.mem2).linked, '合并后旧账号停用，邮箱并到保留的账号');
+const xo = (await one(`select (login_feishu('ou_x_old', '跨应用')).id as id`)).id;
+const xn = (await one(`select (login_feishu('ou_x_new', '跨应用', null, 'on_x')).id as id`)).id;
+ok(xo !== xn, '旧账号没记 union_id 时，新应用登录另建了账号');
+await q(`select merge_user($1, $2)`, [xn, xo]);
+ok((await one(`select (login_feishu('ou_x_new', '跨应用', null, 'on_x')).id as id`)).id === xo, '只有一边有 union_id 的两个账号可以合并，之后登录认回保留的账号');
+const y1 = (await one(`select (login_feishu('ou_y1', '甲', null, 'on_y1')).id as id`)).id;
+const y2 = (await one(`select (login_feishu('ou_y2', '乙', null, 'on_y2')).id as id`)).id;
+await raises('两边都有 union_id 的账号不能合并', /两个飞书身份/, `select merge_user($1, $2)`, [y1, y2]);
 
 // ---------- 年度预算：申报、汇总报批、核定 ----------
 await as(U.mem, D);
