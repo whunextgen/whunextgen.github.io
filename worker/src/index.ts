@@ -6,6 +6,9 @@ export interface Env {
   HYPERDRIVE: { connectionString: string };   // 以 app_api 角色连接 Supabase Postgres
   FEISHU_APP_ID: string;
   FEISHU_APP_SECRET: string;
+  // 发通知用的应用（机器人）。不设时沿用登录应用
+  FEISHU_BOT_APP_ID?: string;
+  FEISHU_BOT_APP_SECRET?: string;
   FEISHU_TENANT_KEY?: string;                 // 设了就只允许本租户
   SESSION_SECRET: string;
   APP_ORIGIN?: string;                        // 前端地址；不设时前端与接口同源（页面由本 Worker 的静态资源提供）
@@ -276,7 +279,7 @@ export default {
         if (info?.code !== 0 || !u?.open_id) return json({ error: '读取飞书身份失败' }, 401);
         if (env.FEISHU_TENANT_KEY && u.tenant_key !== env.FEISHU_TENANT_KEY) return json({ error: '仅限本单位飞书账号登录' }, 403);
         const [row] = await withUser(env, null, (sql) =>
-          sql`select (login_feishu(${u.open_id}, ${u.name ?? ''}, ${u.enterprise_email || u.email || null})).id as id`);
+          sql`select (login_feishu(${u.open_id}, ${u.name ?? ''}, ${u.enterprise_email || u.email || null}, ${u.union_id ?? null})).id as id`);
         const headers = new Headers({ location: appOrigin });
         headers.append('set-cookie', setCookie('fp_session', await sign(env.SESSION_SECRET, 'uid', row.id, 7 * 86400), 7 * 86400));
         headers.append('set-cookie', setCookie('fp_state', '', 0));
@@ -360,12 +363,12 @@ export default {
     if (!batch.length) return;
     const tok = await feishu('/auth/v3/tenant_access_token/internal', {
       method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ app_id: env.FEISHU_APP_ID, app_secret: env.FEISHU_APP_SECRET }) }).catch(() => null);
+      body: JSON.stringify({ app_id: env.FEISHU_BOT_APP_ID || env.FEISHU_APP_ID, app_secret: env.FEISHU_BOT_APP_SECRET || env.FEISHU_APP_SECRET }) }).catch(() => null);
     const results: [string, boolean, string | null][] = [];
     for (const m of batch) {
       if (!tok?.tenant_access_token) { results.push([String(m.msg_id), false, '无法获取应用凭证']); continue; }
       const body = typeof m.body === 'string' ? JSON.parse(m.body) : m.body;
-      const r = await feishu('/im/v1/messages?receive_id_type=open_id', {
+      const r = await feishu(`/im/v1/messages?receive_id_type=${String(m.target_id).startsWith('on_') ? 'union_id' : 'open_id'}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
         body: JSON.stringify({ receive_id: m.target_id, msg_type: 'text', content: JSON.stringify({ text: `【科研财务中台】${body.text}` }) }),

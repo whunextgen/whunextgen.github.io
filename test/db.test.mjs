@@ -258,6 +258,13 @@ await q(`insert into app_user (name, role, email) values ('旧账号', 'leader',
 await db.exec(`set role app_api`);
 ok((await one(`select (login_feishu('ou_old', '旧账号', 'Old@Example.com')).role as role`)).role === 'leader', '按邮箱认领旧账号并保留角色');
 ok((await one(`select (login_feishu('ou_other', '冒名', 'old@example.com')).role as role`)).role === 'member', '已认领的邮箱不能被第二个 open_id 认领');
+ok((await one(`select (login_feishu('ou_app2_old', '旧账号', null, 'on_old')).role as role`)).role === 'member', '换了应用且没有预先登记 union_id 时按新人处理');
+await db.exec(`reset role`);
+await q(`update app_user set feishu_union_id = 'on_real' where feishu_open_id = 'ou_old'`);
+await db.exec(`set role app_api`);
+ok((await one(`select (login_feishu('ou_app2_real', '旧账号', null, 'on_real')).role as role`)).role === 'leader', '换了应用后按 union_id 认回原账号');
+ok((await one(`select feishu_open_id as o from login_feishu('ou_app2_real', '旧账号', null, 'on_real')`)).o === 'ou_old', '按 union_id 登录不改原来的 open_id');
+ok((await one(`select feishu_union_id as n from login_feishu('ou_new', '新人', null, 'on_new')`)).n === 'on_new', '原应用登录时补记 union_id');
 await as(U.mem, '2026-09-05');
 await raises('成员不能维护支出类型', /当前角色/, `select save_expense_type(null, '测试类型')`);
 await as(U.fin, '2026-09-05');
