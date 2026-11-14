@@ -1472,7 +1472,12 @@ await raises('成员不能建经费项目', /需要权限/, `select save_fund_pr
 eq((await q(`select * from api.fund_project`)).length, 0, '成员看不到经费项目');
 await as(U.fin, '2031-01-10');
 const fp = await val(`select save_fund_project(null, '国家重点项目', 'national', 'vertical', $1, 300000, '2031-01-01', '2033-12-31', $2, 'carry') v`, [U.lead, T.N]);
-await raises('期限外的年度不能开卡', /2034 年不在该项目的期限内/, `select open_card($1, 2034, '7001-N', 1, '2034-01-05', '2034-12-20')`, [fp]);
+const kOut = await val(`select open_card($1, 2034, '7001-N', 1, '2034-01-05', '2034-12-20') v`, [fp]);
+ok((await card(kOut)).year === 2034, '项目期限之外的年度也可以开经费卡，期限只作提示');
+await q(`select save_fund_project($1, '国家重点项目', 'national', 'vertical', $2, 300000, '2031-01-01', '2032-12-31', $3, 'carry')`, [fp, U.lead, T.N]);
+ok((await one(`select period_end from api.fund_project where id = $1`, [fp])).period_end != null, '已有经费卡在期限之外时，项目期限仍可修改');
+await q(`select save_fund_project($1, '国家重点项目', 'national', 'vertical', $2, 300000, '2031-01-01', '2033-12-31', $3, 'carry')`, [fp, U.lead, T.N]);
+await q(`select delete_card($1)`, [kOut]);
 await raises('下达日要在该年度内', /下达日须在 2031 年内/, `select open_card($1, 2031, '7001-N', 1, '2032-01-05', '2032-12-20')`, [fp]);
 const k1 = await val(`select open_card($1, 2031, '7001-N', 120000, '2031-01-05', '2031-12-20', '2031-12-31') v`, [fp]);
 let c = await card(k1);

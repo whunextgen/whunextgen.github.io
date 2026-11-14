@@ -31,7 +31,7 @@ export function Funds({ me }: { me: Me }) {
 
   const projectAct = (p?: FundProject): Act => ({
     title: !p ? '新建项目' : p.auto ? `据经费卡新建项目：${p.name}` : `修改项目：${p.name}`, label: p && !p.auto ? '保存' : '新建',
-    hint: '额度为该项目批复的总数，期限为项目起止日期，均按任务书或合同填写。每年实际申请下来的经费另在项目下开当年的经费卡。',
+    hint: '额度为该项目批复的总数，期限为项目起止日期，均按任务书或合同填写；经费卡的年度可以在期限之外，页面会给出提示。每年实际申请下来的经费另在项目下开当年的经费卡。',
     fields: [
       { name: 'name', label: '项目名称', value: p?.name },
       { name: 'source', label: '来源渠道（选填）', options: Object.entries(FUND_SOURCE), required: false, value: p?.source ?? '' },
@@ -95,6 +95,8 @@ export function Funds({ me }: { me: Me }) {
   });
   // 单据截止日晚于次年 6 月底的在用卡，是按整个项目期限填的
   const spans = (c: Card) => c.status === 'active' && day(c.cutoff_date) > `${c.year + 1}-06-30`;
+  // 年度在项目期限之外的经费卡：不拦截，只作提示
+  const outOf = (p: FundProject, c: Card) => (p.period_start != null && c.year < Number(day(p.period_start).slice(0, 4))) || (p.period_end != null && c.year > Number(day(p.period_end).slice(0, 4)));
   const fate = (c: Card) => c.status !== 'settled' ? <Badge tone="ok">在用</Badge>
     : num(c.carried_out) > 0 ? <Badge>已结清，结转 {money(c.carried_out)}</Badge>
     : num(c.recalled) > 0 ? <Badge tone="warn">已结清，回收 {money(c.recalled)}</Badge> : <Badge>已结清</Badge>;
@@ -147,7 +149,7 @@ export function Funds({ me }: { me: Me }) {
               <div className="scroll"><table>
                 <thead><tr><th>年度</th><th>经费卡号</th><th>名称</th><th className="r">申请数</th><th className="r">下达数</th><th className="r">上年结转</th><th className="r">已用</th><th className="r">可用</th><th>单据截止</th><th>状态</th>{staff && <th />}</tr></thead>
                 <tbody>{cs.map((c) => (
-                  <tr key={c.card_id}><td>{c.year}</td><td><a className="mono" href={`#/card/${c.card_id}`}>{c.card_no}</a></td><td>{c.name === p.name ? <span className="sub2">同项目</span> : c.name}</td>
+                  <tr key={c.card_id}><td>{c.year}{outOf(p, c) && <> <Badge tone="warn">期限外</Badge></>}</td><td><a className="mono" href={`#/card/${c.card_id}`}>{c.card_no}</a></td><td>{c.name === p.name ? <span className="sub2">同项目</span> : c.name}</td>
                     <td className="r">{c.applied != null ? money(c.applied) : '—'}</td><td className="r">{money(num(c.orig) - num(c.carried_in))}</td>
                     <td className="r">{num(c.carried_in) > 0 ? money(c.carried_in) : '—'}</td><td className="r">{money(num(c.actual) + num(c.commit))}</td>
                     <td className={`r ${num(c.avail) < 0 ? 'neg' : ''}`}>{c.status === 'settled' ? '—' : money(c.avail)}</td>
@@ -158,6 +160,7 @@ export function Funds({ me }: { me: Me }) {
               </table></div>
             )}
             {cs.some(spans) && <p className="hint">标有「跨年」的经费卡，单据截止日晚于其年度的次年 6 月底，是按整个项目期限填写的。经费卡只记当年的经费：请将单据截止日和结清日改到当年，下达数改为当年实际下来的数，以后各年另开经费卡。</p>}
+            {cs.some((c) => outOf(p, c)) && <p className="hint">标有「期限外」的经费卡，其年度不在项目期限之内。项目如已延期，请修改项目期限；否则请核对该经费卡的年度。</p>}
             {p.status === 'active' && !cur && cs.length > 0 && <p className="hint">{thisYear} 年的经费卡尚未开出，当年无可用经费。</p>}
             {staff && p.status === 'active' && (
               <div className="actions" style={{ justifyContent: 'flex-start' }}>
