@@ -8,7 +8,7 @@ import { readXls } from '../xls';
 // 文件只在浏览器里读；先列出与中台现有记录的差异，确认后才写入。重复导入不重复写入。
 
 interface Row { line: number; on: string; voucher: string; title: string; code: string; name: string; income: number; expense: number; balance: number | null }
-interface Ledger { project: string; opening: number; rows: Row[]; ending: number | null; skipped: { line: number; text: string; why: string }[]; noCtrl: boolean }
+interface Ledger { project: string; opening: number; hasOpening: boolean; rows: Row[]; ending: number | null; skipped: { line: number; text: string; why: string }[]; noCtrl: boolean }
 
 const COL: [keyof typeof IDX, RegExp][] = [['ctrl', /额度控制/], ['on', /凭证日期|日期/], ['voucher', /凭证编号|凭证号/], ['title', /摘要/], ['code', /科目编号|科目代码/], ['name', /科目名称/], ['income', /收入/], ['expense', /支出/], ['balance', /余额/]];
 const IDX = { on: -1, voucher: -1, title: -1, code: -1, name: -1, income: -1, expense: -1, balance: -1, ctrl: -1 };
@@ -24,10 +24,10 @@ export function readLedger(t: string[][]): Ledger {
   const head = t.slice(0, h).flat().find((x) => /项目[：:]/.test(x)) ?? '';
   const project = (head.split(/项目[：:]/)[1] ?? '').trim();
   const at = (r: string[], k: keyof typeof IDX) => (idx[k] >= 0 ? (r[idx[k]] ?? '').trim() : '');
-  const out: Ledger = { project, opening: 0, rows: [], ending: null, skipped: [], noCtrl: true };
+  const out: Ledger = { project, opening: 0, hasOpening: false, rows: [], ending: null, skipped: [], noCtrl: true };
   t.slice(h + 1).forEach((r, i) => {
     const line = h + 2 + i, on = (at(r, 'on').match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/) ?? []).slice(1), title = at(r, 'title'), bal = amt(at(r, 'balance'));
-    if (on.length < 3) { if (/年初余额/.test(title) && bal != null) out.opening = bal; return; }
+    if (on.length < 3) { if (/年初余额/.test(title) && bal != null) { out.opening = bal; out.hasOpening = true; } return; }
     const income = amt(at(r, 'income')) ?? 0, expense = amt(at(r, 'expense')) ?? 0;
     const row: Row = { line, on: `${on[0]}-${on[1].padStart(2, '0')}-${on[2].padStart(2, '0')}`, voucher: at(r, 'voucher'), title, code: at(r, 'code'), name: at(r, 'name'), income, expense, balance: bal };
     if (bal != null) out.ending = bal;
@@ -74,9 +74,9 @@ export function LedgerImport({ card, reqs, onDone }: { card: Card; reqs: Req[]; 
     try {
       const r = await rpc('import_ledger', { card_id: card.card_id,
         rows: view.fresh.map((x) => ({ posted_on: x.on, voucher_no: x.voucher, title: x.title, amount: x.expense, school_code: x.code, school_name: x.name })),
-        income: setIncome && view.incomeSum > 0 ? view.incomeSum : null, balance: setBalance && led.ending != null ? led.ending : null,
-        expense_type_id: null, pooled }) as { added: number; skipped: number; amount: number };
-      setMsg(['ok', `已导入：新增已入账支出 ${r.added} 笔，合计 ${money(r.amount)}${r.skipped ? `；${r.skipped} 笔中台已有，未重复写入` : ''}${setIncome && view.incomeSum > 0 ? `；当年下达数和已到账更新为 ${money(view.incomeSum)}` : ''}${setBalance && led.ending != null ? `；学校余额更新为 ${money(led.ending)}` : ''}。`]);
+        incomes: setIncome ? view.income.map((x) => ({ posted_on: x.on, voucher_no: x.voucher, title: x.title, amount: x.income, school_code: x.code, school_name: x.name })) : null,
+        opening: setIncome && led.hasOpening ? led.opening : null, balance: setBalance && led.ending != null ? led.ending : null, pooled }) as { added: number; skipped: number; amount: number; incomes: number };
+      setMsg(['ok', `已导入：新增已入账支出 ${r.added} 笔，合计 ${money(r.amount)}${r.skipped ? `；${r.skipped} 笔中台已有，未重复写入` : ''}${setIncome ? `；收入明细新增 ${r.incomes} 笔，当年下达数和已到账按收入明细合计更新${led.hasOpening ? `，上年结转更新为 ${money(led.opening)}` : ''}` : ''}${setBalance && led.ending != null ? `；学校余额更新为 ${money(led.ending)}` : ''}。`]);
       setLed(null); setFile(''); onDone();
     } catch (e) { setMsg(['bad', (e as ApiError).message]); }
     setBusy(false);
@@ -85,7 +85,7 @@ export function LedgerImport({ card, reqs, onDone }: { card: Card; reqs: Req[]; 
   return (
     <section className="card">
       <h3>导入明细账 <span className="h3sub">学校财务系统导出的项目收支明细账</span></h3>
-      <p className="hint">上传学校财务系统导出的该经费卡的明细账（.xls 或 CSV）。收入行用于更新当年下达数和已到账，支出行记为已入账的支出，期末余额用于更新学校余额。系统先列出与中台现有记录的差异，确认后写入；已导入过的行不会重复写入。文件仅在浏览器中读取。</p>
+      <p className="hint">上传学校财务系统导出的该经费卡的明细账（.xls 或 CSV）。收入行逐笔保存并据此更新当年下达数和已到账，年初余额记为上年结转，支出行记为已入账的支出，期末余额用于更新学校余额；学校余额按这些明细核对。系统先列出与中台现有记录的差异，确认后写入；已导入过的行不会重复写入。文件仅在浏览器中读取。</p>
       {msg && <div className={`msg ${msg[0]}`} role={msg[0] === 'bad' ? 'alert' : 'status'}>{msg[1]}</div>}
       <label className="field"><span>选择明细账文件</span>
         <input type="file" accept=".xls,.csv,.tsv,.txt,application/vnd.ms-excel,text/csv,text/plain" onChange={(e) => { const f = e.target.files?.[0]; if (f) void load(f); e.target.value = ''; }} /></label>
@@ -94,14 +94,15 @@ export function LedgerImport({ card, reqs, onDone }: { card: Card; reqs: Req[]; 
           <h4>文件内容 <span className="sub2">{file}</span></h4>
           <table><tbody>
             <tr><th scope="row">文件所属项目</th><td>{led.project || '未注明'} <Badge tone="warn">请确认与本经费卡「{card.name} · {card.year} 年」一致</Badge></td></tr>
-            <tr><th scope="row">收入</th><td>{view.income.length} 行，合计 {money(view.incomeSum)}{led.opening > 0 && <span className="sub2"> 另有年初余额 {money(led.opening)}，属上年结转，不在此写入</span>}</td></tr>
+            <tr><th scope="row">年初余额</th><td>{led.hasOpening ? money(led.opening) : '未注明'}<span className="sub2"> 记为上年结转</span></td></tr>
+            <tr><th scope="row">收入</th><td>{view.income.length} 行，合计 {money(view.incomeSum)}</td></tr>
             <tr><th scope="row">支出</th><td>{view.spend.length} 行，合计 {money(view.spendSum)}；其中 {view.spend.length - view.fresh.length} 行中台已有，<b>{view.fresh.length} 行将新增</b>，合计 {money(view.freshSum)}</td></tr>
-            <tr><th scope="row">期末余额</th><td>{led.ending != null ? money(led.ending) : '未注明'}</td></tr>
+            <tr><th scope="row">期末余额</th><td>{led.ending != null ? money(led.ending) : '未注明'}{led.ending != null && <span className="sub2"> 按明细核对：年初余额 {money(led.opening)} + 收入 {money(view.incomeSum)} − 支出 {money(view.spendSum)} = {money(led.opening + view.incomeSum - view.spendSum)}{Math.abs(led.opening + view.incomeSum - view.spendSum - led.ending) < 0.005 ? '，与期末余额相符' : `，与期末余额相差 ${money(led.opening + view.incomeSum - view.spendSum - led.ending)}`}</span>}</td></tr>
           </tbody></table>
           <h4>写入内容</h4>
           <p className="sub2">每笔支出连同学校的科目编号和名称一并保存，导入后可在下方按学校科目汇总查看。学校科目名称与本经费卡科目一致的自动对应，其余统一记在「学校明细账」一项下，无需逐笔指定。</p>
           <label className="field check"><input type="checkbox" checked={pooled} onChange={(e) => setPooled(e.target.checked)} /><span>该经费卡只控总额，不按科目控制{led.noCtrl ? '（明细账中「额度控制分类」为空，学校未按科目控制）' : ''}。勾选后，支出只与整张卡的可用额核对。</span></label>
-          <label className="field check"><input type="checkbox" checked={setIncome} disabled={view.incomeSum <= 0} onChange={(e) => setSetIncome(e.target.checked)} /><span>将当年下达数和已到账更新为收入合计 {money(view.incomeSum)}（当前下达数 {card.granted != null ? money(card.granted) : '未填写'}，已到账 {card.received != null ? money(card.received) : '未填写'}）</span></label>
+          <label className="field check"><input type="checkbox" checked={setIncome} onChange={(e) => setSetIncome(e.target.checked)} /><span>保存收入明细，并据此更新当年下达数和已到账（收入合计 {money(view.incomeSum)}；当前下达数 {card.granted != null ? money(card.granted) : '未填写'}）；年初余额记为上年结转</span></label>
           <label className="field check"><input type="checkbox" checked={setBalance} disabled={led.ending == null} onChange={(e) => setSetBalance(e.target.checked)} /><span>将学校余额更新为期末余额 {led.ending != null ? money(led.ending) : '—'}（当前 {card.school_balance != null ? money(card.school_balance) : '未回写'}）</span></label>
           {view.fresh.length > 0 && (
             <>
@@ -121,7 +122,7 @@ export function LedgerImport({ card, reqs, onDone }: { card: Card; reqs: Req[]; 
             </>
           )}
           <div className="actions"><button className="ghost" onClick={() => { setLed(null); setFile(''); }}>取消</button>
-            <button disabled={busy || (view.fresh.length === 0 && !(setIncome && view.incomeSum > 0) && !(setBalance && led.ending != null) && pooled === card.pooled)} onClick={confirm}>{busy ? '写入中…' : '确认导入'}</button></div>
+            <button disabled={busy || (view.fresh.length === 0 && !setIncome && !(setBalance && led.ending != null) && pooled === card.pooled)} onClick={confirm}>{busy ? '写入中…' : '确认导入'}</button></div>
         </>
       )}
     </section>

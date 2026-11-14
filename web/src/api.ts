@@ -68,7 +68,9 @@ export interface Card {
   granted: string | null;   // 当年下达数，直接填写的；没填时按各科目明细合计算
   assigned: string;         // 已分到各学校科目的合计；填了下达数时 cur 是下达数连同结转，assigned 可能小于 cur
   pooled: boolean;          // 只控总额，不按科目控制
+  income: string; ledger_actual: string; stray_n: number; stray_amount: string;   // 按明细核对用：收入合计、明细账里的支出合计、明细账之外的已入账支出
 }
+export interface CardIncome { id: string; card_id: string; posted_on: string; voucher_no: string | null; title: string; amount: string; school_code: string | null; school_name: string | null }
 export interface CardSchoolSubject { card_id: string; subject_id: string; school_name: string; school_code: string | null; n: number; amount: string }
 // 项目：额度和期限在这里；每年下来的经费是它下面当年的一张经费卡
 export interface FundProject { id: string; name: string; source: 'school' | 'national' | 'provincial' | 'enterprise' | 'other' | null; fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null;

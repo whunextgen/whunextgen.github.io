@@ -16,7 +16,7 @@ export interface Env {
   FEISHU_NOTIFY?: string;                     // 设为 on 才真正发飞书通知；不设时消息只在数据库里排队，过 24 小时作废
 }
 
-const VIEWS = new Set(['me', 'users', 'card_pick', 'fund_project', 'card_school_subject', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
+const VIEWS = new Set(['me', 'users', 'card_pick', 'fund_project', 'card_school_subject', 'card_income', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
   'request', 'request_event', 'procurement_event', 'budget_change', 'fund_event', 'person', 'pay_type', 'staff',
   'payroll_sheet', 'settlement', 'emergency', 'year_actual', 'settle_check',
   'template', 'template_cap', 'user_admin', 'outbox', 'quota', 'quota_pick', 'resource', 'allocation',
@@ -118,7 +118,8 @@ const RPC: Record<string, [string, string][]> = {
   open_card: [['project_id', 'uuid'], ['year', 'int'], ['card_no', 'text'], ['applied', 'numeric'], ['start_date', 'date'], ['cutoff_date', 'date'], ['settle_date', 'date'], ['name', 'text']],
   set_card_applied: [['card_id', 'uuid'], ['applied', 'numeric']],
   set_card_granted: [['card_id', 'uuid'], ['granted', 'numeric']],
-  import_ledger: [['card_id', 'uuid'], ['rows', 'jsonb'], ['income', 'numeric'], ['balance', 'numeric'], ['expense_type_id', 'uuid'], ['pooled', 'boolean']],
+  import_ledger: [['card_id', 'uuid'], ['rows', 'jsonb'], ['incomes', 'jsonb'], ['opening', 'numeric'], ['balance', 'numeric'], ['pooled', 'boolean']],
+  void_stray_posted: [['card_id', 'uuid']],
   set_card_pooled: [['card_id', 'uuid'], ['pooled', 'boolean']],
   close_fund_project: [['id', 'uuid']],
   move_card: [['card_id', 'uuid'], ['project_id', 'uuid']],

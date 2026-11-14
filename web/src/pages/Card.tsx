@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { rpc, useViews, type Cap, type Card, type CardSchoolSubject, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
+import { rpc, useViews, type Cap, type Card, type CardIncome, type CardSchoolSubject, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
 import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, can, cardGap, cardGranted, cardTotal, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
 import { cardFields, saveCard } from './Admin';
 import { LedgerImport } from './Ledger';
@@ -93,8 +93,8 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   const [act, setAct] = useState<Act | null>(null);
   const [adding, setAdding] = useState(false);
   const [budgeting, setBudgeting] = useState(false);
-  const { data, error, reload } = useViews<{ card: Card[]; cells: Cell[]; nodes: Node[]; caps: Cap[]; changes: Change[]; reqs: Req[]; settle: SettleLine[]; templates: Template[]; users: User[]; school: CardSchoolSubject[] }>({
-    school: ['card_school_subject', f], templates: ['template'], users: ['users'], card: ['card', f], cells: ['cell', f], nodes: ['node', f], caps: ['cap', f], changes: ['budget_change', f], reqs: ['request', f], settle: ['settlement', f],
+  const { data, error, reload } = useViews<{ card: Card[]; cells: Cell[]; nodes: Node[]; caps: Cap[]; changes: Change[]; reqs: Req[]; settle: SettleLine[]; templates: Template[]; users: User[]; school: CardSchoolSubject[]; incomes: CardIncome[] }>({
+    incomes: ['card_income', f], school: ['card_school_subject', f], templates: ['template'], users: ['users'], card: ['card', f], cells: ['cell', f], nodes: ['node', f], caps: ['cap', f], changes: ['budget_change', f], reqs: ['request', f], settle: ['settlement', f],
   }, id);
   if (!data) return <Loading error={error} />;
   const c = data.card[0];
@@ -121,6 +121,9 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   });
   const diff = c.school_available != null ? num(c.avail) - num(c.school_available) : null;
   const gap = cardGap(c);   // 下达了但还没分到科目的部分
+  // 学校余额按明细核对：上年结转 + 收入明细合计 − 明细账里的支出合计
+  const hasLedger = num(c.ledger_actual) > 0 || num(c.income) > 0;
+  const byLedger = num(c.carried_in) + num(c.income) - num(c.ledger_actual);
   // 只控总额的卡按学校科目列支出：同名的学校科目合并；没有学校科目的支出（在中台里申请的）按本卡科目列
   const bySchool = new Map<string, { school_name: string; school_code: string | null; n: number; amount: number }>();
   for (const r of data.school) { const o = bySchool.get(r.school_name) ?? { school_name: r.school_name, school_code: r.school_code, n: 0, amount: 0 }; o.n += r.n; o.amount += num(r.amount); bySchool.set(r.school_name, o); }
@@ -169,10 +172,17 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
             <th scope="row">下达日</th><td>{day(c.start_date)}</td></tr>
           <tr><th scope="row">单据截止日</th><td>{day(c.cutoff_date)}</td>
             <th scope="row">到期处理</th><td>{END_RULE[c.end_rule]}{c.settle_date ? `，结清日 ${day(c.settle_date)}` : '，尚未设结清日'}</td></tr>
-          <tr><th scope="row">学校财务系统</th>
-            <td colSpan={3}>{c.school_synced_at == null ? '尚未回写学校侧余额，无法对账。'
-              : <>余额 {money(c.school_balance)}，冻结 {money(c.school_frozen)}，可用 {money(c.school_available)}（{day(c.school_synced_at)} 回写）
-                {diff != null && Math.abs(diff) >= 0.005 && <> <Badge tone="bad">与本系统可用相差 {money(diff)}</Badge></>}</>}</td></tr>
+          <tr><th scope="row">学校余额核对</th>
+            <td colSpan={3}>{c.school_synced_at == null ? '尚未回写学校余额，无法核对。导入学校的明细账后按明细核对。'
+              : hasLedger ? <>按明细核对：上年结转 {money(c.carried_in)} + 收入 {money(c.income)} − 明细账支出 {money(c.ledger_actual)} = <b>{money(byLedger)}</b>；学校余额 <b>{money(c.school_balance)}</b>（{day(c.school_synced_at)} 回写）
+                  {' '}{Math.abs(byLedger - num(c.school_balance)) < 0.005 ? <Badge tone="ok">相符</Badge> : <Badge tone="bad">相差 {money(byLedger - num(c.school_balance))}</Badge>}
+                  {num(c.income) <= 0 && <div className="sub2" style={{ marginLeft: 0 }}>尚无收入明细：请重新导入一次明细账，收入行和年初余额会补上，已有的支出不会重复。</div>}</>
+                : <>余额 {money(c.school_balance)}，冻结 {money(c.school_frozen)}，可用 {money(c.school_available)}（{day(c.school_synced_at)} 回写）
+                  {diff != null && Math.abs(diff) >= 0.005 && <> <Badge tone="bad">与本系统可用相差 {money(diff)}</Badge></>}</>}
+              {hasLedger && c.stray_n > 0 && <div className="msg warn" role="status" style={{ margin: '8px 0 0' }}>另有 {c.stray_n} 笔已入账支出不在学校明细账中，合计 {money(c.stray_amount)}。这些记录计入了本卡的已入账，但学校账上没有对应的行，会使可用额比学校余额少。确属重复或旧记录的可以作废，作废后不再计入已入账，记录仍保留。
+                {editable && <button className="sm danger" style={{ marginLeft: 8 }} onClick={() => setAct({ label: '确认作废', title: '作废明细账之外的已入账支出', danger: true, fields: [],
+                  hint: `将该经费卡上不在学校明细账中的 ${c.stray_n} 笔已入账支出（合计 ${money(c.stray_amount)}）作废。作废后不再计入已入账和可用额的计算，记录和留痕保留。`,
+                  run: () => rpc('void_stray_posted', { card_id: c.card_id }) })}>作废这 {c.stray_n} 笔</button>}</div>}</td></tr>
           {c.rule_note && <tr><th scope="row">备注</th><td colSpan={3} className="wrap">{c.rule_note}</td></tr>}
         </tbody></table>
       </section>
@@ -228,6 +238,17 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
           </>
         )}
       </section>
+
+      {data.incomes.length > 0 && (
+        <section className="card">
+          <h3>收入明细 <span className="h3sub">来自学校的明细账，合计即当年下达数</span></h3>
+          <div className="scroll"><table>
+            <thead><tr><th>凭证日期</th><th>凭证编号</th><th>摘要</th><th>学校科目</th><th className="r">金额</th></tr></thead>
+            <tbody>{[...data.incomes].sort((a, b) => a.posted_on.localeCompare(b.posted_on)).map((r) => <tr key={r.id}><td>{day(r.posted_on)}</td><td className="code">{r.voucher_no ?? '—'}</td><td className="wrap">{r.title}</td><td>{r.school_name ?? '—'}</td><td className="r">{money(r.amount)}</td></tr>)}
+              <tr className="sum"><td>合计</td><td /><td /><td /><td className="r">{money(c.income)}</td></tr></tbody>
+          </table></div>
+        </section>
+      )}
 
       {editable && <LedgerImport card={c} reqs={data.reqs} onDone={reload} />}
 

@@ -1583,23 +1583,30 @@ const led = JSON.stringify([
   { posted_on: '2032-02-01', voucher_no: '(B)001', title: '样例差旅', amount: 700, school_code: '72-3021101', school_name: '非财政支出-国内差旅费' },
   { posted_on: '2032-02-01', voucher_no: '(B)001', title: '样例盒饭', amount: 300, school_code: '72-3020103', school_name: '非财政支出-工作盒饭' }]);
 const imp = `select import_ledger($1, $2, $3, $4, $5, $6) v`;
+const inc = JSON.stringify([{ posted_on: '2032-01-10', voucher_no: '(J)001', title: '样例拨款', amount: 95000, school_code: '61', school_name: '其他部委拨款' }]);
 await as(U.mem, '2032-06-01');
-await raises('成员不能导入明细账', /无权导入明细账/, imp, [kl, led, 100000, 99000, null, true]);
+await raises('成员不能导入明细账', /无权导入明细账/, imp, [kl, led, inc, 5000, 99000, true]);
 await as(U.fin, '2032-06-01');
-let ir = await val(imp, [kl, led, 100000, 99000, null, true]);
+let ir = await val(imp, [kl, led, inc, 5000, 99000, true]);
 ok(ir.added === 2 && ir.skipped === 0 && Number(ir.amount) === 1000, '导入明细账：不用指定科目和支出类型，支出行记为已入账', JSON.stringify(ir));
 c = await card(kl);
-ok(Number(c.granted) === 100000 && Number(c.received) === 100000 && Number(c.cur) === 100000 && Number(c.actual) === 1000 && Number(c.avail) === 99000 && Number(c.school_balance) === 99000,
-  '导入明细账：收入合计写入下达数和已到账，余额写入学校余额，可用与学校余额一致', JSON.stringify([c.granted, c.received, c.cur, c.actual, c.avail, c.school_balance]));
-ir = await val(imp, [kl, led, 100000, 99000, null, true]);
-ok(ir.added === 0 && ir.skipped === 2, '重复导入同一份明细账不重复写入', JSON.stringify(ir));
+ok(Number(c.granted) === 95000 && Number(c.received) === 95000 && Number(c.carried_in) === 5000 && Number(c.cur) === 100000 && Number(c.actual) === 1000 && Number(c.avail) === 99000 && Number(c.school_balance) === 99000,
+  '导入明细账：收入逐笔保存并写入下达数和已到账，年初余额记为上年结转，可用与学校余额一致', JSON.stringify([c.granted, c.received, c.carried_in, c.cur, c.actual, c.avail, c.school_balance]));
+ok(Number(c.income) === 95000 && Number(c.ledger_actual) === 1000 && Number(c.carried_in) + Number(c.income) - Number(c.ledger_actual) === Number(c.school_balance) && c.stray_n === 0, '按明细核对：上年结转 + 收入 − 明细账支出 = 学校余额', JSON.stringify([c.income, c.ledger_actual, c.stray_n]));
+ir = await val(imp, [kl, led, inc, 5000, 99000, true]);
+ok(ir.added === 0 && ir.skipped === 2 && ir.incomes === 0 && Number((await card(kl)).income) === 95000, '重复导入同一份明细账，支出和收入都不重复写入', JSON.stringify(ir));
 const ss = await q(`select * from api.card_school_subject where card_id = $1 order by school_name`, [kl]);
 ok(ss.length === 2 && ss.some(x => x.school_name === '非财政支出-国内差旅费' && Number(x.amount) === 700), '已入账支出可按学校科目汇总', JSON.stringify(ss));
 // 只控总额的卡：支出只与整张卡的总额核对，与科目的预算无关
 ok((await card(kl)).pooled === true, '导入时可把经费卡设为只控总额');
 await q(recH, [kl, SUB.N.biz, TY['耗材'], '科目上没有预算', 5000]);
 ok(Number((await card(kl)).avail) === 94000, '只控总额的卡，科目上没有预算也能支出，可用按总额算');
-await raises('只控总额的卡支出不能超过总额', /可用 94000/, recH, [kl, SUB.N.biz, TY['耗材'], '超总额', 95000]);
+c = await card(kl);
+ok(c.stray_n === 1 && Number(c.stray_amount) === 5000, '明细账之外的已入账支出单独计数', JSON.stringify([c.stray_n, c.stray_amount]));
+eq(await val(`select void_stray_posted($1) v`, [kl]), 1, '明细账里没有的已入账支出可以作废');
+c = await card(kl);
+ok(c.stray_n === 0 && Number(c.actual) === 1000 && Number(c.avail) === 99000, '作废后不再计入已入账，可用与学校余额重新一致', JSON.stringify([c.actual, c.avail]));
+await raises('只控总额的卡支出不能超过总额', /可用 99000/, recH, [kl, SUB.N.biz, TY['耗材'], '超总额', 99500]);
 await q(`select set_card_pooled($1, false)`, [kl]);
 await raises('改回按科目控制后，科目上没有预算不能支出', /可用/, recH, [kl, SUB.N.equip, TY['耗材'], '按科目', 100]);
 // 导入过明细账的卡，各科目的预算仍可更正（学校明细账这一项本来就没有预算）
