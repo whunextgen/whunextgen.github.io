@@ -17,7 +17,7 @@ export function cardFields(c: Card): Field[] {
     { name: 'settle_date', label: '结清日（选填，结清前须填写）', type: 'date', required: false, value: c.settle_date ? day(c.settle_date) : '' },
     { name: 'end_rule', label: '到期处理', options: Object.entries(END_RULE), value: c.end_rule },
     { name: 'rule_note', label: '备注（选填）', required: false, value: c.rule_note ?? '' },
-    { name: 'received', label: '已到账金额（元，选填）', type: 'number', required: false, value: c.received != null ? String(num(c.received)) : '' },
+    { name: 'received', label: '已到账金额（元；横向经费的支出不得超过已到账，其他性质仅作记录）', type: 'number', required: false, value: c.received != null ? String(num(c.received)) : '' },
     { name: 'priority', label: '下达优先级（1–99，数值小者优先；留空按到期规则排序）', type: 'number', required: false, value: c.priority != null ? String(c.priority) : '' },
   ];
 }

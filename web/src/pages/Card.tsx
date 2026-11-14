@@ -151,6 +151,9 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
               fields: [{ name: 'granted', label: '当年下达数（元）', type: 'number', required: false, value: c.granted != null ? String(num(c.granted)) : '' }],
               run: (v) => rpc('set_card_granted', { card_id: c.card_id, granted: v.granted }) })}>修改</button></>}</td>
             <th scope="row">上年结转</th><td>{num(c.carried_in) > 0 ? money(c.carried_in) : '无'}</td></tr>
+          <tr><th scope="row">已到账</th><td colSpan={3}>{c.received != null ? money(c.received) : <span className="sub2">尚未填写</span>}
+            {c.fund_kind === 'horizontal' ? <> <Badge tone={num(c.received) < cardTotal(c) ? 'warn' : 'ok'}>{num(c.received) < cardTotal(c) ? `已下达未到账 ${money(cardTotal(c) - num(c.received))}，到账前不得支出` : '已全部到账'}</Badge><span className="sub2"> 横向经费的支出不得超过已到账金额</span></>
+              : <span className="sub2"> 仅作记录，不限制支出</span>}</td></tr>
           {c.status === 'settled' && <tr><th scope="row">结余去向</th><td colSpan={3}>{num(c.carried_out) > 0 ? `结转至下一年 ${money(c.carried_out)}` : num(c.recalled) > 0 ? `回收 ${money(c.recalled)}` : '无结余'}</td></tr>}
           <tr><th scope="row">科目模板</th><td>{c.template_name}{c.locked && '（科目锁定，不得变更预算）'}</td>
             <th scope="row">下达日</th><td>{day(c.start_date)}</td></tr>

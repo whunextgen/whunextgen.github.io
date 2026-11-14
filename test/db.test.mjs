@@ -1561,6 +1561,21 @@ await q(`select delete_card($1)`, [kx]);
 eq((await q(`select 1 from api.card where card_id = $1`, [kx])).length, 0, '没有预算和记录的卡可以删除');
 await q(`select delete_fund_project($1)`, [fx]);
 eq((await q(`select 1 from api.fund_project where id = $1`, [fx])).length, 0, '没有卡的项目可以删除');
+// 横向经费到账前不得支出；纵向、财政的不受此限
+await as(U.fin, '2032-06-01');
+const fh = await val(`select save_fund_project(null, '企业合作项目', 'enterprise', 'horizontal', null, null, null, null, $1, 'carry') v`, [T.N]);
+const kh = await val(`select open_card($1, 2032, '7020-N', null, '2032-01-05', '2032-12-20', '2032-12-31') v`, [fh]);
+await q(`select set_budget($1, $2)`, [kh, lines({ biz: 50000 })]);
+const recH = `select record_expense($1, $2, $3, $4, $5, '2032-05-01', null)`;
+await raises('横向经费未到账不能支出', /横向经费到账前不得支出/, recH, [kh, SUB.N.biz, TY['耗材'], '未到账', 100]);
+await q(`select set_card_info($1, 'horizontal', 30000, null)`, [kh]);
+await q(recH, [kh, SUB.N.biz, TY['耗材'], '到账内', 20000]);
+await raises('横向经费支出不能超过已到账', /已到账 30000.00，含本笔在内的申请、承诺和已入账合计 40000.00/, recH, [kh, SUB.N.biz, TY['耗材'], '超到账', 20000]);
+const fv = await val(`select save_fund_project(null, '纵向课题', 'national', 'vertical', null, null, null, null, $1, 'carry') v`, [T.N]);
+const kv = await val(`select open_card($1, 2032, '7021-N', null, '2032-01-05', '2032-12-20', '2032-12-31') v`, [fv]);
+await q(`select set_budget($1, $2)`, [kv, lines({ biz: 50000 })]);
+await q(recH, [kv, SUB.N.biz, TY['耗材'], '纵向未填到账', 20000]);
+ok(Number((await card(kv)).actual) === 20000, '纵向经费不受到账限制');
 // 旧入口直接建的卡自动补上经费项目
 await db.exec(`reset role`);
 const legacyCard = await one(`select c.year, p.name from fund_card c join fund_project p on p.id = c.project_id where c.card_no = '4131-A'`);

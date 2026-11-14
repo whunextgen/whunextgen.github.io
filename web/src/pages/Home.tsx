@@ -175,7 +175,8 @@ export function Home({ me }: { me: Me }) {
             <TreeNode key={c.card_id} level={2} lv="经费卡" title={c.name === p.name ? `${c.year} 年` : `${c.year} 年 · ${c.name}`} meta={`${c.card_no}${c.year === thisYear ? ' · 本年度' : ''}`} href={`#/card/${c.card_id}`} open={pi === 0 && c.year === thisYear}
               chart={<Track cap={c.year === thisYear ? '当年执行' : '执行'} segs={execSegs(total, num(c.actual), num(c.commit), '当年下达')} mark={mark} />}
               num={`下达 ${money(total)}`} sub={`执行 ${pct(num(c.actual) + num(c.commit), total)} · 可用 ${money(left)}`}
-              status={cardStatus(c) ?? (gap >= 0.005 ? ['warn', `尚有 ${money(gap)} 未分到科目，暂不可支出`] : total <= 0 ? ['warn', '尚未填写下达数'] : null)}>
+              status={cardStatus(c) ?? (gap >= 0.005 ? ['warn', `尚有 ${money(gap)} 未分到科目，暂不可支出`] : total <= 0 ? ['warn', '尚未填写下达数']
+                : c.status === 'active' && c.fund_kind === 'horizontal' && num(c.received) < total ? ['warn', `已下达未到账 ${money(total - num(c.received))}，到账前不得支出`] : null)}>
               {cells.map((x) => <TreeNode key={x.subject_id} level={3} lv="明细" title={x.subject_name}
                 chart={<Track segs={execSegs(num(x.cur), num(x.actual), num(x.commit), '该明细')} scale={total} />} num={money(x.cur)} sub={`可用 ${money(x.avail)}`} status={num(x.avail) < 0 ? ['bad', '超支'] : null} />)}
               {give.size > 0 && <div className="wb-give">
