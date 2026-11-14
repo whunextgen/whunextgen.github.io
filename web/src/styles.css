@@ -405,3 +405,53 @@ h3.sec{display:flex;align-items:center;gap:10px;margin:22px 0 10px;font-size:14p
 .tsteps input{margin-top:3px;flex:none}
 .tsteps li.done label span{color:var(--mute);text-decoration:line-through}
 @media (max-width:640px){.tsteps li{grid-template-columns:minmax(0,1fr) auto}.tsteps li .sub2{grid-column:1/-1;grid-row:2}}
+
+/* ---------- 工作台：年度可用额度、待办事项、逐级展开的层级图 ---------- */
+.wb{--wb-serif:"Instrument Serif","Songti SC","Noto Serif SC",serif;padding-bottom:24px}
+.wb-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:36px;align-items:end;padding:30px 0 28px;border-bottom:1px solid var(--line)}
+.wb-hero h1{margin:8px 0 0;font:400 clamp(40px,6vw,84px)/1.02 var(--wb-serif);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.wb-hero h1 small{display:block;font:400 13px/1.6 var(--sans);color:var(--mute);margin-bottom:6px;letter-spacing:0}
+.wb-hero h1 em{font-style:normal;color:var(--brand)}.wb-hero h1 em.neg{color:var(--bad)}.wb-hero h1 em small{display:inline;font:inherit;font-size:.5em;color:inherit;margin:0}
+.wb-facts{display:flex;gap:8px 22px;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--mute)}
+.wb-facts b{color:var(--ink);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;margin-left:6px}.wb-facts .w b{color:var(--bad)}
+.wb-sec{padding:30px 0 22px;border-bottom:1px solid var(--line)}.wb-sec:last-child{border-bottom:0}
+.wb-sh{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin-bottom:14px}
+.wb-sh .no{font:500 11px var(--mono);color:var(--brand);letter-spacing:.1em}
+.wb-sh h2{margin:0;font:600 clamp(22px,2.4vw,30px)/1.15 var(--sans);letter-spacing:-.01em}
+.wb-sh .path{font-size:12px;color:var(--mute);margin-left:auto}.wb-sh .path b{color:var(--ink);font-weight:600}.wb-sh .btn{margin-left:auto}
+.wb .tabs{align-items:center}.wb .tabs .more{margin-left:auto;font-size:12px;color:var(--mute);text-decoration:none}.wb .tabs .more:hover{color:var(--brand)}
+.wb-table{width:100%;border-collapse:collapse}.wb-table th{border-bottom:1px solid var(--ink)}.wb-table td{vertical-align:middle}
+.wb-op{font-size:12px;border:1px solid var(--ink);border-radius:6px;padding:2px 12px;text-decoration:none;white-space:nowrap;transition:background .2s,color .2s}.wb-op:hover{background:var(--ink);color:#fff}
+.wb-key{display:flex;gap:6px 18px;flex-wrap:wrap;font-size:12px;color:var(--mute);margin:0 0 12px}
+.wb-key i{display:inline-block;width:14px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.wb .sa{background:var(--brand)}.wb .sc{background:var(--gold)}.wb .sr{background:var(--track)}.wb .sy0{background:#8a8679}.wb .sy1{background:#55524a}
+.wb .hatch{background:repeating-linear-gradient(135deg,var(--track) 0 4px,var(--paper) 4px 8px)}
+.wb .u0{background:#7f3522}.wb .u1{background:#a8472f}.wb .u2{background:#c27560}
+.wb-acc{display:flex;flex-direction:column;gap:10px}
+.wb-node{background:var(--paper);border:1px solid var(--line);border-radius:12px;min-width:0}
+.wb-head{display:grid;grid-template-columns:22px minmax(190px,1fr) minmax(200px,1.7fr) minmax(200px,auto) minmax(0,1fr);gap:14px;align-items:center;padding:14px 16px;cursor:pointer;border-radius:12px;transition:background .2s}
+.wb-head:hover{background:var(--raise)}.wb-head.leaf{cursor:default}.wb-head.leaf:hover{background:transparent}
+.wb-tw{color:var(--mute);font-size:12px;text-align:center;transition:transform .2s var(--ease)}.wb-node.open>.wb-head>.wb-tw{transform:rotate(90deg)}.wb-head.leaf .wb-tw{visibility:hidden}
+.wb-name{min-width:0}.wb-lv{display:inline-block;font-size:11px;line-height:1.6;border-radius:4px;padding:0 6px;background:var(--ink);color:#fff;margin-right:8px;vertical-align:2px;white-space:nowrap}
+.wb-node.l2>.wb-head .wb-lv{background:var(--brand)}.wb-node.l3>.wb-head .wb-lv{background:transparent;color:var(--mute);border:1px solid var(--line)}
+.wb-node.l1>.wb-head .wb-t{font-size:18px;font-weight:600;line-height:1.3}.wb-node.l2>.wb-head .wb-t{font-size:15px;font-weight:600}
+.wb-meta{display:block;font-size:12px;color:var(--mute)}.wb-go{font-size:12px;color:var(--mute);text-decoration:none;margin-left:8px;white-space:nowrap}.wb-go:hover{color:var(--brand)}
+.wb-kids{display:flex;flex-direction:column;gap:8px;margin:0 16px 14px 27px;padding-left:16px;border-left:2px solid var(--line)}
+.wb-node.l2{border-radius:10px}.wb-node.l2>.wb-kids{gap:0;border-left-color:transparent;margin-left:22px;padding-left:8px}
+.wb-node.l3{border:0;border-top:1px solid var(--line);border-radius:0;background:transparent}.wb-node.l3>.wb-head{padding:8px 4px;border-radius:6px}
+.wb-cap{font-size:11px;color:var(--mute);letter-spacing:.04em;margin-bottom:4px}
+.wb-bar{min-width:0}.wb-rel{position:relative}
+.wb-track{display:flex;gap:2px;height:22px;border-radius:6px;overflow:hidden;background:var(--bg)}
+.wb-node.l2>.wb-head .wb-track{height:16px;border-radius:5px}.wb-node.l3>.wb-head .wb-track{height:10px;border-radius:5px}
+.wb-track>i{display:flex;align-items:center;justify-content:center;min-width:2px;font-style:normal;font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;transition:opacity .15s}
+.wb-track>i.sr,.wb-track>i.hatch{color:var(--mute)}.wb-track:hover>i{opacity:.6}.wb-track>i:hover{opacity:1}
+.wb-hero .wb-track{height:40px;border-radius:8px}.wb-hero .wb-track>i{font-size:12px;padding:0 10px;justify-content:flex-start}.wb-hero .wb-track>i.sr{color:var(--ink)}.wb-hero .wb-rel{margin-top:20px}
+.wb-mark{position:absolute;top:-4px;bottom:-4px;border-left:2px dashed var(--ink);pointer-events:none}
+.wb-mark span{position:absolute;top:-17px;left:-1px;transform:translateX(-50%);font-size:10px;white-space:nowrap;color:var(--mute);background:var(--bg);padding:0 4px}
+.wb-node .wb-mark span{background:transparent}
+.wb-num{font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}.wb-num small{display:block;color:var(--mute);font-size:12px}
+.wb-st .b{white-space:normal}
+.wb-give{padding:10px 4px 2px;border-top:1px solid var(--line)}.wb-give .wb-track{height:28px}.wb-give .wb-track>i{padding:0 8px;justify-content:flex-start}
+@media (max-width:1080px){.wb-head{grid-template-columns:22px minmax(0,1fr)}.wb-head>:nth-child(n+3){grid-column:2}}
+@media (max-width:860px){.wb-hero{grid-template-columns:1fr;gap:18px}.wb-sh .path{margin-left:0;width:100%}}
+@media (prefers-reduced-motion:reduce){.wb-tw,.wb-head,.wb-track>i{transition:none}}
