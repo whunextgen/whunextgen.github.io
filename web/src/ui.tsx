@@ -18,7 +18,7 @@ export const FUND_KIND: Record<string, string> = { vertical: '纵向', fiscal: '
 // 一张经费卡当年可用的总数（下达数连同上年结转）。填了下达数的取所填的数，没填的取明细合计；后台视图已按此给出 cur
 export const cardTotal = (c: { cur: string }) => Number(c.cur);
 // 下达了但还没分到科目的部分
-export const cardGap = (c: { cur: string; assigned?: string }) => Math.max(Number(c.cur) - Number(c.assigned ?? c.cur), 0);
+export const cardGap = (c: { cur: string; assigned?: string; pooled?: boolean }) => (c.pooled ? 0 : Math.max(Number(c.cur) - Number(c.assigned ?? c.cur), 0));
 export const cardGranted = (c: { granted: string | null; carried_in: string; orig: string }) => (c.granted != null ? Number(c.granted) : Number(c.orig) - Number(c.carried_in));
 export const FUND_SOURCE: Record<string, string> = { school: '学校', national: '国家', provincial: '省部', enterprise: '企业', other: '其他' };
 export const END_RULE: Record<string, string> = { recall: '到期回收', carry: '结转', return: '结余上缴' };

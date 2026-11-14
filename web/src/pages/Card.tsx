@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { rpc, useViews, type Cap, type Card, type CardSchoolSubject, type ExpenseType, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
+import { rpc, useViews, type Cap, type Card, type CardSchoolSubject, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
 import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, can, cardGap, cardGranted, cardTotal, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
 import { cardFields, saveCard } from './Admin';
 import { LedgerImport } from './Ledger';
@@ -93,8 +93,8 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   const [act, setAct] = useState<Act | null>(null);
   const [adding, setAdding] = useState(false);
   const [budgeting, setBudgeting] = useState(false);
-  const { data, error, reload } = useViews<{ card: Card[]; cells: Cell[]; nodes: Node[]; caps: Cap[]; changes: Change[]; reqs: Req[]; settle: SettleLine[]; templates: Template[]; users: User[]; types: ExpenseType[]; school: CardSchoolSubject[] }>({
-    types: ['expense_type'], school: ['card_school_subject', f], templates: ['template'], users: ['users'], card: ['card', f], cells: ['cell', f], nodes: ['node', f], caps: ['cap', f], changes: ['budget_change', f], reqs: ['request', f], settle: ['settlement', f],
+  const { data, error, reload } = useViews<{ card: Card[]; cells: Cell[]; nodes: Node[]; caps: Cap[]; changes: Change[]; reqs: Req[]; settle: SettleLine[]; templates: Template[]; users: User[]; school: CardSchoolSubject[] }>({
+    school: ['card_school_subject', f], templates: ['template'], users: ['users'], card: ['card', f], cells: ['cell', f], nodes: ['node', f], caps: ['cap', f], changes: ['budget_change', f], reqs: ['request', f], settle: ['settlement', f],
   }, id);
   if (!data) return <Loading error={error} />;
   const c = data.card[0];
@@ -152,6 +152,10 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
               fields: [{ name: 'granted', label: '当年下达数（元）', type: 'number', required: false, value: c.granted != null ? String(num(c.granted)) : '' }],
               run: (v) => rpc('set_card_granted', { card_id: c.card_id, granted: v.granted }) })}>修改</button></>}</td>
             <th scope="row">上年结转</th><td>{num(c.carried_in) > 0 ? money(c.carried_in) : '无'}</td></tr>
+          <tr><th scope="row">控制方式</th><td colSpan={3}>{c.pooled ? '只控总额：支出只与整张卡的可用额核对，不按科目控制' : '按科目控制：支出与所在科目的可用额核对'}
+            {editable && <> <button className="sm ghost" onClick={() => setAct({ label: '保存', title: '控制方式', hint: '学校只管总额、不按科目控制的经费卡（明细账中「额度控制分类」为空），选只控总额；学校按科目下达并控制的，选按科目控制。',
+              fields: [{ name: 'pooled', label: '控制方式', options: [['false', '按科目控制'], ['true', '只控总额']], value: String(c.pooled) }],
+              run: (v) => rpc('set_card_pooled', { card_id: c.card_id, pooled: v.pooled === 'true' }) })}>修改</button></>}</td></tr>
           <tr><th scope="row">已到账</th><td colSpan={3}>{c.received != null ? money(c.received) : <span className="sub2">尚未填写</span>}
             {c.fund_kind === 'horizontal' ? <> <Badge tone={num(c.received) < cardTotal(c) ? 'warn' : 'ok'}>{num(c.received) < cardTotal(c) ? `已下达未到账 ${money(cardTotal(c) - num(c.received))}，到账前不得支出` : '已全部到账'}</Badge><span className="sub2"> 横向经费的支出不得超过已到账金额</span></>
               : <span className="sub2"> 仅作记录，不限制支出</span>}</td></tr>
@@ -169,7 +173,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       </section>
 
       <section className="card">
-        <h3>明细与执行 <span className="h3sub">当年下达数按学校科目分到明细，支出按科目核对</span></h3>
+        <h3>明细与执行 <span className="h3sub">{c.pooled ? '该经费卡只控总额，下表各科目的下达数和可用不作为支出依据' : '当年下达数按学校科目分到明细，支出按科目核对'}</span></h3>
         {canBudget && !budgeting && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
           <button className={noBudget ? 'sm' : 'sm ghost'} onClick={() => setBudgeting(true)}>{noBudget ? '录入明细' : '更正明细'}</button></div>}
         {budgeting && <SetBudget cardId={c.card_id} cells={cells} first={noBudget} onDone={() => { setBudgeting(false); reload(); }} onCancel={() => setBudgeting(false)} />}
@@ -193,7 +197,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
         {gap >= 0.005 && <p className="sub2">当年下达数连同上年结转共 {money(c.cur)}，其中 {money(gap)} 尚未分到科目；本表合计为已分到科目的部分。</p>}
       </section>
 
-      {editable && <LedgerImport card={c} cells={cells} reqs={data.reqs} types={data.types} onDone={reload} />}
+      {editable && <LedgerImport card={c} reqs={data.reqs} onDone={reload} />}
 
       {data.school.length > 0 && (
         <section className="card">
