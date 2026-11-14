@@ -192,13 +192,15 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
                 </tbody>
               </table></div>
             )}
-            {num(c.assigned ?? 0) > 0 && <p className="sub2">该卡此前按科目录入过预算（合计 {money(c.assigned)}），改为只控总额后不再作为支出依据，也无需更正。</p>}
+            {num(c.assigned ?? 0) > 0 && <p className="sub2">该卡此前按科目录入过预算（合计 {money(c.assigned)}），只控总额时不作为支出依据。已不存在的预算可以更正为零。
+              {canBudget && !budgeting && <> <button className="sm ghost" onClick={() => setBudgeting(true)}>更正明细</button></>}</p>}
+            {budgeting && <SetBudget cardId={c.card_id} cells={cells.filter((x) => x.subject_code !== 'school')} first={false} onDone={() => { setBudgeting(false); reload(); }} onCancel={() => setBudgeting(false)} />}
           </>
         ) : (
           <>
             {canBudget && !budgeting && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
               <button className={noBudget ? 'sm' : 'sm ghost'} onClick={() => setBudgeting(true)}>{noBudget ? '录入明细' : '更正明细'}</button></div>}
-            {budgeting && <SetBudget cardId={c.card_id} cells={cells} first={noBudget} onDone={() => { setBudgeting(false); reload(); }} onCancel={() => setBudgeting(false)} />}
+            {budgeting && <SetBudget cardId={c.card_id} cells={cells.filter((x) => x.subject_code !== 'school')} first={noBudget} onDone={() => { setBudgeting(false); reload(); }} onCancel={() => setBudgeting(false)} />}
             {used.length === 0 ? (!budgeting && <Empty>该经费卡尚未录入明细。{editable && !canBudget && '明细由财务岗录入。'}</Empty>) : (
               <div className="scroll"><table>
                 <thead><tr><th>科目</th><th className="r">下达数</th><th className="r">变更</th><th className="r">现行预算</th><th className="r">决算数</th>
