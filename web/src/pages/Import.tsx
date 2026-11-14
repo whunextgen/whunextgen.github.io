@@ -210,6 +210,17 @@ export function SchoolImport({ finance }: { finance: boolean }) {
   );
 }
 
+// 批量补登时认的列
+const BF_COLS: Col[] = [
+  { key: 'no', label: '经费卡号', guess: /卡号|经费号|项目编号|项目代码|项目号/, required: true },
+  { key: 'subject', label: '学校科目', guess: /科目/, required: true },
+  { key: 'title', label: '事项', guess: /事项|摘要|说明|用途|事由|内容/, required: true },
+  { key: 'amount', label: '入账金额', guess: /金额|借方|支出/, not: /余额|贷方|类型|类别/, required: true },
+  { key: 'date', label: '入账日期', guess: /日期|时间/, required: true },
+  { key: 'type', label: '支出类型', guess: /类型|类别/, not: /科目/, required: false },
+  { key: 'voucher', label: '凭证号', guess: /凭证/, required: false },
+];
+
 // 补登支出：学校已经入账、但没在中台走过申请的支出（中台启用前的、学校直接扣的），由财务岗直接记成已入账，计入决算数
 export function Backfill() {
   const { data, error, reload } = useViews<{ cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; lines: LinePick[] }>({
@@ -220,9 +231,46 @@ export function Backfill() {
   const [rows, setRows] = useState<(typeof blank)[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<[string, string] | null>(null);
+  const [paste, setPaste] = useState('');
+  const [defType, setDefType] = useState('');
+  const [bad, setBad] = useState<{ line: number; text: string; why: string }[]>([]);
   if (!data) return <Loading error={error} />;
   const cards = data.cards.filter((c) => c.status === 'active');
   const card = cards.find((c) => c.id === v.card_id);
+  // 批量读入：从 Excel 复制或上传 CSV。按列名认列，按卡号、科目名称、支出类型名称对到中台里的记录；认不出的行列在下面，不读入
+  const readTable = (text: string) => {
+    const t = parse(text); setMsg(null); setBad([]);
+    if (t.length < 2) { setMsg(['bad', '未读取到数据。请在 Excel 中选中表头和数据，复制后粘贴至此处，或上传 CSV 文件。']); return; }
+    const score = (r: string[]) => BF_COLS.filter((c) => r.some((h) => c.guess.test(h) && !c.not?.test(h))).length;
+    const h = t.slice(0, 10).reduce((best, r, i) => (score(r) > score(t[best]) ? i : best), 0);
+    const col = Object.fromEntries(BF_COLS.map((c) => [c.key, t[h].findIndex((x) => c.guess.test(x) && !c.not?.test(x))]));
+    const miss = BF_COLS.filter((c) => c.required && col[c.key] < 0);
+    if (miss.length > 0) { setMsg(['bad', `表头中未找到：${miss.map((c) => c.label).join('、')}。表头须包含这些列名。`]); return; }
+    const at = (r: string[], k: string) => (col[k] >= 0 ? (r[col[k]] ?? '').trim() : '');
+    const one = <T,>(xs: T[]) => (xs.length === 1 ? xs[0] : undefined);
+    const good: (typeof blank)[] = [], skipped: typeof bad = [];
+    t.slice(h + 1).forEach((r, i) => {
+      const no = at(r, 'no'), amount = amt(at(r, 'amount')), on = date(at(r, 'date')), sj = at(r, 'subject'), ty = at(r, 'type'), title = at(r, 'title');
+      const fail = (why: string) => skipped.push({ line: h + 2 + i, text: r.filter(Boolean).slice(0, 6).join(' · '), why });
+      if (/^(合计|小计|总计)/.test(no) || /^(合计|小计|总计)/.test(title)) return fail('合计行');
+      if (amount == null || amount <= 0) return fail('金额非正数');
+      if (!on) return fail('缺少入账日期');
+      // 卡号各年相同的项目：取入账日期所在年度的那张卡，没有则取年度最新的
+      const cs = cards.filter((c) => c.card_no.trim() === no).sort((a, b) => b.year - a.year);
+      const c = cs.find((x) => x.year === Number(on.slice(0, 4))) ?? cs[0];
+      if (!c) return fail(no ? `中台无卡号为「${no}」的在用经费卡` : '缺少经费卡号');
+      const subs = data.subjects.filter((x) => x.template_id === c.template_id);
+      const sb = subs.find((x) => x.name === sj || x.school_name === sj || x.code === sj) ?? (sj ? one(subs.filter((x) => x.name.includes(sj) || sj.includes(x.name))) : undefined);
+      if (!sb) return fail(sj ? `该经费卡无学校科目「${sj}」` : '缺少学校科目');
+      const tp = data.types.find((x) => x.name === ty) ?? (ty ? one(data.types.filter((x) => x.name.includes(ty) || ty.includes(x.name))) : undefined);
+      const tid = tp?.id ?? defType;
+      if (!tid) return fail(ty ? `未识别支出类型「${ty}」，请先选择默认支出类型` : '缺少支出类型，请先选择默认支出类型');
+      if (!title) return fail('缺少事项');
+      good.push({ card_id: c.id, subject_id: sb.id, expense_type_id: tid, title: title.slice(0, 200), amount: String(amount), posted_on: on, voucher_no: at(r, 'voucher'), line_id: '' });
+    });
+    setRows([...rows, ...good]); setBad(skipped); setPaste('');
+    setMsg(good.length > 0 ? ['ok', `已读入 ${good.length} 行，加入下方待写入清单${skipped.length > 0 ? `；${skipped.length} 行未读入，原因见下` : ''}。核对后确认补登。`] : ['bad', `未读入任何行，${skipped.length} 行的原因见下。`]);
+  };
   const subjects = data.subjects.filter((s) => s.template_id === card?.template_id).sort((a, b) => a.sort - b.sort);
   const set = (p: Partial<typeof blank>) => setV({ ...v, ...p });
   const name = { card: new Map(cards.map((c) => [c.id, c.name])), subject: new Map(data.subjects.map((s) => [s.id, s.name])), type: new Map(data.types.map((t) => [t.id, t.name])) };
@@ -230,16 +278,41 @@ export function Backfill() {
     if (amt(v.amount) == null || amt(v.amount)! <= 0) { setMsg(['bad', '金额须为大于 0 的数字。']); return; }
     setRows([...rows, v]); setV({ ...blank, card_id: v.card_id, posted_on: v.posted_on }); };
   const save = async () => {
-    setBusy(true); setMsg(null);
-    try { const n = await rpc('record_expenses', { rows: rows.map((r) => ({ ...r, amount: amt(r.amount) })) }); setMsg(['ok', `已补登 ${n} 笔，计入各经费卡的决算数。`]); setRows([]); reload(); }
-    catch (e) { setMsg(['bad', (e as ApiError).message]); }
+    setBusy(true); setMsg(null); let done = 0;
+    // 后台一次最多收 200 笔，超过的分批写入；某一批出错时，之前各批已写入，其余留在清单里
+    try {
+      while (done < rows.length) { const part = rows.slice(done, done + 200); await rpc('record_expenses', { rows: part.map((r) => ({ ...r, amount: amt(r.amount) })) }); done += part.length; }
+      setMsg(['ok', `已补登 ${done} 笔，计入各经费卡的决算数。`]); setRows([]); setBad([]); reload();
+    } catch (e) { setRows(rows.slice(done)); setMsg(['bad', `${(e as ApiError).message}${done > 0 ? `（前 ${done} 笔已补登，其余仍在清单中）` : ''}`]); if (done > 0) reload(); }
     setBusy(false);
   };
   return (
     <section className="card">
       <h3>补登支出 <span className="h3sub">学校已入账、未经中台申请的支出</span></h3>
-      <p className="hint">中台启用前的支出、学校直接扣划的款项，在此逐笔填写，先加入下方清单，核对后一次写入。写入后直接计为已入账，计入决算数，不经申请和批准；仅财务岗可补登，每笔均留存记录。正常支出仍按支出申请办理。</p>
+      <p className="hint">中台启用前的支出、学校直接扣划的款项，在此批量读入或逐笔填写，先加入下方清单，核对后一次写入。写入后直接计为已入账，计入决算数，不经申请和批准；仅财务岗可补登，每笔均留存记录。正常支出仍按支出申请办理。</p>
       {msg && <div className={`msg ${msg[0]}`} role={msg[0] === 'bad' ? 'alert' : 'status'}>{msg[1]}</div>}
+      <h4>批量读入</h4>
+      <p className="sub2">在 Excel 中选中表头和数据，复制后粘贴至此处，或上传 CSV 文件。表头须包含：经费卡号、学校科目、事项、入账金额、入账日期；支出类型、凭证号选填。读入的行先进入下方待写入清单，确认后才写入。</p>
+      <div className="row">
+        <label className="field"><span>默认支出类型（表中未注明或未识别类型的行按此处理）</span><select value={defType} onChange={(e) => setDefType(e.target.value)}>
+          <option value="">不设默认</option>{data.types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+        <label className="field"><span>上传 CSV 文件（Excel 文件请先另存为 CSV）</span>
+          <input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" onChange={(e) => { const f = e.target.files?.[0]; if (f) f.arrayBuffer().then((b) => readTable(decode(b))); e.target.value = ''; }} /></label>
+      </div>
+      <label className="field"><span>或粘贴表格</span>
+        <textarea rows={4} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={BF_COLS.map((c) => c.label).join('\t')} /></label>
+      <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 0 }}><button type="button" className="sm" disabled={!paste.trim()} onClick={() => readTable(paste)}>读取</button></div>
+      {bad.length > 0 && (
+        <>
+          <h4>未读入的 {bad.length} 行</h4>
+          <div className="scroll"><table className="tight">
+            <thead><tr><th>行号</th><th>内容</th><th>原因</th></tr></thead>
+            <tbody>{bad.slice(0, 50).map((b) => <tr key={b.line}><td>{b.line}</td><td className="wrap">{b.text}</td><td>{b.why}</td></tr>)}</tbody>
+          </table></div>
+          {bad.length > 50 && <p className="sub2">仅列出前 50 行。</p>}
+        </>
+      )}
+      <h4>逐笔填写</h4>
       <form onSubmit={add}>
         <div className="row">
           <label className="field"><span>经费卡</span><select required value={v.card_id} onChange={(e) => set({ card_id: e.target.value, subject_id: '' })}>
