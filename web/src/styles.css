@@ -455,3 +455,6 @@ h3.sec{display:flex;align-items:center;gap:10px;margin:22px 0 10px;font-size:14p
 @media (max-width:1080px){.wb-head{grid-template-columns:22px minmax(0,1fr)}.wb-head>:nth-child(n+3){grid-column:2}}
 @media (max-width:860px){.wb-hero{grid-template-columns:1fr;gap:18px}.wb-sh .path{margin-left:0;width:100%}}
 @media (prefers-reduced-motion:reduce){.wb-tw,.wb-head,.wb-track>i{transition:none}}
+
+/* 菜单里缩进的下一级 */
+.sb nav a.sub{padding-left:24px;position:relative}.sb nav a.sub::before{content:"";position:absolute;left:14px;top:50%;width:5px;height:1px;background:var(--faint)}
