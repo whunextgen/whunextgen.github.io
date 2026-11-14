@@ -100,7 +100,7 @@ export function LedgerImport({ card, reqs, onDone }: { card: Card; reqs: Req[]; 
             <tr><th scope="row">期末余额</th><td>{led.ending != null ? money(led.ending) : '未注明'}{led.ending != null && <span className="sub2"> 按明细核对：年初余额 {money(led.opening)} + 收入 {money(view.incomeSum)} − 支出 {money(view.spendSum)} = {money(led.opening + view.incomeSum - view.spendSum)}{Math.abs(led.opening + view.incomeSum - view.spendSum - led.ending) < 0.005 ? '，与期末余额相符' : `，与期末余额相差 ${money(led.opening + view.incomeSum - view.spendSum - led.ending)}`}</span>}</td></tr>
           </tbody></table>
           <h4>写入内容</h4>
-          <p className="sub2">每笔支出连同学校的科目编号和名称一并保存，导入后可在下方按学校科目汇总查看。学校科目名称与本经费卡科目一致的自动对应，其余统一记在「学校明细账」一项下，无需逐笔指定。</p>
+          <p className="sub2">每笔支出记在学校的科目上，科目编号和名称照学校明细账；学校有而中台尚无的科目自动新增，无需逐笔指定。</p>
           <label className="field check"><input type="checkbox" checked={pooled} onChange={(e) => setPooled(e.target.checked)} /><span>该经费卡只控总额，不按科目控制{led.noCtrl ? '（明细账中「额度控制分类」为空，学校未按科目控制）' : ''}。勾选后，支出只与整张卡的可用额核对。</span></label>
           <label className="field check"><input type="checkbox" checked={setIncome} onChange={(e) => setSetIncome(e.target.checked)} /><span>保存收入明细，并据此更新当年下达数和已到账（收入合计 {money(view.incomeSum)}；当前下达数 {card.granted != null ? money(card.granted) : '未填写'}）；年初余额记为上年结转</span></label>
           <label className="field check"><input type="checkbox" checked={setBalance} disabled={led.ending == null} onChange={(e) => setSetBalance(e.target.checked)} /><span>将学校余额更新为期末余额 {led.ending != null ? money(led.ending) : '—'}（当前 {card.school_balance != null ? money(card.school_balance) : '未回写'}）</span></label>

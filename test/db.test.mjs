@@ -1610,10 +1610,13 @@ await raises('只控总额的卡支出不能超过总额', /可用 99000/, recH,
 await q(`select set_card_pooled($1, false)`, [kl]);
 await raises('改回按科目控制后，科目上没有预算不能支出', /可用/, recH, [kl, SUB.N.equip, TY['耗材'], '按科目', 100]);
 // 导入过明细账的卡，各科目的预算仍可更正（学校明细账这一项本来就没有预算）
-const schoolSub = (await one("select subject_id as id from api.cell where card_id = $1 and subject_code = 'school'", [kl])).id;
+const schoolSub = (await one("select subject_id as id from api.cell where card_id = $1 and subject_code = '72-3021101'", [kl])).id;
+ok(Number((await one("select actual from api.cell where card_id = $1 and subject_id = $2", [kl, schoolSub])).actual) === 700, '导入的支出记在学校的科目上，科目编号和名称照学校的');
 await as(U.dir, '2032-06-01');
 await q("select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: schoolSub, amount: 0 }, { subject_id: SUB.N.equip, amount: 0 }, { subject_id: SUB.N.biz, amount: 6000 }])]);
-ok(Number((await card(kl)).assigned) === 6000, '导入过明细账的经费卡，科目预算可以更正，不被学校明细账一项拦住');
+ok(Number((await card(kl)).assigned) === 6000, '学校科目上已有支出、尚未补预算时，其他科目的预算仍可更正');
+await q("select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: schoolSub, amount: 2000 }])]);
+await raises('不能把学校科目的预算调低到已入账以下', /./, "select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: schoolSub, amount: 100 }])]);
 await as(U.fin, '2032-06-01');
 // 旧入口直接建的卡自动补上经费项目
 await db.exec(`reset role`);
