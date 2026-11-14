@@ -129,7 +129,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
         {canSettle && <button className="ghost" onClick={() => setAct({ label: '结清', title: '结清经费卡',
           hint: `${c.name}。结清后按科目固定预算、决算和结余，该经费卡不得再提交支出，结清不可撤销。存在在途支出、在途变更或未入账人员费时不得结清。`,
           danger: true, fields: [], run: () => rpc('settle_card', { card_id: c.card_id }) })}>结清</button>}
-        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '修改经费卡', hint: '名称、负责人、经费性质和科目模板以所属项目为准，请在「项目管理」中修改。',
+        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '修改经费卡', hint: '负责人、经费性质和科目模板以所属项目为准，请在「项目管理」中修改。',
           fields: cardFields(c), run: (v) => saveCard(c, v) })}>修改</button>}
       </div>
       <div className="tiles">

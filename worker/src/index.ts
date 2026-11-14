@@ -115,7 +115,7 @@ const RPC: Record<string, [string, string][]> = {
   record_expenses: [['rows', 'jsonb']],
   set_card_total: [['card_id', 'uuid'], ['total', 'numeric'], ['period_start', 'date'], ['period_end', 'date']],
   save_fund_project: [['id', 'uuid'], ['name', 'text'], ['source', 'text'], ['fund_kind', 'text'], ['owner_id', 'uuid'], ['quota', 'numeric'], ['period_start', 'date'], ['period_end', 'date'], ['template_id', 'uuid'], ['end_rule', 'text'], ['note', 'text']],
-  open_card: [['project_id', 'uuid'], ['year', 'int'], ['card_no', 'text'], ['applied', 'numeric'], ['start_date', 'date'], ['cutoff_date', 'date'], ['settle_date', 'date']],
+  open_card: [['project_id', 'uuid'], ['year', 'int'], ['card_no', 'text'], ['applied', 'numeric'], ['start_date', 'date'], ['cutoff_date', 'date'], ['settle_date', 'date'], ['name', 'text']],
   set_card_applied: [['card_id', 'uuid'], ['applied', 'numeric']],
   close_fund_project: [['id', 'uuid']],
   move_card: [['card_id', 'uuid'], ['project_id', 'uuid']],

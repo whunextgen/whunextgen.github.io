@@ -48,14 +48,15 @@ export function Funds({ me }: { me: Me }) {
   });
   const openAct = (p: FundProject): Act => {
     const cs = cardsOf(p);
-    const year = cs.length > 0 ? Math.max(cs[0].year + 1, thisYear) : thisYear;
+    const year = cs.length > 0 && !cs.some((c) => c.year === thisYear) ? Math.max(cs[0].year + 1, thisYear) : thisYear;
     const prev = cs.find((c) => c.year === year - 1);
     return {
       title: `开经费卡：${p.name}`, label: '开卡',
-      hint: `一个项目每年一张经费卡，记当年申请下来的经费。卡号按学校财务系统填写，各年可以相同。${p.end_rule === 'carry' ? '上一年的卡结清后，结余按科目自动带入本卡。' : ''}开卡后在经费卡页面按科目录入当年下达数。`,
+      hint: `经费卡记项目某一年度申请下来的经费。同一年度可开多张（如直接费、间接费各一张），各自填写名称；卡号按学校财务系统填写，同一年度内不得重复，各年可以相同。${p.end_rule === 'carry' ? '上一年的卡结清后，结余按科目自动带入下一年同卡号的卡。' : ''}开卡后在经费卡页面按科目录入当年下达数。`,
       fields: [
         { name: 'year', label: '年度', type: 'number', value: String(year) },
-        { name: 'card_no', label: '经费卡号', value: cs[0]?.card_no ?? '' },
+        { name: 'card_no', label: '经费卡号', value: '' },
+        { name: 'name', label: '经费卡名称（选填，留空则与项目同名）', required: false, value: '' },
         { name: 'applied', label: '当年申请数（元，选填）', type: 'number', required: false },
         { name: 'start_date', label: '下达日', type: 'date', value: `${year}-01-01` },
         { name: 'cutoff_date', label: '单据截止日', type: 'date', value: prev ? `${year}${day(prev.cutoff_date).slice(4)}` : `${year}-12-31` },
@@ -64,13 +65,13 @@ export function Funds({ me }: { me: Me }) {
       run: (v) => rpc('open_card', { project_id: p.id, ...v }),
     };
   };
-  // 把一张卡归到已有的项目下：科目模板相同、该年度还没有卡的项目才可选
+  // 把一张卡归到已有的项目下：科目模板相同的项目才可选
   const moveAct = (c: Card): Act => {
-    const targets = active.filter((t) => t.id !== c.project_id && t.template_id === c.template_id && !data.cards.some((x) => x.project_id === t.id && x.year === c.year));
+    const targets = active.filter((t) => t.id !== c.project_id && t.template_id === c.template_id);
     return {
       title: `归入项目：${c.card_no} · ${c.year} 年`, label: '归入',
-      hint: targets.length === 0 ? '暂无可归入的项目：须先新建项目，且其科目模板与该经费卡相同、该年度尚无经费卡。'
-        : '归入后该经费卡成为所选项目当年的经费卡，名称、负责人和经费性质随项目。卡上的预算、支出和入账记录不变。',
+      hint: targets.length === 0 ? '暂无可归入的项目：须先新建项目，且其科目模板与该经费卡相同。'
+        : '归入后该经费卡成为所选项目该年度的经费卡之一，负责人和经费性质随项目，名称保留。卡上的预算、支出和入账记录不变。',
       fields: targets.length === 0 ? [] : [{ name: 'project_id', label: '项目', options: targets.map((t): [string, string] => [t.id, t.name]) }],
       run: (v) => (targets.length === 0 ? Promise.resolve() : rpc('move_card', { card_id: c.card_id, project_id: v.project_id })),
     };
@@ -144,9 +145,9 @@ export function Funds({ me }: { me: Me }) {
             </tbody></table>
             {cs.length === 0 ? <Empty>尚未开出经费卡。</Empty> : (
               <div className="scroll"><table>
-                <thead><tr><th>年度</th><th>经费卡号</th><th className="r">申请数</th><th className="r">下达数</th><th className="r">上年结转</th><th className="r">已用</th><th className="r">可用</th><th>单据截止</th><th>状态</th>{staff && <th />}</tr></thead>
+                <thead><tr><th>年度</th><th>经费卡号</th><th>名称</th><th className="r">申请数</th><th className="r">下达数</th><th className="r">上年结转</th><th className="r">已用</th><th className="r">可用</th><th>单据截止</th><th>状态</th>{staff && <th />}</tr></thead>
                 <tbody>{cs.map((c) => (
-                  <tr key={c.card_id}><td>{c.year}</td><td><a className="mono" href={`#/card/${c.card_id}`}>{c.card_no}</a></td>
+                  <tr key={c.card_id}><td>{c.year}</td><td><a className="mono" href={`#/card/${c.card_id}`}>{c.card_no}</a></td><td>{c.name === p.name ? <span className="sub2">同项目</span> : c.name}</td>
                     <td className="r">{c.applied != null ? money(c.applied) : '—'}</td><td className="r">{money(num(c.orig) - num(c.carried_in))}</td>
                     <td className="r">{num(c.carried_in) > 0 ? money(c.carried_in) : '—'}</td><td className="r">{money(num(c.actual) + num(c.commit))}</td>
                     <td className={`r ${num(c.avail) < 0 ? 'neg' : ''}`}>{c.status === 'settled' ? '—' : money(c.avail)}</td>

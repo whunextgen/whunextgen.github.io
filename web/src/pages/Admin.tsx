@@ -5,10 +5,11 @@ import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, Loading, can, PERSON, 
 interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 type Opt = [string, string];
 
-// 经费卡的输入项。名称、负责人、经费性质、科目模板以所属项目为准，不在卡上改；新开的卡在「项目管理」里开
+// 经费卡的输入项。负责人、经费性质、科目模板以所属项目为准，不在卡上改；新开的卡在「项目管理」里开
 export function cardFields(c: Card): Field[] {
   return [
     { name: 'card_no', label: '经费卡号', value: c.card_no },
+    { name: 'name', label: '经费卡名称（同一项目同年度有多张时用于区分，如直接费、间接费）', value: c.name },
     { name: 'applied', label: '当年申请数（元，选填）', type: 'number', required: false, value: c.applied != null ? String(num(c.applied)) : '' },
     { name: 'start_date', label: '下达日', type: 'date', value: day(c.start_date) },
     { name: 'cutoff_date', label: '单据截止日', type: 'date', value: day(c.cutoff_date) },
@@ -21,7 +22,7 @@ export function cardFields(c: Card): Field[] {
 }
 // 基本信息、到账和优先级、申请数分三步存
 export const saveCard = async (c: Card, { applied, received, priority, ...v }: Record<string, string>) => {
-  await rpc('save_card', { id: c.card_id, name: c.name, template_id: c.template_id, owner_id: c.owner_id, ...v });
+  await rpc('save_card', { id: c.card_id, template_id: c.template_id, owner_id: c.owner_id, ...v });
   await rpc('set_card_info', { card_id: c.card_id, fund_kind: c.fund_kind, received, priority });
   await rpc('set_card_applied', { card_id: c.card_id, applied });
 };
@@ -150,7 +151,7 @@ export function Admin({ me }: { me: Me }) {
       {tab === 'cards' && (
         <section className="card">
           <h3>经费卡</h3>
-          <p className="hint">每张经费卡是一个项目某一年下来的经费。新开经费卡请到<a href="#/funds">项目管理</a>，开卡后在经费卡页面录入当年下达数和考核节点；名称、负责人和科目模板以项目为准。</p>
+          <p className="hint">每张经费卡是一个项目某一年下来的经费。新开经费卡请到<a href="#/funds">项目管理</a>，同一项目同一年度可有多张；开卡后在经费卡页面录入当年下达数和考核节点，负责人和科目模板以项目为准。</p>
           {cards.length === 0 ? <Empty>暂无经费卡。</Empty> : (
             <div className="scroll"><table>
               <thead><tr><th>卡号</th><th>年度</th><th>名称</th><th>模板</th><th>负责人</th><th>下达日</th><th>单据截止</th><th>结清日</th><th className="r">现行预算</th><th>状态</th><th /></tr></thead>

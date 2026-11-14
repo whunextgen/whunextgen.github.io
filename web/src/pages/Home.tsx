@@ -152,10 +152,10 @@ export function Home({ me }: { me: Me }) {
     return null;
   };
   const fundNodes = [...funds].sort((a, b) => (a.period_end ?? '9').localeCompare(b.period_end ?? '9') || a.name.localeCompare(b.name, 'zh')).map((p, pi) => {
-    const cs = data.cards.filter((c) => c.project_id === p.id).sort((a, b) => b.year - a.year);
+    const cs = data.cards.filter((c) => c.project_id === p.id).sort((a, b) => b.year - a.year || a.card_no.localeCompare(b.card_no));
     const granted = num(p.granted), quota = p.quota != null ? num(p.quota) : null;
     const segs: Seg[] = [...cs].reverse().map((c, i) => { const g = num(c.orig) - num(c.carried_in);
-      return { cls: i % 2 ? 'sy1' : 'sy0', value: g, text: `${c.year} 年 ${wan(g)}`, tip: `${c.year} 年经费卡下达 ${money(g)}${quota ? `，占额度 ${pct(g, quota)}` : ''}` }; });
+      return { cls: i % 2 ? 'sy1' : 'sy0', value: g, text: `${c.year} 年${c.name === p.name ? '' : ` ${c.name}`} ${wan(g)}`, tip: `${c.year} 年经费卡 ${c.card_no}${c.name === p.name ? '' : `（${c.name}）`}下达 ${money(g)}${quota ? `，占额度 ${pct(g, quota)}` : ''}` }; });
     if (quota != null && quota > granted) segs.push({ cls: 'hatch', value: quota - granted, text: `尚未申请 ${wan(quota - granted)}`, tip: `尚未申请 ${money(quota - granted)}，占额度 ${pct(quota - granted, quota)}；不属于当年可用经费` });
     const meta = [p.source && FUND_SOURCE[p.source], p.period_start || p.period_end ? `${day(p.period_start).slice(0, 4)}—${day(p.period_end).slice(0, 4)}` : '', p.owner_name && `负责人 ${p.owner_name}`].filter(Boolean).join(' · ');
     const noCard = !cs.some((c) => c.year === thisYear);
@@ -170,7 +170,7 @@ export function Home({ me }: { me: Me }) {
           const out = [...give.values()].reduce((s, v) => s + v, 0), total = num(c.cur);
           const mark = c.status === 'active' && c.year === thisYear ? cardRisk(c, now).time : undefined;
           return (
-            <TreeNode key={c.card_id} level={2} lv="经费卡" title={`${c.year} 年`} meta={`${c.card_no}${c.year === thisYear ? ' · 本年度' : ''}`} href={`#/card/${c.card_id}`} open={pi === 0 && c.year === thisYear}
+            <TreeNode key={c.card_id} level={2} lv="经费卡" title={c.name === p.name ? `${c.year} 年` : `${c.year} 年 · ${c.name}`} meta={`${c.card_no}${c.year === thisYear ? ' · 本年度' : ''}`} href={`#/card/${c.card_id}`} open={pi === 0 && c.year === thisYear}
               chart={<Track cap={c.year === thisYear ? '当年执行' : '执行'} segs={execSegs(total, num(c.actual), num(c.commit), '当年下达')} mark={mark} />}
               num={`下达 ${money(total)}`} sub={`执行 ${pct(num(c.actual) + num(c.commit), total)} · 可用 ${money(c.avail)}`} status={cardStatus(c)}>
               {cells.map((x) => <TreeNode key={x.subject_id} level={3} lv="明细" title={x.subject_name}

@@ -1477,7 +1477,10 @@ await raises('下达日要在该年度内', /下达日须在 2031 年内/, `sele
 const k1 = await val(`select open_card($1, 2031, '7001-N', 120000, '2031-01-05', '2031-12-20', '2031-12-31') v`, [fp]);
 let c = await card(k1);
 ok(c.year === 2031 && c.project_id === fp && Number(c.applied) === 120000 && c.name === '国家重点项目' && c.end_rule === 'carry', '在经费项目下开出当年的卡，名称和年底规则取自项目', JSON.stringify(c));
-await raises('同一项目一年只有一张卡', /2031 年的经费卡已开出/, `select open_card($1, 2031, '7002-N', 1, '2031-02-01', '2031-12-20')`, [fp]);
+await raises('同一年度卡号不能重复', /2031 年已有卡号为「7001-N」的经费卡/, `select open_card($1, 2031, '7001-N', 1, '2031-02-01', '2031-12-20')`, [fp]);
+const k1b = await val(`select open_card($1, 2031, '7002-N', null, '2031-02-01', '2031-12-20', '2031-12-31', '间接费') v`, [fp]);
+ok((await card(k1b)).name === '间接费' && (await one(`select cards from api.fund_project where id = $1`, [fp])).cards === 2, '同一项目同一年度可以开多张经费卡，各有名称');
+await q(`select delete_card($1)`, [k1b]);
 await q(`select set_budget($1, $2)`, [k1, lines({ equip: 100000, labor: 20000 })]);
 let pj = await one(`select * from api.fund_project where id = $1`, [fp]);
 ok(Number(pj.granted) === 120000 && Number(pj.quota) === 300000 && pj.cards === 1, '项目上看得到额度和历年下达合计', JSON.stringify(pj));
@@ -1526,11 +1529,10 @@ const loose = await val(`select save_card(null, '7009-N', '散卡', $1, null, '2
 const ph = (await card(loose)).project_id;
 ok((await one(`select auto from api.fund_project where id = $1`, [ph])).auto === true, '不经经费项目建的卡，自动补的项目标为占位');
 await raises('不能归入占位项目', /占位/, `select move_card($1, $2)`, [k2, ph]);
-await raises('同一项目同一年不能有两张卡', /2032 年已有经费卡/, `select move_card($1, $2)`, [a2, fp]);
 await raises('科目模板不一致不能归入', /科目模板与项目不一致/, `select move_card($1, $2)`, [C.A, fp]);
 await q(`select move_card($1, $2)`, [loose, fp]);
 c = await card(loose);
-ok(c.project_id === fp && c.name === '国家重点项目', '经费卡归入正式的经费项目，名称随项目');
+ok(c.project_id === fp && c.name === '散卡', '经费卡归入正式的项目，同一年度可与其他卡并存，名称保留');
 eq((await q(`select 1 from api.fund_project where id = $1`, [ph])).length, 0, '归走之后空的占位项目删掉');
 const loose2 = await val(`select save_card(null, '7010-N', '散卡二', $1, null, '2033-01-05', '2033-12-20', '2033-12-31', 'recall') v`, [T.N]);
 const ph2 = (await card(loose2)).project_id;
