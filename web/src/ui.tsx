@@ -15,6 +15,7 @@ export const PERSON: Record<string, string> = { postdoc: '博士后', phd: '博�
 export const can = (me: { perms?: string[] }, ...codes: string[]) => codes.some((c) => me.perms?.includes(c));
 export const canPublic = (k?: string | null) => k === 'postdoc' || k === 'phd' || k === 'master' || k === 'ra';
 export const FUND_KIND: Record<string, string> = { vertical: '纵向', fiscal: '财政', horizontal: '横向' };
+export const FUND_SOURCE: Record<string, string> = { school: '学校', national: '国家', provincial: '省部', enterprise: '企业', other: '其他' };
 export const END_RULE: Record<string, string> = { recall: '到期回收', carry: '结转', return: '结余上缴' };
 export const REQ: Record<ReqStatus, [string, string]> = {
   pending: ['待确认', 'warn'], committed: ['待提交学校', 'pri'], at_school: ['学校审核中', 'pri'], posted: ['已入账', 'ok'],

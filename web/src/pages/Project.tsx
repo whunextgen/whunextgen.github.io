@@ -18,10 +18,10 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
   const [act, setAct] = useState<Act | null>(null);
   if (!data) return <Loading error={error} />;
   const r = data.projects.find((x) => x.id === id);
-  if (!r) return <><div className="top"><h2>项目管理</h2></div><Empty>项目不存在或无权查看。<a href="#/projects">返回项目管理</a></Empty></>;
+  if (!r) return <><div className="top"><h2>研究项目</h2></div><Empty>项目不存在或无权查看。<a href="#/projects">返回研究项目</a></Empty></>;
   const head = (
     <div className="top">
-      <div className="crumb"><a href="#/projects">项目管理</a>{r.layer === 'paper' && r.parent_id && <> / {data.projects.some((x) => x.id === r.parent_id && x.seen) ? <a href={`#/project/${r.parent_id}`}>{r.parent_name}</a> : r.parent_name}</>} · {r.code} · {typeText(r)}{r.owner_name ? ` · 负责人 ${r.owner_name}` : ''}{r.active ? '' : ' · 已停用'}</div>
+      <div className="crumb"><a href="#/projects">研究项目</a>{r.layer === 'paper' && r.parent_id && <> / {data.projects.some((x) => x.id === r.parent_id && x.seen) ? <a href={`#/project/${r.parent_id}`}>{r.parent_name}</a> : r.parent_name}</>} · {r.code} · {typeText(r)}{r.owner_name ? ` · 负责人 ${r.owner_name}` : ''}{r.active ? '' : ' · 已停用'}</div>
       <h2>{r.name}</h2>
     </div>
   );

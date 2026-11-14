@@ -16,7 +16,7 @@ export interface Env {
   FEISHU_NOTIFY?: string;                     // 设为 on 才真正发飞书通知；不设时消息只在数据库里排队，过 24 小时作废
 }
 
-const VIEWS = new Set(['me', 'users', 'card_pick', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
+const VIEWS = new Set(['me', 'users', 'card_pick', 'fund_project', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
   'request', 'request_event', 'procurement_event', 'budget_change', 'fund_event', 'person', 'pay_type', 'staff',
   'payroll_sheet', 'settlement', 'emergency', 'year_actual', 'settle_check',
   'template', 'template_cap', 'user_admin', 'outbox', 'quota', 'quota_pick', 'resource', 'allocation',
@@ -114,6 +114,10 @@ const RPC: Record<string, [string, string][]> = {
   record_expense: [['card_id', 'uuid'], ['subject_id', 'uuid'], ['expense_type_id', 'uuid'], ['title', 'text'], ['amount', 'numeric'], ['posted_on', 'date'], ['voucher_no', 'text'], ['line_id', 'uuid']],
   record_expenses: [['rows', 'jsonb']],
   set_card_total: [['card_id', 'uuid'], ['total', 'numeric'], ['period_start', 'date'], ['period_end', 'date']],
+  save_fund_project: [['id', 'uuid'], ['name', 'text'], ['source', 'text'], ['fund_kind', 'text'], ['owner_id', 'uuid'], ['quota', 'numeric'], ['period_start', 'date'], ['period_end', 'date'], ['template_id', 'uuid'], ['end_rule', 'text'], ['note', 'text']],
+  open_card: [['project_id', 'uuid'], ['year', 'int'], ['card_no', 'text'], ['applied', 'numeric'], ['start_date', 'date'], ['cutoff_date', 'date'], ['settle_date', 'date']],
+  set_card_applied: [['card_id', 'uuid'], ['applied', 'numeric']],
+  close_fund_project: [['id', 'uuid']],
   add_project_member: [['project_id', 'uuid'], ['user_id', 'uuid']],
   remove_project_member: [['project_id', 'uuid'], ['user_id', 'uuid']],
   recall_project_allocation: [['id', 'uuid']],

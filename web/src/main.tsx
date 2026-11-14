@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { ApiError, logout, view, type Me } from './api';
 import { ROLE, can, today } from './ui';
 import { Overview } from './pages/Overview';
+import { Funds } from './pages/Funds';
 import { Home } from './pages/Home';
 import { History } from './pages/Legacy';
 import { CardPage } from './pages/Card';
@@ -46,7 +47,7 @@ function Login({ reason }: { reason?: string }) {
       <div className="login-in">
         <span className="eyebrow">CLAIN 中心</span>
         <h1>科研财务中台</h1>
-        <p>按项目编制年度预算，按经费卡执行，按学校入账决算。请使用中心飞书账号登录。</p>
+        <p>按研究项目编制年度预算，按当年经费卡执行，按学校入账决算。请使用中心飞书账号登录。</p>
         {reason && <div className="msg bad" role="alert">{reason}</div>}
         <a className="btn" href="/auth/feishu/login">飞书登录 →</a>
       </div>
@@ -97,9 +98,9 @@ function App() {
   const keep = (...p: (Page | false)[]) => p.filter(Boolean) as Page[];
   const groups = [
     { label: '', no: '', note: '', pages: keep(['/', '工作台'], ['/tasks', '任务管理']) },
-    { label: '预算', no: '01', note: '编制、控制、下达', pages: keep(['/projects', '项目管理'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesDesk && ['/desk', '预算参数']) },
+    { label: '预算', no: '01', note: '编制、控制、下达', pages: keep(['/projects', '研究项目'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesDesk && ['/desk', '预算参数']) },
     { label: '执行', no: '02', note: '申请、审批、发放', pages: keep(['/requests', '支出申请'], ['/petty', '备用金管理'], ['/resource', '资源申领'], seesRes && ['/pool', '资源调配'], seesPeople && ['/staff', '人员经费'], ['/ask', '报销咨询']) },
-    { label: '入账', no: '03', note: '经费到卡、学校入账', pages: keep(seesCards && ['/cards', '经费卡管理'], seesCards && ['/school', '入账跟踪'], seesCards && ['/quota', '晨星额度管理']) },
+    { label: '入账', no: '03', note: '经费到卡、学校入账', pages: keep(seesCards && ['/funds', '经费项目'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/school', '入账跟踪'], seesCards && ['/quota', '晨星额度管理']) },
     { label: '决算', no: '04', note: '结清、盘点、决算', pages: keep(seesCards && ['/settle', '经费结清'], seesRes && ['/stock', '资产盘点'], seesReview && ['/review', '年度决算']) },
     { label: '系统', no: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesLegacy && ['/history', '历史数据']) },
   ].filter((g) => g.pages.length > 0);
@@ -123,6 +124,7 @@ function App() {
     : current === '/tasks' ? <Tasks me={me} />
     : current === '/projects' ? <Projects me={me} />
     : current === '/desk' ? <Desk me={me} />
+    : current === '/funds' ? <Funds me={me} />
     : current === '/cards' ? <Overview me={me} />
     : current === '/quota' ? <QuotaPage me={me} />
     : current === '/rules' ? <Rules me={me} />

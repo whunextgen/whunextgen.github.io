@@ -1,8 +1,6 @@
-import { useState } from 'react';
-import { useViews, type Card, type Me, type Node, type Template, type User } from '../api';
-import { cardFields, saveCard } from './Admin';
+import { useViews, type Card, type Me, type Node } from '../api';
 import { Bullets, C, Donut } from '../charts';
-import { ActionDialog, ROLE, Badge, Bar, Empty, END_RULE, FUND_KIND, Loading, can, Tile, day, money, num, pct, today, useCount } from '../ui';
+import { Badge, Bar, Empty, END_RULE, FUND_KIND, Loading, can, Tile, day, money, num, pct, today, useCount } from '../ui';
 
 // 节点状态：预测 = 已入账 + 预计在节点日前入账的承诺
 export function nodeState(n: Node, now = today()) {
@@ -52,8 +50,7 @@ export function Hero({ cur, actual, commit, avail, cards, now }: { cur: number; 
 }
 
 export function Overview({ me }: { me: Me }) {
-  const { data, error, reload } = useViews<{ cards: Card[]; nodes: Node[]; templates: Template[]; users: User[] }>({ cards: ['card'], nodes: ['node'], templates: ['template'], users: ['users'] });
-  const [adding, setAdding] = useState(false);
+  const { data, error } = useViews<{ cards: Card[]; nodes: Node[] }>({ cards: ['card'], nodes: ['node'] });
   if (!data) return <Loading error={error} />;
   const now = today();
   const cards = [...data.cards].sort((a, b) => a.cutoff_date.localeCompare(b.cutoff_date));
@@ -69,7 +66,7 @@ export function Overview({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>经费卡管理</h2>{can(me, 'card.manage') && <button onClick={() => setAdding(true)}>新建经费卡</button>}</div>
+      <div className="top"><h2>经费卡管理</h2>{can(me, 'card.manage') && <a className="btn" href="#/funds">在经费项目下开卡</a>}</div>
       <div className="tiles">
         <Tile k="现行预算" v={money(sum('cur'))} f={`${active.length} 张在用经费卡`} />
         <Tile k="决算数 · 学校已入账" color={C.actual} v={money(sum('actual'))} meter={sum('cur') > 0 ? sum('actual') / sum('cur') : 0} f={`执行率 ${pct(sum('actual'), sum('cur'))}`} />
@@ -85,7 +82,7 @@ export function Overview({ me }: { me: Me }) {
           <section className="card">
             <h3>执行进度与时间进度对比 <span className="h3sub">竖线左侧未填满部分为落后于时间进度的部分</span></h3>
             <Bullets legend={[{ name: '已入账', color: C.actual }, { name: '承诺', color: C.commit }, { name: '时间进度', mark: true }]} rows={risks.map(({ c, k }) => ({
-              key: c.card_id, name: c.name, sub: `${END_RULE[c.end_rule]} · 剩余 ${k.daysLeft} 天`, href: `#/card/${c.card_id}`,
+              key: c.card_id, name: `${c.name} ${c.year}`, sub: `${END_RULE[c.end_rule]} · 剩余 ${k.daysLeft} 天`, href: `#/card/${c.card_id}`,
               cur: num(c.cur), actual: num(c.actual), commit: num(c.commit), time: k.time, tone: k.level === 'bad' ? 'bad' : '',
               v: money(k.left), f: '预计到期结余' }))} />
           </section>
@@ -98,7 +95,7 @@ export function Overview({ me }: { me: Me }) {
           <div className="scroll"><table>
             <thead><tr><th>经费卡</th><th>到期处理</th><th className="r">剩余天数</th><th className="r">时间进度</th><th className="r">执行进度</th><th className="r">预计到期入账</th><th className="r">预计到期结余</th><th>判断</th><th>建议</th></tr></thead>
             <tbody>{risks.map(({ c, k }) => (
-              <tr key={c.card_id}><td><a href={`#/card/${c.card_id}`}>{c.name}</a>{c.fund_kind && <div className="sub2" style={{ marginLeft: 0 }}>{FUND_KIND[c.fund_kind]}{c.received != null ? ` · 已到账 ${money(c.received)}` : ''}</div>}</td>
+              <tr key={c.card_id}><td><a href={`#/card/${c.card_id}`}>{c.name} {c.year}</a>{c.fund_kind && <div className="sub2" style={{ marginLeft: 0 }}>{FUND_KIND[c.fund_kind]}{c.received != null ? ` · 已到账 ${money(c.received)}` : ''}</div>}</td>
                 <td>{END_RULE[c.end_rule]}</td><td className="r">{k.daysLeft}</td><td className="r">{k.timePct}</td><td className={`r ${k.gap > 0.1 ? 'neg' : ''}`}>{k.execPct}</td>
                 <td className="r">{money(k.forecast)}</td><td className={`r ${k.level === 'bad' ? 'neg' : ''}`}>{money(k.left)}</td>
                 <td><Badge tone={RISK[k.level][1]}>{RISK[k.level][0]}</Badge></td><td className="wrap">{k.advice}</td></tr>
@@ -107,7 +104,7 @@ export function Overview({ me }: { me: Me }) {
         </section>
       )}
       <section className="card">
-        <h3>经费卡</h3>
+        <h3>经费卡 <span className="h3sub">每张经费卡是一个经费项目某一年下来的经费，额度和期限在「经费项目」中查看</span></h3>
         {cards.length === 0 ? <Empty>{!can(me, 'read.finance') ? '暂无本人名下的经费卡。' : '暂无经费卡。'}</Empty> : (
           <>
             <div className="funds">
@@ -115,12 +112,12 @@ export function Overview({ me }: { me: Me }) {
                 <a key={c.card_id} href={`#/card/${c.card_id}`} className={`fund ${c.status === 'settled' ? 'off' : ''}`}>
                   <div className="fund-top"><span className="mono">{c.card_no}</span>
                     {c.status === 'settled' ? <Badge>已结清</Badge> : <Badge tone={day(c.cutoff_date) < now ? 'bad' : ''}>{END_RULE[c.end_rule]}</Badge>}</div>
-                  <div className="fund-name">{c.name}</div>
+                  <div className="fund-name">{c.name} · {c.year} 年</div>
                   <div className="fund-sub">{c.fund_kind ? `${FUND_KIND[c.fund_kind]} · ` : ''}{c.template_name}{c.priority != null ? ` · 下达优先级 ${c.priority}` : ''}</div>
                   <div className="fund-num"><span>可用</span><b className={num(c.avail) < 0 ? 'neg' : ''}>{money(c.avail)}</b></div>
                   <Bar cur={num(c.cur)} actual={num(c.actual)} commit={num(c.commit)} />
                   <div className="fund-foot"><span>执行 {pct(num(c.actual), num(c.cur))}</span><span>预算 {money(c.cur)}</span><span>截止 {day(c.cutoff_date)}</span></div>
-                  <div className="fund-foot"><span>总金额 {c.total_amount != null ? money(c.total_amount) : '未填写'}</span><span>执行年限 {c.period_start && c.period_end ? `${day(c.period_start)} 至 ${day(c.period_end)}` : '未填写'}</span></div>
+                  <div className="fund-foot"><span>申请数 {c.applied != null ? money(c.applied) : '未填写'}</span>{num(c.carried_in) > 0 && <span>含上年结转 {money(c.carried_in)}</span>}</div>
                 </a>
               ))}
             </div>
@@ -135,14 +132,12 @@ export function Overview({ me }: { me: Me }) {
           <div className="scroll"><table>
             <thead><tr><th>节点日</th><th>经费卡</th><th className="r">要求比例</th><th className="r">要求金额</th><th className="r">预测</th><th>状态</th><th>后果</th></tr></thead>
             <tbody>{nodes.map((n) => { const s = nodeState(n, now); return (
-              <tr key={n.node_id}><td>{day(n.node_date)}</td><td><a href={`#/card/${n.card_id}`}>{byId.get(n.card_id)?.name}</a></td>
+              <tr key={n.node_id}><td>{day(n.node_date)}</td><td><a href={`#/card/${n.card_id}`}>{byId.get(n.card_id)?.name} {byId.get(n.card_id)?.year}</a></td>
                 <td className="r">{(num(n.ratio) * 100).toFixed(0)}%</td><td className="r">{money(n.need)}</td><td className="r">{money(n.forecast)}</td>
                 <td><Badge tone={s.tone}>{s.text}{s.gap > 0 ? `，差 ${money(s.gap)}` : ''}</Badge></td><td>{n.consequence}</td></tr>); })}</tbody>
           </table></div>
         )}
       </section>
-      {adding && <ActionDialog title="新建经费卡" fields={cardFields(data.templates.map((t): [string, string] => [t.id, t.name]), data.users.filter((u) => u.active).map((u): [string, string] => [u.id, `${u.name}（${ROLE[u.role]}）`]))}
-        submitLabel="新建" onSubmit={(v) => saveCard(null, v).then(reload)} onClose={() => setAdding(false)} />}
     </>
   );
 }

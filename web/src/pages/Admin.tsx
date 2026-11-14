@@ -5,27 +5,25 @@ import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, Loading, can, PERSON, 
 interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 type Opt = [string, string];
 
-// 经费卡基本信息的输入项；新建和修改共用
-export function cardFields(templates: Opt[], owners: Opt[], c?: Card): Field[] {
+// 经费卡的输入项。名称、负责人、经费性质、科目模板以所属经费项目为准，不在卡上改；新开的卡在「经费项目」里开
+export function cardFields(c: Card): Field[] {
   return [
-    { name: 'card_no', label: '经费卡号', value: c?.card_no },
-    { name: 'name', label: '名称', value: c?.name },
-    { name: 'template_id', label: '科目模板', options: templates, value: c?.template_id },
-    { name: 'owner_id', label: '负责人（选填）', options: owners, required: false, value: c?.owner_id ?? '' },
-    { name: 'start_date', label: '下达日', type: 'date', value: c ? day(c.start_date) : '' },
-    { name: 'cutoff_date', label: '单据截止日', type: 'date', value: c ? day(c.cutoff_date) : '' },
-    { name: 'settle_date', label: '结清日（跨年度不结清的留空）', type: 'date', required: false, value: c?.settle_date ? day(c.settle_date) : '' },
-    { name: 'end_rule', label: '到期处理', options: Object.entries(END_RULE), value: c?.end_rule ?? 'recall' },
-    { name: 'rule_note', label: '备注（选填）', required: false, value: c?.rule_note ?? '' },
-    { name: 'fund_kind', label: '经费性质（选填）', options: Object.entries(FUND_KIND), required: false, value: c?.fund_kind ?? '' },
-    { name: 'received', label: '已到账金额（元，选填）', type: 'number', required: false, value: c?.received != null ? String(num(c.received)) : '' },
-    { name: 'priority', label: '下达优先级（1–99，数值小者优先；留空按到期规则排序）', type: 'number', required: false, value: c?.priority != null ? String(c.priority) : '' },
+    { name: 'card_no', label: '经费卡号', value: c.card_no },
+    { name: 'applied', label: '当年申请数（元，选填）', type: 'number', required: false, value: c.applied != null ? String(num(c.applied)) : '' },
+    { name: 'start_date', label: '下达日', type: 'date', value: day(c.start_date) },
+    { name: 'cutoff_date', label: '单据截止日', type: 'date', value: day(c.cutoff_date) },
+    { name: 'settle_date', label: '结清日（选填，结清前须填写）', type: 'date', required: false, value: c.settle_date ? day(c.settle_date) : '' },
+    { name: 'end_rule', label: '到期处理', options: Object.entries(END_RULE), value: c.end_rule },
+    { name: 'rule_note', label: '备注（选填）', required: false, value: c.rule_note ?? '' },
+    { name: 'received', label: '已到账金额（元，选填）', type: 'number', required: false, value: c.received != null ? String(num(c.received)) : '' },
+    { name: 'priority', label: '下达优先级（1–99，数值小者优先；留空按到期规则排序）', type: 'number', required: false, value: c.priority != null ? String(c.priority) : '' },
   ];
 }
-// 基本信息和经费性质、到账、优先级分两步存
-export const saveCard = async (id: string | null, { fund_kind, received, priority, ...v }: Record<string, string>) => {
-  const saved = await rpc('save_card', { id, ...v });
-  await rpc('set_card_info', { card_id: id ?? saved, fund_kind, received, priority });
+// 基本信息、到账和优先级、申请数分三步存
+export const saveCard = async (c: Card, { applied, received, priority, ...v }: Record<string, string>) => {
+  await rpc('save_card', { id: c.card_id, name: c.name, template_id: c.template_id, owner_id: c.owner_id, ...v });
+  await rpc('set_card_info', { card_id: c.card_id, fund_kind: c.fund_kind, received, priority });
+  await rpc('set_card_applied', { card_id: c.card_id, applied });
 };
 
 const GRANT: Record<string, [string, string]> = { active: ['生效中', 'ok'], upcoming: ['未到开始日', 'warn'], expired: ['已过期', ''], revoked: ['已收回', ''] };
@@ -152,17 +150,15 @@ export function Admin({ me }: { me: Me }) {
       {tab === 'cards' && (
         <section className="card">
           <h3>经费卡</h3>
-          <p className="hint">新建后在经费卡页面录入年初预算和考核节点。已有预算、支出或人员费的经费卡不可更换科目模板。</p>
-          <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
-            {canCards && <button className="sm" onClick={() => setAct({ label: '新建', title: '新建经费卡', fields: cardFields(tplOpts, owners), run: (v) => saveCard(null, v) })}>新建经费卡</button>}</div>
+          <p className="hint">每张经费卡是一个经费项目某一年下来的经费。新开经费卡请到<a href="#/funds">经费项目</a>，开卡后在经费卡页面录入当年下达数和考核节点；名称、负责人和科目模板以经费项目为准。</p>
           {cards.length === 0 ? <Empty>暂无经费卡。</Empty> : (
             <div className="scroll"><table>
-              <thead><tr><th>卡号</th><th>名称</th><th>模板</th><th>负责人</th><th>下达日</th><th>单据截止</th><th>结清日</th><th className="r">现行预算</th><th>状态</th><th /></tr></thead>
+              <thead><tr><th>卡号</th><th>年度</th><th>名称</th><th>模板</th><th>负责人</th><th>下达日</th><th>单据截止</th><th>结清日</th><th className="r">现行预算</th><th>状态</th><th /></tr></thead>
               <tbody>{cards.map((c) => (
-                <tr key={c.card_id}><td className="code">{c.card_no}</td><td><a href={`#/card/${c.card_id}`}>{c.name}</a></td><td>{c.template_name}</td>
+                <tr key={c.card_id}><td className="code">{c.card_no}</td><td>{c.year}</td><td><a href={`#/card/${c.card_id}`}>{c.name}</a></td><td>{c.template_name}</td>
                   <td>{userName.get(c.owner_id ?? '') ?? '—'}</td><td>{day(c.start_date)}</td><td>{day(c.cutoff_date)}</td><td>{day(c.settle_date)}</td>
                   <td className="r">{money(c.cur)}</td><td>{c.status === 'settled' ? <Badge>已结清</Badge> : <Badge tone="ok">在用</Badge>}</td>
-                  <td><div className="acts">{canCards && c.status === 'active' && btn({ label: '修改', title: `修改经费卡：${c.name}`, fields: cardFields(tplOpts, owners, c), run: (v) => saveCard(c.card_id, v) })}</div></td></tr>
+                  <td><div className="acts">{canCards && c.status === 'active' && btn({ label: '修改', title: `修改经费卡：${c.name} ${c.year}`, fields: cardFields(c), run: (v) => saveCard(c, v) })}</div></td></tr>
               ))}</tbody>
             </table></div>
           )}

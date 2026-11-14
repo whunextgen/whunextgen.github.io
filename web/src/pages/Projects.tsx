@@ -38,7 +38,7 @@ export function Projects({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>项目管理</h2>{staff && <button onClick={() => setEdit('new')}>新立大项目</button>}</div>
+      <div className="top"><h2>研究项目</h2>{staff && <button onClick={() => setEdit('new')}>新立大项目</button>}</div>
       <p className="lede">经费按项目管理，不按人员分配。项目分两层：论文项目隶属于大项目，均由财务岗建立。点击项目名称进入项目页，可查看预算、成员、上限、调剂、设备和接口额度。</p>
       <section className="card">
         <h3>{staff ? '全部项目' : '本人参与的项目'}</h3>

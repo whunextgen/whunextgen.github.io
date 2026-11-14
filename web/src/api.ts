@@ -64,12 +64,17 @@ export interface Card {
   school_balance: string | null; school_frozen: string | null; school_available: string | null; school_synced_at: string | null;
   fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null; received: string | null; priority: number | null;
   total_amount: string | null; period_start: string | null; period_end: string | null;
+  project_id: string; year: number; applied: string | null; carried_in: string; recalled: string | null; carried_out: string | null;
 }
+// 经费项目：额度和期限在这里；每年下来的经费是它下面当年的一张经费卡
+export interface FundProject { id: string; name: string; source: 'school' | 'national' | 'provincial' | 'enterprise' | 'other' | null; fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null;
+  owner_id: string | null; owner_name: string | null; quota: string | null; period_start: string | null; period_end: string | null; template_id: string; template_name: string;
+  end_rule: 'recall' | 'carry' | 'return'; note: string | null; status: 'active' | 'closed'; granted: string; recalled: string; cards: number }
 export interface Cell { card_id: string; subject_id: string; subject_code: string; subject_name: string; sort: number;
   orig: string; adj: string; cur: string; commit: string; actual: string; avail: string }
 export interface Node { node_id: string; card_id: string; node_date: string; ratio: string; consequence: string; need: string; forecast: string }
 export interface Cap { card_id: string; cap_id: string; name: string; max_ratio: string; used: string; max_amount: string }
-export interface CardPick { id: string; card_no: string; name: string; template_id: string; start_date: string; cutoff_date: string; status: string }
+export interface CardPick { id: string; card_no: string; name: string; template_id: string; start_date: string; cutoff_date: string; status: string; year: number }
 export interface Subject { id: string; template_id: string; code: string; name: string; school_name: string | null; sort: number }
 export interface ExpenseType { id: string; name: string; required_path: string | null }
 export type ReqStatus = 'pending' | 'committed' | 'at_school' | 'posted' | 'returned' | 'released' | 'rejected';

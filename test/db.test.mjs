@@ -701,6 +701,8 @@ eq((await one(`select fixed from api.budget_line where id = $1`, [L1])).fixed, 2
 // ---------- 年度预算：下达、按项目支出、复盘、决算 ----------
 // 2027 年有一张到期回收的卡 G（设备 15 万、劳务 5 万）和可结转的卡 C
 await db.exec(`reset role`);
+// 预算只能下达到同年度的卡：这一段把卡 C 当作该经费项目 2027 年的卡
+await q(`update fund_card set year = 2027 where id = $1`, [C.C]);
 const G = await id(`insert into fund_card (card_no, name, template_id, start_date, cutoff_date, settle_date, end_rule) values ('4131-G', '人才启动经费 2027', $1, '2027-04-20', '2027-11-04', '2027-12-10', 'recall')`, [T.S]);
 await q(`insert into budget_line (card_id, subject_id, amount) values ($1,$2,150000), ($1,$3,50000)`, [G, SUB.S.equip, SUB.S.labor]);
 for (const t of ['服务器与 GPU', '耗材']) await q(`insert into reimb_ruling (card_id, expense_type_id, ruled_on, ruled_by, verdict) values ($1,$2,'2027-04-21','财务甲','yes')`, [G, TY[t]]);
@@ -1458,6 +1460,70 @@ ok((await one(`select status, close_note from api.task where id = $1`, [tk])).st
 await raises('撤销之后不能改', /已办结或已撤销的任务不得修改/, `select edit_task($1, '试', $2, null, null)`, [tk, U.lead]);
 await db.exec(`reset role`);
 ok((await one(`select count(*) v from audit_log where table_name = 'task'`).catch(() => ({ v: 1 }))).v > 0, '任务的改动留审计记录');
+}
+
+// ---------- 经费项目与按年的经费卡 ----------
+{
+await db.exec(`set role app_api`);
+const lines = (o) => JSON.stringify(Object.entries(o).map(([k, amount]) => ({ subject_id: SUB.N[k], amount })));
+const card = async (cid) => one(`select * from api.card where card_id = $1`, [cid]);
+await as(U.mem, '2031-01-10');
+await raises('成员不能建经费项目', /需要权限/, `select save_fund_project(null, '越权', 'national', null, null, 1, null, null, $1, 'carry')`, [T.N]);
+eq((await q(`select * from api.fund_project`)).length, 0, '成员看不到经费项目');
+await as(U.fin, '2031-01-10');
+const fp = await val(`select save_fund_project(null, '国家重点项目', 'national', 'vertical', $1, 300000, '2031-01-01', '2033-12-31', $2, 'carry') v`, [U.lead, T.N]);
+await raises('期限外的年度不能开卡', /2034 年不在该经费项目的期限内/, `select open_card($1, 2034, '7001-N', 1, '2034-01-05', '2034-12-20')`, [fp]);
+await raises('下达日要在该年度内', /下达日须在 2031 年内/, `select open_card($1, 2031, '7001-N', 1, '2032-01-05', '2032-12-20')`, [fp]);
+const k1 = await val(`select open_card($1, 2031, '7001-N', 120000, '2031-01-05', '2031-12-20', '2031-12-31') v`, [fp]);
+let c = await card(k1);
+ok(c.year === 2031 && c.project_id === fp && Number(c.applied) === 120000 && c.name === '国家重点项目' && c.end_rule === 'carry', '在经费项目下开出当年的卡，名称和年底规则取自项目', JSON.stringify(c));
+await raises('同一项目一年只有一张卡', /2031 年的经费卡已开出/, `select open_card($1, 2031, '7002-N', 1, '2031-02-01', '2031-12-20')`, [fp]);
+await q(`select set_budget($1, $2)`, [k1, lines({ equip: 100000, labor: 20000 })]);
+let pj = await one(`select * from api.fund_project where id = $1`, [fp]);
+ok(Number(pj.granted) === 120000 && Number(pj.quota) === 300000 && pj.cards === 1, '项目上看得到额度和历年下达合计', JSON.stringify(pj));
+await raises('额度不能改到低于已下达数', /已超过拟填的额度/, `select save_fund_project($1, '国家重点项目', 'national', 'vertical', $2, 100000, '2031-01-01', '2033-12-31', $3, 'carry')`, [fp, U.lead, T.N]);
+await raises('还有卡没结清不能结题', /尚有 1 张经费卡未结清/, `select close_fund_project($1)`, [fp]);
+// 年底结清：规则为结转的，结余带到下一年的卡
+await as(U.dir, '2032-01-05');
+await q(`select settle_card($1)`, [k1]);
+c = await card(k1);
+ok(Number(c.carried_out) === 120000 && Number(c.recalled) === 0, '结转的卡结清时记下结转数', JSON.stringify([c.carried_out, c.recalled]));
+await as(U.fin, '2032-01-06');
+const k2 = await val(`select open_card($1, 2032, '7001-N', 150000, '2032-01-03', '2032-12-20', '2032-12-31') v`, [fp]);
+c = await card(k2);
+ok(Number(c.carried_in) === 120000 && Number(c.cur) === 120000 && c.card_no === '7001-N', '卡号可以跨年沿用，上年结转的结余按科目带进来', JSON.stringify([c.carried_in, c.cur]));
+eq((await one(`select granted from api.fund_project where id = $1`, [fp])).granted, 120000, '结转进来的钱不重复计入下达数');
+await raises('下达合计不能超过项目额度', /超过项目额度/, `select set_budget($1, $2)`, [k2, lines({ equip: 250001, labor: 50000 })]);
+await q(`select set_budget($1, $2)`, [k2, lines({ equip: 250000, labor: 50000 })]);
+eq((await one(`select granted from api.fund_project where id = $1`, [fp])).granted, 300000, '只有结转时财务岗仍可录入当年预算，下达合计到额度为止');
+// 下一年的卡先开、上一年后结清：结清时自动带过去
+const f3 = await val(`select save_fund_project(null, '结转在后', 'school', null, null, null, null, null, $1, 'carry') v`, [T.N]);
+const a1 = await val(`select open_card($1, 2031, '7003-N', null, '2031-01-05', '2031-12-20', '2031-12-31') v`, [f3]);
+await q(`select set_budget($1, $2)`, [a1, lines({ equip: 10000 })]);
+const a2 = await val(`select open_card($1, 2032, '7003-N', null, '2032-01-03', '2032-12-20', '2032-12-31') v`, [f3]);
+await as(U.dir, '2032-01-08');
+await q(`select settle_card($1)`, [a1]);
+c = await card(a2);
+ok(Number(c.carried_in) === 10000 && Number(c.cur) === 10000, '上一年后结清的，结余自动带到已开出的下一年卡', JSON.stringify([c.carried_in, c.cur]));
+// 规则为回收的：结余记为回收数，各年都结清后可以结题
+await as(U.fin, '2032-01-08');
+const f2 = await val(`select save_fund_project(null, '学校年度项目', 'school', 'fiscal', null, 50000, '2031-01-01', '2031-12-31', $1, 'recall') v`, [T.N]);
+const b1 = await val(`select open_card($1, 2031, '7004-N', 50000, '2031-01-05', '2031-12-20', '2031-12-31') v`, [f2]);
+await q(`select set_budget($1, $2)`, [b1, lines({ biz: 50000 })]);
+await as(U.dir, '2032-01-08');
+await q(`select settle_card($1)`, [b1]);
+c = await card(b1);
+ok(Number(c.recalled) === 50000 && Number(c.carried_out) === 0, '回收的卡结清时记下回收数', JSON.stringify([c.recalled, c.carried_out]));
+await as(U.fin, '2032-01-08');
+eq((await one(`select recalled from api.fund_project where id = $1`, [f2])).recalled, 50000, '项目上看得到历年回收合计');
+await q(`select close_fund_project($1)`, [f2]);
+ok((await one(`select status from api.fund_project where id = $1`, [f2])).status === 'closed', '各年的卡都结清后可以结题');
+await raises('结题后不能再开卡', /已结题/, `select open_card($1, 2031, '7005-N', 1, '2031-02-01', '2031-12-20')`, [f2]);
+// 旧入口直接建的卡自动补上经费项目
+await db.exec(`reset role`);
+const legacyCard = await one(`select c.year, p.name from fund_card c join fund_project p on p.id = c.project_id where c.card_no = '4131-A'`);
+ok(legacyCard.year === 2026 && legacyCard.name === '人才启动经费', '不经经费项目建的卡自动补一个同名项目，年度取下达日所在年', JSON.stringify(legacyCard));
+ok((await one(`select count(*) v from audit_log where table_name = 'fund_project'`).catch(() => ({ v: 1 }))).v > 0, '经费项目的改动留审计记录');
 }
 
 console.log(`${pass} passed, ${fail} failed`);

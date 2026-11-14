@@ -107,7 +107,8 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   const canChange = staff && c.status === 'active' && !c.locked;
   const canSettle = can(me, 'card.settle') && c.status === 'active' && !!c.settle_date && day(c.settle_date) <= now;
   const editable = staff && c.status === 'active';
-  const noBudget = !cells.some((x) => num(x.orig));
+  // 年初预算只有上年结转进来的那部分时，仍算尚未录入
+  const noBudget = cells.reduce((s, x) => s + num(x.orig), 0) <= num(c.carried_in);
   const canBudget = editable && (noBudget ? true : can(me, 'card.rebudget'));
   const nodeAct = (n?: Node): Act => ({
     label: n ? '修改' : '新增节点', title: n ? `修改 ${day(n.node_date)} 的考核节点` : '新增考核节点',
@@ -122,19 +123,14 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   return (
     <>
       <div className="top">
-        <div className="crumb"><a href="#/cards">经费卡管理</a> / {c.card_no}</div>
-        <h2>{c.name}</h2>
+        <div className="crumb"><a href="#/funds">经费项目</a> / <a href="#/cards">经费卡管理</a> / {c.card_no}</div>
+        <h2>{c.name} · {c.year} 年</h2>
         {c.status === 'settled' ? <Badge>已结清</Badge> : <Badge tone={day(c.cutoff_date) < now ? 'bad' : 'ok'}>{day(c.cutoff_date) < now ? '已过单据截止' : '在用'}</Badge>}
         {canSettle && <button className="ghost" onClick={() => setAct({ label: '结清', title: '结清经费卡',
           hint: `${c.name}。结清后按科目固定预算、决算和结余，该经费卡不得再提交支出，结清不可撤销。存在在途支出、在途变更或未入账人员费时不得结清。`,
           danger: true, fields: [], run: () => rpc('settle_card', { card_id: c.card_id }) })}>结清</button>}
-        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '修改经费卡', hint: '已有预算、支出或人员费的经费卡不得更换科目模板。',
-          fields: cardFields(data.templates.map((t): [string, string] => [t.id, t.name]), data.users.filter((u) => u.active).map((u): [string, string] => [u.id, `${u.name}（${ROLE[u.role]}）`]), c),
-          run: (v) => saveCard(c.card_id, v) })}>修改</button>}
-        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '总金额和执行年限', hint: '按任务书或合同填写该经费卡整个执行期的总金额和起止日期。此项不是某一年度的申请金额；各年度下达到该经费卡的预算另在年度预算中记录。',
-          fields: [{ name: 'total', label: '总金额（元）', type: 'number', value: c.total_amount != null ? String(num(c.total_amount)) : '' },
-            { name: 'period_start', label: '执行期开始', type: 'date', value: c.period_start ? day(c.period_start) : '' }, { name: 'period_end', label: '执行期结束', type: 'date', value: c.period_end ? day(c.period_end) : '' }],
-          run: (v) => rpc('set_card_total', { card_id: c.card_id, total: v.total, period_start: v.period_start, period_end: v.period_end }) })}>总金额和年限</button>}
+        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '修改经费卡', hint: '名称、负责人、经费性质和科目模板以所属经费项目为准，请在「经费项目」中修改。',
+          fields: cardFields(c), run: (v) => saveCard(c, v) })}>修改</button>}
       </div>
       <div className="tiles">
         <Tile k="现行预算" v={money(c.cur)} f={num(c.adj) ? `年初 ${money(c.orig)}，变更 ${money(c.adj)}` : '未办理预算变更'} />
@@ -146,12 +142,15 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       <section className="card">
         <h3>基本情况</h3>
         <table><tbody>
-          <tr><th scope="row">总金额</th><td>{c.total_amount != null ? money(c.total_amount) : <span className="sub2">尚未填写</span>}</td>
-            <th scope="row">执行年限</th><td>{c.period_start && c.period_end ? `${day(c.period_start)} 至 ${day(c.period_end)}` : <span className="sub2">尚未填写</span>}</td></tr>
+          <tr><th scope="row">年度</th><td>{c.year} 年<span className="sub2"> 额度和期限见<a href="#/funds">经费项目</a></span></td>
+            <th scope="row">当年申请数</th><td>{c.applied != null ? money(c.applied) : <span className="sub2">尚未填写</span>}</td></tr>
+          <tr><th scope="row">当年下达数</th><td>{money(num(c.orig) - num(c.carried_in))}</td>
+            <th scope="row">上年结转</th><td>{num(c.carried_in) > 0 ? money(c.carried_in) : '无'}</td></tr>
+          {c.status === 'settled' && <tr><th scope="row">结余去向</th><td colSpan={3}>{num(c.carried_out) > 0 ? `结转至下一年 ${money(c.carried_out)}` : num(c.recalled) > 0 ? `回收 ${money(c.recalled)}` : '无结余'}</td></tr>}
           <tr><th scope="row">科目模板</th><td>{c.template_name}{c.locked && '（科目锁定，不得变更预算）'}</td>
             <th scope="row">下达日</th><td>{day(c.start_date)}</td></tr>
           <tr><th scope="row">单据截止日</th><td>{day(c.cutoff_date)}</td>
-            <th scope="row">到期处理</th><td>{END_RULE[c.end_rule]}{c.settle_date ? `，结清日 ${day(c.settle_date)}` : '，跨年度不结清'}</td></tr>
+            <th scope="row">到期处理</th><td>{END_RULE[c.end_rule]}{c.settle_date ? `，结清日 ${day(c.settle_date)}` : '，尚未设结清日'}</td></tr>
           <tr><th scope="row">学校财务系统</th>
             <td colSpan={3}>{c.school_synced_at == null ? '尚未回写学校侧余额，无法对账。'
               : <>余额 {money(c.school_balance)}，冻结 {money(c.school_frozen)}，可用 {money(c.school_available)}（{day(c.school_synced_at)} 回写）

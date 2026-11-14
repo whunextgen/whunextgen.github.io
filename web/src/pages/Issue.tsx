@@ -20,7 +20,7 @@ export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: Budg
   const cat = new Map(cats.map((c) => [c.id, c]));
   const subject = new Map(data.subjects.map((s) => [s.id, s]));
   const cell = new Map(data.cells.map((c) => [`${c.card_id}|${c.subject_id}`, c]));
-  const inYear = data.cards.filter((c) => c.status === 'active' && day(c.start_date) <= `${year}-12-31` && day(c.cutoff_date) >= `${year}-01-01`)
+  const inYear = data.cards.filter((c) => c.status === 'active' && c.year === year)
     .sort((a, b) => RANK[a.end_rule] - RANK[b.end_rule] || endOf(a).localeCompare(endOf(b)) || a.card_no.localeCompare(b.card_no));
   const rest = (a: BudgetAlloc) => Math.max(num(a.amount) - num(a.used), 0);
   // 一个格子上别的行已经下达、还没用掉的预算
@@ -45,7 +45,7 @@ export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: Budg
       ...extra.map((a): Field => ({ name: `${a.card_id}|${a.subject_id}`, type: 'number', required: false, value: String(num(a.amount)), label: `${a.card_name} · ${a.subject_name}（不在科目对应范围内）` })),
     ];
     return { title: `下达：${p?.name ?? ''} · ${l.purpose}`, submitLabel: '保存', fields,
-      hint: fields.length === 0 ? `「${cat.get(l.category_id)?.name ?? ''}」尚未对应学校科目，或无 ${year} 年内有效的经费卡。请先在「预算参数」中设置科目对应。`
+      hint: fields.length === 0 ? `「${cat.get(l.category_id)?.name ?? ''}」尚未对应学校科目，或尚未开出 ${year} 年的经费卡。请先在「预算参数」中设置科目对应，并在「经费项目」中开出当年的经费卡。`
         : `核定数 ${money(l.fixed)}。将其分配至下列经费卡，合计不得超过核定数；不使用的经费卡留空。到期回收的经费卡排在前面，应优先填写。`,
       run: (v) => rpc('allocate_line', { id: l.id, parts: Object.entries(v).filter(([, x]) => Number(x) > 0).map(([k, x]) => { const [card_id, subject_id] = k.split('|'); return { card_id, subject_id, amount: Number(x) }; }) }).then(reload) };
   };

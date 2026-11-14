@@ -87,7 +87,8 @@ export function SchoolImport({ finance }: { finance: boolean }) {
     if (!data || !table) return null;
     const body = table.slice(head + 1), at = (r: string[], k: string) => (cols[k] >= 0 ? r[cols[k]] : undefined);
     if (kind === 'balance') {
-      const byNo = new Map(data.cards.map((c) => [c.card_no.trim(), c]));
+      // 卡号各年相同的项目：学校余额只与在用的、年度最新的那张卡核对
+      const byNo = new Map([...data.cards].sort((a, b) => Number(a.status === 'active') - Number(b.status === 'active') || a.year - b.year).map((c) => [c.card_no.trim(), c]));
       return body.map((r, i) => { const no = (at(r, 'no') ?? '').trim(), card = byNo.get(no), balance = amt(at(r, 'balance')), frozen = amt(at(r, 'frozen')) ?? 0, available = amt(at(r, 'available'));
         const why = !no ? '缺少卡号' : /^(合计|小计|总计)/.test(no) ? '合计行，非经费卡' : !card ? '中台无该经费卡' : balance == null ? '余额非数字' : '';
         const changed = !!card && !why && !(same(balance, card.school_balance) && same(frozen, card.school_frozen ?? '0') && same(available ?? balance! - frozen, card.school_available));
