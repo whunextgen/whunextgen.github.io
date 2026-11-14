@@ -75,6 +75,18 @@ export function Funds({ me }: { me: Me }) {
       run: (v) => (targets.length === 0 ? Promise.resolve() : rpc('move_card', { card_id: c.card_id, project_id: v.project_id })),
     };
   };
+  // 开错的卡、建错的项目可以删：只限还没有预算、支出和记录的，由后台把关
+  const blank = (c: Card) => c.status === 'active' && num(c.orig) === 0 && num(c.actual) === 0 && num(c.commit) === 0;
+  const delCardAct = (c: Card): Act => ({
+    title: `删除经费卡：${c.card_no} · ${c.year} 年`, label: '删除', danger: true, fields: [],
+    hint: `${c.name}。仅尚未录入预算、没有支出和其他记录的经费卡可以删除，删除后不可恢复。`,
+    run: () => rpc('delete_card', { card_id: c.card_id }),
+  });
+  const delProjectAct = (p: FundProject): Act => ({
+    title: `删除项目：${p.name}`, label: '删除', danger: true, fields: [],
+    hint: '该项目下没有经费卡，可以删除。删除后不可恢复。',
+    run: () => rpc('delete_fund_project', { id: p.id }),
+  });
   const closeAct = (p: FundProject): Act => ({
     title: `结题：${p.name}`, label: '确认结题', danger: true, fields: [],
     hint: '结题后该项目不得再修改或开经费卡。各年的经费卡须已全部结清。',
@@ -109,7 +121,8 @@ export function Funds({ me }: { me: Me }) {
                 <td>{day(c.cutoff_date)}{spans(c) && <> <Badge tone="warn">跨年</Badge></>}</td>
                 <td><div className="acts">{staff && c.status === 'active' && <>
                   <button className="sm" onClick={() => setAct(moveAct(c))}>归入项目</button>
-                  <button className="sm ghost" onClick={() => setAct(projectAct(p))}>据此新建项目</button></>}</div></td></tr>
+                  <button className="sm ghost" onClick={() => setAct(projectAct(p))}>据此新建项目</button>
+                  {blank(c) && <button className="sm ghost" onClick={() => setAct(delCardAct(c))}>删除</button>}</>}</div></td></tr>
             ))}</tbody>
           </table></div>
           {loose.some(({ c }) => spans(c)) && <p className="hint">标有「跨年」的经费卡，单据截止日是按整个项目期限填写的。归入项目后，请将单据截止日和结清日改到当年，下达数改为当年实际下来的数。</p>}
@@ -131,13 +144,15 @@ export function Funds({ me }: { me: Me }) {
             </tbody></table>
             {cs.length === 0 ? <Empty>尚未开出经费卡。</Empty> : (
               <div className="scroll"><table>
-                <thead><tr><th>年度</th><th>经费卡号</th><th className="r">申请数</th><th className="r">下达数</th><th className="r">上年结转</th><th className="r">已用</th><th className="r">可用</th><th>单据截止</th><th>状态</th></tr></thead>
+                <thead><tr><th>年度</th><th>经费卡号</th><th className="r">申请数</th><th className="r">下达数</th><th className="r">上年结转</th><th className="r">已用</th><th className="r">可用</th><th>单据截止</th><th>状态</th>{staff && <th />}</tr></thead>
                 <tbody>{cs.map((c) => (
                   <tr key={c.card_id}><td>{c.year}</td><td><a className="mono" href={`#/card/${c.card_id}`}>{c.card_no}</a></td>
                     <td className="r">{c.applied != null ? money(c.applied) : '—'}</td><td className="r">{money(num(c.orig) - num(c.carried_in))}</td>
                     <td className="r">{num(c.carried_in) > 0 ? money(c.carried_in) : '—'}</td><td className="r">{money(num(c.actual) + num(c.commit))}</td>
                     <td className={`r ${num(c.avail) < 0 ? 'neg' : ''}`}>{c.status === 'settled' ? '—' : money(c.avail)}</td>
-                    <td>{day(c.cutoff_date)}{spans(c) && <> <Badge tone="warn">跨年</Badge></>}</td><td>{fate(c)}</td></tr>
+                    <td>{day(c.cutoff_date)}{spans(c) && <> <Badge tone="warn">跨年</Badge></>}</td><td>{fate(c)}</td>
+                    {staff && <td><div className="acts">{c.status === 'active' && p.status === 'active' && <button className="sm ghost" onClick={() => setAct(moveAct(c))}>改归属</button>}
+                      {blank(c) && <button className="sm ghost" onClick={() => setAct(delCardAct(c))}>删除</button>}</div></td>}</tr>
                 ))}</tbody>
               </table></div>
             )}
@@ -147,7 +162,7 @@ export function Funds({ me }: { me: Me }) {
               <div className="actions" style={{ justifyContent: 'flex-start' }}>
                 <button className="sm" onClick={() => setAct(openAct(p))}>开经费卡</button>
                 <button className="sm ghost" onClick={() => setAct(projectAct(p))}>修改</button>
-                {cs.filter((c) => c.status === 'active').map((c) => <button key={c.card_id} className="sm ghost" onClick={() => setAct(moveAct(c))}>{c.year} 年的卡改归属</button>)}
+                {cs.length === 0 && <button className="sm ghost" onClick={() => setAct(delProjectAct(p))}>删除</button>}
                 {cs.length > 0 && cs.every((c) => c.status === 'settled') && <button className="sm ghost" onClick={() => setAct(closeAct(p))}>结题</button>}
               </div>
             )}

@@ -119,6 +119,8 @@ const RPC: Record<string, [string, string][]> = {
   set_card_applied: [['card_id', 'uuid'], ['applied', 'numeric']],
   close_fund_project: [['id', 'uuid']],
   move_card: [['card_id', 'uuid'], ['project_id', 'uuid']],
+  delete_card: [['card_id', 'uuid']],
+  delete_fund_project: [['id', 'uuid']],
   add_project_member: [['project_id', 'uuid'], ['user_id', 'uuid']],
   remove_project_member: [['project_id', 'uuid'], ['user_id', 'uuid']],
   recall_project_allocation: [['id', 'uuid']],

@@ -1536,6 +1536,18 @@ const loose2 = await val(`select save_card(null, '7010-N', '散卡二', $1, null
 const ph2 = (await card(loose2)).project_id;
 await q(`select save_fund_project($1, '散卡二项目', 'school', null, null, 80000, '2033-01-01', '2033-12-31', $2, 'recall')`, [ph2, T.N]);
 ok((await one(`select auto from api.fund_project where id = $1`, [ph2])).auto === false, '占位项目补全后即为正式的经费项目');
+// 开错的卡、建错的项目可以删；有预算或记录的不行
+await raises('有预算的卡不能删', /已录入预算，不得删除/, `select delete_card($1)`, [k2]);
+await raises('有卡的项目不能删', /已有经费卡，不得删除/, `select delete_fund_project($1)`, [fp]);
+const fx = await val(`select save_fund_project(null, '建错的项目', 'school', null, null, null, null, null, $1, 'recall') v`, [T.N]);
+const kx = await val(`select open_card($1, 2033, '7011-N', null, '2033-01-05', '2033-12-20') v`, [fx]);
+await as(U.mem, '2032-01-08');
+await raises('成员不能删卡', /需要权限/, `select delete_card($1)`, [kx]);
+await as(U.fin, '2032-01-08');
+await q(`select delete_card($1)`, [kx]);
+eq((await q(`select 1 from api.card where card_id = $1`, [kx])).length, 0, '没有预算和记录的卡可以删除');
+await q(`select delete_fund_project($1)`, [fx]);
+eq((await q(`select 1 from api.fund_project where id = $1`, [fx])).length, 0, '没有卡的项目可以删除');
 // 旧入口直接建的卡自动补上经费项目
 await db.exec(`reset role`);
 const legacyCard = await one(`select c.year, p.name from fund_card c join fund_project p on p.id = c.project_id where c.card_no = '4131-A'`);
