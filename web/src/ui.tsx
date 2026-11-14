@@ -15,6 +15,9 @@ export const PERSON: Record<string, string> = { postdoc: '博士后', phd: '博�
 export const can = (me: { perms?: string[] }, ...codes: string[]) => codes.some((c) => me.perms?.includes(c));
 export const canPublic = (k?: string | null) => k === 'postdoc' || k === 'phd' || k === 'master' || k === 'ra';
 export const FUND_KIND: Record<string, string> = { vertical: '纵向', fiscal: '财政', horizontal: '横向' };
+// 一张经费卡当年可用的总数（下达数连同上年结转）和其中已分到科目的部分。填了下达数的取所填的数，没填的取明细合计
+export const cardTotal = (c: { granted: string | null; carried_in: string; cur: string; orig: string }) => (c.granted != null ? Number(c.granted) + Number(c.carried_in) + (Number(c.cur) - Number(c.orig)) : Number(c.cur));
+export const cardGranted = (c: { granted: string | null; carried_in: string; orig: string }) => (c.granted != null ? Number(c.granted) : Number(c.orig) - Number(c.carried_in));
 export const FUND_SOURCE: Record<string, string> = { school: '学校', national: '国家', provincial: '省部', enterprise: '企业', other: '其他' };
 export const END_RULE: Record<string, string> = { recall: '到期回收', carry: '结转', return: '结余上缴' };
 export const REQ: Record<ReqStatus, [string, string]> = {

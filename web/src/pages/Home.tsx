@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useViews, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task } from '../api';
-import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
+import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, cardGranted, cardTotal, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Track, TreeNode, execSegs, type Seg } from '../tree';
 import { cardRisk, nodeState } from './Overview';
 import { KIND, STAGE_TEXT, STEP_OF } from './Budget';
@@ -132,8 +132,10 @@ export function Home({ me }: { me: Me }) {
 
   // ---------- 本年度可用额度 ----------
   const yearCards = active.filter((c) => c.year === thisYear);
-  const ysum = (k: 'cur' | 'actual' | 'commit' | 'avail') => yearCards.reduce((s, c) => s + num(c[k]), 0);
-  const cur = ysum('cur'), actual = ysum('actual'), commit = ysum('commit'), avail = ysum('avail');
+  const ysum = (k: 'actual' | 'commit') => yearCards.reduce((s, c) => s + num(c[k]), 0);
+  // 当年下达连同上年结转；填了下达数的卡取所填的数，没填的取明细合计
+  const cur = yearCards.reduce((s, c) => s + cardTotal(c), 0), actual = ysum('actual'), commit = ysum('commit'), avail = cur - actual - commit;
+  const unassigned = yearCards.reduce((s, c) => s + Math.max(cardTotal(c) - num(c.cur), 0), 0);
   const y0 = Date.parse(`${thisYear}-01-01`), y1 = Date.parse(`${thisYear + 1}-01-01`);
   const timeNow = Math.min(1, Math.max(0, (Date.parse(now) - y0) / (y1 - y0)));
   const funds = data.funds.filter((p) => !p.auto && p.status === 'active');
@@ -154,7 +156,7 @@ export function Home({ me }: { me: Me }) {
   const fundNodes = [...funds].sort((a, b) => (a.period_end ?? '9').localeCompare(b.period_end ?? '9') || a.name.localeCompare(b.name, 'zh')).map((p, pi) => {
     const cs = data.cards.filter((c) => c.project_id === p.id).sort((a, b) => b.year - a.year || a.card_no.localeCompare(b.card_no));
     const granted = num(p.granted), quota = p.quota != null ? num(p.quota) : null;
-    const segs: Seg[] = [...cs].reverse().map((c, i) => { const g = num(c.orig) - num(c.carried_in);
+    const segs: Seg[] = [...cs].reverse().map((c, i) => { const g = cardGranted(c);
       return { cls: i % 2 ? 'sy1' : 'sy0', value: g, text: `${c.year} 年${c.name === p.name ? '' : ` ${c.name}`} ${wan(g)}`, tip: `${c.year} 年经费卡 ${c.card_no}${c.name === p.name ? '' : `（${c.name}）`}下达 ${money(g)}${quota ? `，占额度 ${pct(g, quota)}` : ''}` }; });
     if (quota != null && quota > granted) segs.push({ cls: 'hatch', value: quota - granted, text: `尚未申请 ${wan(quota - granted)}`, tip: `尚未申请 ${money(quota - granted)}，占额度 ${pct(quota - granted, quota)}；不属于当年可用经费` });
     const meta = [p.source && FUND_SOURCE[p.source], p.period_start || p.period_end ? `${day(p.period_start).slice(0, 4)}—${day(p.period_end).slice(0, 4)}` : '', p.owner_name && `负责人 ${p.owner_name}`].filter(Boolean).join(' · ');
@@ -167,12 +169,13 @@ export function Home({ me }: { me: Me }) {
         {cs.map((c) => {
           const cells = data.cells.filter((x) => x.card_id === c.card_id && (num(x.cur) || num(x.commit) || num(x.actual))).sort((a, b) => a.sort - b.sort);
           const give = new Map<string, number>(); for (const a of data.allocs.filter((x) => x.card_id === c.card_id)) give.set(a.project_id, (give.get(a.project_id) ?? 0) + num(a.amount));
-          const out = [...give.values()].reduce((s, v) => s + v, 0), total = num(c.cur);
+          const out = [...give.values()].reduce((s, v) => s + v, 0), total = cardTotal(c), gap = Math.max(total - num(c.cur), 0), left = total - num(c.actual) - num(c.commit);
           const mark = c.status === 'active' && c.year === thisYear ? cardRisk(c, now).time : undefined;
           return (
             <TreeNode key={c.card_id} level={2} lv="经费卡" title={c.name === p.name ? `${c.year} 年` : `${c.year} 年 · ${c.name}`} meta={`${c.card_no}${c.year === thisYear ? ' · 本年度' : ''}`} href={`#/card/${c.card_id}`} open={pi === 0 && c.year === thisYear}
               chart={<Track cap={c.year === thisYear ? '当年执行' : '执行'} segs={execSegs(total, num(c.actual), num(c.commit), '当年下达')} mark={mark} />}
-              num={`下达 ${money(total)}`} sub={`执行 ${pct(num(c.actual) + num(c.commit), total)} · 可用 ${money(c.avail)}`} status={cardStatus(c)}>
+              num={`下达 ${money(total)}`} sub={`执行 ${pct(num(c.actual) + num(c.commit), total)} · 可用 ${money(left)}`}
+              status={cardStatus(c) ?? (gap >= 0.005 ? ['warn', `尚有 ${money(gap)} 未分到科目，暂不可支出`] : total <= 0 ? ['warn', '尚未填写下达数'] : null)}>
               {cells.map((x) => <TreeNode key={x.subject_id} level={3} lv="明细" title={x.subject_name}
                 chart={<Track segs={execSegs(num(x.cur), num(x.actual), num(x.commit), '该明细')} scale={total} />} num={money(x.cur)} sub={`可用 ${money(x.avail)}`} status={num(x.avail) < 0 ? ['bad', '超支'] : null} />)}
               {give.size > 0 && <div className="wb-give">
@@ -247,6 +250,7 @@ export function Home({ me }: { me: Me }) {
             <div className="wb-facts">
               <span>当年下达<b>{money(cur)}</b></span><span>已入账<b>{money(actual)}</b></span><span>已承诺<b>{money(commit)}</b></span>
               {quotaSum > 0 && <span>项目额度合计<b>{money(quotaSum)}</b></span>}{quotaSum > 0 && <span>尚未申请<b>{money(unapplied)}</b></span>}
+              {unassigned >= 0.005 && <span className="w">尚未分到科目<b>{money(unassigned)}</b></span>}
               {recall >= 1 && <span className="w">预计年末回收<b>{money(recall)}</b></span>}
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { rpc, useViews, type Cap, type Card, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
-import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, can, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
+import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, can, cardGranted, cardTotal, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
 import { cardFields, saveCard } from './Admin';
 import { nodeState } from './Overview';
 import { RequestTable } from './Requests';
@@ -57,8 +57,8 @@ function SetBudget({ cardId, cells, first, onDone, onCancel }: { cardId: string;
   };
   return (
     <form onSubmit={submit} className="change">
-      <p className="hint">{first ? '按任务书或下达通知逐科目填写年初预算，不使用的科目留空。保存时校验模板的比例上限。'
-        : '更正年初预算。已办理的预算变更继续叠加；更正后各科目的现行预算不得低于已承诺和已入账的合计。'}</p>
+      <p className="hint">{first ? '按任务书或下达通知把当年下达数逐科目填入明细，不使用的科目留空。填了当年下达数的，明细合计不得超过下达数。保存时校验模板的比例上限。'
+        : '更正明细。已办理的预算变更继续叠加；更正后各科目的现行预算不得低于已承诺和已入账的合计，明细合计不得超过当年下达数。'}</p>
       <div className="scroll"><table>
         <thead><tr><th>科目</th><th className="r">年初预算（元）</th>{!first && <><th className="r">变更</th><th className="r">已承诺和已入账</th></>}</tr></thead>
         <tbody>{cells.map((x) => (
@@ -119,6 +119,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
     run: (v) => rpc('set_node', { card_id: c.card_id, node_date: n ? day(n.node_date) : v.node_date, ratio: Number(v.ratio) / 100, consequence: v.consequence }),
   });
   const diff = c.school_available != null ? num(c.avail) - num(c.school_available) : null;
+  const gap = cardTotal(c) - num(c.cur);   // 下达了但还没分到科目的部分
 
   return (
     <>
@@ -144,7 +145,11 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
         <table><tbody>
           <tr><th scope="row">年度</th><td>{c.year} 年<span className="sub2"> 额度和期限见<a href="#/funds">项目管理</a></span></td>
             <th scope="row">当年申请数</th><td>{c.applied != null ? money(c.applied) : <span className="sub2">尚未填写</span>}</td></tr>
-          <tr><th scope="row">当年下达数</th><td>{money(num(c.orig) - num(c.carried_in))}</td>
+          <tr><th scope="row">当年下达数</th><td>{money(cardGranted(c))}{c.granted == null && <span className="sub2"> 未单独填写，按明细合计</span>}
+            {gap >= 0.005 && <> <Badge tone="warn">尚有 {money(gap)} 未分到科目，暂不可支出</Badge></>}
+            {editable && <> <button className="sm ghost" onClick={() => setAct({ label: '保存', title: '当年下达数', hint: '按学校的下达通知填写本年度下达到这张经费卡的金额，不含上年结转。各科目的明细合计不得超过下达数；留空则按明细合计计算。',
+              fields: [{ name: 'granted', label: '当年下达数（元）', type: 'number', required: false, value: c.granted != null ? String(num(c.granted)) : '' }],
+              run: (v) => rpc('set_card_granted', { card_id: c.card_id, granted: v.granted }) })}>修改</button></>}</td>
             <th scope="row">上年结转</th><td>{num(c.carried_in) > 0 ? money(c.carried_in) : '无'}</td></tr>
           {c.status === 'settled' && <tr><th scope="row">结余去向</th><td colSpan={3}>{num(c.carried_out) > 0 ? `结转至下一年 ${money(c.carried_out)}` : num(c.recalled) > 0 ? `回收 ${money(c.recalled)}` : '无结余'}</td></tr>}
           <tr><th scope="row">科目模板</th><td>{c.template_name}{c.locked && '（科目锁定，不得变更预算）'}</td>
@@ -160,13 +165,13 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       </section>
 
       <section className="card">
-        <h3>科目预算与执行</h3>
+        <h3>明细与执行 <span className="h3sub">当年下达数按学校科目分到明细，支出按科目核对</span></h3>
         {canBudget && !budgeting && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
-          <button className={noBudget ? 'sm' : 'sm ghost'} onClick={() => setBudgeting(true)}>{noBudget ? '录入年初预算' : '更正年初预算'}</button></div>}
+          <button className={noBudget ? 'sm' : 'sm ghost'} onClick={() => setBudgeting(true)}>{noBudget ? '录入明细' : '更正明细'}</button></div>}
         {budgeting && <SetBudget cardId={c.card_id} cells={cells} first={noBudget} onDone={() => { setBudgeting(false); reload(); }} onCancel={() => setBudgeting(false)} />}
-        {used.length === 0 ? (!budgeting && <Empty>该经费卡暂无预算。{editable && !canBudget && '年初预算由财务岗录入。'}</Empty>) : (
+        {used.length === 0 ? (!budgeting && <Empty>该经费卡尚未录入明细。{editable && !canBudget && '明细由财务岗录入。'}</Empty>) : (
           <div className="scroll"><table>
-            <thead><tr><th>科目</th><th className="r">年初预算</th><th className="r">变更</th><th className="r">现行预算</th><th className="r">决算数</th>
+            <thead><tr><th>科目</th><th className="r">下达数</th><th className="r">变更</th><th className="r">现行预算</th><th className="r">决算数</th>
               <th className="r">承诺</th><th className="r">可用</th><th>执行</th></tr></thead>
             <tbody>
               {used.map((x) => (

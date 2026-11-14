@@ -11,6 +11,7 @@ export function cardFields(c: Card): Field[] {
     { name: 'card_no', label: '经费卡号', value: c.card_no },
     { name: 'name', label: '经费卡名称（同一项目同年度有多张时用于区分，如直接费、间接费）', value: c.name },
     { name: 'applied', label: '当年申请数（元，选填）', type: 'number', required: false, value: c.applied != null ? String(num(c.applied)) : '' },
+    { name: 'granted', label: '当年下达数（元，按下达通知填写；留空则按各科目明细合计）', type: 'number', required: false, value: c.granted != null ? String(num(c.granted)) : '' },
     { name: 'start_date', label: '下达日', type: 'date', value: day(c.start_date) },
     { name: 'cutoff_date', label: '单据截止日', type: 'date', value: day(c.cutoff_date) },
     { name: 'settle_date', label: '结清日（选填，结清前须填写）', type: 'date', required: false, value: c.settle_date ? day(c.settle_date) : '' },
@@ -20,11 +21,12 @@ export function cardFields(c: Card): Field[] {
     { name: 'priority', label: '下达优先级（1–99，数值小者优先；留空按到期规则排序）', type: 'number', required: false, value: c.priority != null ? String(c.priority) : '' },
   ];
 }
-// 基本信息、到账和优先级、申请数分三步存
-export const saveCard = async (c: Card, { applied, received, priority, ...v }: Record<string, string>) => {
+// 基本信息、到账和优先级、申请数、下达数分开存
+export const saveCard = async (c: Card, { applied, granted, received, priority, ...v }: Record<string, string>) => {
   await rpc('save_card', { id: c.card_id, template_id: c.template_id, owner_id: c.owner_id, ...v });
   await rpc('set_card_info', { card_id: c.card_id, fund_kind: c.fund_kind, received, priority });
   await rpc('set_card_applied', { card_id: c.card_id, applied });
+  await rpc('set_card_granted', { card_id: c.card_id, granted });
 };
 
 const GRANT: Record<string, [string, string]> = { active: ['生效中', 'ok'], upcoming: ['未到开始日', 'warn'], expired: ['已过期', ''], revoked: ['已收回', ''] };

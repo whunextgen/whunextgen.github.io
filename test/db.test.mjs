@@ -1485,8 +1485,14 @@ ok(c.year === 2031 && c.project_id === fp && Number(c.applied) === 120000 && c.n
 await raises('同一年度卡号不能重复', /2031 年已有卡号为「7001-N」的经费卡/, `select open_card($1, 2031, '7001-N', 1, '2031-02-01', '2031-12-20')`, [fp]);
 const k1b = await val(`select open_card($1, 2031, '7002-N', null, '2031-02-01', '2031-12-20', '2031-12-31', '间接费') v`, [fp]);
 ok((await card(k1b)).name === '间接费' && (await one(`select cards from api.fund_project where id = $1`, [fp])).cards === 2, '同一项目同一年度可以开多张经费卡，各有名称');
+await q(`select set_card_granted($1, 50000)`, [k1b]);
+ok(Number((await card(k1b)).granted) === 50000 && Number((await one(`select granted from api.fund_project where id = $1`, [fp])).granted) === 50000, '当年下达数可直接填写，计入项目历年下达合计');
+await raises('明细合计不能超过下达数', /超过当年下达数/, `select set_budget($1, $2)`, [k1b, lines({ biz: 60000 })]);
+await q(`select set_card_granted($1, null)`, [k1b]);
+ok((await card(k1b)).granted == null, '下达数可清空，清空后按明细合计算');
 await q(`select delete_card($1)`, [k1b]);
 await q(`select set_budget($1, $2)`, [k1, lines({ equip: 100000, labor: 20000 })]);
+await raises('下达数不能小于已录入的明细合计', /小于已录入各科目的明细合计/, `select set_card_granted($1, 100000)`, [k1]);
 let pj = await one(`select * from api.fund_project where id = $1`, [fp]);
 ok(Number(pj.granted) === 120000 && Number(pj.quota) === 300000 && pj.cards === 1, '项目上看得到额度和历年下达合计', JSON.stringify(pj));
 await raises('额度不能改到低于已下达数', /已超过拟填的额度/, `select save_fund_project($1, '国家重点项目', 'national', 'vertical', $2, 100000, '2031-01-01', '2033-12-31', $3, 'carry')`, [fp, U.lead, T.N]);

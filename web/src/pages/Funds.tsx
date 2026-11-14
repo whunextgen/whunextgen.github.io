@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type Card, type FundProject, type Me, type Template, type User } from '../api';
-import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, FUND_SOURCE, Loading, ROLE, Tile, can, day, money, num, today, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, FUND_SOURCE, Loading, ROLE, Tile, can, cardGranted, cardTotal, day, money, num, today, type Field } from '../ui';
 
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
@@ -52,17 +52,18 @@ export function Funds({ me }: { me: Me }) {
     const prev = cs.find((c) => c.year === year - 1);
     return {
       title: `开经费卡：${p.name}`, label: '开卡',
-      hint: `经费卡记项目某一年度申请下来的经费。同一年度可开多张（如直接费、间接费各一张），各自填写名称；卡号按学校财务系统填写，同一年度内不得重复，各年可以相同。${p.end_rule === 'carry' ? '上一年的卡结清后，结余按科目自动带入下一年同卡号的卡。' : ''}开卡后在经费卡页面按科目录入当年下达数。`,
+      hint: `经费卡记项目某一年度申请下来的经费。同一年度可开多张（如直接费、间接费各一张），各自填写名称；卡号按学校财务系统填写，同一年度内不得重复，各年可以相同。${p.end_rule === 'carry' ? '上一年的卡结清后，结余按科目自动带入下一年同卡号的卡。' : ''}当年下达数按下达通知填写；开卡后在经费卡页面把下达数按学校科目分到明细。`,
       fields: [
         { name: 'year', label: '年度', type: 'number', value: String(year) },
         { name: 'card_no', label: '经费卡号', value: '' },
         { name: 'name', label: '经费卡名称（选填，留空则与项目同名）', required: false, value: '' },
         { name: 'applied', label: '当年申请数（元，选填）', type: 'number', required: false },
+        { name: 'granted', label: '当年下达数（元，选填；按下达通知填写）', type: 'number', required: false },
         { name: 'start_date', label: '下达日', type: 'date', value: `${year}-01-01` },
         { name: 'cutoff_date', label: '单据截止日', type: 'date', value: prev ? `${year}${day(prev.cutoff_date).slice(4)}` : `${year}-12-31` },
         { name: 'settle_date', label: '结清日（选填，结清前须填写）', type: 'date', required: false, value: prev?.settle_date ? `${year}${day(prev.settle_date).slice(4)}` : '' },
       ],
-      run: (v) => rpc('open_card', { project_id: p.id, ...v }),
+      run: async ({ granted, ...v }) => { const id = await rpc('open_card', { project_id: p.id, ...v }); if (granted) await rpc('set_card_granted', { card_id: id, granted }); },
     };
   };
   // 把一张卡归到已有的项目下：科目模板相同的项目才可选
@@ -150,7 +151,7 @@ export function Funds({ me }: { me: Me }) {
                 <thead><tr><th>年度</th><th>经费卡号</th><th>名称</th><th className="r">申请数</th><th className="r">下达数</th><th className="r">上年结转</th><th className="r">已用</th><th className="r">可用</th><th>单据截止</th><th>状态</th>{staff && <th />}</tr></thead>
                 <tbody>{cs.map((c) => (
                   <tr key={c.card_id}><td>{c.year}{outOf(p, c) && <> <Badge tone="warn">期限外</Badge></>}</td><td><a className="mono" href={`#/card/${c.card_id}`}>{c.card_no}</a></td><td>{c.name === p.name ? <span className="sub2">同项目</span> : c.name}</td>
-                    <td className="r">{c.applied != null ? money(c.applied) : '—'}</td><td className="r">{money(num(c.orig) - num(c.carried_in))}</td>
+                    <td className="r">{c.applied != null ? money(c.applied) : '—'}</td><td className="r">{money(cardGranted(c))}{cardTotal(c) - num(c.cur) >= 0.005 && <div className="sub2" style={{ marginLeft: 0 }}>未分到科目 {money(cardTotal(c) - num(c.cur))}</div>}</td>
                     <td className="r">{num(c.carried_in) > 0 ? money(c.carried_in) : '—'}</td><td className="r">{money(num(c.actual) + num(c.commit))}</td>
                     <td className={`r ${num(c.avail) < 0 ? 'neg' : ''}`}>{c.status === 'settled' ? '—' : money(c.avail)}</td>
                     <td>{day(c.cutoff_date)}{spans(c) && <> <Badge tone="warn">跨年</Badge></>}</td><td>{fate(c)}</td>
