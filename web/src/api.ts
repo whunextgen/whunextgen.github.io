@@ -66,11 +66,11 @@ export interface Card {
   total_amount: string | null; period_start: string | null; period_end: string | null;
   project_id: string; year: number; applied: string | null; carried_in: string; recalled: string | null; carried_out: string | null;
 }
-// 经费项目：额度和期限在这里；每年下来的经费是它下面当年的一张经费卡
+// 项目：额度和期限在这里；每年下来的经费是它下面当年的一张经费卡
 export interface FundProject { id: string; name: string; source: 'school' | 'national' | 'provincial' | 'enterprise' | 'other' | null; fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null;
   owner_id: string | null; owner_name: string | null; quota: string | null; period_start: string | null; period_end: string | null; template_id: string; template_name: string;
   end_rule: 'recall' | 'carry' | 'return'; note: string | null; status: 'active' | 'closed'; granted: string; recalled: string; cards: number;
-  auto: boolean }   // auto：由经费卡自动生成的占位，还不是正式的经费项目
+  auto: boolean }   // auto：由经费卡自动生成的占位，还不是正式的项目
 export interface Cell { card_id: string; subject_id: string; subject_code: string; subject_name: string; sort: number;
   orig: string; adj: string; cur: string; commit: string; actual: string; avail: string }
 export interface Node { node_id: string; card_id: string; node_date: string; ratio: string; consequence: string; need: string; forecast: string }

@@ -123,13 +123,13 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   return (
     <>
       <div className="top">
-        <div className="crumb"><a href="#/funds">经费项目</a> / <a href="#/cards">经费卡管理</a> / {c.card_no}</div>
+        <div className="crumb"><a href="#/funds">项目管理</a> / <a href="#/cards">经费卡管理</a> / {c.card_no}</div>
         <h2>{c.name} · {c.year} 年</h2>
         {c.status === 'settled' ? <Badge>已结清</Badge> : <Badge tone={day(c.cutoff_date) < now ? 'bad' : 'ok'}>{day(c.cutoff_date) < now ? '已过单据截止' : '在用'}</Badge>}
         {canSettle && <button className="ghost" onClick={() => setAct({ label: '结清', title: '结清经费卡',
           hint: `${c.name}。结清后按科目固定预算、决算和结余，该经费卡不得再提交支出，结清不可撤销。存在在途支出、在途变更或未入账人员费时不得结清。`,
           danger: true, fields: [], run: () => rpc('settle_card', { card_id: c.card_id }) })}>结清</button>}
-        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '修改经费卡', hint: '名称、负责人、经费性质和科目模板以所属经费项目为准，请在「经费项目」中修改。',
+        {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '修改经费卡', hint: '名称、负责人、经费性质和科目模板以所属项目为准，请在「项目管理」中修改。',
           fields: cardFields(c), run: (v) => saveCard(c, v) })}>修改</button>}
       </div>
       <div className="tiles">
@@ -142,7 +142,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       <section className="card">
         <h3>基本情况</h3>
         <table><tbody>
-          <tr><th scope="row">年度</th><td>{c.year} 年<span className="sub2"> 额度和期限见<a href="#/funds">经费项目</a></span></td>
+          <tr><th scope="row">年度</th><td>{c.year} 年<span className="sub2"> 额度和期限见<a href="#/funds">项目管理</a></span></td>
             <th scope="row">当年申请数</th><td>{c.applied != null ? money(c.applied) : <span className="sub2">尚未填写</span>}</td></tr>
           <tr><th scope="row">当年下达数</th><td>{money(num(c.orig) - num(c.carried_in))}</td>
             <th scope="row">上年结转</th><td>{num(c.carried_in) > 0 ? money(c.carried_in) : '无'}</td></tr>

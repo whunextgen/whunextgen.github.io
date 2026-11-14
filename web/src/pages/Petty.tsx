@@ -64,7 +64,7 @@ export function PettyPage({ me }: { me: Me }) {
         </div>
         {shown.length === 0 ? <Empty>{all ? '暂无备用金申请。' : '暂无在途备用金。'}</Empty> : (
           <div className="scroll"><table>
-            <thead><tr><th>提交日期</th><th>申请人</th><th>项目 · 预算行</th><th className="r">领用</th><th>用途</th><th>状态</th><th className="r">实际支出</th><th className="r">退回</th><th /></tr></thead>
+            <thead><tr><th>提交日期</th><th>申请人</th><th>研究单元 · 预算行</th><th className="r">领用</th><th>用途</th><th>状态</th><th className="r">实际支出</th><th className="r">退回</th><th /></tr></thead>
             <tbody>{shown.map((r) => (
               <tr key={r.id}><td>{day(r.created_at)}</td><td>{r.requester_name}</td><td>{r.project_code}<div className="sub2">{r.line_purpose}</div></td><td className="r">{money(r.amount)}</td>
                 <td className="wrap">{r.purpose}{r.decide_note && <div className="sub2">{r.decided_by_name}：{r.decide_note}</div>}{r.settle_note && <div className="sub2">核销：{r.settle_note}</div>}</td>
@@ -101,12 +101,12 @@ export function TrackPage({ me }: { me: Me }) {
   const WAIT: Record<string, string> = { pending: '中心负责人批准', committed: '财务岗提交单据至学校', at_school: '学校入账', returned: '财务岗变更经费卡或释放' };
   const items: Item[] = [
     ...data.reqs.filter((r) => r.status in WAIT).map((r): Item => ({ id: r.id, type: '支出申请', flag: r.emergency ? '紧急' : '', title: r.title, sub: r.code ?? '',
-      who: r.requested_by === me.id ? '我' : name.get(r.requested_by ?? '') ?? '—', amount: money(r.amount), at: r.created_at, wait: r.status === 'pending' && r.step ? { confirm: '项目负责人确认', director: '中心负责人批准', check: '财务岗核对' }[r.step] ?? WAIT.pending : WAIT[r.status], badge: REQ[r.status], href: `#/requests/${r.status}` })),
+      who: r.requested_by === me.id ? '我' : name.get(r.requested_by ?? '') ?? '—', amount: money(r.amount), at: r.created_at, wait: r.status === 'pending' && r.step ? { confirm: '研究单元负责人确认', director: '中心负责人批准', check: '财务岗核对' }[r.step] ?? WAIT.pending : WAIT[r.status], badge: REQ[r.status], href: `#/requests/${r.status}` })),
     ...data.petty.filter((r) => r.status === 'pending' || r.status === 'approved').map((r): Item => ({ id: r.id, type: '备用金', flag: '', title: r.purpose, sub: '',
       who: r.requested_by === me.id ? '我' : r.requester_name, amount: money(r.amount), at: r.created_at, wait: r.status === 'pending' ? '中心负责人审批' : '财务岗凭票核销', badge: PETTY[r.status], href: '#/petty' })),
     ...data.res.filter((r) => ['pending', 'reviewed', 'approved'].includes(r.status)).map((r): Item => ({ id: r.id, type: '资源申请', flag: r.urgent ? '加急' : '', title: r.purpose,
       sub: `${r.resource_name ?? KIND[r.kind]}${r.project_code ? ` · ${r.project_code}` : ''}`, who: r.requested_by === me.id ? '我' : r.requester_name, amount: qty(r.approved_amount ?? r.amount, r.unit), at: r.created_at,
-      wait: { pending: '项目负责人批示', reviewed: '财务岗批准', approved: '财务岗分发' }[r.status as 'pending'], badge: RES_REQ[r.status], href: staff ? '#/pool' : '#/resource' })),
+      wait: { pending: '研究单元负责人批示', reviewed: '财务岗批准', approved: '财务岗分发' }[r.status as 'pending'], badge: RES_REQ[r.status], href: staff ? '#/pool' : '#/resource' })),
   ].sort((a, b) => Number(!!b.flag) - Number(!!a.flag) || a.at.localeCompare(b.at));
   const types = ['支出申请', '备用金', '资源申请'] as const;
   const shown = items.filter((i) => !type || i.type === type);

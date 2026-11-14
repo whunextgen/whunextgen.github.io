@@ -33,7 +33,7 @@ export function Ask({ me }: { me: Me }) {
                 <td>{r.ruled_on ? day(r.ruled_on) : '—'}</td></tr>); })}</tbody>
           </table></div>
         )}
-        <p className="hint">可报销的，在「支出申请」中从项目预算行提交。最终列支的经费类别由财务岗核对时安排，申请人无需选择。</p>
+        <p className="hint">可报销的，在「支出申请」中从研究单元预算行提交。最终列支的经费类别由财务岗核对时安排，申请人无需选择。</p>
       </section>
     </>
   );

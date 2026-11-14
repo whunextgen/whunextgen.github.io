@@ -30,7 +30,7 @@ export function Home({ me }: { me: Me }) {
   const to = (path: string, status: ReqStatus) => (seesCards ? path : `#/requests/${status}`);
 
   const stages = [
-    { name: '申请', desc: '先申请、后支出；项目负责人确认，财务岗核对', v: `${pending.length} 笔`, f: `待确认、核对 ${money(amt(pending))}`, href: '#/requests/pending' },
+    { name: '申请', desc: '先申请、后支出；研究单元负责人确认，财务岗核对', v: `${pending.length} 笔`, f: `待确认、核对 ${money(amt(pending))}`, href: '#/requests/pending' },
     { name: '承诺', desc: '批准后占用额度；涉及采购的完成采购', v: `${committed.length} 笔`, f: `已占用 ${money(amt(committed))}${buying.length ? ` · ${buying.length} 笔采购中` : ''}`, href: to('#/school/procure', 'committed') },
     { name: '入账', desc: '单据提交学校，以学校正式入账计入决算', v: `${atSchool.length} 笔`, f: `学校审核中 ${money(amt(atSchool))}${returned.length ? ` · ${returned.length} 笔已退回` : ''} · 已入账 ${posted.length} 笔`, href: to('#/school', 'at_school') },
   ];
@@ -66,7 +66,7 @@ export function Home({ me }: { me: Me }) {
       }
       if (can(me, 'budget.compile') && !can(me, 'budget.approve')) {
         const all = data.projects.filter((x) => x.active), done = all.filter((x) => b.get(x.id)?.status === 'submitted').length;
-        todo.push({ tone: day(y.due_date) <= now ? 'warn' : 'pri', tag: '年度预算', text: `${y.year} 年度预算申报 ${day(y.due_date)} 截止，${done} / ${all.length} 个项目已提交`, go: day(y.due_date) <= now ? '截止申报' : '查看进度', href });
+        todo.push({ tone: day(y.due_date) <= now ? 'warn' : 'pri', tag: '年度预算', text: `${y.year} 年度预算申报 ${day(y.due_date)} 截止，${done} / ${all.length} 个研究单元已提交`, go: day(y.due_date) <= now ? '截止申报' : '查看进度', href });
       }
     }
     const total = (k: 'applied' | 'fixed') => money(data.lines.filter((l) => l.year === y.year).reduce((s, l) => s + num(l[k]), 0));
@@ -74,14 +74,14 @@ export function Home({ me }: { me: Me }) {
       : can(me, 'budget.compile') ? { tone: 'pri', tag: '年度预算', text: `${y.year} 年度预算汇总中，申请数合计 ${total('applied')}，调整后提请中心负责人批准`, go: '汇总', href } : null!);
     if (y.stage === 'approved' && can(me, 'budget.compile') && !can(me, 'budget.approve')) todo.push({ tone: 'warn', tag: '待报学校', text: `${y.year} 年度预算申请数已批准，报学校后登记报送日期`, go: '登记', href });
     if (y.stage === 'applied' && can(me, 'budget.compile') && !can(me, 'budget.approve')) todo.push({ tone: 'pri', tag: '待学校批复', text: `${y.year} 年度预算已于 ${day(y.applied_on)} 报学校，批复后录入批复数`, go: '录入', href });
-    if (y.stage === 'granted') todo.push(can(me, 'budget.approve') ? { tone: 'warn', tag: '待确认', text: `${y.year} 年度学校已批复，各项目核定数合计 ${total('fixed')}，待确认年度总预算`, go: '确认', href }
-      : can(me, 'budget.compile') ? { tone: 'warn', tag: '待核定', text: `${y.year} 年度学校已批复，按联席会议决定填写各项目核定数`, go: '核定', href } : null!);
+    if (y.stage === 'granted') todo.push(can(me, 'budget.approve') ? { tone: 'warn', tag: '待确认', text: `${y.year} 年度学校已批复，各研究单元核定数合计 ${total('fixed')}，待确认年度总预算`, go: '确认', href }
+      : can(me, 'budget.compile') ? { tone: 'warn', tag: '待核定', text: `${y.year} 年度学校已批复，按联席会议决定填写各研究单元核定数`, go: '核定', href } : null!);
   }
   for (let i = todo.length - 1; i >= 0; i--) if (!todo[i]) todo.splice(i, 1);
   const add = (rows: Req[], tone: string, tag: string, what: string, go: string, href: string) => {
     if (rows.length > 0) todo.push({ tone, tag, text: `${rows.length} 笔${what}，合计 ${money(amt(rows))}`, go, href });
   };
-  add(pending.filter((r) => r.can_confirm), 'warn', '待确认', '支出申请属本人负责的项目，待确认', '确认', '#/requests/mine');
+  add(pending.filter((r) => r.can_confirm), 'warn', '待确认', '支出申请属本人负责的研究单元，待确认', '确认', '#/requests/mine');
   if (can(me, 'request.approve')) {
     add(pending.filter((r) => r.step === 'director' && num(r.over_amount) > 0), 'bad', '超预算待批', '支出超出预算行，待审批', '审批', '#/requests/mine');
     add(pending.filter((r) => !r.step || (r.step === 'director' && !(num(r.over_amount) > 0))), 'warn', '待审批', '支出申请待审批', '审批', '#/requests/mine');
@@ -91,7 +91,7 @@ export function Home({ me }: { me: Me }) {
     for (const s of data.shifts.filter((x) => x.status === 'pending')) todo.push({ tone: 'warn', tag: '预算调剂', text: `${s.project_name} 申请由「${s.from_purpose}」调剂 ${money(s.amount)} 至「${s.to_purpose}」，全年累计超过年度预算的 10%`, go: '审批', href: `#/review/${s.year}` });
   }
   if (can(me, 'request.process')) {
-    add(pending.filter((r) => r.step === 'check'), 'warn', '待核对', '支出申请项目负责人已确认，待核对', '核对', '#/requests/mine');
+    add(pending.filter((r) => r.step === 'check'), 'warn', '待核对', '支出申请研究单元负责人已确认，待核对', '核对', '#/requests/mine');
     add(ready, 'warn', '待提交学校', '已核对的申请待提交单据至学校', '提交', '#/requests/committed');
     add(buying, 'pri', '采购中', '采购尚未进入验收', '推进', '#/school/procure');
     add(atSchool, 'pri', '待回写', '单据在学校审核，入账后回写', '回写', '#/school');
@@ -105,10 +105,10 @@ export function Home({ me }: { me: Me }) {
   if (can(me, 'petty.approve')) count(pettyOf('pending').length, 'warn', '待审批', `备用金申请待审批，合计 ${money(pettyOf('pending').reduce((t, r) => t + num(r.amount), 0))}`, '审批', '#/petty');
   if (can(me, 'petty.settle')) {
     count(pettyOf('approved').length, 'pri', '待核销', `备用金已领用尚未核销，合计 ${money(pettyOf('approved').reduce((t, r) => t + num(r.amount), 0))}`, '核销', '#/petty');
-    count(resOf('reviewed').length, 'warn', '资源待批准', '资源申请项目负责人已批示，待批准', '审批', '#/pool');
+    count(resOf('reviewed').length, 'warn', '资源待批准', '资源申请研究单元负责人已批示，待批准', '审批', '#/pool');
     count(resOf('approved').length, 'warn', '资源待分发', '资源申请已批准，待分发', '分发', '#/pool');
   }
-  count(resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id).length, 'warn', '待批示', '资源申请属本人负责的项目，待批示', '批示', '#/resource');
+  count(resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id).length, 'warn', '待批示', '资源申请属本人负责的研究单元，待批示', '批示', '#/resource');
   if (seesCards) {
     for (const c of active.filter((x) => num(x.avail) < 0))
       todo.push({ tone: 'bad', tag: '超支', text: `${c.name} 可用为 ${money(c.avail)}`, go: '查看详情', href: `#/card/${c.card_id}` });
@@ -129,7 +129,7 @@ export function Home({ me }: { me: Me }) {
   const mineOpen = mine.filter((r) => OPEN.includes(r.status)).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const cardName = new Map(data.picks.map((c) => [c.id, c.name]));
 
-  // 总览：执行中的年度预算按项目，在用的经费卡按截止日
+  // 总览：执行中的年度预算按研究单元，在用的经费卡按截止日
   const execYear = [...data.years].filter((y) => y.stage === 'issued').sort((a, b) => b.year - a.year)[0];
   const planYear = [...data.years].filter((y) => STEP_OF[y.stage] <= 3).sort((a, b) => a.year - b.year)[0];
   const byProject = !execYear ? [] : data.projects.map((p) => { const rows = data.exec.filter((l) => l.year === execYear.year && l.project_id === p.id);
@@ -227,7 +227,7 @@ export function Home({ me }: { me: Me }) {
         <div className="g2">
           {(byProject.length > 0 || (planYear && seesCards)) && (
             <section className="card">
-              <h3>年度预算 {execYear && <span className="h3sub">{execYear.year} 年度按项目 · 核定 {money(tot('fixed'))} · 入账 {pct(tot('actual'), tot('fixed'))}</span>}</h3>
+              <h3>年度预算 {execYear && <span className="h3sub">{execYear.year} 年度按研究单元 · 核定 {money(tot('fixed'))} · 入账 {pct(tot('actual'), tot('fixed'))}</span>}</h3>
               {planYear && <p className="hint"><a href={`#/budget/${planYear.year}`}>{planYear.year} 年度预算</a>：{STAGE_TEXT[planYear.stage]}{planYear.stage === 'declare' ? `，${day(planYear.due_date)} 截止` : ''}。申报数合计 {money(planTotal('requested'))}{planTotal('applied') > 0 ? `，申请数 ${money(planTotal('applied'))}` : ''}{planTotal('fixed') > 0 ? `，核定数 ${money(planTotal('fixed'))}` : ''}。</p>}
               {byProject.length > 0 && execYear && (
                 <Bullets legend={[{ name: '已入账', color: C.actual }, { name: '在途', color: C.commit }]} rows={byProject.map((r) => ({

@@ -8,7 +8,7 @@ export const day = (v: string | null | undefined) => (v ? v.slice(0, 10) : '—'
 export const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1)}%` : '—');
 export const today = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);   // 北京时间
 
-export const ROLE: Record<string, string> = { finance: '财务岗', director: '中心负责人', leader: '项目负责人', member: '成员' };
+export const ROLE: Record<string, string> = { finance: '财务岗', director: '中心负责人', leader: '课题/研究单元负责人', member: '成员' };
 // 人员身份只管一件事：公共设备给博士后、博士、硕士和研究助理个人申领
 export const PERSON: Record<string, string> = { postdoc: '博士后', phd: '博士', master: '硕士', ra: '研究助理', ri: '研究实习生', visitor: '访问学生' };
 // 页面上的按钮和入口跟着权限点走；真正的检查在数据库里
@@ -22,7 +22,7 @@ export const REQ: Record<ReqStatus, [string, string]> = {
   returned: ['已退回', 'bad'], released: ['已释放', ''], rejected: ['已驳回', ''],
 };
 // 待批的申请停在哪一步
-export const STEP: Record<string, [string, string]> = { confirm: ['待项目负责人确认', 'warn'], director: ['待中心负责人审批', 'warn'], check: ['待财务岗核对', 'warn'] };
+export const STEP: Record<string, [string, string]> = { confirm: ['待研究单元负责人确认', 'warn'], director: ['待中心负责人审批', 'warn'], check: ['待财务岗核对', 'warn'] };
 export const reqBadge = (r: { status: ReqStatus; step?: string | null; over_amount?: string | null }): [string, string] =>
   r.status !== 'pending' || !r.step ? REQ[r.status] : r.step === 'director' && Number(r.over_amount ?? 0) > 0 ? ['超预算，待中心负责人审批', 'bad'] : STEP[r.step];
 export const VERDICT: Record<string, [string, string]> = {

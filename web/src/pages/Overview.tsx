@@ -66,7 +66,7 @@ export function Overview({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>经费卡管理</h2>{can(me, 'card.manage') && <a className="btn" href="#/funds">在经费项目下开卡</a>}</div>
+      <div className="top"><h2>经费卡管理</h2>{can(me, 'card.manage') && <a className="btn" href="#/funds">在项目下开卡</a>}</div>
       <div className="tiles">
         <Tile k="现行预算" v={money(sum('cur'))} f={`${active.length} 张在用经费卡`} />
         <Tile k="决算数 · 学校已入账" color={C.actual} v={money(sum('actual'))} meter={sum('cur') > 0 ? sum('actual') / sum('cur') : 0} f={`执行率 ${pct(sum('actual'), sum('cur'))}`} />
@@ -104,7 +104,7 @@ export function Overview({ me }: { me: Me }) {
         </section>
       )}
       <section className="card">
-        <h3>经费卡 <span className="h3sub">每张经费卡是一个经费项目某一年下来的经费，额度和期限在「经费项目」中查看</span></h3>
+        <h3>经费卡 <span className="h3sub">每张经费卡是一个项目某一年下来的经费，额度和期限在「项目管理」中查看</span></h3>
         {cards.length === 0 ? <Empty>{!can(me, 'read.finance') ? '暂无本人名下的经费卡。' : '暂无经费卡。'}</Empty> : (
           <>
             <div className="funds">

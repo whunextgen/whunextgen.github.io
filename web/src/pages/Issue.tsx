@@ -45,7 +45,7 @@ export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: Budg
       ...extra.map((a): Field => ({ name: `${a.card_id}|${a.subject_id}`, type: 'number', required: false, value: String(num(a.amount)), label: `${a.card_name} · ${a.subject_name}（不在科目对应范围内）` })),
     ];
     return { title: `下达：${p?.name ?? ''} · ${l.purpose}`, submitLabel: '保存', fields,
-      hint: fields.length === 0 ? `「${cat.get(l.category_id)?.name ?? ''}」尚未对应学校科目，或尚未开出 ${year} 年的经费卡。请先在「预算参数」中设置科目对应，并在「经费项目」中开出当年的经费卡。`
+      hint: fields.length === 0 ? `「${cat.get(l.category_id)?.name ?? ''}」尚未对应学校科目，或尚未开出 ${year} 年的经费卡。请先在「预算参数」中设置科目对应，并在「项目管理」中开出当年的经费卡。`
         : `核定数 ${money(l.fixed)}。将其分配至下列经费卡，合计不得超过核定数；不使用的经费卡留空。到期回收的经费卡排在前面，应优先填写。`,
       run: (v) => rpc('allocate_line', { id: l.id, parts: Object.entries(v).filter(([, x]) => Number(x) > 0).map(([k, x]) => { const [card_id, subject_id] = k.split('|'); return { card_id, subject_id, amount: Number(x) }; }) }).then(reload) };
   };
@@ -58,7 +58,7 @@ export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: Budg
     <>
       <section className="card" id="issue">
         <h3>下达至经费卡 {y.stage === 'fixed' ? <Badge tone="warn">待下达</Badge> : y.stage === 'issued' ? <Badge tone="ok">已下达</Badge> : <Badge>已决算</Badge>}</h3>
-        <p className="hint">{y.stage === 'fixed' ? '年度总预算确定后，各行核定数均须分配至经费卡的学校科目，全部分配完毕方可下达；下达后各项目方可按预算提交支出申请。'
+        <p className="hint">{y.stage === 'fixed' ? '年度总预算确定后，各行核定数均须分配至经费卡的学校科目，全部分配完毕方可下达；下达后各研究单元方可按预算提交支出申请。'
           : y.stage === 'issued' ? `${day(y.issued_at)} 已下达。复盘时调增核定数的行须在此补充下达；调减部分系统已自动收回。` : `${year} 年度已决算，下达记录仅供查看。`}</p>
         {unmapped.length > 0 && <div className="msg bad">以下预算科目尚未对应学校科目，自动分配时将跳过：{unmapped.join('、')}。<a href="#/desk">前往预算参数设置</a></div>}
         {note && <div className="msg ok" role="status">{note}</div>}
@@ -72,7 +72,7 @@ export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: Budg
             hint: `为尚未分配完毕的 ${open.length} 行匹配经费卡：优先分配到期回收的经费卡（结清日早的在前），其次为结余上缴的，最后为可结转的。无法分配的行留待手工处理，已分配的不变。`,
             run: () => rpc('auto_allocate', { year }).then((n) => { setNote(`本次分配完毕 ${n} 行。`); reload(); }) })}>自动分配</button>}
           {y.stage === 'fixed' && <button className={open.length > 0 ? 'ghost' : ''} disabled={open.length > 0} title={open.length > 0 ? '尚有预算行未分配完毕' : undefined}
-            onClick={() => setAct({ title: `下达 ${year} 年度预算`, submitLabel: '下达', fields: [], hint: `${lines.length} 行预算、合计 ${money(fixedSum)} 已全部分配至经费卡。下达后各项目可按预算提交支出申请。`, run: () => go('issue') })}>下达</button>}
+            onClick={() => setAct({ title: `下达 ${year} 年度预算`, submitLabel: '下达', fields: [], hint: `${lines.length} 行预算、合计 ${money(fixedSum)} 已全部分配至经费卡。下达后各研究单元可按预算提交支出申请。`, run: () => go('issue') })}>下达</button>}
           {y.stage === 'fixed' && director && allocSum === 0 && <button className="ghost" onClick={() => setAct({ title: '退回核定', danger: true, submitLabel: '退回', fields: [], hint: '退回核定阶段，可重新调整各行核定数和年度总预算。', run: () => go('reopen') })}>退回核定</button>}
         </div>}
       </section>
@@ -95,7 +95,7 @@ export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: Budg
         <h3>各预算行分配情况</h3>
         {byProject.length === 0 ? <Empty>暂无核定数大于 0 的预算行。</Empty> : (
           <div className="scroll"><table className="tight">
-            <thead><tr><th>项目</th><th>科目</th><th>用途</th><th className="r">核定数</th><th className="r">已分配</th><th>经费卡 · 学校科目</th><th /></tr></thead>
+            <thead><tr><th>研究单元</th><th>科目</th><th>用途</th><th className="r">核定数</th><th className="r">已分配</th><th>经费卡 · 学校科目</th><th /></tr></thead>
             <tbody>{byProject.flatMap(({ p, rows }) => rows.map((l, i) => { const mine = data.allocs.filter((a) => a.line_id === l.id).sort((a, b) => RANK[a.end_rule] - RANK[b.end_rule]); const d = num(l.fixed) - num(l.allocated); return (
               <tr key={l.id}>{i === 0 && <td rowSpan={rows.length}>{p.name}<span className="sub2">{p.code}</span></td>}
                 <td>{cat.get(l.category_id)?.name ?? '—'}</td><td className="wrap">{l.purpose}</td><td className="r">{money(l.fixed)}</td>

@@ -248,7 +248,7 @@ export function Backfill() {
             <option value="">{card ? '请选择' : '请先选择经费卡'}</option>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
           <label className="field"><span>支出类型</span><select required value={v.expense_type_id} onChange={(e) => set({ expense_type_id: e.target.value })}>
             <option value="">请选择</option>{data.types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
-          <label className="field"><span>关联项目预算行（选填）</span><select value={v.line_id} onChange={(e) => set({ line_id: e.target.value })}>
+          <label className="field"><span>关联研究单元预算行（选填）</span><select value={v.line_id} onChange={(e) => set({ line_id: e.target.value })}>
             <option value="">不关联</option>{data.lines.map((l) => <option key={l.id} value={l.id}>{l.project_code} · {l.category_name} · {l.purpose}</option>)}</select></label>
         </div>
         <div className="row">

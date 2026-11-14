@@ -6,7 +6,7 @@ interface Act { title: string; hint?: string; fields: Field[]; submitLabel?: str
 const Q = ['q1', 'q2', 'q3', 'q4'] as const, A = ['a1', 'a2', 'a3', 'a4'] as const;
 const QN = ['1–3 月', '4–6 月', '7–9 月', '10–12 月'];
 
-// 07 复盘与决算：每三个月按项目对一次计划和实际，复盘时可以调整核定数；年末做年度决算，未用的预算不结转。
+// 07 复盘与决算：每三个月按研究单元对一次计划和实际，复盘时可以调整核定数；年末做年度决算，未用的预算不结转。
 export function Review({ me, start }: { me: Me; start: string }) {
   const staff = can(me, 'budget.review'), director = can(me, 'budget.approve'), seesCards = can(me, 'read.finance');
   const { data, error, reload } = useViews<{ years: BudgetYear[]; projects: Project[]; cats: BudgetCategory[]; exec: LineExec[]; allocs: BudgetAlloc[]; revisions: BudgetRevision[]; reviews: BudgetReview[]; shifts: BudgetShift[]; checks: YearCheck[] }>({
@@ -19,7 +19,7 @@ export function Review({ me, start }: { me: Me; start: string }) {
   if (years.length === 0) return (
     <>
       <div className="top"><h2>年度决算</h2></div>
-      <Empty>尚未下达年度预算。预算下达后，在此按项目查看执行情况，每三个月复盘一次，年末办理年度决算。</Empty>
+      <Empty>尚未下达年度预算。预算下达后，在此按研究单元查看执行情况，每三个月复盘一次，年末办理年度决算。</Empty>
     </>
   );
   const y = years.find((x) => x.year === Number(start)) ?? years[0];
@@ -44,7 +44,7 @@ export function Review({ me, start }: { me: Me; start: string }) {
     run: (v) => rpc('review_project', { year, quarter: Number(v.quarter), project_id: p.id, note: v.note }).then(reload) }; };
   const reviseAct = (p: Project, l: LineExec): Act => ({
     title: `调整核定数：${p.name} · ${l.purpose}`, submitLabel: '调整',
-    hint: `当前核定 ${money(l.fixed)}，已用 ${money(l.used)}（含在途）。调减不得低于已用，超额下达部分自动从经费卡收回；调增部分须在「预算编制」补充下达。各项目核定数合计不得超过年度总预算。`,
+    hint: `当前核定 ${money(l.fixed)}，已用 ${money(l.used)}（含在途）。调减不得低于已用，超额下达部分自动从经费卡收回；调增部分须在「预算编制」补充下达。各研究单元核定数合计不得超过年度总预算。`,
     fields: [{ name: 'amount', label: '新核定数（元）', type: 'number', value: String(num(l.fixed)) }, { name: 'note', label: '调整原因' }],
     run: (v) => rpc('revise_fixed', { id: l.id, amount: v.amount, note: v.note }).then(reload) });
   const pendingShifts = data.shifts.filter((s) => s.year === year && s.status === 'pending');
@@ -58,20 +58,20 @@ export function Review({ me, start }: { me: Me; start: string }) {
       </div>
       {years.length > 1 && <div className="tabs" style={{ marginBottom: 16 }}>{years.map((n) => <a key={n.year} className="btn sm" aria-current={n.year === year ? 'page' : undefined} href={`#/review/${n.year}`}>{n.year}</a>)}</div>}
 
-      {projects.length === 0 ? <Empty>本人名下暂无 {year} 年度有预算的项目。项目的执行和复盘情况仅项目负责人、财务岗和中心负责人可查看。</Empty> : (
+      {projects.length === 0 ? <Empty>本人名下暂无 {year} 年度有预算的研究单元。研究单元的执行和复盘情况仅研究单元负责人、财务岗和中心负责人可查看。</Empty> : (
         <>
           <div className="tiles">
-            <Tile k={staff ? '核定数合计' : '本人项目核定数'} v={money(fixed)} f={`${projects.length} 个项目，${lines.length} 行`} />
+            <Tile k={staff ? '核定数合计' : '本人研究单元核定数'} v={money(fixed)} f={`${projects.length} 个研究单元，${lines.length} 行`} />
             <Tile k="已用（含在途）" v={money(used)} f={`占核定数 ${pct(used, fixed)}${pending > 0 ? ` · 待审批 ${money(pending)}` : ''}`} />
             <Tile k="已入账" v={money(actual)} f={`执行率 ${pct(actual, fixed)}`} />
             <Tile k={y.stage === 'closed' ? '未用（不结转）' : '未使用'} v={money(fixed - used)} f={y.stage === 'closed' ? '年度决算时作废' : '年末未用完部分不结转'} />
           </div>
 
           <section className="card">
-            <h3>按项目复盘</h3>
-            <p className="hint">每三个月核对一次：截至本期末的计划支出与学校实际入账。各期计划按申报时的分期比例分摊至核定数。入账不足计划 70% 的标为落后。复盘结论由财务岗和中心负责人记录，项目负责人可查看。预算行之间的调剂在项目详情页办理，点击项目名称进入。</p>
+            <h3>按研究单元复盘</h3>
+            <p className="hint">每三个月核对一次：截至本期末的计划支出与学校实际入账。各期计划按申报时的分期比例分摊至核定数。入账不足计划 70% 的标为落后。复盘结论由财务岗和中心负责人记录，研究单元负责人可查看。预算行之间的调剂在研究单元详情页办理，点击研究单元名称进入。</p>
             <div className="scroll"><table>
-              <thead><tr><th>项目</th><th className="r">核定数</th><th className="r">已入账</th><th>进度</th><th>本期复盘</th><th /></tr></thead>
+              <thead><tr><th>研究单元</th><th className="r">核定数</th><th className="r">已入账</th><th>进度</th><th>本期复盘</th><th /></tr></thead>
               <tbody>{projects.map(({ p, rows }) => { const pl = plan(rows, Math.max(quarter, 1)), ac = sum(rows, 'actual'), rv = reviewOf(p.id, Math.max(quarter, 1)); return (
                 <tr key={p.id}><td><a href={`#/project/${p.id}/${year}`}>{p.name}</a><span className="sub2">{p.code}{p.owner_name ? ` · ${p.owner_name}` : ''}</span></td>
                   <td className="r">{money(sum(rows, 'fixed'))}</td><td className="r">{money(ac)}<div className="sub2">在途 {money(sum(rows, 'used') - ac)}</div></td>
@@ -84,9 +84,9 @@ export function Review({ me, start }: { me: Me; start: string }) {
 
           {pendingShifts.length > 0 && (
             <section className="card">
-              <h3>待审批的预算调剂 <span className="h3sub">全年累计超过项目年度预算 10% 的，由中心负责人审批</span></h3>
+              <h3>待审批的预算调剂 <span className="h3sub">全年累计超过研究单元年度预算 10% 的，由中心负责人审批</span></h3>
               <div className="scroll"><table>
-                <thead><tr><th>提交日期</th><th>项目</th><th>调出</th><th>调入</th><th className="r">金额</th><th>原因</th><th /></tr></thead>
+                <thead><tr><th>提交日期</th><th>研究单元</th><th>调出</th><th>调入</th><th className="r">金额</th><th>原因</th><th /></tr></thead>
                 <tbody>{pendingShifts.map((s) => (
                   <tr key={s.id}><td>{day(s.created_at)}<span className="sub2">{s.requester_name ?? ''}</span></td><td>{s.project_name}</td><td className="wrap">{s.from_purpose}</td><td className="wrap">{s.to_purpose}</td>
                     <td className="r">{money(s.amount)}</td><td className="wrap">{s.note}</td>
@@ -140,7 +140,7 @@ export function Review({ me, start }: { me: Me; start: string }) {
             <p className="hint">{y.stage === 'closed' ? `${year} 年度已于 ${day(y.closed_at)} 决算。决算数仅以学校正式入账为准；未用完的预算作废，不结转至下一年度。`
               : `年度结束且全部支出申请审批完毕后，由中心负责人办理年度决算。决算后 ${year} 年度预算不可再支出，未用完部分不结转；年末尚未入账的在途支出照常在经费卡上办结。`}</p>
             <div className="scroll"><table>
-              <thead><tr><th>项目</th><th className="r">核定数</th><th className="r">决算数（已入账）</th><th className="r">在途</th><th className="r">未用</th><th className="r">执行率</th></tr></thead>
+              <thead><tr><th>研究单元</th><th className="r">核定数</th><th className="r">决算数（已入账）</th><th className="r">在途</th><th className="r">未用</th><th className="r">执行率</th></tr></thead>
               <tbody>{projects.map(({ p, rows }) => { const f = sum(rows, 'fixed'), a = sum(rows, 'actual'), u = sum(rows, 'used'); return (
                 <tr key={p.id}><td>{p.name}</td><td className="r">{money(f)}</td><td className="r">{money(a)}</td><td className="r">{money(u - a)}</td><td className="r">{money(f - u)}</td><td className="r">{pct(a, f)}</td></tr>); })}</tbody>
               <tfoot><tr><th scope="row">合计</th><td className="r">{money(fixed)}</td><td className="r">{money(actual)}</td><td className="r">{money(used - actual)}</td><td className="r">{money(fixed - used)}</td><td className="r">{pct(actual, fixed)}</td></tr></tfoot>

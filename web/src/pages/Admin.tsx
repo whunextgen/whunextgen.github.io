@@ -5,7 +5,7 @@ import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, Loading, can, PERSON, 
 interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 type Opt = [string, string];
 
-// 经费卡的输入项。名称、负责人、经费性质、科目模板以所属经费项目为准，不在卡上改；新开的卡在「经费项目」里开
+// 经费卡的输入项。名称、负责人、经费性质、科目模板以所属项目为准，不在卡上改；新开的卡在「项目管理」里开
 export function cardFields(c: Card): Field[] {
   return [
     { name: 'card_no', label: '经费卡号', value: c.card_no },
@@ -28,7 +28,7 @@ export const saveCard = async (c: Card, { applied, received, priority, ...v }: R
 
 const GRANT: Record<string, [string, string]> = { active: ['生效中', 'ok'], upcoming: ['未到开始日', 'warn'], expired: ['已过期', ''], revoked: ['已收回', ''] };
 const LOG: Record<string, string> = { grant: '授权', revoke: '收回', role_new: '新建角色', role_edit: '修改角色', role_delete: '删除角色', base_role: '变更基础角色', self_approve: '本人审批本人事项' };
-const SCOPE: Record<string, string> = { global: '全中心', project: '可按项目', card: '可按经费卡' };
+const SCOPE: Record<string, string> = { global: '全中心', project: '可按课题/研究单元', card: '可按经费卡' };
 const OUT: Record<string, [string, string]> = { queued: ['排队中', 'warn'], sent: ['已发送', 'ok'], failed: ['发送失败', 'bad'], expired: ['已过期', ''] };
 
 export function Admin({ me }: { me: Me }) {
@@ -100,12 +100,12 @@ export function Admin({ me }: { me: Me }) {
   const roles = [...data.roles].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, 'zh'));
   const now = today();
   const live = data.grants.filter((g) => g.state === 'active' || g.state === 'upcoming');
-  const roleKind = (r: RoleDef) => r.builtin ? (r.implicit ? '随项目' : '基础角色') : r.code ? '预置' : '自定义';
+  const roleKind = (r: RoleDef) => r.builtin ? (r.implicit ? '随课题/研究单元' : '基础角色') : r.code ? '预置' : '自定义';
   const roleScope = (r: RoleDef) => r.perms.length > 0 && r.perms.every((c) => perms.find((x) => x.code === c)?.scope === 'card') ? '按经费卡'
-    : r.perms.length > 0 && r.perms.every((c) => perms.find((x) => x.code === c)?.scope !== 'global') ? '按项目' : '全中心';
+    : r.perms.length > 0 && r.perms.every((c) => perms.find((x) => x.code === c)?.scope !== 'global') ? '按课题/研究单元' : '全中心';
   const roleAct = (r?: RoleDef): Act => ({
     label: r ? '修改' : '新建角色', title: r ? `修改角色：${r.name}` : '新建角色',
-    hint: r ? `修改后，当前持有该角色的 ${r.holders} 人立即生效。批准和经办、批准和入账不得置于同一角色。` : '勾选该角色的权限范围。批准和经办、批准和入账不得置于同一角色。仅含项目类权限点的角色可按项目授权，仅含经费卡查看的可按经费卡授权。',
+    hint: r ? `修改后，当前持有该角色的 ${r.holders} 人立即生效。批准和经办、批准和入账不得置于同一角色。` : '勾选该角色的权限范围。批准和经办、批准和入账不得置于同一角色。仅含课题、研究单元类权限点的角色可按课题或研究单元授权，仅含经费卡查看的可按经费卡授权。',
     fields: [{ name: 'name', label: '名称', value: r?.name }, { name: 'note', label: '说明（选填）', required: false, value: r?.note ?? '' },
       ...groupsOf.map((g): Field => ({ name: `g:${g}`, label: g, type: 'multi', required: false, value: perms.filter((x) => x.grp === g && r?.perms.includes(x.code)).map((x) => x.code).join(','),
         options: perms.filter((x) => x.grp === g).map((x): Opt => [x.code, x.scope === 'global' ? x.name : `${x.name}（${SCOPE[x.scope]}）`]) }))],
@@ -117,7 +117,7 @@ export function Admin({ me }: { me: Me }) {
     hint: '基础角色（成员、负责人、财务岗、中心负责人）在「用户」页签修改；此处为基础角色之外另授的角色，一人可有多个。范围留空即全中心；临时代理须填写截止日，到期自动失效。不得为本人授权。',
     fields: [{ name: 'user', label: '被授权人', options: data.users.filter((u) => u.active && u.id !== me.id).sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((u): Opt => [u.id, `${u.name}（${ROLE[u.role]}）`]) },
       { name: 'role', label: '角色', options: roles.filter((r) => !r.implicit && !r.locked).map((r): Opt => [r.id, `${r.name} · ${roleScope(r)}`]) },
-      { name: 'project', label: '限定项目（选填）', required: false, options: data.projects.filter((x) => x.active).map((x): Opt => [x.id, `${x.code} ${x.name}`]) },
+      { name: 'project', label: '限定课题或研究单元（选填）', required: false, options: data.projects.filter((x) => x.active).map((x): Opt => [x.id, `${x.code} ${x.name}`]) },
       { name: 'card', label: '限定经费卡（选填）', required: false, options: cards.filter((c) => c.status === 'active').map((c): Opt => [c.card_id, `${c.card_no} ${c.name}`]) },
       { name: 'from', label: '开始日', type: 'date', value: now }, { name: 'to', label: '截止日（长期有效的留空）', type: 'date', required: false },
       { name: 'note', label: '事由（选填）', required: false }],
@@ -127,7 +127,7 @@ export function Admin({ me }: { me: Me }) {
     label: '收回', title: `收回 ${g.user_name} 的「${g.role_name}」`, danger: true, hint: '收回后立即失效，记录保留。',
     fields: [{ name: 'note', label: '原因（选填）', required: false }], run: (v) => rpc('revoke_grant', { id: g.id, note: v.note || null }),
   });
-  const scopeOf = (g: RoleGrant) => g.project_name ? `项目：${g.project_name}` : g.card_name ? `经费卡：${g.card_name}` : '全中心';
+  const scopeOf = (g: RoleGrant) => g.project_name ? `课题/研究单元：${g.project_name}` : g.card_name ? `经费卡：${g.card_name}` : '全中心';
 
   const tabs: [typeof tab, string][] = [['cards', `经费卡 ${cards.length}`], ['templates', `科目模板 ${data.templates.length}`],
     ...(director ? [['users', `用户 ${data.admin.length}`] as [typeof tab, string]] : []),
@@ -135,7 +135,7 @@ export function Admin({ me }: { me: Me }) {
     ['kinds', '人员身份'], ['limits', '紧急通道限额'], ['outbox', '飞书通知']];
   const kindAct = (u: User): Act => ({
     label: u.kind ? '修改' : '登记', title: `登记身份：${u.name}`,
-    hint: '身份仅用于一项判断：公共设备面向博士后、博士、硕士和研究助理个人申领。项目内的预算、资源和审批均按项目负责人确定，与身份无关。',
+    hint: '身份仅用于一项判断：公共设备面向博士后、博士、硕士和研究助理个人申领。研究单元内的预算、资源和审批均按研究单元负责人确定，与身份无关。',
     fields: [{ name: 'kind', label: '身份（留空即清空）', options: Object.entries(PERSON), required: false, value: u.kind ?? '' }],
     run: (v) => rpc('set_user_kind', { user_id: u.id, kind: v.kind || null }),
   });
@@ -150,7 +150,7 @@ export function Admin({ me }: { me: Me }) {
       {tab === 'cards' && (
         <section className="card">
           <h3>经费卡</h3>
-          <p className="hint">每张经费卡是一个经费项目某一年下来的经费。新开经费卡请到<a href="#/funds">经费项目</a>，开卡后在经费卡页面录入当年下达数和考核节点；名称、负责人和科目模板以经费项目为准。</p>
+          <p className="hint">每张经费卡是一个项目某一年下来的经费。新开经费卡请到<a href="#/funds">项目管理</a>，开卡后在经费卡页面录入当年下达数和考核节点；名称、负责人和科目模板以项目为准。</p>
           {cards.length === 0 ? <Empty>暂无经费卡。</Empty> : (
             <div className="scroll"><table>
               <thead><tr><th>卡号</th><th>年度</th><th>名称</th><th>模板</th><th>负责人</th><th>下达日</th><th>单据截止</th><th>结清日</th><th className="r">现行预算</th><th>状态</th><th /></tr></thead>
@@ -243,7 +243,7 @@ export function Admin({ me }: { me: Me }) {
         <>
           <section className="card wide">
             <h3>角色 <span className="h3sub">角色为一组权限点；一人可有多个角色</span></h3>
-            <p className="hint">每人有一个基础角色，在「用户」页签设定；其余角色在「授权」页签按需授予，可限定到某个项目或某张经费卡，也可设截止日。项目负责人的权限随项目确定，无需授权。
+            <p className="hint">每人有一个基础角色，在「用户」页签设定；其余角色在「授权」页签按需授予，可限定到某个课题、研究单元或某张经费卡，也可设截止日。课题和研究单元负责人的权限随其负责的课题或研究单元确定，无需授权。
               批准和经办、批准和入账、确认变更和备案不得由同一人承担，授权和修改角色时系统自动校验。</p>
             {rbac && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}><button className="sm" onClick={() => setAct(roleAct())}>新建角色</button>
               <button className="sm ghost" aria-pressed={matrix} onClick={() => setMatrix(!matrix)}>{matrix ? '收起对照表' : '权限对照表'}</button></div>}
@@ -251,7 +251,7 @@ export function Admin({ me }: { me: Me }) {
               <thead><tr><th>角色</th><th>类型</th><th>授权范围</th><th>权限范围</th><th className="r">现有人数</th><th /></tr></thead>
               <tbody>{roles.map((r) => (
                 <tr key={r.id}><td>{r.name}{r.note && <div className="sub2">{r.note}</div>}</td>
-                  <td>{r.builtin ? <Badge tone="pri">{roleKind(r)}</Badge> : <Badge>{roleKind(r)}</Badge>}</td><td>{r.implicit ? '本人负责的项目' : roleScope(r)}</td>
+                  <td>{r.builtin ? <Badge tone="pri">{roleKind(r)}</Badge> : <Badge>{roleKind(r)}</Badge>}</td><td>{r.implicit ? '本人负责的课题和研究单元' : roleScope(r)}</td>
                   <td className="wrap">{groupsOf.map((g) => { const on = perms.filter((x) => x.grp === g && r.perms.includes(x.code)); return on.length === 0 ? null : (
                     <div key={g}><span className="sub2">{g}　</span>{on.map((x) => x.name).join('、')}</div>); })}</td>
                   <td className="r">{r.holders}</td>
@@ -279,7 +279,7 @@ export function Admin({ me }: { me: Me }) {
       {tab === 'grants' && seesRbac && (
         <section className="card wide">
           <h3>授权 <span className="h3sub">基础角色之外另授的角色</span></h3>
-          <p className="hint">范围留空即全中心；选定项目或经费卡的，权限仅在该项目或经费卡上生效。设有截止日的到期自动失效，无需手动收回。每次授权和收回均通知本人，并记入「授权记录」。</p>
+          <p className="hint">范围留空即全中心；选定课题、研究单元或经费卡的，权限仅在其上生效。设有截止日的到期自动失效，无需手动收回。每次授权和收回均通知本人，并记入「授权记录」。</p>
           {rbac && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}><button className="sm" onClick={() => setAct(grantAct())}>新增授权</button></div>}
           {data.grants.length === 0 ? <Empty>暂无授权。当前每人仅有基础角色。</Empty> : (
             <div className="scroll"><table>
@@ -313,7 +313,7 @@ export function Admin({ me }: { me: Me }) {
       {tab === 'kinds' && (
         <section className="card">
           <h3>人员身份</h3>
-          <p className="hint">中心公共资源仅限面向博士后、博士、硕士和研究助理个人申领的设备，按此处登记的身份判断；未登记人员不可申领。其余资源均列入各项目预算，由项目负责人管理，与身份无关。</p>
+          <p className="hint">中心公共资源仅限面向博士后、博士、硕士和研究助理个人申领的设备，按此处登记的身份判断；未登记人员不可申领。其余资源均列入各研究单元预算，由研究单元负责人管理，与身份无关。</p>
           <div className="scroll"><table>
             <thead><tr><th>姓名</th><th>角色</th><th>身份</th><th>公共设备</th><th /></tr></thead>
             <tbody>{data.users.filter((u) => u.active).sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((u) => (

@@ -23,7 +23,7 @@ export function actionsFor(me: Me, r: Req, targets: [string, string][], lines: [
   if (can(me, 'request.approve') && r.status === 'pending') {
     if (!r.step) out.push({ label: '批准', title: '批准支出申请', hint: `${what}。批准后计入承诺。`, fields: [], run: () => rpc('approve_request', { id: r.id }) });
     if (r.step === 'director') out.push({ label: '批准', title: over > 0 ? '批准超预算支出申请' : '批准支出申请',
-      hint: `${what}。${over > 0 ? `该笔超出预算行 ${money(over)}，批准后该预算行核定数相应调增，各项目核定数合计不得超过年度总预算。` : ''}批准后提交财务岗核对。`, fields: [], run: () => rpc('approve_request', { id: r.id }) });
+      hint: `${what}。${over > 0 ? `该笔超出预算行 ${money(over)}，批准后该预算行核定数相应调增，各研究单元核定数合计不得超过年度总预算。` : ''}批准后提交财务岗核对。`, fields: [], run: () => rpc('approve_request', { id: r.id }) });
     out.push({ label: '驳回', title: '驳回支出申请', hint: what, danger: true, fields: [{ name: 'note', label: '驳回原因' }],
       run: (v) => rpc('reject_request', { id: r.id, note: v.note }) });
   }
@@ -53,8 +53,8 @@ export function actionsFor(me: Me, r: Req, targets: [string, string][], lines: [
     out.push({ label: '释放', title: '释放承诺', hint: `${what}。释放后额度恢复为可用，该笔申请作废。`, danger: true, fields: [],
       run: () => rpc('release_request', { id: r.id }) });
   if (can(me, 'request.adjust') && can(me, 'ledger.post') && !r.budget_line_id && lines.length > 0 && r.status !== 'rejected' && r.status !== 'released')
-    out.push({ label: '关联预算行', title: '将支出关联至预算行', hint: `${what}。下达前按经费卡提交的支出，关联后计入对应项目的预算执行。关联后该预算行不得超过核定数。`,
-      fields: [{ name: 'line', label: '项目 · 预算行', options: lines }], run: (v) => rpc('set_request_line', { id: r.id, line_id: v.line }) });
+    out.push({ label: '关联预算行', title: '将支出关联至预算行', hint: `${what}。下达前按经费卡提交的支出，关联后计入对应研究单元的预算执行。关联后该预算行不得超过核定数。`,
+      fields: [{ name: 'line', label: '研究单元 · 预算行', options: lines }], run: (v) => rpc('set_request_line', { id: r.id, line_id: v.line }) });
   return out;
 }
 
@@ -65,7 +65,7 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
   return (
     <div className="scroll">
       <table>
-        <thead><tr><th>事项</th>{cardName && <th>经费卡</th>}<th>项目 · 预算行</th><th className="r">金额</th><th>预计入账</th><th>状态</th><th /></tr></thead>
+        <thead><tr><th>事项</th>{cardName && <th>经费卡</th>}<th>研究单元 · 预算行</th><th className="r">金额</th><th>预计入账</th><th>状态</th><th /></tr></thead>
         <tbody>{rows.map((r) => {
           const targets = r.status === 'returned' && can(me, 'request.process') ? (cards ?? []).filter((c) => c.status === 'active' && c.id !== r.card_id)
             .flatMap((c) => (subjects ?? []).filter((s) => s.template_id === c.template_id).sort((a, b) => a.sort - b.sort)
@@ -101,7 +101,7 @@ function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: 
   const usable = cards.filter((c) => c.status === 'active');
   const [v, setV] = useState({ card_id: '', subject_id: '', expense_type_id: '', title: '', amount: '', eta_date: '', path: '', emergency: false, quota_id: '' });
   const [split, setSplit] = useState(false);
-  // 年度预算下达之后按项目提交：只选项目和预算行，经费卡由系统在这一行下达到的卡里挑
+  // 年度预算下达之后按研究单元提交：只选研究单元和预算行，经费卡由系统在这一行下达到的卡里挑
   const [byLine, setByLine] = useState(picks.length > 0);
   const [line, setLine] = useState({ project: '', id: '' });
   const projects = [...new Map(picks.map((x) => [x.project_id, x])).values()].sort((a, b) => a.project_code.localeCompare(b.project_code));
@@ -122,34 +122,34 @@ function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: 
     try {
       if (byLine) {
         await rpc('submit_project_request', { line_id: line.id, expense_type_id: v.expense_type_id, title: v.title, amount: v.amount, eta_date: v.eta_date, emergency: v.emergency, path });
-        onDone(`已提交：${v.title}，${money(v.amount)}，计入「${picks.find((x) => x.id === line.id)?.project_name ?? ''}」预算。先由项目负责人确认，再由财务岗核对；超出预算行的另由中心负责人审批。当前环节可在下方列表查看。`);
+        onDone(`已提交：${v.title}，${money(v.amount)}，计入「${picks.find((x) => x.id === line.id)?.project_name ?? ''}」预算。先由研究单元负责人确认，再由财务岗核对；超出预算行的另由中心负责人审批。当前环节可在下方列表查看。`);
       } else if (split) {
         await rpc('submit_split', { expense_type_id: v.expense_type_id, title: v.title, eta_date: v.eta_date, path, quota_id: v.quota_id,
           parts: parts.map((p) => ({ card_id: p.card_id, subject_id: p.subject_id, amount: Math.round(num(p.amount) * 100) / 100 })) });
         onDone(`已提交：${v.title}，分摊 ${parts.length} 项，合计 ${money(total)}。后续逐笔确认、核对。`);
       } else {
         await rpc('submit_request_quota', { ...v, path });
-        onDone(`已提交：${v.title}，${money(v.amount)}。待项目负责人确认、财务岗核对。`);
+        onDone(`已提交：${v.title}，${money(v.amount)}。待研究单元负责人确认、财务岗核对。`);
       }
     } catch (err) { setError((err as Error).message); setBusy(false); }
   };
   return (
     <form className="card" onSubmit={submit}>
       <h3>提交支出申请</h3>
-      <p className="hint">{byLine ? '先申请、后支出。仅可在本人所属成员名单的项目内提交，选择项目和预算行即可，经费来源由财务岗安排。提交后先由项目负责人确认，再由财务岗核对；超出该预算行的不拦截，标明超出金额，另由中心负责人审批。'
+      <p className="hint">{byLine ? '先申请、后支出。仅可在本人所属成员名单的研究单元内提交，选择研究单元和预算行即可，经费来源由财务岗安排。提交后先由研究单元负责人确认，再由财务岗核对；超出该预算行的不拦截，标明超出金额，另由中心负责人审批。'
         : '先申请、后支出。提交时按可报销规则、可用额度、单据截止日和采购路径检查，不符合的将说明原因。'}</p>
       {picks.length > 0 && canCard && <div className="tabs" style={{ marginBottom: 12 }}>
-        <button type="button" className="sm" aria-pressed={byLine} onClick={() => { setByLine(true); setSplit(false); }}>按项目预算</button>
+        <button type="button" className="sm" aria-pressed={byLine} onClick={() => { setByLine(true); setSplit(false); }}>按研究单元预算</button>
         <button type="button" className="sm" aria-pressed={!byLine} onClick={() => setByLine(false)}>未列入年度预算，按经费卡</button></div>}
       <div className="grid">
         {byLine && <>
-          <label className="field"><span>项目</span>
+          <label className="field"><span>研究单元</span>
             <select required value={line.project} onChange={(e) => setLine({ project: e.target.value, id: '' })}>
               <option value="">请选择</option>{projects.map((x) => <option key={x.project_id} value={x.project_id}>{x.project_code} {x.project_name}</option>)}
             </select></label>
           <label className="field"><span>预算行</span>
             <select required value={line.id} disabled={!line.project} onChange={(e) => setLine({ ...line, id: e.target.value })}>
-              <option value="">{line.project ? '请选择' : '请先选择项目'}</option>{picks.filter((x) => x.project_id === line.project).map((x) => <option key={x.id} value={x.id}>{x.category_name} · {x.purpose}</option>)}
+              <option value="">{line.project ? '请选择' : '请先选择研究单元'}</option>{picks.filter((x) => x.project_id === line.project).map((x) => <option key={x.id} value={x.id}>{x.category_name} · {x.purpose}</option>)}
             </select></label>
         </>}
         {!byLine && !split && <>
@@ -240,12 +240,12 @@ export function Requests({ me, start = '' }: { me: Me; start?: string }) {
         <button onClick={() => { setAdding(!adding); setDone(''); }} className={adding ? 'ghost' : ''}>{adding ? '收起' : '提交支出申请'}</button></div>
       {done && <div className="msg ok" role="status">{done}</div>}
       {adding && (data.picks.length === 0 && !adds
-        ? <section className="card"><h3>提交支出申请</h3><Empty>本人当前不在任何已下达预算项目的成员名单内，无法提交支出申请。请项目负责人在「项目管理」页加入名单；加入后即可选择该项目的预算行。</Empty></section>
+        ? <section className="card"><h3>提交支出申请</h3><Empty>本人当前不在任何已下达预算研究单元的成员名单内，无法提交支出申请。请研究单元负责人在「课题管理」页加入名单；加入后即可选择该研究单元的预算行。</Empty></section>
         : <NewRequest cards={data.cards} subjects={data.subjects} types={data.types} quotas={data.quotas} picks={data.picks} canCard={staff}
             onDone={(msg) => { setAdding(false); setDone(msg); setTab('open'); reload(); }} />)}
       <section className="card">
-        <h3>{staff ? '全部申请' : data.projects.some((p) => p.mine) ? '我的申请及负责项目的申请' : '我的申请'}</h3>
-        <p className="hint">每笔申请分四个环节：申请、确认、提交学校、入账。状态下方四格表示当前环节，金色为所在环节。确认环节分为项目负责人确认、财务岗核对两步；超出预算行的，中间增加中心负责人审批。{staff && '负责人本人提交的申请无他人确认，单独列出备查。'}</p>
+        <h3>{staff ? '全部申请' : data.projects.some((p) => p.mine) ? '我的申请及负责研究单元的申请' : '我的申请'}</h3>
+        <p className="hint">每笔申请分四个环节：申请、确认、提交学校、入账。状态下方四格表示当前环节，金色为所在环节。确认环节分为研究单元负责人确认、财务岗核对两步；超出预算行的，中间增加中心负责人审批。{staff && '负责人本人提交的申请无他人确认，单独列出备查。'}</p>
         <div className="tabs" style={{ marginBottom: 12 }}>
           {tabs.map(([k, label]) => <button key={k} className="sm" aria-pressed={tab === k} onClick={() => setTab(k)}>{label}</button>)}
         </div>

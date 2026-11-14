@@ -47,25 +47,25 @@ export function QuotaPage({ me }: { me: Me }) {
       </div>
       <section className="card">
         <h3>额度与执行</h3>
-        <p className="hint">晨星额度并入项目预算：每位负责人的额度对应一个独立研究线项目，额度为该项目当年预算的上限，申报、核定、下达和执行均按年度预算办理。尚未转为项目的额度维持原办法，提交支出申请时选择额度即计入。
+        <p className="hint">晨星额度并入年度预算：每位负责人的额度对应一条独立研究线，额度为该独立研究线当年预算的上限，申报、核定、下达和执行均按年度预算办理。尚未转为独立研究线的额度维持原办法，提交支出申请时选择额度即计入。
           季度执行按至当季末应累计入账 额度 × 季度序号 ÷ 4 计算，实际入账不足应执行数的 70% 标为落后。</p>
         {years.length > 1 && <div className="tabs" style={{ marginBottom: 12 }}>
           {years.map((y) => <button key={y} className="sm" aria-pressed={y === year} onClick={() => setYear(y)}>{y}</button>)}</div>}
         {rows.length === 0 ? <Empty>{year} 年尚未下达额度。</Empty> : (
           <div className="scroll"><table>
-            <thead><tr><th>负责人</th><th>项目</th><th className="r">额度</th><th className="r">已关联支出</th><th className="r">剩余</th><th className="r">已入账</th>
+            <thead><tr><th>负责人</th><th>独立研究线</th><th className="r">额度</th><th className="r">已关联支出</th><th className="r">剩余</th><th className="r">已入账</th>
               <th className="r">第 {rows[0].quarter} 季度末应执行</th><th>执行</th><th className="r">劳务类</th><th /></tr></thead>
             <tbody>{rows.map((q) => { const left = num(q.amount) - num(q.used); return (
               <tr key={q.id}><td>{q.leader_name}{q.leader_id === me.id && <span className="sub2"> 本人</span>}</td>
-                <td>{q.project_id ? <a href={`#/project/${q.project_id}`}>{maps.project.get(q.project_id)?.name ?? '已转为项目'}<span className="sub2">{maps.project.get(q.project_id)?.code ?? ''}</span></a> : <Badge tone="warn">未转项目</Badge>}</td>
+                <td>{q.project_id ? <a href={`#/project/${q.project_id}`}>{maps.project.get(q.project_id)?.name ?? '已转为独立研究线'}<span className="sub2">{maps.project.get(q.project_id)?.code ?? ''}</span></a> : <Badge tone="warn">未转</Badge>}</td>
                 <td className="r">{money(q.amount)}</td><td className="r">{money(q.used)}</td><td className={`r ${left < 0 ? 'neg' : ''}`}>{money(left)}</td>
                 <td className="r">{money(q.actual)}</td><td className="r">{money(q.due)}</td>
                 <td>{q.quarter === 0 ? '—' : q.behind ? <Badge tone="bad">落后，差 {money(num(q.due) - num(q.actual))}</Badge> : <Badge tone="ok">正常</Badge>}</td>
                 <td className={`r ${num(q.labor_used) > num(q.labor_cap) ? 'neg' : ''}`}>{money(q.labor_used)}<div className="sub2">上限 {money(q.labor_cap)}</div></td>
                 <td><div className="acts"><button className="sm ghost" aria-pressed={open === q.id} onClick={() => setOpen(open === q.id ? '' : q.id)}>{q.requests} 笔</button>
-                  {staff && !q.project_id && <button className="sm ghost" onClick={() => setAct({ label: '转为项目', title: `将 ${q.leader_name} 的额度转为项目预算`, fields: [],
-                    hint: `为 ${q.leader_name} 建立一个独立研究线项目（此前已转的沿用原项目），${q.year} 年的额度 ${money(q.amount)} 成为该项目当年预算的上限，劳务上限一并转入；额度下已有的 ${q.requests} 笔支出归入该项目。转入后不可撤回。`,
-                    run: () => rpc('quota_to_project', { id: q.id }) })}>转为项目</button>}
+                  {staff && !q.project_id && <button className="sm ghost" onClick={() => setAct({ label: '转为独立研究线', title: `将 ${q.leader_name} 的额度转为独立研究线预算`, fields: [],
+                    hint: `为 ${q.leader_name} 建立一条独立研究线（此前已转的沿用原有的），${q.year} 年的额度 ${money(q.amount)} 成为该独立研究线当年预算的上限，劳务上限一并转入；额度下已有的 ${q.requests} 笔支出归入该独立研究线。转入后不可撤回。`,
+                    run: () => rpc('quota_to_project', { id: q.id }) })}>转为独立研究线</button>}
                   {director && <button className="sm ghost" onClick={() => setAct(quotaAct(q))}>修改</button>}</div></td></tr>); })}</tbody>
           </table></div>
         )}

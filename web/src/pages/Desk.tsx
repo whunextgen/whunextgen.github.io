@@ -38,7 +38,7 @@ export function Desk({ me }: { me: Me }) {
       </section>
       <section className="card">
         <h3>预算科目</h3>
-        <p className="hint">各项目申报年度预算时按以下科目填报。预算科目为中心内部口径；每个预算科目须对应到学校的经费卡科目，下达时据此确定该预算行可由哪张经费卡的哪个科目列支；未对应的科目不能自动分配。</p>
+        <p className="hint">各研究单元申报年度预算时按以下科目填报。预算科目为中心内部口径；每个预算科目须对应到学校的经费卡科目，下达时据此确定该预算行可由哪张经费卡的哪个科目列支；未对应的科目不能自动分配。</p>
         <div className="scroll"><table>
           <thead><tr><th>顺序</th><th>代码</th><th>名称</th><th>劳务类</th><th>对应的学校科目</th><th>状态</th><th /></tr></thead>
           <tbody>{cats.map((r) => (

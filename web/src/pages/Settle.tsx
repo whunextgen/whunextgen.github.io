@@ -99,7 +99,7 @@ export function Settle({ me }: { me: Me }) {
       </section>
 
       {target && <ActionDialog title={`结清 ${target.name}`} danger submitLabel="确认结清" fields={[]}
-        hint={`结清后各科目的预算、决算和结余即固定，该经费卡不得再提交支出和调整。结余 ${money(num(target.cur) - num(target.actual))} 按「${END_RULE[target.end_rule]}」处理${target.end_rule === 'carry' ? '，按科目带入该经费项目下一年的经费卡' : '，记为回收数'}。`}
+        hint={`结清后各科目的预算、决算和结余即固定，该经费卡不得再提交支出和调整。结余 ${money(num(target.cur) - num(target.actual))} 按「${END_RULE[target.end_rule]}」处理${target.end_rule === 'carry' ? '，按科目带入该项目下一年的经费卡' : '，记为回收数'}。`}
         onSubmit={() => rpc('settle_card', { card_id: target.card_id }).then(reload)} onClose={() => setTarget(null)} />}
     </>
   );
