@@ -64,8 +64,8 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
 
   // ---------- 课题负责人：申请档次 ----------
   const myTopics = data.projects.filter((p) => p.layer !== 'paper' && p.kind !== 'public' && p.active && (p.mine || finance));
-  // 负责人这一级及以上，或名下已有课题、研究单元的，可以申请立项
-  const canPropose = me.role !== 'member' || data.projects.some((p) => p.mine && p.active);
+  // 任何成员都可以申请立项；通过立项即为该课题的负责人
+  const canPropose = true;
   const tierOpts = tiers.map((t): [string, string] => [t.id, `${t.name}：每个课题 ${money(t.amount)}，名额 ${t.slots}，已有 ${t.picked} 个课题申请；限制：${limitText(t)}`]);
   const proposeAct = (): Act => ({
     title: `申请立项：${year} 年度`, label: '提交申请',
@@ -166,7 +166,7 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
 
       {published && y.stage === 'declare' && (myTopics.length > 0 || canPropose) && (
         <section className="card">
-          <h3>立项与延续申请 <span className="h3sub">{finance ? '各课题的申请' : '本人负责的课题'}</span></h3>
+          <h3>立项与延续申请 <span className="h3sub">{finance ? '各课题的申请' : '本人负责的课题；任何成员都可以申请立项，通过后即为该课题的负责人'}</span></h3>
           <p className="hint">申请档次是课题每一年的起点：新课题申请立项，已有课题申请延续。先选档次，再在「<a href={`#/budget/${year}`}>预算编制</a>」中填写课题和各研究单元的明细并提交。明细合计不得超过该档金额，并须符合该档的限制；不符合的提交时会提示。</p>
           {myTopics.length === 0 ? <Empty>本人名下暂无课题。新课题请申请立项。</Empty> : (
             <div className="scroll"><table>

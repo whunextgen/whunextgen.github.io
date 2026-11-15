@@ -8,7 +8,9 @@ export const day = (v: string | null | undefined) => (v ? v.slice(0, 10) : '—'
 export const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1)}%` : '—');
 export const today = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);   // 北京时间
 
-export const ROLE: Record<string, string> = { finance: '财务岗', director: '中心负责人', leader: '课题/研究单元负责人', member: '成员' };
+// 基础角色只有三种。负责人不是基础角色：通过立项的成员就是其课题的负责人。leader 是历史上的取值，一律按成员显示
+export const ROLE: Record<string, string> = { finance: '财务岗', director: '中心负责人', leader: '成员', member: '成员' };
+export const ROLE_OPTIONS: [string, string][] = [['member', '成员'], ['finance', '财务岗'], ['director', '中心负责人']];
 // 人员身份只管一件事：公共设备给博士后、博士、硕士和研究助理个人申领
 export const PERSON: Record<string, string> = { postdoc: '博士后', phd: '博士', master: '硕士', ra: '研究助理', ri: '研究实习生', visitor: '访问学生' };
 // 页面上的按钮和入口跟着权限点走；真正的检查在数据库里

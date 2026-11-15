@@ -43,8 +43,8 @@ export function Projects({ me }: { me: Me }) {
       <div className="top"><h2>课题管理</h2>{staff && <button onClick={() => setEdit('new')}>新立课题</button>}</div>
       <p className="lede">预算按课题和研究单元管理，不按人员分配。研究单元隶属于课题，均由财务岗建立。点击名称进入详情页，可查看预算、成员、上限、调剂、设备和接口额度。</p>
       <section className="card">
-        <h3>{staff ? '全部课题和研究单元' : '本人参与的课题和研究单元'}</h3>
-        {rows.length === 0 ? <Empty>{staff ? '暂无课题。请先新立课题并指定负责人，再在其下新增研究单元。' : '本人尚未列入任何研究单元名单。请联系研究单元负责人加入成员名单。'}</Empty> : (
+        <h3>全部课题和研究单元</h3>
+        {rows.length === 0 ? <Empty>{staff ? '暂无课题。请先新立课题并指定负责人，再在其下新增研究单元。' : '暂无课题。新课题请在「立项与延续申请」中申请立项。'}</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th>课题 / 研究单元</th><th>类型</th><th>负责人</th>{years.map((y) => <th key={y.year} className="r">{y.year} 年度<span className="sub2">{STAGE_TEXT[y.stage]}</span></th>)}{staff && <th />}</tr></thead>
             <tbody>{rows.map((r) => (

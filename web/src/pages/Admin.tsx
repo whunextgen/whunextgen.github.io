@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type Card, type Emergency, type Me, type Outbox, type Perm, type Project, type RbacLog, type RoleDef, type RoleGrant, type Subject, type Template, type TemplateCap, type User, type UserAdmin } from '../api';
-import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, Loading, can, PERSON, ROLE, canPublic, day, money, num, today, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, Loading, can, PERSON, ROLE, ROLE_OPTIONS, canPublic, day, money, num, today, type Field } from '../ui';
 
 interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 type Opt = [string, string];
@@ -79,7 +79,7 @@ export function Admin({ me }: { me: Me }) {
     label: u ? '修改' : '新增用户', title: u ? `修改用户：${u.name}` : '新增用户',
     hint: u ? '停用后不可登录，历史记录保留。' : '按企业邮箱登记；本人首次使用飞书登录时，邮箱一致即自动关联该账号和角色。',
     fields: [{ name: 'name', label: '姓名', value: u?.name }, { name: 'email', label: u ? '企业邮箱（选填）' : '企业邮箱', required: !u, value: u?.email ?? '' },
-      { name: 'role', label: '基础角色', options: Object.entries(ROLE), value: u?.role ?? 'member' },
+      { name: 'role', label: '基础角色', options: ROLE_OPTIONS, value: u?.role === 'leader' ? 'member' : u?.role ?? 'member' },
       ...(u ? [{ name: 'active', label: '在用（取消勾选即停用）', type: 'check', value: String(u.active) } as Field] : [])],
     run: (v) => rpc('save_user', { id: u?.id ?? null, name: v.name, email: v.email, role: v.role, active: u ? v.active === 'true' : true }),
   });
@@ -227,7 +227,7 @@ export function Admin({ me }: { me: Me }) {
       {tab === 'users' && director && (
         <section className="card">
           <h3>用户</h3>
-          <p className="hint">仅支持飞书登录。未登记人员首次登录自动成为成员；需授予其他基础角色的，先在此按企业邮箱登记，或在其登录后在此修改。基础角色之外的角色在「授权」页签授予。</p>
+          <p className="hint">仅支持飞书登录。未登记人员首次登录自动成为成员；基础角色只有成员、财务岗、中心负责人三种；课题和研究单元的负责人不是基础角色，通过立项的成员即为其课题的负责人。需授予财务岗或中心负责人的，先在此按企业邮箱登记，或在其登录后在此修改。基础角色之外的角色在「授权」页签授予。</p>
           <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}><button className="sm" onClick={() => setAct(userAct())}>新增用户</button></div>
           <div className="scroll"><table>
             <thead><tr><th>姓名</th><th>企业邮箱</th><th>基础角色</th><th>另授角色</th><th>飞书</th><th className="r">名下经费卡</th><th className="r">申请</th><th>状态</th><th /></tr></thead>

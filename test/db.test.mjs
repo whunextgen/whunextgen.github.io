@@ -1019,7 +1019,7 @@ ok(myp.includes('ledger.post') && myp.includes('request.process') && !myp.includ
 await raises('财务岗不能管授权', /需要权限：管理角色和授权/, `select grant_role($1, $2, null, null, null, null, null)`, [U.mem2, RID.auditor]);
 await as(U.mem2, '2028-01-10');
 myp = (await one(`select perms from api.me`)).perms;
-ok(myp.join() === 'petty.use,request.submit,resource.request', '成员只有提申请的三个权限点', myp.join());
+ok(myp.join() === 'card.own,petty.use,request.submit,resource.request', '成员只有提申请的三个权限点，加上查看本人负责的经费卡', myp.join());
 eq((await one(`select count(*) c from api.role`)).c, 0, '成员看不到角色表');
 eq((await one(`select count(*) c from api.card`)).c, 0, '成员看不到经费卡');
 await raises('成员不能批申请，报错说明缺哪个权限', /需要权限：批准或驳回支出申请/, `select approve_request(gen_random_uuid())`);
@@ -1643,6 +1643,14 @@ await raises('研究单元的劳务连同课题超过档次的劳务上限', /�
 await q(`select save_budget_line($1, null, null, $2, '学生劳务', 30000, 0, 0, 0)`, [TM, cL]);
 await q(`select set_project_budget(2033, $1, 'submit')`, [TU]);
 // 立项申请：负责人直接提出新课题和研究单元，先记为待立项
+await db.exec(`reset role`);
+ok((await one(`select count(*)::int n from rbac_role_perm x join rbac_role r on r.id = x.role_id where r.code = 'member' and x.perm = 'card.own'`)).n === 1, '成员带有查看本人负责的经费卡这一项，负责人不再是单独的基础角色');
+const plain = (await one(`insert into app_user (name, role, feishu_open_id) values ('普通成员', 'member', 'ou_plain_test') returning id`)).id;
+await db.exec(`set role app_api`);
+await as(plain, '2032-06-03');
+const NPm = await val(`select propose_project(2033, '成员立项课题', $1, '研究内容：成员也可以申请立项') v`, [t2]);
+ok(!!NPm, '任何成员都可以申请立项');
+await q(`select withdraw_proposal(2033, $1)`, [NPm]);
 await as(U.lead, '2032-06-03');
 await raises('立项申请须写研究内容和理由', /请填写研究内容和申请理由/, `select propose_project(2033, '新立课题乙', $1, '')`, [t2]);
 const NP = await val(`select propose_project(2033, '新立课题乙', $1, '研究内容：长任务评测', E'研究单元一\n研究单元二') v`, [t2]);
