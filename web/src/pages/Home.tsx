@@ -376,6 +376,9 @@ export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
     const at = !y ? 0 : y.stage === 'declare' ? 1 : ['summary', 'approved', 'applied'].includes(y.stage) ? 2 : ['granted', 'fixed'].includes(y.stage) ? 3 : y.stage === 'issued' ? 4 : 5;
     const sumOf = (k: 'declared' | 'applied' | 'fixed') => (y ? data.lines.filter((l) => l.year === y.year).reduce((t, l) => t + num(l[k]), 0) : 0);
     const subs = y ? data.budgets.filter((b) => b.year === y.year && b.status === 'submitted').length : 0;
+    // 从课题预算行出的支出申请
+    const tReq = (st: ReqStatus) => data.reqs.filter((q) => q.project_id != null && q.status === st);
+    const resByTopic = data.res.filter((q) => q.project_id != null);
     return (
       <div className="wb">
         {hero(`课题 · 汇总${execYear ? ` · ${execYear.year} 年度` : ''} · ${tops.length} 个课题`, execYear ? '本年度各课题可用合计' : '年度预算', execYear ? topicLeft : '未下达', execYear ? '元' : '', <>
@@ -384,12 +387,14 @@ export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
             {data.pcaps.filter((c) => c.year === execYear?.year).length > 0 && <span>上限合计<b>{money(data.pcaps.filter((c) => c.year === execYear?.year).reduce((t, c) => t + num(c.amount), 0))}</b></span>}</div>
         </>, topicLeft < 0)}
         <section className="wb-sec">
-          {head('01', '流程', y ? `${y.year} 年度 · 申报 › 汇总报批 › 核定下达 › 执行 › 年度决算` : '申报 › 汇总报批 › 核定下达 › 执行 › 年度决算')}
+          {head('01', '流程', y ? `${y.year} 年度 · 申报 › 汇总报批 › 核定下达 › 支出申请 › 提交报销 › 学校入账 › 年度决算` : '申报 › 汇总报批 › 核定下达 › 支出申请 › 提交报销 › 学校入账 › 年度决算')}
           {strip([
             { nm: '申报', ds: '研究单元负责人填报', v: y ? `${subs} 个已提交` : '—', f: y ? `申报数 ${money(sumOf('declared'))}` : '暂无已启动的年度', href: y ? `#/budget/${y.year}` : '#/budget', on: at === 1 },
             { nm: '汇总报批', ds: '财务岗汇总，报学校', v: y && at >= 2 ? money(sumOf('applied')) : '—', f: '申请数', href: y ? `#/budget/${y.year}` : '#/budget', on: at === 2 },
             { nm: '核定下达', ds: '核定后下达到经费卡', v: y && at >= 3 ? money(sumOf('fixed')) : '—', f: '核定数', href: '#/caps', on: at === 3 },
-            { nm: '执行', ds: '从预算行提交支出申请', v: execYear ? pct(topicAll.used, topicAll.fixed) : '—', f: execYear ? `已用 ${money(topicAll.used)}` : '下达后开始执行', href: '#/requests', on: at === 4 },
+            { nm: '支出申请', ds: '从预算行提交，批准后占用', v: `${tReq('pending').length + tReq('committed').length} 笔`, f: execYear ? `已用 ${money(topicAll.used)}，${pct(topicAll.used, topicAll.fixed)}` : '下达后开始执行', href: '#/requests', on: at === 4 },
+            { nm: '提交报销', ds: '报销材料交学校审核', v: `${tReq('at_school').length} 笔审核中`, f: `${tReq('committed').length} 笔待提交${tReq('returned').length ? ` · ${tReq('returned').length} 笔退回` : ''}`, href: to('#/school', 'at_school'), on: at === 4, warn: tReq('returned').length > 0 },
+            { nm: '学校入账', ds: '以学校明细账的入账为准', v: execYear ? money(topicAll.actual) : '—', f: `${tReq('posted').length} 笔已入账`, href: '#/requests/posted', on: at === 4 },
             { nm: '年度决算', ds: '年末未使用的不结转', v: at === 5 ? '已决算' : '未决算', f: execYear ? `未使用 ${money(topicLeft)}` : '', href: y ? `#/review/${y.year}` : '#/review', on: at === 5 },
           ], '课题流程')}
         </section>
@@ -407,6 +412,15 @@ export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
         </section>
       )}
 
+        <section className="wb-sec">
+          {head('04', '资源', '各课题、研究单元的资源申领')}
+          {strip([
+            { nm: '申领在办', v: `${resByTopic.filter((q) => ['pending', 'reviewed', 'approved'].includes(q.status)).length} 项`, f: '待批示、待批准、待分发', href: '#/resource' },
+            { nm: '已分发', v: `${resByTopic.filter((q) => q.status === 'fulfilled').length} 项`, f: '已发放额度或交付设备', href: '#/s-res' },
+            { nm: '在用资源', v: `${resLive.length} 项`, f: '接口额度与资产', href: '#/s-res' },
+          ], '课题的资源')}
+          <p className="hint">每个课题、研究单元名下的设备、接口额度和申领记录，在它自己的页面里。</p>
+        </section>
         {!(topicNodes.length > 0 || orphans.length > 0 || planYear) && <section className="wb-sec">{head('03', '课题')}<Empty>暂无课题。<a href="#/projects">前往课题管理</a></Empty></section>}
       </div>
     );

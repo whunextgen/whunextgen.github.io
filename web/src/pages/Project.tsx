@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { ObjHead, Stages, Track, execSegs } from '../tree';
-import { rpc, useViews, type ProjectTag, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember } from '../api';
+import { rpc, useViews, type ProjectTag, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember } from '../api';
 import { ActionDialog, Badge, Empty, Loading, Tile, can, day, money, num, pct, today } from '../ui';
 import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
+import { RequestTable } from './Requests';
+import { KIND as RES_KIND, RES_REQ, qty } from './Resource';
 
 const q = (n: string | number | null | undefined, unit?: string | null) => (n == null ? '—' : `${num(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}${unit ? ` ${unit}` : ''}`);
 export const typeText = (r: Project) => r.layer === 'paper' ? '研究单元' : r.kind === 'project' ? '课题' : KIND[r.kind];
@@ -12,12 +14,14 @@ export const typeText = (r: Project) => r.layer === 'paper' ? '研究单元' : r
 export function ProjectPage({ me, id, start }: { me: Me; id: string; start: string }) {
   const director = can(me, 'budget.approve');
   const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; lines: BudgetLine[]; exec: LineExec[]; cats: BudgetCategory[]; shifts: BudgetShift[];
-    members: ProjectMember[]; people: PeoplePick[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[] }>({
+    members: ProjectMember[]; people: PeoplePick[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; reqs: Req[]; resreqs: ResourceRequest[] }>({
+    reqs: ['request'], resreqs: ['resource_request'],
     tags: ['project_tag'],
     projects: ['project'], years: ['budget_year'], lines: ['budget_line'], exec: ['line_exec'], cats: ['budget_category'], shifts: ['budget_shift'],
     members: ['project_member'], people: ['people_pick'], caps: ['project_cap'], capreqs: ['cap_request'], assets: ['project_asset'], pallocs: ['project_allocation'],
   });
   const [act, setAct] = useState<Act | null>(null);
+  const [showPosted, setShowPosted] = useState(false);
   if (!data) return <Loading error={error} />;
   const r = data.projects.find((x) => x.id === id);
   if (!r) return <><div className="top"><h2>课题管理</h2></div><Empty>课题或研究单元不存在或无权查看。<a href="#/projects">返回课题管理</a></Empty></>;
@@ -87,12 +91,18 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
   const capreqs = data.capreqs.filter((x) => x.project_id === r.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const assets = data.assets.filter((a) => a.project_id === r.id).sort((a, b) => b.received_on.localeCompare(a.received_on));
   const allocs = data.pallocs.filter((a) => a.project_id === r.id).sort((a, b) => Number(b.current) - Number(a.current) || b.from_date.localeCompare(a.from_date));
-  const nav: [string, string][] = [['budget', '预算'], ...(kids.length ? [['papers', '研究单元'] as [string, string]] : []), ...(r.kind !== 'public' ? [['shift', '调剂'], ['members', '成员'], ...(capped(r) ? [['cap', '上限'] as [string, string]] : []), ['assets', '设备'], ['api', '接口额度']] as [string, string][] : [])];
+  const nav: [string, string][] = [['budget', '预算'], ['spend', '支出与报销'], ...(kids.length ? [['papers', '研究单元'] as [string, string]] : []), ...(r.kind !== 'public' ? [['shift', '调剂'], ['members', '成员'], ...(capped(r) ? [['cap', '上限'] as [string, string]] : []), ['assets', '设备'], ['api', '接口额度'], ['resreq', '资源申领']] as [string, string][] : [])];
   const jump = (k: string) => document.getElementById(`sec-${k}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   // 流程：申报 → 核定下达 → 支出申请 → 学校入账 → 年度决算
-  const stepNo = !y ? 1 : y.stage === 'closed' ? 6 : y.stage === 'issued' ? (all.actual > 0 ? 4 : 3) : y.stage === 'declare' ? 1 : 2;
+  const stepNo = !y ? 1 : y.stage === 'closed' ? 7 : y.stage === 'issued' ? (all.actual > 0 ? 5 : 3) : y.stage === 'declare' ? 1 : 2;
   const pendingAmt = Math.max(all.used - all.actual, 0);
+  // 本课题连同研究单元（或本研究单元）的支出申请：从申请到学校入账
+  const mineReqs = data.reqs.filter((q) => q.project_id != null && fam.has(q.project_id)).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const rq = (st: Req['status']) => mineReqs.filter((q) => q.status === st);
+  const rsum = (list: Req[]) => list.reduce((t, q) => t + num(q.status === 'posted' ? q.posted_amount ?? q.amount : q.amount), 0);
+  const openReqs = mineReqs.filter((q) => ['pending', 'committed', 'at_school', 'returned'].includes(q.status));
+  const resReqs = data.resreqs.filter((q) => q.project_id != null && fam.has(q.project_id)).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const isUnit = r.layer === 'paper';
   return (
     <div className="wb obj">
@@ -105,11 +115,12 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
         facts={[[`${year || ''} 年度预算`.trim(), own.n || kt.length ? money(all.budget) : '未填报'], ['已入账', run ? money(all.actual) : '—'], ['已承诺', run ? money(pendingAmt) : '—'],
           ...(cap ? [['年度上限', money(cap.amount)] as [string, string], ['上限内剩余可排', money(num(cap.amount) - num(cap.used))] as [string, string]] : []),
           ...(!isUnit && kids.length ? [['研究单元', `${kids.length} 个`] as [string, string]] : [])]} />
-      {y && <Stages path="申报 › 核定下达 › 支出申请 › 执行 › 年度决算" at={stepNo} items={[
+      {y && <Stages path="申报 › 核定下达 › 支出申请 › 提交报销 › 学校入账 › 年度决算" at={stepNo} items={[
         { nm: '申报', ds: `${un}负责人填报年度预算`, v: own.n || kt.length ? `${own.n + kt.reduce((t, x) => t + x.t.n, 0)} 行` : '未填报', f: run ? '已申报' : STAGE_TEXT[y.stage] },
         { nm: '核定下达', ds: '中心核定后下达到经费卡', v: run ? money(all.budget) : '—', f: run ? '核定数' : '尚未下达' },
-        { nm: '支出申请', ds: '从预算行提交，批准后占用预算', v: run ? money(pendingAmt) : '—', f: run ? '已承诺，尚未入账' : '下达后方可申请' },
-        { nm: '执行', ds: '以学校明细账的入账为准', v: run ? money(all.actual) : '—', f: run ? `执行率 ${pct(all.actual, all.budget)}` : '' },
+        { nm: '支出申请', ds: '从预算行提交，批准后占用预算', v: run ? `${rq('pending').length + rq('committed').length} 笔` : '—', f: run ? `待确认 ${rq('pending').length} 笔 · 已承诺 ${money(pendingAmt)}` : '下达后方可申请' },
+        { nm: '提交报销', ds: '财务岗将报销材料交学校', v: run ? `${rq('at_school').length} 笔审核中` : '—', f: run ? `${rq('committed').length} 笔待提交${rq('returned').length ? ` · ${rq('returned').length} 笔退回` : ''}` : '' },
+        { nm: '学校入账', ds: '以学校明细账的入账为准', v: run ? money(all.actual) : '—', f: run ? `${rq('posted').length} 笔 · 执行率 ${pct(all.actual, all.budget)}` : '' },
         { nm: '年度决算', ds: '年末未使用的不结转', v: y.stage === 'closed' ? '已决算' : '未决算', f: run ? `未使用 ${money(all.budget - all.used)}` : '' },
       ]} />}
       {years.length > 1 && <div className="tabs" style={{ marginBottom: 12 }}>{years.map((n) => <a key={n.year} className="btn sm" aria-current={n.year === year ? 'page' : undefined} href={`#/project/${r.id}/${n.year}`}>{n.year}</a>)}</div>}
@@ -136,6 +147,21 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
           {y && <a className="btn ghost sm" href={`#/budget/${year}`}>{r.mine && y.stage === 'declare' ? '前往预算编制填报' : '在预算编制中查看'}</a>}
           {y && run && rows.length > 0 && <a className="btn ghost sm" href={`#/review/${year}`}>查看分期执行和复盘</a>}
         </div>
+      </section>
+
+      <section className="card" id="sec-spend">
+        <h3>支出与报销 <span className="h3sub">本{un}{kids.length ? '连同研究单元' : ''}的支出申请，从申请到学校入账</span></h3>
+        <div className="tiles">
+          <Tile k="待确认、核对" v={`${rq('pending').length} 笔`} f={money(rsum(rq('pending')))} tone={rq('pending').length ? 'warn' : ''} />
+          <Tile k="待提交学校" v={`${rq('committed').length} 笔`} f={`已批准 ${money(rsum(rq('committed')))}`} />
+          <Tile k="学校审核中" v={`${rq('at_school').length} 笔`} f={rq('returned').length ? `另有 ${rq('returned').length} 笔被退回` : money(rsum(rq('at_school')))} tone={rq('returned').length ? 'bad' : ''} />
+          <Tile k="已入账" v={`${rq('posted').length} 笔`} f={money(rsum(rq('posted')))} />
+        </div>
+        {openReqs.length === 0 ? <Empty>暂无在途的支出申请。</Empty>
+          : <RequestTable me={me} rows={openReqs} onChange={reload} />}
+        {rq('posted').length > 0 && <p className="hint"><button className="sm ghost" onClick={() => setShowPosted(!showPosted)}>{showPosted ? '收起已入账的' : `显示已入账的 ${rq('posted').length} 笔`}</button></p>}
+        {showPosted && <RequestTable me={me} rows={rq('posted')} onChange={reload} />}
+        <div className="actions" style={{ justifyContent: 'flex-start' }}><a className="btn ghost sm" href="#/requests/new">提交支出申请</a><a className="btn ghost sm" href="#/s-spend">支出汇总</a></div>
       </section>
 
       {kids.length > 0 && (
@@ -245,6 +271,20 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
           )}
         </section>
       </>}
+      {r.kind !== 'public' && (
+        <section className="card" id="sec-resreq">
+          <h3>资源申领 <span className="h3sub">本{un}{kids.length ? '连同研究单元' : ''}的申领记录</span></h3>
+          {resReqs.length === 0 ? <Empty>暂无资源申领记录。</Empty> : (
+            <div className="scroll"><table>
+              <thead><tr><th>提交日期</th><th>申请人</th><th>资源</th><th className="r">申领</th><th>用途</th><th>状态</th></tr></thead>
+              <tbody>{resReqs.map((q) => <tr key={q.id}><td>{day(q.created_at)}</td><td>{q.requester_name}</td>
+                <td>{q.resource_id ? <a href={`#/res/${q.resource_id}`}>{q.resource_name}</a> : `${RES_KIND[q.kind]}（未指定）`}</td><td className="r">{qty(q.amount, q.unit)}</td>
+                <td className="wrap">{q.purpose}</td><td><Badge tone={RES_REQ[q.status][1]}>{RES_REQ[q.status][0]}</Badge></td></tr>)}</tbody>
+            </table></div>
+          )}
+          <div className="actions" style={{ justifyContent: 'flex-start' }}><a className="btn ghost sm" href="#/resource">申领资源</a><a className="btn ghost sm" href="#/s-res">资源汇总</a></div>
+        </section>
+      )}
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.submitLabel} danger={act.danger} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
     </div>
   );
