@@ -103,12 +103,13 @@ function App() {
   // top：上一级目录。财务之下并列项目和资源两组
   const groups = [
     { top: '', label: '', home: '', note: '', pages: keep(['/', '首页'], ['/tasks', '任务管理']) },
-    // 课题：中心内部这一侧，成员和负责人办的事——预算怎么编、从预算行怎么支出、申领资源
-    { top: '', label: '课题', home: '/s-topic', note: '预算、支出申请、资源申领、决算', pages: keep(['/projects', '课题管理'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], ['/requests', '支出申请'], ['/petty', '备用金管理'], ['/resource', '资源申领'], ['/ask', '报销咨询'], seesReview && ['/review', '年度决算']) },
-    // 财务：财务岗办的事。项目是学校这一侧的经费，资源是中心的接口额度和资产
+    // 课题：成员和负责人办的事——从预算行支出、领备用金、申领资源
+    { top: '', label: '课题', home: '/s-topic', note: '研究单元、支出申请、资源申领', pages: keep(['/projects', '课题管理'], ['/requests', '支出申请'], ['/petty', '备用金管理'], ['/resource', '资源申领'], ['/ask', '报销咨询']) },
+    // 财务：并列三组。年度预算是每年申报、核定、下达、决算这一轮；项目是学校这一侧的经费；资源是中心的接口额度和资产
+    { top: '财务', label: '年度预算', home: '', note: '申报、核定、下达、决算', pages: keep(['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算'], seesDesk && ['/desk', '预算参数']) },
     { top: '财务', label: '项目', home: seesCards ? '/s-fund' : '', note: '经费卡、采购、报销入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/procure', '采购'], seesCards && ['/school', '报销与入账'], seesPeople && ['/staff', '人员经费'], seesCards && ['/ledger', '明细账校准'], seesCards && ['/settle', '经费结清']) },
     { top: '财务', label: '资源', home: '/s-res', note: '调配、盘点', pages: keep(seesRes && ['/pool', '资源调配'], seesRes && ['/stock', '资产盘点']) },
-    { top: '', label: '系统', home: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesDesk && ['/desk', '预算参数'], seesCards && ['/rules', '采购与报销要求'], seesLegacy && ['/history', '历史数据']) },
+    { top: '', label: '系统', home: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesCards && ['/rules', '采购与报销要求'], seesLegacy && ['/history', '历史数据']) },
   ].filter((g) => g.pages.length > 0);
   // 不在导航里、从别的页面点进去的页面
   const side = keep(['/track', '在途事项'], ['/center', '中心总览'], ['/s-spend', '课题汇总'], ['/s-res', '资源汇总'], ...groups.filter((g) => g.home).map((g): Page => [g.home, `${g.label}汇总`]), !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
