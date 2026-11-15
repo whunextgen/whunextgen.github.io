@@ -1642,10 +1642,24 @@ const TM = await val(`select save_budget_line(null, 2033, $1, $2, '学生劳务'
 await raises('研究单元的劳务连同课题超过档次的劳务上限', /劳务类预算 40000(\.00)? 超过「一档」的上限 30000/, `select set_project_budget(2033, $1, 'submit')`, [TU]);
 await q(`select save_budget_line($1, null, null, $2, '学生劳务', 30000, 0, 0, 0)`, [TM, cL]);
 await q(`select set_project_budget(2033, $1, 'submit')`, [TU]);
+// 立项申请：负责人直接提出新课题和研究单元，先记为待立项
+await as(U.lead, '2032-06-03');
+await raises('立项申请须写研究内容和理由', /请填写研究内容和申请理由/, `select propose_project(2033, '新立课题乙', $1, '')`, [t2]);
+const NP = await val(`select propose_project(2033, '新立课题乙', $1, '研究内容：长任务评测', E'研究单元一\n研究单元二') v`, [t2]);
+const np = await one(`select p.code, p.proposed, p.owner_id, (select count(*)::int from project q where q.parent_id = p.id and q.proposed) units from project p where p.id = $1`, [NP]).catch(() => null);
+const npk = await one(`select kind, units, rejected from api.tier_pick where year = 2033 and project_id = $1`, [NP]);
+ok(npk.kind === 'new' && npk.units === 2 && npk.rejected === false, '立项申请连同两个研究单元一并登记', JSON.stringify(npk));
+ok((await one(`select proposed from api.project_tag where id = $1`, [NP])).proposed === true, '新课题先记为待立项');
+const NP2 = await val(`select propose_project(2033, '新立课题丙', $1, '研究内容：另一方向') v`, [t2]);
+await q(`select withdraw_proposal(2033, $1)`, [NP2]);
+eq((await q(`select 1 from api.tier_pick where project_id = $1`, [NP2])).length, 0, '评定前可以撤回立项申请，课题一并删除');
+const NL = await val(`select save_budget_line(null, 2033, $1, $2, '评测算力', 20000, 0, 0, 0) v`, [NP, cE]);
+await q(`select set_project_budget(2033, $1, 'submit')`, [NP]);
+ok((await one(`select kind from api.tier_pick where year = 2033 and project_id = $1`, [TB])).kind === 'renew', '已有课题申请档次记为延续');
 await as(U.dir, '2032-06-04');
 const pk = await one(`select total, drafts, violation, tier_id from api.tier_pick where year = 2033 and project_id = $1`, [TB]);
 ok(Number(pk.total) === 70000 && pk.drafts === 0 && pk.violation === null && pk.tier_id === t1, '评定时看得到课题连同研究单元的明细合计', JSON.stringify(pk));
-await raises('没评定完不能转入下达', /尚有 1 个课题未评定/, `select settle_tiers(2033)`);
+await raises('没评定完不能转入下达', /尚有 2 个课题未评定/, `select settle_tiers(2033)`);
 await raises('明细超过所定档次的金额不能录入', /明细合计 70000(\.00)? 超过「二档」的金额 50000/, `select decide_tier(2033, $1, $2, null, '2032-06-04')`, [TB, t2]);
 await raises('录入评定结果须填联席会议日期', /请填写联席会议日期/, `select decide_tier(2033, $1, $2, '同意')`, [TB, t1]);
 await as(U.fin, '2032-06-04');
@@ -1654,6 +1668,10 @@ await as(U.dir, '2032-06-04');
 await q(`select decide_tier(2033, $1, $2, '同意', '2032-06-04')`, [TB, t1]);
 ok((await one(`select meeting_on::text d from api.tier_pick where year = 2033 and project_id = $1`, [TB])).d === '2032-06-04', '评定结果上记下联席会议日期');
 eq((await one(`select decided from api.budget_tier where id = $1`, [t1])).decided, 1, '档次上记下已评定的名额');
+await raises('尚有课题未评定不能转入下达', /尚有 1 个课题未评定/, `select settle_tiers(2033)`);
+await raises('不予通过须写原因', /请填写不予通过的原因/, `select reject_tier(2033, $1, '', '2032-06-04')`, [NP]);
+await q(`select reject_tier(2033, $1, '研究内容与现有课题重复', '2032-06-04')`, [NP]);
+ok((await one(`select rejected from api.tier_pick where year = 2033 and project_id = $1`, [NP])).rejected === true, '评定结果可以是不予通过');
 await as(U.lead, '2032-06-04');
 await raises('评定后不能改申请的档次', /已评定，不得再改/, `select pick_tier(2033, $1, $2)`, [TB, t2]);
 await as(U.dir, '2032-06-04');
@@ -1662,9 +1680,21 @@ const st = await one(`select stage, fixed_total from api.budget_year where year 
 ok(st.stage === 'fixed' && Number(st.fixed_total) === 300000, '评定完成后转入待下达，总预算记为年度总预算', JSON.stringify(st));
 eq((await one(`select amount from api.project_cap where year = 2033 and project_id = $1`, [TB])).amount, 100000, '档次金额成为课题的年度上限');
 eq((await one(`select fixed from api.budget_line where id = $1`, [TM])).fixed, 30000, '提交的明细成为核定的预算行');
+await db.exec(`reset role`);
+const npAfter = await one(`select active, proposed, (select fixed from project_budget_line where id = $2) fixed, (select count(*)::int from project_cap where year = 2033 and project_id = $1) cap from project where id = $1`, [NP, NL]);
+await db.exec(`set role app_api`);
+ok(npAfter.active === false && npAfter.fixed === null && npAfter.cap === 0, '立项未通过的课题不成立，预算不带入、没有上限', JSON.stringify(npAfter));
+await as(U.dir, '2032-06-04');
 await q(`select unsettle_tiers(2033)`);
 ok((await one(`select stage from api.budget_year where year = 2033`)).stage === 'declare' && (await q(`select 1 from api.project_cap where year = 2033`)).length === 0, '撤回评定完成后回到评定阶段，上限一并撤销');
+// 撤回后把立项申请改为定档，再评定完成：课题正式成立
+await q(`select decide_tier(2033, $1, $2, '补充材料后同意', '2032-06-04')`, [NP, t2]);
 await q(`select settle_tiers(2033)`);
+await db.exec(`reset role`);
+const npOk = await one(`select active, proposed, (select fixed from project_budget_line where id = $2) fixed, (select amount from project_cap where year = 2033 and project_id = $1) cap,
+  (select count(*)::int from project q where q.parent_id = $1 and not q.proposed) units from project where id = $1`, [NP, NL]);
+await db.exec(`set role app_api`);
+ok(npOk.active === true && npOk.proposed === false && Number(npOk.fixed) === 20000 && Number(npOk.cap) === 50000 && npOk.units === 2, '立项通过的课题连同研究单元正式成立，档次成为上限', JSON.stringify(npOk));
 await as(U.fin, '2032-06-05');
 // 旧入口直接建的卡自动补上经费项目
 await db.exec(`reset role`);

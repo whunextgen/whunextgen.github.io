@@ -78,8 +78,8 @@ export interface BudgetSource { year: number; fund_project_id: string; amount: s
 export interface BudgetModule { id: string; year: number; name: string; amount: string; note: string | null }
 export interface BudgetTier { id: string; year: number; name: string; amount: string; slots: number; labor_ratio: string | null; limits: { category_id: string; ratio: number | string }[]; sort: number; picked: number; decided: number }
 export interface TierPick { year: number; project_id: string; project_name: string; owner_name: string | null; tier_id: string; reason: string | null; picked_at: string;
-  decided_tier_id: string | null; decide_note: string | null; decided_at: string | null; total: string; drafts: number; violation: string | null; meeting_on: string | null; decided_by_name: string | null }
-export interface ProjectTag { id: string; morningstar: boolean }
+  decided_tier_id: string | null; decide_note: string | null; decided_at: string | null; total: string; drafts: number; violation: string | null; meeting_on: string | null; decided_by_name: string | null; kind: 'new' | 'renew'; rejected: boolean; units: number }
+export interface ProjectTag { id: string; morningstar: boolean; proposed: boolean }
 export interface FundProject { id: string; name: string; source: 'school' | 'national' | 'provincial' | 'enterprise' | 'other' | null; fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null;
   owner_id: string | null; owner_name: string | null; quota: string | null; period_start: string | null; period_end: string | null; template_id: string; template_name: string;
   end_rule: 'recall' | 'carry'; note: string | null; status: 'active' | 'closed'; granted: string; recalled: string; cards: number;

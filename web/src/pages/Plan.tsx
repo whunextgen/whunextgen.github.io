@@ -30,7 +30,8 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
   const tierOf = (id: string | null) => tiers.find((t) => t.id === id);
   const catName = new Map(data.cats.map((c) => [c.id, c.name]));
   const limitText = (t: BudgetTier) => [t.labor_ratio != null && `劳务类不超过 ${pct(num(t.labor_ratio), 1)}`, ...(t.limits ?? []).map((l) => `${catName.get(l.category_id) ?? '类别'}不超过 ${pct(num(l.ratio), 1)}`)].filter(Boolean).join('；') || '无';
-  const undecided = picks.filter((k) => !k.decided_tier_id).length;
+  const undecided = picks.filter((k) => !k.decided_tier_id && !k.rejected).length;
+  const KIND: Record<string, string> = { new: '立项', renew: '延续' };
   // 走到哪一环
   const at = y.stage === 'closed' ? 9 : y.stage === 'issued' ? 8 : y.stage === 'fixed' ? 7 : y.stage !== 'declare' ? 7 : published ? (picks.length > 0 && undecided === 0 ? 6 : picks.length > 0 ? 6 : 5) : tiers.length > 0 ? 4 : modules.length > 0 ? 3 : total > 0 ? 2 : 1;
 
@@ -63,10 +64,19 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
 
   // ---------- 课题负责人：申请档次 ----------
   const myTopics = data.projects.filter((p) => p.layer !== 'paper' && p.kind !== 'public' && p.active && (p.mine || finance));
+  // 负责人这一级及以上，或名下已有课题、研究单元的，可以申请立项
+  const canPropose = me.role !== 'member' || data.projects.some((p) => p.mine && p.active);
+  const tierOpts = tiers.map((t): [string, string] => [t.id, `${t.name}：每个课题 ${money(t.amount)}，名额 ${t.slots}，已有 ${t.picked} 个课题申请；限制：${limitText(t)}`]);
+  const proposeAct = (): Act => ({
+    title: `申请立项：${year} 年度`, label: '提交申请',
+    hint: '新课题通过立项申请成立。填写课题名称、研究内容和申请的档次，可同时列出下面的研究单元（每行一个，负责人先记为申请人，成立后可再调整）。提交后课题记为待立项，随后在「预算编制」中填写明细并提交；联席会议评定通过、中心负责人确认后正式成立。',
+    fields: [{ name: 'name', label: '课题名称' }, { name: 'tier', label: '申请的档次', options: tierOpts },
+      { name: 'reason', label: '研究内容和申请理由', type: 'area' }, { name: 'units', label: '研究单元（每行一个，选填）', type: 'area', required: false }],
+    run: (v) => rpc('propose_project', { year, name: v.name, tier: v.tier, reason: v.reason, units: v.units || null }) });
   const pickAct = (p: Project): Act => { const k = picks.find((x) => x.project_id === p.id); return {
-    title: `申请档次：${p.name}`, label: '保存',
-    hint: '每个课题申请一个档次。选定后在「预算编制」中填写课题和各研究单元的明细并提交；明细合计不得超过该档金额，并须符合该档的限制。评定前可以改申请的档次。',
-    fields: [{ name: 'tier', label: '档次', value: k?.tier_id, options: tiers.map((t): [string, string] => [t.id, `${t.name}：每个课题 ${money(t.amount)}，名额 ${t.slots}，已有 ${t.picked} 个课题申请；限制：${limitText(t)}`]) },
+    title: `${k?.kind === 'new' ? '修改立项申请' : '申请延续'}：${p.name}`, label: '保存',
+    hint: '已有课题每年通过延续申请进入新一年度。每个课题申请一个档次。选定后在「预算编制」中填写课题和各研究单元的明细并提交；明细合计不得超过该档金额，并须符合该档的限制。评定前可以改申请的档次。',
+    fields: [{ name: 'tier', label: '档次', value: k?.tier_id, options: tierOpts },
       { name: 'reason', label: '申请理由（上年度执行情况和本年度计划）', type: 'area', value: k?.reason ?? '' }],
     run: (v) => rpc('pick_tier', { year, project: p.id, tier: v.tier, reason: v.reason }) }; };
   const decideAct = (k: TierPick): Act => ({
@@ -79,6 +89,11 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
   const segs: Seg[] = [...modules.map((m, i): Seg => ({ cls: `${i % 2 ? 'sy1' : 'sy0'} big`, value: num(m.amount), text: m.name, tip: `模块「${m.name}」${money(m.amount)}，占总预算 ${pct(num(m.amount), total)}` })),
     ...tiers.map((t, i): Seg => ({ cls: `u${i % 3} big`, value: num(t.amount) * t.slots, text: `${t.name} ${t.slots} 个`, tip: `「${t.name}」每个课题 ${money(t.amount)} × ${t.slots} 个名额，合计 ${money(num(t.amount) * t.slots)}` })),
     ...(room > 0 ? [{ cls: 'hatch big', value: room, text: '未分配', tip: `未分配 ${money(room)}` }] : [])];
+  const rejectAct = (k: TierPick): Act => ({
+    title: `不予通过：${k.project_name}`, label: '录入', danger: true,
+    hint: `${KIND[k.kind]}申请，申请「${tierOf(k.tier_id)?.name ?? ''}」。按联席会议结果录入。${k.kind === 'new' ? '立项不予通过的，评定完成后课题不成立。' : '延续不予通过的，课题保留，本年度没有预算。'}`,
+    fields: [{ name: 'on', label: '联席会议日期', type: 'date', value: k.meeting_on ? day(k.meeting_on) : today() }, { name: 'note', label: '不予通过的原因', type: 'area', value: k.rejected ? k.decide_note ?? '' : '' }],
+    run: (v) => rpc('reject_tier', { year, project: k.project_id, note: v.note, on: v.on }) });
   const btn = (label: string, a: Act, cls = 'sm ghost') => <button className={a.danger ? `${cls} danger` : cls} onClick={() => setAct(a)}>{label}</button>;
 
   return (
@@ -94,12 +109,12 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
         actions={director && y.stage === 'declare' ? (published
           ? <button className="sm ghost" onClick={() => setAct({ title: '撤回批准', label: '撤回', danger: true, fields: [], hint: '撤回后财务岗可继续修改总预算、模块和档次。已有课题申请档次的不得撤回。', run: () => rpc('publish_budget_plan', { year, on: false }) })}>撤回批准</button>
           : <button className="sm" onClick={() => setAct({ title: `批准 ${year} 年度预算方案`, label: '批准', fields: [], hint: `总预算 ${money(total)}，模块合计 ${money(modSum)}，档次合计 ${money(tierSum)}，未分配 ${money(room)}。批准后向各课题公布档次，课题即可申请。`, run: () => rpc('publish_budget_plan', { year, on: true }) })}>批准方案</button>) : undefined} />
-      <Stages path="测算总预算 › 划出模块 › 编档次 › 批准方案 › 申请档次 › 评定 › 下达执行 › 年度决算" at={at} items={[
+      <Stages path="测算总预算 › 划出模块 › 编档次 › 批准方案 › 立项与延续申请 › 评定 › 下达执行 › 年度决算" at={at} items={[
         { nm: '测算总预算', ds: '财务岗按各项目可用经费测算', v: staff ? wan(total) : '—', f: staff ? `${sources.length} 个项目计入` : '' },
         { nm: '划出模块', ds: '公共开支等先行扣除', v: staff ? wan(modSum) : '—', f: staff ? `${modules.length} 个模块` : '' },
         { nm: '编档次', ds: '每档金额、名额、限制', v: `${tiers.length} 档`, f: tiers.length ? `名额 ${tiers.reduce((t, x) => t + x.slots, 0)} 个` : '' },
         { nm: '批准方案', ds: '中心负责人批准后公布', v: published ? '已批准' : '未批准', f: plan?.plan_at ? day(plan.plan_at) : '' },
-        { nm: '申请档次', ds: '课题选档并提交明细', v: `${picks.length} 个课题`, f: published ? `申报截止 ${day(y.due_date)}` : '方案批准后开始' },
+        { nm: '立项与延续', ds: '课题选档并提交明细', v: `${picks.length} 个课题`, f: published ? `申报截止 ${day(y.due_date)}` : '方案批准后开始' },
         { nm: '评定', ds: '联席会议决定，助理录入', v: picks.length ? `${picks.length - undecided} / ${picks.length}` : '—', f: undecided > 0 ? `${undecided} 个待评定` : '' },
         { nm: '下达执行', ds: '档次即上限，明细即预算行', v: ['fixed', 'issued', 'closed'].includes(y.stage) ? (y.stage === 'fixed' ? '待下达' : '已下达') : '—', f: '' },
         { nm: '年度决算', ds: '年末复盘', v: y.stage === 'closed' ? '已决算' : '—', f: '' },
@@ -149,40 +164,47 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
         {finance && y.stage === 'declare' && published && <p className="hint">方案已批准。如需修改总预算、模块或档次，请中心负责人先撤回批准。</p>}
       </section>
 
-      {published && y.stage === 'declare' && myTopics.length > 0 && (
+      {published && y.stage === 'declare' && (myTopics.length > 0 || canPropose) && (
         <section className="card">
-          <h3>申请档次 <span className="h3sub">{finance ? '各课题的申请' : '本人负责的课题'}</span></h3>
-          <p className="hint">先选档次，再在「<a href={`#/budget/${year}`}>预算编制</a>」中填写课题和各研究单元的明细并提交。明细合计不得超过该档金额，并须符合该档的限制；不符合的提交时会提示。</p>
-          <div className="scroll"><table>
-            <thead><tr><th>课题</th><th>申请的档次</th><th className="r">已提交明细合计</th><th>情况</th><th /></tr></thead>
-            <tbody>{myTopics.map((p) => { const k = picks.find((x) => x.project_id === p.id); const t = tierOf(k?.tier_id ?? null); return (
-              <tr key={p.id}><td><a href={`#/project/${p.id}/${year}`}>{p.name}</a></td><td>{t ? `${t.name}（${money(t.amount)}）` : <span className="sub2">尚未申请</span>}</td>
-                <td className="r">{k ? money(k.total) : '—'}</td>
-                <td className="wrap">{!k ? '—' : k.decided_tier_id ? <Badge tone="ok">已评定：{tierOf(k.decided_tier_id)?.name}</Badge> : k.violation ? <Badge tone="bad">{k.violation}</Badge> : num(k.total) === 0 ? <Badge tone="warn">尚未提交明细</Badge> : k.drafts > 0 ? <Badge tone="warn">另有 {k.drafts} 份预算尚未提交</Badge> : <Badge tone="pri">已提交，待评定</Badge>}</td>
-                <td className="r">{(!k || !k.decided_tier_id) && (p.mine || finance) && btn(k ? '改申请' : '申请档次', pickAct(p), k ? 'sm ghost' : 'sm')}</td></tr>); })}</tbody>
-          </table></div>
+          <h3>立项与延续申请 <span className="h3sub">{finance ? '各课题的申请' : '本人负责的课题'}</span></h3>
+          <p className="hint">申请档次是课题每一年的起点：新课题申请立项，已有课题申请延续。先选档次，再在「<a href={`#/budget/${year}`}>预算编制</a>」中填写课题和各研究单元的明细并提交。明细合计不得超过该档金额，并须符合该档的限制；不符合的提交时会提示。</p>
+          {myTopics.length === 0 ? <Empty>本人名下暂无课题。新课题请申请立项。</Empty> : (
+            <div className="scroll"><table>
+              <thead><tr><th>课题</th><th>类别</th><th>申请的档次</th><th className="r">已提交明细合计</th><th>情况</th><th /></tr></thead>
+              <tbody>{myTopics.map((p) => { const k = picks.find((x) => x.project_id === p.id); const t = tierOf(k?.tier_id ?? null); const fresh = k?.kind === 'new'; return (
+                <tr key={p.id}><td><a href={`#/project/${p.id}/${year}`}>{p.name}</a>{fresh && k && k.units > 0 && <span className="sub2">{k.units} 个研究单元</span>}</td>
+                  <td>{fresh ? <Badge tone="pri">立项</Badge> : <Badge>延续</Badge>}</td>
+                  <td>{t ? `${t.name}（${money(t.amount)}）` : <span className="sub2">尚未申请</span>}</td>
+                  <td className="r">{k ? money(k.total) : '—'}</td>
+                  <td className="wrap">{!k ? <span className="sub2">尚未申请延续，本年度没有预算</span> : k.rejected ? <><Badge tone="bad">不予通过</Badge>{k.decide_note && <div className="sub2" style={{ marginLeft: 0 }}>{k.decide_note}</div>}</>
+                    : k.decided_tier_id ? <Badge tone="ok">已评定：{tierOf(k.decided_tier_id)?.name}</Badge> : k.violation ? <Badge tone="bad">{k.violation}</Badge> : num(k.total) === 0 ? <Badge tone="warn">尚未提交明细</Badge> : k.drafts > 0 ? <Badge tone="warn">另有 {k.drafts} 份预算尚未提交</Badge> : <Badge tone="pri">已提交，待评定</Badge>}</td>
+                  <td className="r"><div className="acts">{(!k || (!k.decided_tier_id && !k.rejected)) && (p.mine || finance) && btn(k ? '改申请' : '申请延续', pickAct(p), k ? 'sm ghost' : 'sm')}
+                    {fresh && k && !k.decided_tier_id && !k.rejected && (p.mine || finance) && btn('撤回申请', { title: `撤回立项申请：${p.name}`, label: '撤回', danger: true, fields: [], hint: '撤回后该课题、研究单元和未提交的预算一并删除。已提交的预算须先撤回。', run: () => rpc('withdraw_proposal', { year, project: p.id }) })}</div></td></tr>); })}</tbody>
+            </table></div>
+          )}
+          {canPropose && <div className="actions" style={{ justifyContent: 'flex-start' }}>{btn('申请立项', proposeAct(), 'sm')}</div>}
         </section>
       )}
 
       {(staff || recorder) && published && (
         <section className="card">
-          <h3>评定 <span className="h3sub">{picks.length} 个课题申请，{picks.length - undecided} 个已录入结果</span></h3>
+          <h3>评定 <span className="h3sub">{picks.filter((k) => k.kind === 'new').length} 个立项申请、{picks.filter((k) => k.kind === 'renew').length} 个延续申请，{picks.length - undecided} 个已录入结果</span></h3>
           <p className="hint">评定由联席会议决定，结果由助理在此录入；全部录入后由中心负责人确认评定完成，转入下达。</p>
           {picks.length === 0 ? <Empty>尚无课题申请档次。</Empty> : (
             <div className="scroll"><table>
-              <thead><tr><th>课题</th><th>负责人</th><th>申请的档次</th><th className="r">明细合计</th><th>限制</th><th>评定结果</th>{recorder && y.stage === 'declare' && <th />}</tr></thead>
+              <thead><tr><th>课题</th><th>类别</th><th>负责人</th><th>申请的档次</th><th className="r">明细合计</th><th>限制</th><th>评定结果</th>{recorder && y.stage === 'declare' && <th />}</tr></thead>
               <tbody>{picks.map((k) => { const t = tierOf(k.tier_id), d = tierOf(k.decided_tier_id); return (
-                <tr key={k.project_id}><td><a href={`#/project/${k.project_id}/${year}`}>{k.project_name}</a>{k.reason && <div className="sub2" style={{ marginLeft: 0 }}>{k.reason}</div>}</td><td>{k.owner_name ?? '—'}</td>
+                <tr key={k.project_id}><td><a href={`#/project/${k.project_id}/${year}`}>{k.project_name}</a>{k.reason && <div className="sub2" style={{ marginLeft: 0 }}>{k.reason}</div>}</td><td>{k.kind === 'new' ? <Badge tone="pri">立项</Badge> : <Badge>延续</Badge>}{k.kind === 'new' && k.units > 0 && <div className="sub2" style={{ marginLeft: 0 }}>{k.units} 个研究单元</div>}</td><td>{k.owner_name ?? '—'}</td>
                   <td>{t?.name}<span className="sub2">{t ? money(t.amount) : ''}</span></td><td className="r">{money(k.total)}{k.drafts > 0 && <div className="sub2" style={{ marginLeft: 0 }}>另有 {k.drafts} 份未提交</div>}</td>
                   <td className="wrap">{k.violation ? <Badge tone="bad">{k.violation}</Badge> : <Badge tone="ok">符合</Badge>}</td>
-                  <td>{d ? <><Badge tone="ok">{d.name}</Badge><div className="sub2" style={{ marginLeft: 0 }}>{[k.meeting_on && `${day(k.meeting_on)} 联席会议`, k.decided_by_name && `${k.decided_by_name} 录入`, k.decide_note].filter(Boolean).join(' · ')}</div></> : <Badge tone="warn">待评定</Badge>}</td>
-                  {recorder && y.stage === 'declare' && <td className="r"><div className="acts">{btn(d ? '更正' : '录入结果', decideAct(k), d ? 'sm ghost' : 'sm')}
-                    {d && btn('撤销', { title: `撤销已录入的评定结果：${k.project_name}`, label: '撤销', danger: true, fields: [], run: () => rpc('decide_tier', { year, project: k.project_id, tier: null, note: null }) })}</div></td>}</tr>); })}</tbody>
+                  <td>{k.rejected ? <><Badge tone="bad">不予通过</Badge><div className="sub2" style={{ marginLeft: 0 }}>{[k.meeting_on && `${day(k.meeting_on)} 联席会议`, k.decided_by_name && `${k.decided_by_name} 录入`, k.decide_note].filter(Boolean).join(' · ')}</div></> : d ? <><Badge tone="ok">{d.name}</Badge><div className="sub2" style={{ marginLeft: 0 }}>{[k.meeting_on && `${day(k.meeting_on)} 联席会议`, k.decided_by_name && `${k.decided_by_name} 录入`, k.decide_note].filter(Boolean).join(' · ')}</div></> : <Badge tone="warn">待评定</Badge>}</td>
+                  {recorder && y.stage === 'declare' && <td className="r"><div className="acts">{btn(d || k.rejected ? '改为定档' : '定档', decideAct(k), d || k.rejected ? 'sm ghost' : 'sm')}{!k.rejected && btn('不予通过', rejectAct(k))}
+                    {(d || k.rejected) && btn('撤销', { title: `撤销已录入的评定结果：${k.project_name}`, label: '撤销', danger: true, fields: [], run: () => rpc('decide_tier', { year, project: k.project_id, tier: null, note: null }) })}</div></td>}</tr>); })}</tbody>
             </table></div>
           )}
           {director && y.stage === 'declare' && picks.length > 0 && <div className="actions" style={{ justifyContent: 'flex-start' }}>
             <button className="sm" disabled={undecided > 0} title={undecided > 0 ? '全部课题的评定结果录入后方可办理' : undefined} onClick={() => setAct({ title: `${year} 年度评定完成，转入下达`, label: '确认',
-              hint: `${picks.length} 个课题的评定结果已全部录入。确认后：各课题的档次金额成为年度上限，已提交的明细成为核定的预算行；财务岗随后在「预算编制」中下达到经费卡。尚未提交的预算不带入。`, fields: [], run: () => rpc('settle_tiers', { year }) })}>评定完成，转入下达</button>
+              hint: `${picks.length} 个课题的评定结果已全部录入。确认后：定档的课题档次金额成为年度上限，已提交的明细成为核定的预算行；立项通过的课题正式成立，立项未通过的不成立；延续未通过的课题保留，本年度没有预算；财务岗随后在「预算编制」中下达到经费卡。尚未提交的预算不带入。`, fields: [], run: () => rpc('settle_tiers', { year }) })}>评定完成，转入下达</button>
             {undecided > 0 && <span className="sub2">尚有 {undecided} 个课题的评定结果未录入。</span>}</div>}
           {director && y.stage === 'fixed' && <div className="actions" style={{ justifyContent: 'flex-start' }}>
             <button className="sm ghost" onClick={() => setAct({ title: '撤回评定完成', label: '撤回', danger: true, fields: [], hint: '回到评定阶段，各课题的上限和核定数一并撤销。已有预算行下达到经费卡的不得撤回。', run: () => rpc('unsettle_tiers', { year }) })}>撤回评定完成</button>

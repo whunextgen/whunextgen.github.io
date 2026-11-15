@@ -107,7 +107,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
   return (
     <div className="wb obj">
       <ObjHead crumb={<><a href="#/projects">课题管理</a>{isUnit && r.parent_id && <> › {data.projects.some((x) => x.id === r.parent_id && x.seen) ? <a href={`#/project/${r.parent_id}`}>{r.parent_name}</a> : r.parent_name}</>} › {r.name}</>}
-        eyebrow={`${un} · ${r.code}${r.owner_name ? ` · 负责人 ${r.owner_name}` : ''}${y ? ` · ${year} 年度` : ''}`} title={r.name} badge={<>{data.tags.some((t) => t.id === r.id && t.morningstar) && <Badge>晨星</Badge>}{r.active === false && <> <Badge>已停用</Badge></>}</>}
+        eyebrow={`${un} · ${r.code}${r.owner_name ? ` · 负责人 ${r.owner_name}` : ''}${y ? ` · ${year} 年度` : ''}`} title={r.name} badge={<>{data.tags.some((t) => t.id === r.id && t.proposed) && <Badge tone="warn">待立项</Badge>}{data.tags.some((t) => t.id === r.id && t.morningstar) && <> <Badge>晨星</Badge></>}{r.active === false && <> <Badge>已停用</Badge></>}</>}
         label={run ? '可用' : `${year || ''} 年度预算`.trim()} value={!y ? '未启动' : run ? all.budget - all.used : own.n || kt.length ? all.budget : '未填报'} neg={run && all.budget - all.used < 0}
         chart={run && all.budget > 0 ? <Track cap="执行 · 已入账、已承诺、可用" segs={execSegs(all.budget, all.actual, pendingAmt, '核定数').map((g) => ({ ...g, cls: `${g.cls} big` }))} />
           : !isUnit && kt.length > 0 && all.budget > 0 ? <Track cap="预算构成 · 各研究单元与课题自身" segs={[...kt.map(({ k, t }, i) => ({ cls: `u${i % 3} big`, value: t.budget, text: k.name, tip: `研究单元「${k.name}」预算 ${money(t.budget)}，占 ${pct(t.budget, all.budget)}` })), { cls: 'sy0 big', value: own.budget, text: '课题自身', tip: `课题自身的预算行 ${money(own.budget)}` }]} />
@@ -115,9 +115,9 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
         facts={[[`${year || ''} 年度预算`.trim(), own.n || kt.length ? money(all.budget) : '未填报'], ['已入账', run ? money(all.actual) : '—'], ['已承诺', run ? money(pendingAmt) : '—'],
           ...(cap ? [['年度上限', money(cap.amount)] as [string, string], ['上限内剩余可排', money(num(cap.amount) - num(cap.used))] as [string, string]] : []),
           ...(!isUnit && kids.length ? [['研究单元', `${kids.length} 个`] as [string, string]] : [])]} />
-      {y && <Stages path="申报 › 核定下达 › 支出申请 › 提交报销 › 学校入账 › 年度决算" at={stepNo} items={[
-        { nm: '申报', ds: `${un}负责人填报年度预算`, v: own.n || kt.length ? `${own.n + kt.reduce((t, x) => t + x.t.n, 0)} 行` : '未填报', f: run ? '已申报' : STAGE_TEXT[y.stage] },
-        { nm: '核定下达', ds: '中心核定后下达到经费卡', v: run ? money(all.budget) : '—', f: run ? '核定数' : '尚未下达' },
+      {y && <Stages path="立项或延续申请 › 评定下达 › 支出申请 › 提交报销 › 学校入账 › 年度决算" at={stepNo} items={[
+        { nm: '立项或延续申请', ds: '每年申请档次并提交明细', v: own.n || kt.length ? `${own.n + kt.reduce((t, x) => t + x.t.n, 0)} 行` : '未填报', f: run ? '已申请' : STAGE_TEXT[y.stage] },
+        { nm: '评定下达', ds: '联席会议评定后下达到经费卡', v: run ? money(all.budget) : '—', f: run ? '核定数' : '尚未下达' },
         { nm: '支出申请', ds: '从预算行提交，批准后占用预算', v: run ? `${rq('pending').length + rq('committed').length} 笔` : '—', f: run ? `待确认 ${rq('pending').length} 笔 · 已承诺 ${money(pendingAmt)}` : '下达后方可申请' },
         { nm: '提交报销', ds: '财务岗将报销材料交学校', v: run ? `${rq('at_school').length} 笔审核中` : '—', f: run ? `${rq('committed').length} 笔待提交${rq('returned').length ? ` · ${rq('returned').length} 笔退回` : ''}` : '' },
         { nm: '学校入账', ds: '以学校明细账的入账为准', v: run ? money(all.actual) : '—', f: run ? `${rq('posted').length} 笔 · 执行率 ${pct(all.actual, all.budget)}` : '' },

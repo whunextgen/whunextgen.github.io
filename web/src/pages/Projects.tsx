@@ -49,7 +49,7 @@ export function Projects({ me }: { me: Me }) {
             <thead><tr><th>课题 / 研究单元</th><th>类型</th><th>负责人</th>{years.map((y) => <th key={y.year} className="r">{y.year} 年度<span className="sub2">{STAGE_TEXT[y.stage]}</span></th>)}{staff && <th />}</tr></thead>
             <tbody>{rows.map((r) => (
               <tr key={r.id} style={r.active ? undefined : { opacity: .55 }}>
-                <td style={r.layer === 'paper' ? { paddingLeft: 28 } : undefined}>{r.seen ? <a href={`#/project/${r.id}`}>{r.name}</a> : r.name}{tagged.has(r.id) && <> <Badge>晨星</Badge></>}<span className="sub2">{r.code}{r.active ? '' : ' · 已停用'}{r.layer === 'paper' && !bigs.some((b) => b.id === r.parent_id) ? ` · 隶属 ${r.parent_name}` : ''}</span>
+                <td style={r.layer === 'paper' ? { paddingLeft: 28 } : undefined}>{r.seen ? <a href={`#/project/${r.id}`}>{r.name}</a> : r.name}{data.tags.some((t) => t.id === r.id && t.proposed) && <> <Badge tone="warn">待立项</Badge></>}{tagged.has(r.id) && <> <Badge>晨星</Badge></>}<span className="sub2">{r.code}{r.active ? '' : ' · 已停用'}{r.layer === 'paper' && !bigs.some((b) => b.id === r.parent_id) ? ` · 隶属 ${r.parent_name}` : ''}</span>
                   {r.kind !== 'public' && <div className="sub2" style={{ marginLeft: 0 }}>成员 {r.members} 人{r.member && r.owner_id !== me.id ? ' · 本人在名单中' : ''}</div>}</td><td>{typeText(r)}</td>
                 <td>{r.owner_name ?? '—'}{r.owner_id === me.id && <span className="sub2">本人</span>}</td>
                 {years.map((y) => { const b = data.budgets.find((x) => x.project_id === r.id && x.year === y.year);
