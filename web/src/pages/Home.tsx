@@ -13,7 +13,8 @@ const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
 // 各部分的待办列在该部分的汇总页里，不另设待办页。
 const STEPS = ['申报', '汇总报批', '核定下达', '申请', '承诺', '入账', '复盘结清'];
 export type HomeView = 'home' | 'mine' | 'center' | 'fund' | 'topic' | 'res';
-export function Home({ me, view: asked = 'home' }: { me: Me; view?: HomeView }) {
+// canUse：本人在已立项的课题或研究单元里，能用支出申请、备用金和资源申领
+export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view?: HomeView; canUse?: boolean }) {
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
     years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[]; tasks: Task[];
@@ -478,7 +479,8 @@ export function Home({ me, view: asked = 'home' }: { me: Me; view?: HomeView }) 
     <div className="wb">
       {hero(`我的事项 · ${me.name} · ${ROLE[me.role]}`, '本人发起、进行中', `${mineOpen.length + myPetty.length + myRes.length}`, '项', <>
         <div className="wb-facts"><span>支出申请<b>{mineOpen.length} 笔</b></span><span>备用金<b>{myPetty.length} 笔</b></span><span>资源申领<b>{myRes.length} 项</b></span></div>
-        <div className="wb-facts"><a className="btn" href="#/requests/new">提交支出申请</a><a className="btn ghost" href="#/resource">申领资源</a><a className="btn ghost" href="#/petty">申请备用金</a></div>
+        {canUse ? <div className="wb-facts"><a className="btn" href="#/requests/new">提交支出申请</a><a className="btn ghost" href="#/resource">申领资源</a><a className="btn ghost" href="#/petty">申请备用金</a></div>
+          : <div className="wb-facts"><span>本人尚不在已立项的课题或研究单元中，暂不能提交支出申请、申领资源和申请备用金。</span><a className="btn" href="#/plan">立项与延续申请</a></div>}
       </>)}
       <section className="wb-sec">{head('01', '本人的支出申请', <a href="#/requests">全部申请 →</a>)}{mineTable}</section>
       <section className="wb-sec">

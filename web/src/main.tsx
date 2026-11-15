@@ -1,6 +1,6 @@
 import { Component, StrictMode, useEffect, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ApiError, logout, view, type Me } from './api';
+import { ApiError, logout, view, type Me, type Project, type ProjectTag } from './api';
 import { ROLE, can, today } from './ui';
 import { Overview } from './pages/Overview';
 import { Funds } from './pages/Funds';
@@ -86,6 +86,16 @@ function App() {
     view<Me>('me').then((rows) => setMe(rows[0] ?? null))
       .catch((e: ApiError) => { if (e.status !== 401) setError(e.message); setMe(null); });
   }, []);
+  // 本人是否在已立项的课题或研究单元里（负责人或成员）：支出申请、备用金、资源申领的入口据此显示。待立项的不算
+  const [inTopic, setInTopic] = useState(false);
+  const uid = me?.id;
+  useEffect(() => {
+    if (!uid) return;
+    Promise.all([view<Project>('project'), view<ProjectTag>('project_tag')]).then(([ps, tags]) => {
+      const waiting = new Set(tags.filter((t) => t.proposed).map((t) => t.id));
+      setInTopic(ps.some((p) => p.active && !waiting.has(p.id) && (p.mine || p.member)));
+    }).catch(() => setInTopic(false));
+  }, [uid, route === '/plan']);
   if (me === undefined) return <p className="empty">加载中…</p>;
   if (me === null) return <Login reason={error} />;
 
@@ -97,6 +107,7 @@ function App() {
   const seesAdmin = can(me, 'read.admin', 'rbac.manage', 'user.manage', 'rule.manage', 'card.manage');
   const seesCaps = can(me, 'budget.approve', 'budget.setup'), seesReview = can(me, 'budget.review'), seesLegacy = can(me, 'read.legacy') || seesAdmin;
   // 导航按对象分组：项目（及其经费卡、入账、结清）、课题（及其研究单元、预算、决算）、支出、资源、系统。每组标题下一行说这一组管什么
+  const canUse = seesStaff || can(me, 'request.process') || inTopic;   // 能用支出申请、备用金、资源申领
   type Page = [string, string];
   const keep = (...p: (Page | false)[]) => p.filter(Boolean) as Page[];
   const SUB = new Set(['/cards']);   // 缩进显示的下一级：经费卡在项目之下
@@ -105,9 +116,9 @@ function App() {
   const groups = [
     { top: '', label: '', home: '', note: '', pages: keep(['/', '首页'], ['/tasks', '任务管理']) },
     // 课题：成员和负责人办的事——从预算行支出、领备用金、申领资源
-    { top: '', label: '课题', home: '/s-topic', note: '研究单元、支出申请、资源申领', pages: keep(['/projects', '课题管理'], ['/requests', '支出申请'], ['/petty', '备用金管理'], ['/resource', '资源申领'], ['/ask', '报销咨询']) },
+    { top: '', label: '课题', home: '/s-topic', note: '研究单元、支出申请、资源申领', pages: keep(['/projects', '课题管理'], !seesStaff && ['/plan', '立项与延续申请'], canUse && ['/requests', '支出申请'], canUse && ['/petty', '备用金管理'], canUse && ['/resource', '资源申领'], ['/ask', '报销咨询']) },
     // 财务：并列三组。年度预算是每年申报、核定、下达、决算这一轮；项目是学校这一侧的经费；资源是中心的接口额度和资产
-    { top: '财务', label: '年度预算', home: '', note: '总预算、档次、下达、决算', pages: keep(['/plan', '总预算与档次'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算'], seesDesk && ['/desk', '预算参数']) },
+    { top: '财务', label: '年度预算', home: '', note: '总预算、档次、下达、决算', pages: keep(seesStaff && ['/plan', '总预算与档次'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算'], seesDesk && ['/desk', '预算参数']) },
     { top: '财务', label: '项目', home: seesCards ? '/s-fund' : '', note: '经费卡、采购、报销入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/procure', '采购'], seesCards && ['/school', '报销与入账'], seesPeople && ['/staff', '人员经费'], seesCards && ['/ledger', '明细账校准'], seesCards && ['/settle', '经费结清']) },
     { top: '财务', label: '资源', home: '/s-res', note: '调配、盘点', pages: keep(seesRes && ['/pool', '资源调配'], seesRes && ['/stock', '资产盘点']) },
     { top: '', label: '系统', home: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesCards && ['/rules', '采购与报销要求'], seesLegacy && ['/history', '历史数据']) },
@@ -166,7 +177,7 @@ function App() {
     : current === '/track' ? <TrackPage me={me} />
     : current === '/history' ? <History staff={can(me, 'read.legacy')} />
     : current === '/admin' ? <Admin me={me} />
-    : <Home me={me} />;
+    : <Home me={me} canUse={canUse} />;
   const link = ([to, label]: Page) => <a key={to} href={`#${to}`} className={`${current === to ? 'on' : ''}${SUB.has(to) ? ' sub' : ''}`} aria-current={current === to ? 'page' : undefined}>{label}</a>;
   const title = [...groups.flatMap((g) => g.pages), ...side].find(([to]) => to === current)?.[1] ?? '首页';
   return (
