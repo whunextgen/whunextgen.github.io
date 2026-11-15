@@ -39,7 +39,7 @@ export function RequestPage({ me, id }: { me: Me; id: string }) {
   const when = (k: string) => { const e = last(k); return e ? day(e.at) : ''; };
   return (
     <div className="wb obj">
-      <ObjHead crumb={<><a href="#/s-spend">支出</a> › <a href={`#/requests/${r.status}`}>支出申请</a> › {r.code ?? r.title}</>}
+      <ObjHead crumb={<><a href="#/s-topic">课题</a> › <a href={`#/requests/${r.status}`}>支出申请</a> › {r.code ?? r.title}</>}
         eyebrow={['支出申请', r.code, r.requester_name ?? userName.get(r.requested_by ?? ''), r.split_group && '分摊', r.project_id && tagged.has(r.project_id) && '晨星', r.emergency && '紧急通道'].filter(Boolean).join(' · ')}
         title={r.title} badge={<Badge tone={tone}>{badge}</Badge>}
         label={r.status === 'posted' ? '已入账金额' : '申请金额'} value={amount}

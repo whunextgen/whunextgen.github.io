@@ -53,7 +53,7 @@ export function PettyPage({ me, only }: { me: Me; only?: string }) {
     const amt = num(r.amount), spent = r.spent != null ? num(r.spent) : null;
     const at = r.status === 'rejected' || r.status === 'withdrawn' ? 0 : r.status === 'pending' ? 2 : r.status === 'approved' ? 4 : 5;
     return (<>
-      <ObjHead crumb={<><a href="#/s-spend">支出</a> › <a href="#/petty">备用金管理</a> › {r.requester_name} {day(r.created_at)}</>}
+      <ObjHead crumb={<><a href="#/s-topic">课题</a> › <a href="#/petty">备用金管理</a> › {r.requester_name} {day(r.created_at)}</>}
         eyebrow={`备用金 · ${r.requester_name} · ${day(r.created_at)} 提交`} title={r.purpose} badge={<Badge tone={PETTY[r.status][1]}>{PETTY[r.status][0]}</Badge>}
         label={r.status === 'settled' ? '实际支出' : '领用金额'} value={r.status === 'settled' && spent != null ? spent : amt}
         chart={spent != null ? <Track cap="核销 · 实际支出与退回" segs={[{ cls: 'sa big', value: spent, text: `实际支出 ${money(spent)}`, tip: `实际支出 ${money(spent)}` }, { cls: 'sr big', value: Math.max(amt - spent, 0), text: `退回 ${money(amt - spent)}`, tip: `退回 ${money(amt - spent)}，释放预算` }]} />

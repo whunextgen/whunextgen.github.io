@@ -161,7 +161,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
           : <RequestTable me={me} rows={openReqs} onChange={reload} />}
         {rq('posted').length > 0 && <p className="hint"><button className="sm ghost" onClick={() => setShowPosted(!showPosted)}>{showPosted ? '收起已入账的' : `显示已入账的 ${rq('posted').length} 笔`}</button></p>}
         {showPosted && <RequestTable me={me} rows={rq('posted')} onChange={reload} />}
-        <div className="actions" style={{ justifyContent: 'flex-start' }}><a className="btn ghost sm" href="#/requests/new">提交支出申请</a><a className="btn ghost sm" href="#/s-spend">支出汇总</a></div>
+        <div className="actions" style={{ justifyContent: 'flex-start' }}><a className="btn ghost sm" href="#/requests/new">提交支出申请</a><a className="btn ghost sm" href="#/requests">全部支出申请</a></div>
       </section>
 
       {kids.length > 0 && (

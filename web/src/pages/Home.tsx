@@ -12,7 +12,7 @@ const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
 // 首页和各汇总页。首页按角色分流：中心负责人、财务岗进中心总览，课题和研究单元负责人进课题汇总，成员进「我的事项」。
 // 各部分的待办列在该部分的汇总页里，不另设待办页。
 const STEPS = ['申报', '汇总报批', '核定下达', '申请', '承诺', '入账', '复盘结清'];
-export type HomeView = 'home' | 'mine' | 'center' | 'fund' | 'topic' | 'spend' | 'res';
+export type HomeView = 'home' | 'mine' | 'center' | 'fund' | 'topic' | 'res';
 export function Home({ me, view: asked = 'home' }: { me: Me; view?: HomeView }) {
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
@@ -248,7 +248,7 @@ export function Home({ me, view: asked = 'home' }: { me: Me; view?: HomeView }) 
   const view: HomeView = !landing ? (asked === 'center' && !seesCards ? 'mine' : asked) : seesCards ? 'center' : data.projects.some((p) => p.active && p.owner_id === me.id) ? 'topic' : 'mine';
   type Todo = (typeof todo)[number];
   // 待办按去处归到各部分：课题（预算、上限、决算）、支出（申请、报销、备用金）、资源、项目（经费卡）
-  const secOf = (t: Todo): HomeView => /^#\/(budget|caps|review)/.test(t.href) ? 'topic' : /^#\/(requests|school|petty|procure)/.test(t.href) ? 'spend' : /^#\/(pool|resource)/.test(t.href) ? 'res' : /^#\/(card|funds|settle|cards)/.test(t.href) ? 'fund' : 'mine';
+  const secOf = (t: Todo): HomeView => /^#\/(budget|caps|review|requests|petty)/.test(t.href) ? 'topic' : /^#\/(school|procure)/.test(t.href) ? 'fund' : /^#\/(pool|resource)/.test(t.href) ? 'res' : /^#\/(card|funds|settle|cards)/.test(t.href) ? 'fund' : 'mine';
   const risks = todo.filter((t) => t.href.startsWith('#/card/'));
   const todoTable = (rows: Todo[], none: string) => rows.length === 0 ? <Empty>{none}</Empty> : (
     <div className="scroll"><table className="wb-table">
@@ -314,9 +314,8 @@ export function Home({ me, view: asked = 'home' }: { me: Me; view?: HomeView }) 
         <section className="wb-sec">
           {head('01', '各部分', '点进该部分的汇总页')}
           {strip([
-            { no: '项目', nm: `${funds.length} 个项目 · ${active.length} 张经费卡`, v: money(avail), f: `有效期内可用${dueCards.length ? ` · ${dueCards.length} 张到期待结清` : ''}`, href: '#/s-fund', warn: dueCards.length > 0 },
-            { no: '课题', nm: `${tops.length} 个课题 · ${data.projects.filter((p) => p.layer === 'paper' && p.active).length} 个研究单元`, v: execYear ? money(topicLeft) : '—', f: execYear ? `${execYear.year} 年度可用` : '暂无已下达的年度预算', href: '#/s-topic' },
-            { no: '支出', nm: `${openReqs.length} 笔在途`, v: money(amt(openReqs)), f: `${ready.length} 笔待提交学校${returned.length ? ` · ${returned.length} 笔被退回` : ''}`, href: '#/s-spend', warn: returned.length > 0 },
+            { no: '项目', nm: `${funds.length} 个项目 · ${active.length} 张经费卡`, v: money(avail), f: `有效期内可用 · ${ready.length} 笔待提交学校${returned.length ? ` · ${returned.length} 笔被退回` : ''}${dueCards.length ? ` · ${dueCards.length} 张到期待结清` : ''}`, href: '#/s-fund', warn: dueCards.length > 0 || returned.length > 0 },
+            { no: '课题', nm: `${tops.length} 个课题 · ${data.projects.filter((p) => p.layer === 'paper' && p.active).length} 个研究单元`, v: execYear ? money(topicLeft) : '—', f: execYear ? `${execYear.year} 年度可用 · ${openReqs.length} 笔支出在途` : '暂无已下达的年度预算', href: '#/s-topic' },
             { no: '资源', nm: `${data.resources.length} 项资源`, v: `${resLive.length} 项在用`, f: `${resAsk.length} 项申领在办`, href: '#/s-res' },
           ], '各部分')}
         </section>
@@ -425,48 +424,6 @@ export function Home({ me, view: asked = 'home' }: { me: Me; view?: HomeView }) 
           <p className="hint">每个课题、研究单元名下的设备、接口额度和申领记录，在它自己的页面里。</p>
         </section>
         {!(topicNodes.length > 0 || orphans.length > 0 || planYear) && <section className="wb-sec">{head('03', '课题')}<Empty>暂无课题。<a href="#/projects">前往课题管理</a></Empty></section>}
-      </div>
-    );
-  }
-
-  // ---------- 支出汇总 ----------
-  if (view === 'spend') {
-    const check = pending.filter((r) => r.step === 'check'), confirm = pending.filter((r) => !check.includes(r));
-    const pettyOpen = data.petty.filter((r) => r.status === 'pending' || r.status === 'approved');
-    const segs: Seg[] = [
-      { cls: 'sy0 big', value: amt(pending), text: '待确认、核对', tip: `待确认、核对 ${pending.length} 笔，${money(amt(pending))}` },
-      { cls: 'sc big', value: amt(buying), text: '采购中', tip: `采购中 ${buying.length} 笔，${money(amt(buying))}` },
-      { cls: 'sy1 big', value: amt(ready), text: '待提交学校', tip: `待提交学校 ${ready.length} 笔，${money(amt(ready))}` },
-      { cls: 'sa big', value: amt(atSchool) + amt(returned), text: '学校审核中', tip: `学校审核中 ${atSchool.length} 笔、已退回 ${returned.length} 笔，${money(amt(atSchool) + amt(returned))}` }];
-    return (
-      <div className="wb">
-        {hero(`支出 · 汇总 · ${openReqs.length} 笔在途`, '在途支出合计', amt(openReqs), '元', <>
-          {openReqs.length > 0 ? <Track cap="在途支出 · 按所在环节" segs={segs} /> : <Empty>暂无在途支出。</Empty>}
-          <div className="wb-facts"><span>已入账<b>{posted.length} 笔</b></span><span>备用金在办<b>{pettyOpen.length} 笔</b></span><a className="btn" href="#/requests/new">提交支出申请</a></div>
-        </>)}
-        <section className="wb-sec">
-          {head('01', '流程', '申请 › 确认与核对 › 采购 › 提交学校 › 学校审核 › 入账')}
-          {strip([
-            { nm: '申请', ds: '先申请、后支出', v: `${confirm.length} 笔`, f: `待负责人确认 ${money(amt(confirm))}`, href: '#/requests/pending' },
-            { nm: '确认与核对', ds: '负责人确认后财务岗核对', v: `${check.length} 笔`, f: `待核对 ${money(amt(check))}`, href: '#/requests/pending' },
-            { nm: '采购', ds: '按采购路径分阶段', v: `${buying.length} 笔`, f: `采购中 ${money(amt(buying))}`, href: seesCards ? '#/procure' : '#/requests/committed' },
-            { nm: '提交学校', ds: '报销材料齐全后提交', v: `${ready.length} 笔`, f: `待提交 ${money(amt(ready))}`, href: to('#/school', 'committed'), warn: ready.length > 0 },
-            { nm: '学校审核', ds: '批准入账或退回', v: `${atSchool.length} 笔`, f: returned.length ? `${returned.length} 笔已退回` : `审核中 ${money(amt(atSchool))}`, href: to('#/school', 'at_school'), warn: returned.length > 0 },
-            { nm: '入账', ds: '以学校正式入账为准', v: `${posted.length} 笔`, f: `已入账 ${money(amt(posted))}`, href: '#/requests/posted' },
-          ], '支出流程')}
-        </section>
-        <section className="wb-sec">{head('02', '待办', '只列这一部分的事项')}{todoTable(todo.filter((t) => secOf(t) === 'spend'), '这一部分暂无待办事项。')}</section>
-        <section className="wb-sec">
-          {head('03', '在途支出', <a href="#/requests">全部申请 →</a>)}
-          {openReqs.length === 0 ? <Empty>暂无在途支出。</Empty> : (
-            <div className="scroll"><table className="wb-table">
-              <thead><tr><th>单据</th><th>所属</th><th className="r">金额</th><th>状态</th><th /></tr></thead>
-              <tbody>{openReqs.slice(0, 30).map((r) => <tr key={r.id}><td className="wrap">{r.title}<span className="sub2">{[r.code, `预计 ${day(r.eta_date)} 入账`].filter(Boolean).join(' · ')}</span></td>
-                <td>{r.project_name ?? cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
-                <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge> <Flow status={r.status} /></td><td className="r"><a className="wb-op" href={`#/req/${r.id}`}>查看</a></td></tr>)}</tbody>
-            </table></div>)}
-          {openReqs.length > 30 && <p className="hint">仅列出最近 30 笔，其余见「支出申请」。</p>}
-        </section>
       </div>
     );
   }
