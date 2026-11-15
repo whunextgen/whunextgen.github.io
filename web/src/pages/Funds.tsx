@@ -143,7 +143,7 @@ export function Funds({ me }: { me: Me }) {
               <tr><th scope="row">额度</th><td>{p.quota != null ? money(p.quota) : <span className="sub2">尚未填写</span>}</td>
                 <th scope="row">期限</th><td>{p.period_start || p.period_end ? `${day(p.period_start)} 至 ${day(p.period_end)}` : <span className="sub2">尚未填写</span>}</td></tr>
               <tr><th scope="row">占用额度</th><td>{money(p.granted)}{num(p.recalled) > 0 && <span className="sub2"> 历年下达 {money(num(p.granted) + num(p.recalled))}，结清后回收 {money(p.recalled)}，回收部分不占额度</span>}</td>
-                <th scope="row">尚未申请</th><td>{rest == null ? '—' : <span className={rest < 0 ? 'neg' : ''}>{money(rest)}</span>}</td></tr>
+                <th scope="row">额度剩余</th><td>{rest == null ? '—' : <span className={rest < 0 ? 'neg' : ''}>{money(rest)}</span>}</td></tr>
               {p.note && <tr><th scope="row">备注</th><td colSpan={3} className="wrap">{p.note}</td></tr>}
             </tbody></table>
             {cs.length === 0 ? <Empty>尚未开出经费卡。</Empty> : (

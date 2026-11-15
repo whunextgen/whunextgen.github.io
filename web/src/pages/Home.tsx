@@ -159,13 +159,13 @@ export function Home({ me }: { me: Me }) {
     // 已结清的卡被回收的部分不占额度，图上只画实际留用的
     const segs: Seg[] = [...cs].reverse().map((c, i) => { const g = cardGranted(c) - (c.status === 'settled' ? num(c.recalled ?? 0) : 0);
       return { cls: i % 2 ? 'sy1' : 'sy0', value: g, text: `${c.year} 年${c.name === p.name ? '' : ` ${c.name}`} ${wan(g)}`, tip: `${c.year} 年经费卡 ${c.card_no}${c.name === p.name ? '' : `（${c.name}）`}${c.status === 'settled' && num(c.recalled ?? 0) > 0 ? `已结清，回收 ${money(c.recalled)}，占用额度` : '下达'} ${money(g)}${quota ? `，占额度 ${pct(g, quota)}` : ''}` }; });
-    if (quota != null && quota > granted) segs.push({ cls: 'hatch', value: quota - granted, text: `尚未申请 ${wan(quota - granted)}`, tip: `尚未申请 ${money(quota - granted)}，占额度 ${pct(quota - granted, quota)}；不属于当年可用经费` });
+    if (quota != null && quota > granted) segs.push({ cls: 'hatch', value: quota - granted, text: `额度剩余 ${wan(quota - granted)}`, tip: `额度剩余 ${money(quota - granted)}，占额度 ${pct(quota - granted, quota)}；不属于当年可用经费` });
     const meta = [p.source && FUND_SOURCE[p.source], p.period_start || p.period_end ? `${day(p.period_start).slice(0, 4)}—${day(p.period_end).slice(0, 4)}` : '', p.owner_name && `负责人 ${p.owner_name}`].filter(Boolean).join(' · ');
     const noCard = !cs.some((c) => c.year === thisYear);
     return (
       <TreeNode key={p.id} level={1} lv="项目" title={p.name} meta={meta} open={pi === 0}
-        chart={segs.length > 0 ? <Track cap={quota != null ? '额度构成 · 各年度占用与尚未申请（已结清的卡扣除回收）' : '各年度已下达 · 额度尚未填写'} segs={segs} /> : <div className="wb-bar"><div className="wb-cap">尚未开出经费卡</div></div>}
-        num={quota != null ? `额度 ${money(quota)}` : '额度尚未填写'} sub={`占用额度 ${money(granted)}${num(p.recalled) > 0 ? `（已扣回收 ${money(p.recalled)}）` : ''}${quota != null ? ` · 尚未申请 ${money(Math.max(quota - granted, 0))}` : ''}`}
+        chart={segs.length > 0 ? <Track cap={quota != null ? '额度构成 · 各年度占用与额度剩余（已结清的卡扣除回收）' : '各年度已下达 · 额度尚未填写'} segs={segs} /> : <div className="wb-bar"><div className="wb-cap">尚未开出经费卡</div></div>}
+        num={quota != null ? `额度 ${money(quota)}` : '额度尚未填写'} sub={`占用额度 ${money(granted)}${num(p.recalled) > 0 ? `（已扣回收 ${money(p.recalled)}）` : ''}${quota != null ? ` · 额度剩余 ${money(Math.max(quota - granted, 0))}` : ''}`}
         status={noCard ? ['warn', `${thisYear} 年经费卡尚未开出，本年度无可用经费`] : null}>
         {cs.map((c) => {
           const cells = data.cells.filter((x) => x.card_id === c.card_id && (num(x.cur) || num(x.commit) || num(x.actual))).sort((a, b) => a.sort - b.sort);
@@ -251,7 +251,7 @@ export function Home({ me }: { me: Me }) {
               : <Empty>{thisYear} 年尚无在用的经费卡。</Empty>}
             <div className="wb-facts">
               <span>当年下达<b>{money(cur)}</b></span><span>已入账<b>{money(actual)}</b></span><span>已承诺<b>{money(commit)}</b></span>
-              {quotaSum > 0 && <span>项目额度合计<b>{money(quotaSum)}</b></span>}{quotaSum > 0 && <span>尚未申请<b>{money(unapplied)}</b></span>}
+              {quotaSum > 0 && <span>项目额度合计<b>{money(quotaSum)}</b></span>}{quotaSum > 0 && <span>额度剩余<b>{money(unapplied)}</b></span>}
               {unassigned >= 0.005 && <span className="w">尚未分到科目<b>{money(unassigned)}</b></span>}
               {recall >= 1 && <span className="w">预计年末回收<b>{money(recall)}</b></span>}
             </div>
@@ -284,7 +284,7 @@ export function Home({ me }: { me: Me }) {
       {seesCards && (
         <section className="wb-sec">
           <div className="wb-sh"><span className="no">02</span><h2>项目</h2><span className="path"><b>项目</b> › <b>经费卡</b> › <b>明细</b>　点击逐级展开</span></div>
-          <div className="wb-key"><span><i className="sy1" />各年度已下达</span><span><i className="hatch" />尚未申请 / 尚未下达</span><span><i className="sa" />已入账</span><span><i className="sc" />已承诺</span><span><i className="sr" />可用</span></div>
+          <div className="wb-key"><span><i className="sy1" />各年度已下达</span><span><i className="hatch" />额度剩余 / 尚未下达</span><span><i className="sa" />已入账</span><span><i className="sc" />已承诺</span><span><i className="sr" />可用</span></div>
           {fundNodes.length === 0 ? <Empty>暂无项目。<a href="#/funds">前往项目管理</a>新建项目，并将经费卡归入项目。</Empty> : <div className="wb-acc">{fundNodes}</div>}
           {loose > 0 && <p className="hint">另有 {loose} 张经费卡尚未归入项目，未计入上图。<a href="#/funds">前往项目管理归入 →</a></p>}
         </section>
