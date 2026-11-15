@@ -100,17 +100,18 @@ function App() {
   const keep = (...p: (Page | false)[]) => p.filter(Boolean) as Page[];
   const SUB = new Set(['/cards']);   // 缩进显示的下一级：经费卡在项目之下
   // 每个部分的标题可以点，进入该部分的汇总页（home）
+  // top：上一级目录。财务之下并列项目和资源两组
   const groups = [
-    { label: '', home: '', note: '', pages: keep(['/', '首页'], ['/tasks', '任务管理']) },
-    // 项目：学校这一侧，由财务岗办理——经费从哪来、交学校报销入账、到期结清
-    { label: '项目', home: seesCards ? '/s-fund' : '', note: '经费卡、采购、报销入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/procure', '采购'], seesCards && ['/school', '报销与入账'], seesPeople && ['/staff', '人员经费'], seesCards && ['/ledger', '明细账校准'], seesCards && ['/settle', '经费结清']) },
-    // 课题：中心内部这一侧——预算怎么编、从预算行怎么支出
-    { label: '课题', home: '/s-topic', note: '预算、支出申请、决算', pages: keep(['/projects', '课题管理'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], ['/requests', '支出申请'], ['/petty', '备用金管理'], ['/ask', '报销咨询'], seesReview && ['/review', '年度决算']) },
-    { label: '资源', home: '/s-res', note: '申领、调配、盘点', pages: keep(['/resource', '资源申领'], seesRes && ['/pool', '资源调配'], seesRes && ['/stock', '资产盘点']) },
-    { label: '系统', home: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesDesk && ['/desk', '预算参数'], seesCards && ['/rules', '采购与报销要求'], seesLegacy && ['/history', '历史数据']) },
+    { top: '', label: '', home: '', note: '', pages: keep(['/', '首页'], ['/tasks', '任务管理']) },
+    // 课题：中心内部这一侧，成员和负责人办的事——预算怎么编、从预算行怎么支出、申领资源
+    { top: '', label: '课题', home: '/s-topic', note: '预算、支出申请、资源申领、决算', pages: keep(['/projects', '课题管理'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], ['/requests', '支出申请'], ['/petty', '备用金管理'], ['/resource', '资源申领'], ['/ask', '报销咨询'], seesReview && ['/review', '年度决算']) },
+    // 财务：财务岗办的事。项目是学校这一侧的经费，资源是中心的接口额度和资产
+    { top: '财务', label: '项目', home: seesCards ? '/s-fund' : '', note: '经费卡、采购、报销入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/procure', '采购'], seesCards && ['/school', '报销与入账'], seesPeople && ['/staff', '人员经费'], seesCards && ['/ledger', '明细账校准'], seesCards && ['/settle', '经费结清']) },
+    { top: '财务', label: '资源', home: '/s-res', note: '调配、盘点', pages: keep(seesRes && ['/pool', '资源调配'], seesRes && ['/stock', '资产盘点']) },
+    { top: '', label: '系统', home: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesDesk && ['/desk', '预算参数'], seesCards && ['/rules', '采购与报销要求'], seesLegacy && ['/history', '历史数据']) },
   ].filter((g) => g.pages.length > 0);
   // 不在导航里、从别的页面点进去的页面
-  const side = keep(['/track', '在途事项'], ['/center', '中心总览'], ['/s-spend', '课题汇总'], ...groups.filter((g) => g.home).map((g): Page => [g.home, `${g.label}汇总`]), !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
+  const side = keep(['/track', '在途事项'], ['/center', '中心总览'], ['/s-spend', '课题汇总'], ['/s-res', '资源汇总'], ...groups.filter((g) => g.home).map((g): Page => [g.home, `${g.label}汇总`]), !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
 
   const reqId = route.match(/^\/req\/([^/]+)$/)?.[1];
   const resId = route.match(/^\/res\/([^/]+)$/)?.[1];
@@ -170,8 +171,9 @@ function App() {
       <aside className="sb">
         <a className="brand" href="#/"><i aria-hidden="true">财</i><span><b>科研财务中台</b><span>CLAIN 中心</span></span></a>
         <nav aria-label="导航">
-          {groups.map((g) => (
-            <div className={`sg${g.home === current || g.pages.some(([to]) => to === current) ? ' cur' : ''}`} key={g.label}>
+          {groups.map((g, gi) => (
+            <div className={`sg${g.top ? ' in' : ''}${g.home === current || g.pages.some(([to]) => to === current) ? ' cur' : ''}`} key={g.label}>
+              {g.top && groups[gi - 1]?.top !== g.top && <div className="sg-top">{g.top}</div>}
               {g.label && (g.home ? <a className={`sg-h${g.home === current ? ' on' : ''}`} href={`#${g.home}`} aria-current={g.home === current ? 'page' : undefined}><b>{g.label}</b><i>汇总</i></a> : <div className="sg-h"><b>{g.label}</b></div>)}
               {g.note && <div className="sg-n">{g.note}</div>}
               {g.pages.map(link)}
@@ -187,7 +189,7 @@ function App() {
       <div className="body">
         <header className="tb">
           <button className="ghost sm menu" aria-expanded={open} onClick={() => setOpen(!open)}>菜单</button>
-          <div className="bc">{group?.label && <>{group.label}<i>/</i></>}<b>{title}</b></div>
+          <div className="bc">{group?.top && <>{group.top}<i>/</i></>}{group?.label && <>{group.label}<i>/</i></>}<b>{title}</b></div>
           <span>{today()}</span>
         </header>
         <main key={route}><PageGuard key={route}>{page}</PageGuard></main>
