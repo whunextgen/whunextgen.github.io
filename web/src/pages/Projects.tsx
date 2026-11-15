@@ -32,7 +32,7 @@ export function Projects({ me }: { me: Me }) {
   const fields: Field[] = [
     ...(paper ? [{ name: 'parent', label: '所属课题', options: bigs.filter((b) => b.kind !== 'public' && (b.active || b.id === p?.parent_id)).map((b) => [b.id, `${b.name}（${b.code}）`] as [string, string]), value: p?.parent_id ?? under?.id ?? '' } as Field] : []),
     { name: 'name', label: '名称', value: p?.name },
-    { name: 'code', label: paper ? '编号（留空则按课题编号加序号自动生成）' : '编号', required: !paper, value: p?.code },
+    { name: 'code', label: paper ? '编号（留空则按课题编号加序号自动生成）' : '编号（留空则自动生成）', required: false, value: p?.code },
     ...(paper ? [] : [{ name: 'kind', label: '类型', options: [['project', '课题'], ['line', KIND.line], ['public', KIND.public]], value: p?.kind ?? 'project' } as Field]),
     { name: 'owner', label: paper ? '负责人' : '负责人（中心公共开支可留空）', required: paper, options: data.users.filter((u) => u.active).map((u) => [u.id, u.name]), value: p?.owner_id ?? '' },
     ...(p ? [{ name: 'active', label: '在用', type: 'check', value: String(p.active) } as Field] : [])];

@@ -1625,6 +1625,7 @@ eq((await q(`select * from api.card_subject_map where card_id = $1`, [kl])).leng
 await raises('有支出的预算科目不能删', /请先取消对应/, `select delete_card_subject($1)`, [it]);
 await as(U.dir, '2032-06-01');
 await raises('一张卡的预算科目不能用在另一张卡上', /属于另一张经费卡|不属于该卡/, "select set_budget($1, $2)", [kv, JSON.stringify([{ subject_id: it, amount: 1 }])]);
+eq(Number((await one(`select count(*) v from api.cell where card_id = $1 and subject_id = $2`, [kv, it])).v), 0, '一张卡自编的预算科目不出现在别的卡上');
 await q("select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: it, amount: 1500 }])]);
 ok(Number((await one(`select avail from api.cell where card_id = $1 and subject_id = $2`, [kl, it])).avail) === 800, '预算科目的可用 = 明细 − 对应学校科目的入账');
 await as(U.fin, '2032-06-01');
@@ -1749,6 +1750,9 @@ ok(npOk.active === true && npOk.proposed === false && Number(npOk.fixed) === 200
 eq((await one(`select amount from api.project_cap where year = 2033 and project_id = $1`, [MT])).amount, 20000, '评定完成后方案确定的金额成为该课题的年度上限');
 eq((await one(`select fixed from api.budget_line where id = $1`, [ML])).fixed, 15000, '该课题的明细一并核定');
 await as(U.fin, '2032-06-05');
+const autoId = await val(`select save_project(null, null, '编号自动生成的课题', 'public', null, true) v`);
+const autoCode = (await one(`select code from api.project where id = $1`, [autoId])).code;
+ok(/^P-\d{2,}$/.test(autoCode), '新立课题不填编号时自动生成', autoCode);
 // 旧入口直接建的卡自动补上经费项目
 await db.exec(`reset role`);
 const legacyCard = await one(`select c.year, p.name from fund_card c join fund_project p on p.id = c.project_id where c.card_no = '4131-A'`);
