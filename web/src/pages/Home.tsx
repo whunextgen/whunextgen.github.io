@@ -155,7 +155,7 @@ export function Home({ me }: { me: Me }) {
   const fundNodes = [...funds].sort((a, b) => (a.period_end ?? '9').localeCompare(b.period_end ?? '9') || a.name.localeCompare(b.name, 'zh')).map((p, pi) => {
     const cs = data.cards.filter((c) => c.project_id === p.id).sort((a, b) => b.year - a.year || a.card_no.localeCompare(b.card_no));
     const granted = num(p.granted), quota = p.quota != null ? num(p.quota) : null;
-    // 已结清且到期处理为到期回收的卡，回收的部分不占额度，图上只画实际留用的；结余上缴的仍占额度
+    // 已结清且到期处理为到期回收的卡，回收的部分不占额度，图上只画实际留用的
     const segs: Seg[] = [...cs].reverse().map((c, i) => { const g = cardGranted(c) - (c.status === 'settled' && c.end_rule === 'recall' ? num(c.recalled ?? 0) : 0);
       return { cls: i % 2 ? 'sy1' : 'sy0', value: g, text: `${c.year} 年${c.name === p.name ? '' : ` ${c.name}`} ${wan(g)}`, tip: `${c.year} 年经费卡 ${c.card_no}${c.name === p.name ? '' : `（${c.name}）`}${c.status === 'settled' && c.end_rule === 'recall' && num(c.recalled ?? 0) > 0 ? `已结清，到期回收 ${money(c.recalled)}，占用额度` : '下达'} ${money(g)}${quota ? `，占额度 ${pct(g, quota)}` : ''}` }; });
     if (quota != null && quota > granted) segs.push({ cls: 'hatch', value: quota - granted, text: `额度剩余 ${wan(quota - granted)}`, tip: `额度剩余 ${money(quota - granted)}，占额度 ${pct(quota - granted, quota)}；尚未下达，不是可用经费` });

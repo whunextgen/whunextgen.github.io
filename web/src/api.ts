@@ -58,7 +58,7 @@ export interface RoleGrant { id: string; user_id: string; user_name: string; rol
 export interface RbacLog { id: number; at: string; actor_name: string | null; action: string; user_name: string | null; summary: string }
 export interface Card {
   card_id: string; card_no: string; name: string; status: 'active' | 'settled';
-  start_date: string; cutoff_date: string; settle_date: string | null; end_rule: 'recall' | 'carry' | 'return';
+  start_date: string; cutoff_date: string; settle_date: string | null; end_rule: 'recall' | 'carry';
   orig: string; adj: string; cur: string; commit: string; actual: string; avail: string;
   template_id: string; template_name: string; locked: boolean; owner_id: string | null; rule_note: string | null;
   school_balance: string | null; school_frozen: string | null; school_available: string | null; school_synced_at: string | null;
@@ -75,8 +75,8 @@ export interface CardSchoolSubject { card_id: string; subject_id: string; school
 // 项目：额度和期限在这里；每年下来的经费是它下面当年的一张经费卡
 export interface FundProject { id: string; name: string; source: 'school' | 'national' | 'provincial' | 'enterprise' | 'other' | null; fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null;
   owner_id: string | null; owner_name: string | null; quota: string | null; period_start: string | null; period_end: string | null; template_id: string; template_name: string;
-  end_rule: 'recall' | 'carry' | 'return'; note: string | null; status: 'active' | 'closed'; granted: string; recalled: string; cards: number;
-  auto: boolean }   // auto：由经费卡自动生成的占位，还不是正式的项目
+  end_rule: 'recall' | 'carry'; note: string | null; status: 'active' | 'closed'; granted: string; recalled: string; cards: number;
+  auto: boolean; close_rule: 'none' | 'return'; returned: string | null }   // close_rule：项目结束处理；returned：结题时记下的上缴数；auto：由经费卡自动生成的占位，还不是正式的项目
 export interface Cell { card_id: string; subject_id: string; subject_code: string; subject_name: string; sort: number;
   orig: string; adj: string; cur: string; commit: string; actual: string; avail: string }
 export interface Node { node_id: string; card_id: string; node_date: string; ratio: string; consequence: string; need: string; forecast: string }
@@ -179,7 +179,7 @@ export interface BudgetLine { id: string; budget_id: string; year: number; proje
 export interface ResourcePlan { id: string; year: number; project_id: string; project_code: string; project_name: string; category_name: string; purpose: string;
   resource_id: string; resource_name: string; kind: 'api' | 'asset'; unit: string | null; plan_qty: string; asked: string; granted: string; open: boolean; project_kind: 'project' | 'line' | 'public' }
 export interface CategorySubject { category_id: string; subject_id: string }
-export interface BudgetAlloc { id: string; line_id: string; year: number; project_id: string; card_id: string | null; card_no: string | null; card_name: string | null; end_rule: 'recall' | 'carry' | 'return'; card_end: string;
+export interface BudgetAlloc { id: string; line_id: string; year: number; project_id: string; card_id: string | null; card_no: string | null; card_name: string | null; end_rule: 'recall' | 'carry'; card_end: string;
   subject_id: string; subject_name: string; amount: string; used: string; actual: string }
 export interface LineExec { id: string; year: number; project_id: string; category_id: string; purpose: string; q1: string; q2: string; q3: string; q4: string;
   fixed: string | null; allocated: string; used: string; actual: string; pending: string; a1: string; a2: string; a3: string; a4: string }

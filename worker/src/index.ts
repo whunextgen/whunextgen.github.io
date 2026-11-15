@@ -122,6 +122,8 @@ const RPC: Record<string, [string, string][]> = {
   void_stray_posted: [['card_id', 'uuid']],
   set_card_pooled: [['card_id', 'uuid'], ['pooled', 'boolean']],
   close_fund_project: [['id', 'uuid']],
+  set_project_close_rule: [['id', 'uuid'], ['rule', 'text']],
+  set_project_close_rule: [['id', 'uuid'], ['rule', 'text']],
   move_card: [['card_id', 'uuid'], ['project_id', 'uuid']],
   delete_card: [['card_id', 'uuid']],
   delete_fund_project: [['id', 'uuid']],

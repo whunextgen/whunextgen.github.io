@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { rpc, useViews, type Card, type FundProject, type Me, type Template, type User } from '../api';
-import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, FUND_SOURCE, Loading, ROLE, Tile, can, cardGap, cardGranted, day, money, num, today, type Field } from '../ui';
+import { ActionDialog, Badge, CLOSE_RULE, Empty, END_RULE, FUND_KIND, FUND_SOURCE, Loading, ROLE, Tile, can, cardGap, cardGranted, day, money, num, today, type Field } from '../ui';
 
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
-// 项目：学校、国家等渠道批下来的，记额度和期限。每次下达的经费是项目下的一张经费卡，经费卡可以跨年度使用，到期后按到期处理回收、上缴或结转。
+// 项目：学校、国家等渠道批下来的，记额度和期限。每次下达的经费是项目下的一张经费卡，经费卡可以跨年度使用，到期后按到期处理回收或结转；结余上缴按项目办，在项目结束时处理。
 export function Funds({ me }: { me: Me }) {
   const { data, error, reload } = useViews<{ projects: FundProject[]; cards: Card[]; templates: Template[]; users: User[] }>({
     projects: ['fund_project'], cards: ['card'], templates: ['template'], users: ['users'],
@@ -33,7 +33,7 @@ export function Funds({ me }: { me: Me }) {
 
   const projectAct = (p?: FundProject): Act => ({
     title: !p ? '新建项目' : p.auto ? `据经费卡新建项目：${p.name}` : `修改项目：${p.name}`, label: p && !p.auto ? '保存' : '新建',
-    hint: '到期处理三种：到期回收，结余由学校收回，额度仍在，可重新申请；结余上缴，结余上缴后不再属于本项目，仍占额度；结转，结余带到下一张经费卡。额度为该项目批复的总数，期限为项目起止日期，均按任务书或合同填写；经费卡的下达年度可以在期限之外，页面会给出提示。每次实际下达的经费另在项目下开经费卡。',
+    hint: '经费卡到期处理两种：到期回收，结余由学校收回，回到项目的额度剩余，可重新申请；结转，结余带入下一张经费卡。项目结束处理选结余上缴的（如财政项目），结题时额度剩余记为上缴数。额度为该项目批复的总数，期限为项目起止日期，均按任务书或合同填写；经费卡的下达年度可以在期限之外，页面会给出提示。每次实际下达的经费另在项目下开经费卡。',
     fields: [
       { name: 'name', label: '项目名称', value: p?.name },
       { name: 'source', label: '来源渠道（选填）', options: Object.entries(FUND_SOURCE), required: false, value: p?.source ?? '' },
@@ -43,10 +43,14 @@ export function Funds({ me }: { me: Me }) {
       { name: 'period_start', label: '期限开始（选填）', type: 'date', required: false, value: p?.period_start ? day(p.period_start) : '' },
       { name: 'period_end', label: '期限结束（选填）', type: 'date', required: false, value: p?.period_end ? day(p.period_end) : '' },
       { name: 'template_id', label: '科目模板', options: tplOpts, value: p?.template_id },
-      { name: 'end_rule', label: '到期处理（经费卡到期后结余的去向，各经费卡默认按此）', options: Object.entries(END_RULE), value: p?.end_rule ?? 'recall' },
+      { name: 'end_rule', label: '经费卡到期处理（经费卡到期后结余的去向，各经费卡默认按此）', options: Object.entries(END_RULE), value: p?.end_rule ?? 'recall' },
+      { name: 'close_rule', label: '项目结束处理（项目结束时结余的处理）', options: Object.entries(CLOSE_RULE), value: p?.close_rule ?? 'none' },
       { name: 'note', label: '备注（选填）', required: false, value: p?.note ?? '' },
     ],
-    run: (v) => rpc('save_fund_project', { id: p?.id ?? null, ...v }),
+    run: async ({ close_rule, ...v }) => {
+      const id = await rpc('save_fund_project', { id: p?.id ?? null, ...v }) as string;
+      await rpc('set_project_close_rule', { id: p?.id ?? id, rule: close_rule });
+    },
   });
   const openAct = (p: FundProject): Act => {
     const cs = cardsOf(p);
@@ -133,10 +137,9 @@ export function Funds({ me }: { me: Me }) {
       )}
       {shown.length === 0 ? <section className="card"><Empty>暂无项目。{staff && (loose.length > 0 ? '请先新建项目，再把上面的经费卡归入。' : '先新建项目，再在项目下开经费卡。')}</Empty></section> : shown.map((p) => {
         const cs = cardsOf(p); const rest = left(p); const cur = cs.find(live);
-        // 已结清的卡：到期回收的结余回到额度剩余，结余上缴的仍占额度
+        // 已结清的卡：到期回收的结余回到额度剩余
         const back = cs.filter((c) => c.status === 'settled' && c.end_rule === 'recall').reduce((t, c) => t + num(c.recalled ?? 0), 0);
-        const gone = cs.filter((c) => c.status === 'settled' && c.end_rule === 'return').reduce((t, c) => t + num(c.recalled ?? 0), 0);
-        const facts = [p.source && FUND_SOURCE[p.source], p.fund_kind && FUND_KIND[p.fund_kind], p.owner_name && `负责人 ${p.owner_name}`, p.template_name, `到期处理：${END_RULE[p.end_rule]}`].filter(Boolean).join(' · ');
+        const facts = [p.source && FUND_SOURCE[p.source], p.fund_kind && FUND_KIND[p.fund_kind], p.owner_name && `负责人 ${p.owner_name}`, p.template_name, `经费卡到期处理：${END_RULE[p.end_rule]}`, p.close_rule === 'return' && '项目结束时结余上缴'].filter(Boolean).join(' · ');
         return (
           <section className="card" key={p.id}>
             <h3>{p.name} {p.status === 'closed' ? <Badge>已结题</Badge> : p.period_end && day(p.period_end) < today() ? <Badge tone="warn">已过期限</Badge> : null}
@@ -144,8 +147,8 @@ export function Funds({ me }: { me: Me }) {
             <table><tbody>
               <tr><th scope="row">额度</th><td>{p.quota != null ? money(p.quota) : <span className="sub2">尚未填写</span>}</td>
                 <th scope="row">期限</th><td>{p.period_start || p.period_end ? `${day(p.period_start)} 至 ${day(p.period_end)}` : <span className="sub2">尚未填写</span>}</td></tr>
-              <tr><th scope="row">占用额度</th><td>{money(p.granted)}{(back > 0 || gone > 0) && <span className="sub2"> 历年下达 {money(num(p.granted) + back)}{back > 0 && `；到期回收 ${money(back)}，回到额度剩余`}{gone > 0 && `；结余上缴 ${money(gone)}，仍占额度`}</span>}</td>
-                <th scope="row">额度剩余</th><td>{rest == null ? '—' : <span className={rest < 0 ? 'neg' : ''}>{money(rest)}</span>}</td></tr>
+              <tr><th scope="row">占用额度</th><td>{money(p.granted)}{back > 0 && <span className="sub2"> 历年下达 {money(num(p.granted) + back)}；到期回收 {money(back)}，回到额度剩余</span>}</td>
+                <th scope="row">额度剩余</th><td>{rest == null ? '—' : <span className={rest < 0 ? 'neg' : ''}>{money(rest)}</span>}{p.returned != null ? <span className="sub2"> 结题时上缴 {money(p.returned)}</span> : p.close_rule === 'return' && rest != null && <span className="sub2"> 项目结束时结余上缴</span>}</td></tr>
               {p.note && <tr><th scope="row">备注</th><td colSpan={3} className="wrap">{p.note}</td></tr>}
             </tbody></table>
             {cs.length === 0 ? <Empty>尚未开出经费卡。</Empty> : (

@@ -20,7 +20,7 @@ export function cardRisk(c: Card, now = today()) {
   const forecast = Math.min(cur, Math.max(actual + commit, time > 0 ? actual / time : actual));
   const left = Math.max(0, cur - forecast);
   const gap = time - exec;                                    // 执行落后时间进度多少
-  const loses = c.end_rule !== 'carry';                       // 到期回收、结余上缴的卡，剩下的钱留不住
+  const loses = c.end_rule !== 'carry';                       // 到期回收的卡，剩下的钱留不住
   const level = cur <= 0 || left < 1 ? 'ok' : loses && (gap > 0.2 || (daysLeft <= 60 && left / cur > 0.1)) ? 'bad' : gap > 0.1 ? 'warn' : 'ok';
   const perMonth = daysLeft > 0 ? (cur - actual) / Math.max(1, daysLeft / 30) : cur - actual;
   const advice = cur <= 0 ? '尚未下达预算' : left < 1 ? '按当前进度可执行完毕'
@@ -91,7 +91,7 @@ export function Overview({ me }: { me: Me }) {
       {active.length > 0 && (
         <section className="card">
           <h3>执行预警 <span className="h3sub">{atRisk.length ? `${atRisk.length} 张经费卡进度落后，按当前速度至截止日预计合计结余 ${money(atRisk.reduce((s, r) => s + r.k.left, 0))}` : '各经费卡进度正常'}</span></h3>
-          <p className="hint">时间进度自下达日计至单据截止日，执行进度仅以学校已入账为准。预计入账按在途承诺全部入账和保持当前入账速度两种算法取较大值。到期回收和结余上缴的经费卡结余不可留用，优先排列。{received.length > 0 && ` 已到账合计 ${money(received.reduce((s, c) => s + num(c.received), 0))}。`}</p>
+          <p className="hint">时间进度自下达日计至单据截止日，执行进度仅以学校已入账为准。预计入账按在途承诺全部入账和保持当前入账速度两种算法取较大值。到期回收的经费卡结余不可留用，优先排列。{received.length > 0 && ` 已到账合计 ${money(received.reduce((s, c) => s + num(c.received), 0))}。`}</p>
           <div className="scroll"><table>
             <thead><tr><th>经费卡</th><th>到期处理</th><th className="r">剩余天数</th><th className="r">时间进度</th><th className="r">执行进度</th><th className="r">预计到期入账</th><th className="r">预计到期结余</th><th>判断</th><th>建议</th></tr></thead>
             <tbody>{risks.map(({ c, k }) => (

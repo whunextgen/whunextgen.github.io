@@ -21,7 +21,10 @@ export const cardTotal = (c: { cur: string }) => Number(c.cur);
 export const cardGap = (c: { cur: string; assigned?: string; pooled?: boolean }) => (c.pooled ? 0 : Math.max(Number(c.cur) - Number(c.assigned ?? c.cur), 0));
 export const cardGranted = (c: { granted: string | null; carried_in: string; orig: string }) => (c.granted != null ? Number(c.granted) : Number(c.orig) - Number(c.carried_in));
 export const FUND_SOURCE: Record<string, string> = { school: '学校', national: '国家', provincial: '省部', enterprise: '企业', other: '其他' };
-export const END_RULE: Record<string, string> = { recall: '到期回收', carry: '结转', return: '结余上缴' };
+// 经费卡到期后结余的去向
+export const END_RULE: Record<string, string> = { recall: '到期回收', carry: '结转' };
+// 项目结束时结余的处理：结余上缴按项目办（如财政项目）
+export const CLOSE_RULE: Record<string, string> = { none: '无须上缴', return: '结余上缴' };
 export const REQ: Record<ReqStatus, [string, string]> = {
   pending: ['待确认', 'warn'], committed: ['待提交学校', 'pri'], at_school: ['学校审核中', 'pri'], posted: ['已入账', 'ok'],
   returned: ['已退回', 'bad'], released: ['已释放', ''], rejected: ['已驳回', ''],

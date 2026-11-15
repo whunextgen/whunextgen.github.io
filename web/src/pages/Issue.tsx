@@ -3,7 +3,7 @@ import { rpc, useViews, type BudgetAlloc, type BudgetCategory, type BudgetYear, 
 import { ActionDialog, Badge, Empty, END_RULE, Loading, can, day, money, num, type Field } from '../ui';
 
 interface Act { title: string; hint?: string; fields: Field[]; submitLabel?: string; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
-const RANK: Record<Card['end_rule'], number> = { recall: 0, return: 1, carry: 2 };
+const RANK: Record<Card['end_rule'], number> = { recall: 0, carry: 2 };
 const endOf = (c: Card) => day(c.settle_date ?? c.cutoff_date);
 
 // 03 下达：把每一行的核定数对到经费卡的学校科目上。到期回收的卡先填满，填不满的缺口在这里标出来。
@@ -69,7 +69,7 @@ export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: Budg
         </div>
         {editable && <div className="actions" style={{ justifyContent: 'flex-start' }}>
           {open.length > 0 && <button onClick={() => setAct({ title: '按科目对应自动分配', submitLabel: '自动分配', fields: [],
-            hint: `为尚未分配完毕的 ${open.length} 行匹配经费卡：优先分配到期回收的经费卡（结清日早的在前），其次为结余上缴的，最后为可结转的。无法分配的行留待手工处理，已分配的不变。`,
+            hint: `为尚未分配完毕的 ${open.length} 行匹配经费卡：优先分配到期回收的经费卡（结清日早的在前），其次为可结转的。无法分配的行留待手工处理，已分配的不变。`,
             run: () => rpc('auto_allocate', { year }).then((n) => { setNote(`本次分配完毕 ${n} 行。`); reload(); }) })}>自动分配</button>}
           {y.stage === 'fixed' && <button className={open.length > 0 ? 'ghost' : ''} disabled={open.length > 0} title={open.length > 0 ? '尚有预算行未分配完毕' : undefined}
             onClick={() => setAct({ title: `下达 ${year} 年度预算`, submitLabel: '下达', fields: [], hint: `${lines.length} 行预算、合计 ${money(fixedSum)} 已全部分配至经费卡。下达后各研究单元可按预算提交支出申请。`, run: () => go('issue') })}>下达</button>}
