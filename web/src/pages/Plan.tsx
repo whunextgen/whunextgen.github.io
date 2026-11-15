@@ -48,7 +48,7 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
   // 课题可以从已有的里选，也可以就在这里新立（如中心公共开支），不必先去课题管理
   const moduleAct = (m?: BudgetModule): Act => ({
     title: m ? `修改金额：${m.name}` : '直接确定课题的金额', label: '保存',
-    hint: m ? '该课题的金额由本方案直接确定，从总预算中先行扣除，不参加档次评定。' : '中心公共开支这样的课题，金额由本方案直接确定，从总预算中先行扣除，不参加档次评定；课题连同研究单元的明细合计不得超过这个金额。课题可以从已有的里选，也可以在下面填名称直接新立，编号自动生成。',
+    hint: m ? '该课题的金额由本方案直接确定，从总预算中先行扣除，不参加档次评定。' : `中心公共开支这样的课题，金额由本方案直接确定，从总预算中先行扣除，不参加档次评定；课题连同研究单元的明细合计不得超过这个金额。${fixable.length > 0 ? '课题可以从已有的里选，也可以在下面填名称直接新立，编号自动生成。' : '现有课题都已在本方案里或已申请档次，没有可选的，请在下面填名称新立，编号自动生成。'}`,
     fields: [...(m ? [] : [
       ...(fixable.length > 0 ? [{ name: 'project', label: '已有课题', required: false, options: fixable.map((p): [string, string] => [p.id, `${p.code} ${p.name}`]) } as Field] : []),
       { name: 'new_name', label: fixable.length > 0 ? '或新立课题：名称' : '新立课题：名称', required: fixable.length === 0 } as Field,
