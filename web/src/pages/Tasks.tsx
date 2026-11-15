@@ -38,7 +38,7 @@ export function Tasks({ me, only }: { me: Me; only?: string }) {
     setBusy('');
   };
   const createAct = (): Act => ({ title: '新建任务', submitLabel: '创建',
-    hint: assign ? `选定办理人即指派给该人员，对方可在工作台的「待办事项」中查看。${STEPS_HINT}` : `为本人创建的任务仅本人和中心负责人可见。${STEPS_HINT}`,
+    hint: assign ? `选定办理人即指派给该人员，对方可在「任务管理」中查看。${STEPS_HINT}` : `为本人创建的任务仅本人和中心负责人可见。${STEPS_HINT}`,
     fields: [{ name: 'title', label: '任务名称' },
       ...(assign ? [{ name: 'assignee', label: '办理人', options: people, value: me.id }] : []),
       { name: 'due', label: '期限（选填）', type: 'date' as const, required: false },

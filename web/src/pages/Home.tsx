@@ -9,10 +9,11 @@ import { taskDue } from './Tasks';
 const wan = (x: number) => `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 ? 0 : 1)} 万`;
 const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
 
-// 工作台：先是有效期内经费卡的可用额度和待办事项，再按层级展开 项目 › 经费卡 › 明细 和 课题 › 研究单元 › 预算行
+// 首页和各汇总页。首页按角色分流：中心负责人、财务岗进中心总览，课题和研究单元负责人进课题汇总，成员进「我的事项」。
+// 各部分的待办列在该部分的汇总页里，不另设待办页。
 const STEPS = ['申报', '汇总报批', '核定下达', '申请', '承诺', '入账', '复盘结清'];
-export type HomeView = 'desk' | 'center' | 'fund' | 'topic' | 'spend' | 'res';
-export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
+export type HomeView = 'home' | 'mine' | 'center' | 'fund' | 'topic' | 'spend' | 'res';
+export function Home({ me, view: asked = 'home' }: { me: Me; view?: HomeView }) {
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
     years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[]; tasks: Task[];
@@ -23,7 +24,6 @@ export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
     years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'], caps: ['cap_request'], shifts: ['budget_shift'], tasks: ['task', { status: 'open' }],
     funds: ['fund_project'], cells: ['cell'], allocs: ['budget_alloc'], pcaps: ['project_cap'],
   });
-  const [tab, setTab] = useState<'todo' | 'mine'>('todo');
   if (!data) return <Loading error={error} />;
   const now = today();
   const active = data.cards.filter((c) => c.status === 'active');
@@ -243,9 +243,12 @@ export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
   const big = (x: number) => { const [i, d] = money(x).split('.'); return <>{i}<small>.{d}</small></>; };
 
   // ---------- 各页共用的几块 ----------
+  // 首页按角色分流
+  const landing = asked === 'home';
+  const view: HomeView = !landing ? (asked === 'center' && !seesCards ? 'mine' : asked) : seesCards ? 'center' : data.projects.some((p) => p.active && p.owner_id === me.id) ? 'topic' : 'mine';
   type Todo = (typeof todo)[number];
   // 待办按去处归到各部分：课题（预算、上限、决算）、支出（申请、报销、备用金）、资源、项目（经费卡）
-  const secOf = (t: Todo): HomeView => /^#\/(budget|caps|review)/.test(t.href) ? 'topic' : /^#\/(requests|school|petty|procure)/.test(t.href) ? 'spend' : /^#\/(pool|resource)/.test(t.href) ? 'res' : /^#\/(card|funds|settle|cards)/.test(t.href) ? 'fund' : 'desk';
+  const secOf = (t: Todo): HomeView => /^#\/(budget|caps|review)/.test(t.href) ? 'topic' : /^#\/(requests|school|petty|procure)/.test(t.href) ? 'spend' : /^#\/(pool|resource)/.test(t.href) ? 'res' : /^#\/(card|funds|settle|cards)/.test(t.href) ? 'fund' : 'mine';
   const risks = todo.filter((t) => t.href.startsWith('#/card/'));
   const todoTable = (rows: Todo[], none: string) => rows.length === 0 ? <Empty>{none}</Empty> : (
     <div className="scroll"><table className="wb-table">
@@ -504,28 +507,33 @@ export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
     );
   }
 
-  // ---------- 工作台：只管本人现在要办的事 ----------
+  // ---------- 成员的首页「我的事项」和全部待办 ----------
+  const myPetty = data.petty.filter((r) => r.requested_by === me.id && (r.status === 'pending' || r.status === 'approved'));
+  const myRes = data.res.filter((r) => r.requested_by === me.id && ['pending', 'reviewed', 'approved'].includes(r.status));
+  const mineTable = mineOpen.length === 0 ? <Empty>暂无进行中的支出申请。{mine.length > 0 && <> <a href="#/requests/posted">查看已入账申请</a></>}</Empty> : (
+    <div className="scroll"><table className="wb-table">
+      <thead><tr><th>单据</th><th>所属</th><th className="r">金额</th><th>状态</th><th /></tr></thead>
+      <tbody>{mineOpen.map((r) => <tr key={r.id}><td className="wrap">{r.title}<span className="sub2">{[r.code, `预计 ${day(r.eta_date)} 入账`].filter(Boolean).join(' · ')}</span></td>
+        <td>{r.project_name ?? cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
+        <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge> <Flow status={r.status} /></td><td className="r"><a className="wb-op" href={`#/req/${r.id}`}>查看</a></td></tr>)}</tbody>
+    </table></div>);
   return (
     <div className="wb">
-      {hero(`工作台 · ${me.name} · ${ROLE[me.role]}`, '待办事项', `${todo.length}`, '项', <>
-        <div className="wb-facts"><span>本人发起、进行中<b>{mineOpen.length} 笔</b></span>{risks.length > 0 && <span className="w">风险提醒<b>{risks.length} 项</b></span>}<a className="btn" href="#/requests/new">提交支出申请</a></div>
-        <div className="wb-facts">{seesCards && <a href="#/center">中心总览 →</a>}{seesCards && <a href="#/s-fund">项目汇总 →</a>}<a href="#/s-topic">课题汇总 →</a><a href="#/s-spend">支出汇总 →</a><a href="#/s-res">资源汇总 →</a></div>
+      {hero(`我的事项 · ${me.name} · ${ROLE[me.role]}`, '本人发起、进行中', `${mineOpen.length + myPetty.length + myRes.length}`, '项', <>
+        <div className="wb-facts"><span>支出申请<b>{mineOpen.length} 笔</b></span><span>备用金<b>{myPetty.length} 笔</b></span><span>资源申领<b>{myRes.length} 项</b></span></div>
+        <div className="wb-facts"><a className="btn" href="#/requests/new">提交支出申请</a><a className="btn ghost" href="#/resource">申领资源</a><a className="btn ghost" href="#/petty">申请备用金</a></div>
       </>)}
+      <section className="wb-sec">{head('01', '本人的支出申请', <a href="#/requests">全部申请 →</a>)}{mineTable}</section>
       <section className="wb-sec">
-        {head('01', '待办事项')}
-        <div className="tabs" style={{ marginBottom: 8 }}>
-          <button className="sm" aria-pressed={tab === 'todo'} onClick={() => setTab('todo')}>待办 {todo.length}</button>
-          <button className="sm" aria-pressed={tab === 'mine'} onClick={() => setTab('mine')}>本人发起 {mineOpen.length}</button>
-          <a className="more" href="#/track">全部在途事项 →</a>
-        </div>
-        {tab === 'todo' ? todoTable(todo, '暂无待办事项。') : (mineOpen.length === 0 ? <Empty>暂无进行中的申请。{mine.length > 0 && <> <a href="#/requests/posted">查看已入账申请</a></>}</Empty> : (
+        {head('02', '本人的备用金和资源申领')}
+        {myPetty.length + myRes.length === 0 ? <Empty>暂无在办的备用金和资源申领。</Empty> : (
           <div className="scroll"><table className="wb-table">
-            <thead><tr><th>单据</th><th>所属</th><th className="r">金额</th><th>状态</th><th /></tr></thead>
-            <tbody>{mineOpen.map((r) => <tr key={r.id}><td className="wrap">{r.title}<span className="sub2">{[r.code, `预计 ${day(r.eta_date)} 入账`].filter(Boolean).join(' · ')}</span></td>
-              <td>{r.project_name ?? cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
-              <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge> <Flow status={r.status} /></td><td className="r"><a className="wb-op" href={`#/req/${r.id}`}>查看</a></td></tr>)}</tbody>
-          </table></div>
-        ))}
+            <thead><tr><th>类型</th><th>事项</th><th>所属</th><th /></tr></thead>
+            <tbody>
+              {myPetty.map((r) => <tr key={r.id}><td><Badge tone={r.status === 'pending' ? 'warn' : 'pri'}>{r.status === 'pending' ? '备用金待审批' : '备用金待核销'}</Badge></td><td className="wrap">{r.purpose}，{money(r.amount)}</td><td>{r.project_name ?? '—'}</td><td className="r"><a className="wb-op" href={`#/petty/${r.id}`}>查看</a></td></tr>)}
+              {myRes.map((r) => <tr key={r.id}><td><Badge tone="warn">{r.status === 'pending' ? '申领待批示' : r.status === 'reviewed' ? '申领待批准' : '申领待分发'}</Badge></td><td className="wrap">{r.resource_name ?? '资源'}：{r.purpose}</td><td>{r.project_name ?? '—'}</td><td className="r"><a className="wb-op" href="#/resource">查看</a></td></tr>)}
+            </tbody>
+          </table></div>)}
       </section>
     </div>
   );

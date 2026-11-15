@@ -101,7 +101,7 @@ function App() {
   const SUB = new Set(['/cards']);   // 缩进显示的下一级：经费卡在项目之下
   // 每个部分的标题可以点，进入该部分的汇总页（home）
   const groups = [
-    { label: '', home: '', note: '', pages: keep(['/', '工作台'], seesCards && ['/center', '中心总览'], ['/tasks', '任务管理']) },
+    { label: '', home: '', note: '', pages: keep(['/', '首页'], ['/tasks', '任务管理']) },
     { label: '项目', home: seesCards ? '/s-fund' : '', note: '额度、经费卡、入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/school', '报销与入账'], seesCards && ['/ledger', '明细账校准'], seesCards && ['/settle', '经费结清']) },
     { label: '课题', home: '/s-topic', note: '研究单元、预算、决算', pages: keep(['/projects', '课题管理'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算']) },
     { label: '支出', home: '/s-spend', note: '申请、采购、报销、发放', pages: keep(['/requests', '支出申请'], seesCards && ['/procure', '采购'], ['/petty', '备用金管理'], seesPeople && ['/staff', '人员经费'], seesCards && ['/rules', '采购与报销要求'], ['/ask', '报销咨询']) },
@@ -109,7 +109,7 @@ function App() {
     { label: '系统', home: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesDesk && ['/desk', '预算参数'], seesLegacy && ['/history', '历史数据']) },
   ].filter((g) => g.pages.length > 0);
   // 不在导航里、从别的页面点进去的页面
-  const side = keep(['/track', '在途事项'], ...groups.filter((g) => g.home).map((g): Page => [g.home, `${g.label}汇总`]), !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
+  const side = keep(['/track', '在途事项'], ['/center', '中心总览'], ...groups.filter((g) => g.home).map((g): Page => [g.home, `${g.label}汇总`]), !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
 
   const reqId = route.match(/^\/req\/([^/]+)$/)?.[1];
   const resId = route.match(/^\/res\/([^/]+)$/)?.[1];
@@ -163,7 +163,7 @@ function App() {
     : current === '/admin' ? <Admin me={me} />
     : <Home me={me} />;
   const link = ([to, label]: Page) => <a key={to} href={`#${to}`} className={`${current === to ? 'on' : ''}${SUB.has(to) ? ' sub' : ''}`} aria-current={current === to ? 'page' : undefined}>{label}</a>;
-  const title = [...groups.flatMap((g) => g.pages), ...side].find(([to]) => to === current)?.[1] ?? '工作台';
+  const title = [...groups.flatMap((g) => g.pages), ...side].find(([to]) => to === current)?.[1] ?? '首页';
   return (
     <div className={`shell${open ? ' nav-open' : ''}`}>
       <aside className="sb">
