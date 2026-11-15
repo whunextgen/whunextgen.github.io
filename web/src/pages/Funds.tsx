@@ -109,7 +109,7 @@ export function Funds({ me }: { me: Me }) {
       <div className="tiles">
         <Tile k="在执行的项目" v={String(active.length)} f={loose.length > 0 ? `另有 ${loose.length} 张经费卡尚未归入项目` : `${nowCards.length} 张 ${thisYear} 年的在用经费卡`} tone={loose.length > 0 ? 'warn' : ''} />
         <Tile k="额度合计" v={money(sum((p) => num(p.quota), withQuota))} f={withQuota.length < active.length ? `${active.length - withQuota.length} 个项目尚未填写额度` : '各项目批复总数'} />
-        <Tile k="历年下达合计" v={money(sum((p) => num(p.granted)))} f={`历年回收 ${money(sum((p) => num(p.recalled)))}`} />
+        <Tile k="占用额度合计" v={money(sum((p) => num(p.granted)))} f={`历年下达 ${money(sum((p) => num(p.granted) + num(p.recalled)))}，已回收 ${money(sum((p) => num(p.recalled)))}`} />
         <Tile k={`${thisYear} 年可用`} v={money(nowCards.reduce((s, c) => s + num(c.avail), 0))} tone={nowCards.reduce((s, c) => s + num(c.avail), 0) < 0 ? 'bad' : ''} f="当年经费卡的下达数 − 承诺 − 决算" />
       </div>
 
@@ -142,7 +142,7 @@ export function Funds({ me }: { me: Me }) {
             <table><tbody>
               <tr><th scope="row">额度</th><td>{p.quota != null ? money(p.quota) : <span className="sub2">尚未填写</span>}</td>
                 <th scope="row">期限</th><td>{p.period_start || p.period_end ? `${day(p.period_start)} 至 ${day(p.period_end)}` : <span className="sub2">尚未填写</span>}</td></tr>
-              <tr><th scope="row">历年下达合计</th><td>{money(p.granted)}{num(p.recalled) > 0 && <span className="sub2"> 其中已回收 {money(p.recalled)}</span>}</td>
+              <tr><th scope="row">占用额度</th><td>{money(p.granted)}{num(p.recalled) > 0 && <span className="sub2"> 历年下达 {money(num(p.granted) + num(p.recalled))}，结清后回收 {money(p.recalled)}，回收部分不占额度</span>}</td>
                 <th scope="row">尚未申请</th><td>{rest == null ? '—' : <span className={rest < 0 ? 'neg' : ''}>{money(rest)}</span>}</td></tr>
               {p.note && <tr><th scope="row">备注</th><td colSpan={3} className="wrap">{p.note}</td></tr>}
             </tbody></table>

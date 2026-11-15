@@ -156,15 +156,16 @@ export function Home({ me }: { me: Me }) {
   const fundNodes = [...funds].sort((a, b) => (a.period_end ?? '9').localeCompare(b.period_end ?? '9') || a.name.localeCompare(b.name, 'zh')).map((p, pi) => {
     const cs = data.cards.filter((c) => c.project_id === p.id).sort((a, b) => b.year - a.year || a.card_no.localeCompare(b.card_no));
     const granted = num(p.granted), quota = p.quota != null ? num(p.quota) : null;
-    const segs: Seg[] = [...cs].reverse().map((c, i) => { const g = cardGranted(c);
-      return { cls: i % 2 ? 'sy1' : 'sy0', value: g, text: `${c.year} 年${c.name === p.name ? '' : ` ${c.name}`} ${wan(g)}`, tip: `${c.year} 年经费卡 ${c.card_no}${c.name === p.name ? '' : `（${c.name}）`}下达 ${money(g)}${quota ? `，占额度 ${pct(g, quota)}` : ''}` }; });
+    // 已结清的卡被回收的部分不占额度，图上只画实际留用的
+    const segs: Seg[] = [...cs].reverse().map((c, i) => { const g = cardGranted(c) - (c.status === 'settled' ? num(c.recalled ?? 0) : 0);
+      return { cls: i % 2 ? 'sy1' : 'sy0', value: g, text: `${c.year} 年${c.name === p.name ? '' : ` ${c.name}`} ${wan(g)}`, tip: `${c.year} 年经费卡 ${c.card_no}${c.name === p.name ? '' : `（${c.name}）`}${c.status === 'settled' && num(c.recalled ?? 0) > 0 ? `已结清，回收 ${money(c.recalled)}，占用额度` : '下达'} ${money(g)}${quota ? `，占额度 ${pct(g, quota)}` : ''}` }; });
     if (quota != null && quota > granted) segs.push({ cls: 'hatch', value: quota - granted, text: `尚未申请 ${wan(quota - granted)}`, tip: `尚未申请 ${money(quota - granted)}，占额度 ${pct(quota - granted, quota)}；不属于当年可用经费` });
     const meta = [p.source && FUND_SOURCE[p.source], p.period_start || p.period_end ? `${day(p.period_start).slice(0, 4)}—${day(p.period_end).slice(0, 4)}` : '', p.owner_name && `负责人 ${p.owner_name}`].filter(Boolean).join(' · ');
     const noCard = !cs.some((c) => c.year === thisYear);
     return (
       <TreeNode key={p.id} level={1} lv="项目" title={p.name} meta={meta} open={pi === 0}
-        chart={segs.length > 0 ? <Track cap={quota != null ? '额度构成 · 各年度已下达与尚未申请' : '各年度已下达 · 额度尚未填写'} segs={segs} /> : <div className="wb-bar"><div className="wb-cap">尚未开出经费卡</div></div>}
-        num={quota != null ? `额度 ${money(quota)}` : '额度尚未填写'} sub={`已下达 ${money(granted)}${quota != null ? ` · 尚未申请 ${money(Math.max(quota - granted, 0))}` : ''}`}
+        chart={segs.length > 0 ? <Track cap={quota != null ? '额度构成 · 各年度占用与尚未申请（已结清的卡扣除回收）' : '各年度已下达 · 额度尚未填写'} segs={segs} /> : <div className="wb-bar"><div className="wb-cap">尚未开出经费卡</div></div>}
+        num={quota != null ? `额度 ${money(quota)}` : '额度尚未填写'} sub={`占用额度 ${money(granted)}${num(p.recalled) > 0 ? `（已扣回收 ${money(p.recalled)}）` : ''}${quota != null ? ` · 尚未申请 ${money(Math.max(quota - granted, 0))}` : ''}`}
         status={noCard ? ['warn', `${thisYear} 年经费卡尚未开出，本年度无可用经费`] : null}>
         {cs.map((c) => {
           const cells = data.cells.filter((x) => x.card_id === c.card_id && (num(x.cur) || num(x.commit) || num(x.actual))).sort((a, b) => a.sort - b.sort);

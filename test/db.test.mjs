@@ -1530,6 +1530,7 @@ c = await card(b1);
 ok(Number(c.recalled) === 50000 && Number(c.carried_out) === 0, '回收的卡结清时记下回收数', JSON.stringify([c.recalled, c.carried_out]));
 await as(U.fin, '2032-01-08');
 eq((await one(`select recalled from api.fund_project where id = $1`, [f2])).recalled, 50000, '项目上看得到历年回收合计');
+eq((await one(`select granted from api.fund_project where id = $1`, [f2])).granted, 0, '结清后被回收的部分不再占项目额度');
 await q(`select close_fund_project($1)`, [f2]);
 ok((await one(`select status from api.fund_project where id = $1`, [f2])).status === 'closed', '各年的卡都结清后可以结题');
 await raises('结题后不能再开卡', /已结题/, `select open_card($1, 2031, '7005-N', 1, '2031-02-01', '2031-12-20')`, [f2]);
@@ -1597,6 +1598,9 @@ ir = await val(imp, [kl, led, inc, 5000, 99000, true]);
 ok(ir.added === 0 && ir.skipped === 2 && ir.incomes === 0 && Number((await card(kl)).income) === 95000, '重复导入同一份明细账，支出和收入都不重复写入', JSON.stringify(ir));
 const ss = await q(`select * from api.card_school_subject where card_id = $1 order by school_name`, [kl]);
 ok(ss.length === 2 && ss.some(x => x.school_name === '非财政支出-国内差旅费' && Number(x.amount) === 700), '已入账支出可按学校科目汇总', JSON.stringify(ss));
+await val(imp, [kv, JSON.stringify([{ posted_on: '2032-03-01', voucher_no: '(B)009', title: '财政卡差旅', amount: 50, school_code: '99-3021101', school_name: '财政支出-国内差旅费' }]), null, null, null, null]);
+const sameSub = await q("select subject_id from api.cell where subject_code = '3021101' and card_id in ($1, $2) and actual > 0", [kl, kv]);
+ok(sameSub.length === 2 && sameSub[0].subject_id === sameSub[1].subject_id, '经费类别不同的两张卡，差旅费记在同一个科目上', JSON.stringify(sameSub));
 // 只控总额的卡：支出只与整张卡的总额核对，与科目的预算无关
 ok((await card(kl)).pooled === true, '导入时可把经费卡设为只控总额');
 await q(recH, [kl, SUB.N.biz, TY['耗材'], '科目上没有预算', 5000]);
@@ -1610,8 +1614,9 @@ await raises('只控总额的卡支出不能超过总额', /可用 99000/, recH,
 await q(`select set_card_pooled($1, false)`, [kl]);
 await raises('改回按科目控制后，科目上没有预算不能支出', /可用/, recH, [kl, SUB.N.equip, TY['耗材'], '按科目', 100]);
 // 导入过明细账的卡，各科目的预算仍可更正（学校明细账这一项本来就没有预算）
-const schoolSub = (await one("select subject_id as id from api.cell where card_id = $1 and subject_code = '72-3021101'", [kl])).id;
-ok(Number((await one("select actual from api.cell where card_id = $1 and subject_id = $2", [kl, schoolSub])).actual) === 700, '导入的支出记在学校的科目上，科目编号和名称照学校的');
+const schoolSub = (await one("select subject_id as id from api.cell where card_id = $1 and subject_code = '3021101'", [kl])).id;
+const sc0 = await one("select actual, subject_name from api.cell where card_id = $1 and subject_id = $2", [kl, schoolSub]);
+ok(Number(sc0.actual) === 700 && sc0.subject_name === '国内差旅费', '导入的支出记在学校的科目上；科目不分经费类别，取编号和名称的后半段', JSON.stringify(sc0));
 await as(U.dir, '2032-06-01');
 await q("select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: schoolSub, amount: 0 }, { subject_id: SUB.N.equip, amount: 0 }, { subject_id: SUB.N.biz, amount: 6000 }])]);
 ok(Number((await card(kl)).assigned) === 6000, '学校科目上已有支出、尚未补预算时，其他科目的预算仍可更正');
