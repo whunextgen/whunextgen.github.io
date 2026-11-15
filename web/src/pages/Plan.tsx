@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { rpc, useViews, type BudgetCategory, type BudgetModule, type BudgetPlan, type BudgetSource, type BudgetTier, type BudgetYear, type ModuleTopic, type Card, type FundProject, type Me, type Project, type TierPick } from '../api';
 import { ActionDialog, Badge, Empty, END_RULE, Loading, can, cardTotal, day, money, num, pct, today, type Field } from '../ui';
-import { ObjHead, Stages, Track, type Seg } from '../tree';
+import { ObjHead, Track, type Seg } from '../tree';
+import { BudgetFlow } from './BudgetFlow';
 
-const wan = (x: number) => `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 || x % 1e4 === 0 ? 0 : 1)} 万`;
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
 // 总预算与档次：财务岗按明年各项目可用的经费测算总预算，先给中心公共开支这样的课题直接确定金额，余下的编成档次。
@@ -34,8 +34,6 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
   const limitText = (t: BudgetTier) => [t.labor_ratio != null && `劳务类不超过 ${pct(num(t.labor_ratio), 1)}`, ...(t.limits ?? []).map((l) => `${catName.get(l.category_id) ?? '类别'}不超过 ${pct(num(l.ratio), 1)}`)].filter(Boolean).join('；') || '无';
   const undecided = picks.filter((k) => !k.decided_tier_id && !k.rejected).length;
   const KIND: Record<string, string> = { new: '立项', renew: '延续' };
-  // 走到哪一环
-  const at = y.stage === 'closed' ? 9 : y.stage === 'issued' ? 8 : y.stage === 'fixed' ? 7 : y.stage !== 'declare' ? 7 : published ? (picks.length > 0 && undecided === 0 ? 6 : picks.length > 0 ? 6 : 5) : tiers.length > 0 ? 4 : modules.length > 0 ? 3 : total > 0 ? 2 : 1;
 
   // ---------- 财务岗：测算、直接确定金额的课题、档次 ----------
   const funds = data.funds.filter((p) => !p.auto && p.status === 'active').sort((a, b) => a.name.localeCompare(b.name, 'zh'));
@@ -118,16 +116,7 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
         actions={director && y.stage === 'declare' ? (published
           ? <button className="sm ghost" onClick={() => setAct({ title: '撤回批准', label: '撤回', danger: true, fields: [], hint: '撤回后财务岗可继续修改总预算、直接确定金额的课题和档次。已有课题申请档次的不得撤回。', run: () => rpc('publish_budget_plan', { year, on: false }) })}>撤回批准</button>
           : <button className="sm" onClick={() => setAct({ title: `批准 ${year} 年度预算方案`, label: '批准', fields: [], hint: `总预算 ${money(total)}，直接确定金额的课题合计 ${money(modSum)}，档次合计 ${money(tierSum)}，未分配 ${money(room)}。批准后向各课题公布档次，课题即可申请。`, run: () => rpc('publish_budget_plan', { year, on: true }) })}>批准方案</button>) : undefined} />
-      <Stages path="测算总预算 › 直接确定金额的课题 › 编档次 › 批准方案 › 立项与延续申请 › 评定 › 下达执行 › 年度决算" at={at} items={[
-        { nm: '测算总预算', ds: '财务岗按各项目可用经费测算', v: staff ? wan(total) : '—', f: staff ? `${sources.length} 个项目计入` : '' },
-        { nm: '直接确定金额', ds: '中心公共开支等课题，不参加评定', v: staff ? wan(modSum) : '—', f: staff ? `${modules.length} 个课题` : '' },
-        { nm: '编档次', ds: '每档金额、名额、限制', v: `${tiers.length} 档`, f: tiers.length ? `名额 ${tiers.reduce((t, x) => t + x.slots, 0)} 个` : '' },
-        { nm: '批准方案', ds: '中心负责人批准后公布', v: published ? '已批准' : '未批准', f: plan?.plan_at ? day(plan.plan_at) : '' },
-        { nm: '立项与延续', ds: '课题选档并提交明细', v: `${picks.length} 个课题`, f: published ? `申报截止 ${day(y.due_date)}` : '方案批准后开始' },
-        { nm: '评定', ds: '联席会议决定，助理录入', v: picks.length ? `${picks.length - undecided} / ${picks.length}` : '—', f: undecided > 0 ? `${undecided} 个待评定` : '' },
-        { nm: '下达执行', ds: '档次即上限，明细即预算行', v: ['fixed', 'issued', 'closed'].includes(y.stage) ? (y.stage === 'fixed' ? '待下达' : '已下达') : '—', f: '' },
-        { nm: '年度决算', ds: '年末复盘', v: y.stage === 'closed' ? '已决算' : '—', f: '' },
-      ]} />
+      <BudgetFlow y={y} staff={staff} plan={plan} sources={sources} modules={modules} tiers={tiers} picks={picks} />
 
       {staff && (
         <section className="card">
