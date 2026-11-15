@@ -27,7 +27,10 @@ begin
   return sid;
 end $$;
 
--- 已有的学校科目按后半段合并：支出、预算等改挂到合并后的科目上
+-- 已有的学校科目按后半段合并：支出、预算等改挂到合并后的科目上。
+-- 只是换科目的归属，金额不变，已结清的卡也要一并改，所以合并期间暂停“已结清的卡不得变更”的拦截
+alter table budget_line disable trigger card_open;
+alter table expense_request disable trigger card_open;
 do $$
 declare o record; t uuid;
 begin
@@ -62,3 +65,5 @@ begin
     delete from template_subject where id = o.id;
   end loop;
 end $$;
+alter table budget_line enable trigger card_open;
+alter table expense_request enable trigger card_open;
