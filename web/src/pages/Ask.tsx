@@ -18,7 +18,7 @@ export function Ask({ me }: { me: Me }) {
   const rows = data.rows.filter((r) => r.name.includes(kw.trim())).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
   return (
     <>
-      <div className="top"><h2>报销咨询</h2>{can(me, 'read.finance') && <a className="btn ghost" href="#/rules">报销答复记录</a>}</div>
+      <div className="top"><h2>报销咨询</h2>{can(me, 'read.finance') && <a className="btn ghost" href="#/rules">采购与报销要求</a>}</div>
       <p className="lede">支出前请先在此查询该类支出可否报销。结论来自学校财务的答复，由财务岗登记；未查到或有争议的，先咨询财务岗再支出。</p>
       <section className="card">
         <h3>按支出类型查询</h3>

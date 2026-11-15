@@ -272,6 +272,11 @@ fieldset.multi .field{margin-bottom:8px}
 .wb.obj>section.card>h3{font:600 clamp(22px,2.4vw,30px)/1.15 var(--sans);letter-spacing:-.01em;margin:0 0 14px}
 .wb.obj>section.card>h3::before{counter-increment:sec;content:"0" counter(sec);font:500 11px var(--mono);color:var(--brand);letter-spacing:.1em;margin-right:14px;vertical-align:middle}
 .wb.obj>section.card>h3 .h3sub{font:400 12px var(--sans);letter-spacing:0}
+.flowline.n{grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:12px}
+.flowline.n .stage{padding:14px 15px}.flowline.n .stage .v{font-size:clamp(15px,1.5vw,22px);overflow:hidden;text-overflow:ellipsis}
+.stage.warnline{border-color:var(--gold)}.stage.warnline .v{color:var(--warn)}
+a.sg-h{text-decoration:none;color:inherit;border-radius:8px}a.sg-h:hover b{color:var(--brand)}a.sg-h.on b{color:var(--brand)}a.sg-h i{font:500 10px var(--mono);color:var(--brand);font-style:normal}
+.wb-facts a:not(.btn){color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}.wb-facts a:not(.btn):hover{color:var(--brand)}
 .stage:hover{border-color:#c9c9c4;transform:translateY(-2px);box-shadow:var(--lift)}
 .stage:hover::after{color:var(--brand);transform:translateX(4px)}
 
@@ -387,7 +392,7 @@ a.bl[href]:hover{background:var(--raise)}
   .nav-open .scrim{display:block;position:fixed;inset:0;z-index:15;background:rgba(22,23,26,.4)}
   .tb .menu{display:inline-block}
   .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .g2,.g3,.flowline,.flowline.three,.steps3{grid-template-columns:minmax(0,1fr)}
+  .g2,.g3,.flowline,.flowline.three,.flowline.n,.steps3{grid-template-columns:minmax(0,1fr)}
   .g3>.card:last-child{grid-column:auto}
   .todo a{grid-template-columns:minmax(0,1fr) auto}
   .todo a .b{grid-column:1 / -1}

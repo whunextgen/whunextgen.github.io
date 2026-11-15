@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useViews, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task } from '../api';
+import React, { useState } from 'react';
+import { useViews, type Resource, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task } from '../api';
 import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, cardGap, cardGranted, cardTotal, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Track, TreeNode, execSegs, type Seg } from '../tree';
 import { cardRisk, nodeState } from './Overview';
@@ -11,11 +11,13 @@ const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
 
 // 工作台：先是有效期内经费卡的可用额度和待办事项，再按层级展开 项目 › 经费卡 › 明细 和 课题 › 研究单元 › 预算行
 const STEPS = ['申报', '汇总报批', '核定下达', '申请', '承诺', '入账', '复盘结清'];
-export function Home({ me }: { me: Me }) {
+export type HomeView = 'desk' | 'center' | 'fund' | 'topic' | 'spend' | 'res';
+export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
     years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[]; tasks: Task[];
-    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[] }>({
+    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[]; resources: Resource[] }>({
+    resources: ['resource'],
     school: ['card_school_subject'],
     reqs: ['request'], picks: ['card_pick'], cards: ['card'], nodes: ['node'], events: ['fund_event', { done: 'false' }],
     years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'], caps: ['cap_request'], shifts: ['budget_shift'], tasks: ['task', { status: 'open' }],
@@ -240,66 +242,161 @@ export function Home({ me }: { me: Me }) {
   const planTotal = (k: 'requested' | 'applied' | 'fixed') => (planYear ? data.lines.filter((l) => l.year === planYear.year).reduce((x, l) => x + num((l as unknown as Record<string, string | null>)[k]), 0) : 0);
   const big = (x: number) => { const [i, d] = money(x).split('.'); return <>{i}<small>.{d}</small></>; };
 
-  return (
-    <div className="wb">
-      <div className="wb-hero">
-        <div>
-          <div className="eyebrow">工作台 · {me.name} · {ROLE[me.role]}</div>
-          {seesCards
-            ? <h1><small>有效期内经费卡可用额度</small><em className={avail < 0 ? 'neg' : ''}>{big(avail)}</em> 元</h1>
-            : <h1><small>待办事项</small><em>{todo.length}</em> 项</h1>}
-        </div>
-        {seesCards ? (
-          <div>
-            {cur > 0 ? <Track segs={[
-              { cls: 'sa big', value: actual, text: `已入账 ${pct(actual, cur)}`, tip: `已入账 ${money(actual)}，占下达数 ${pct(actual, cur)}` },
-              { cls: 'sc big', value: commit, text: `已承诺 ${pct(commit, cur)}`, tip: `已承诺 ${money(commit)}，占下达数 ${pct(commit, cur)}` },
-              { cls: 'sr big', value: Math.max(avail, 0), text: `可用 ${pct(Math.max(avail, 0), cur)}`, tip: `可用 ${money(avail)}，占下达数 ${pct(Math.max(avail, 0), cur)}` }]} />
-              : <Empty>当前没有在有效期内的经费卡。</Empty>}
-            <div className="wb-facts">
-              <span>下达<b>{money(cur)}</b></span><span>已入账<b>{money(actual)}</b></span><span>已承诺<b>{money(commit)}</b></span>
-              {quotaSum > 0 && <span>项目额度合计<b>{money(quotaSum)}</b></span>}{quotaSum > 0 && <span>额度剩余<b>{money(unapplied)}</b></span>}
-              {unassigned >= 0.005 && <span className="w">尚未分到科目<b>{money(unassigned)}</b></span>}
-              {recall >= 1 && <span className="w">预计到期回收<b>{money(recall)}</b></span>}
-            </div>
-          </div>
-        ) : <div className="wb-facts"><a className="btn" href="#/requests/new">提交支出申请</a></div>}
+  // ---------- 各页共用的几块 ----------
+  type Todo = (typeof todo)[number];
+  // 待办按去处归到各部分：课题（预算、上限、决算）、支出（申请、报销、备用金）、资源、项目（经费卡）
+  const secOf = (t: Todo): HomeView => /^#\/(budget|caps|review)/.test(t.href) ? 'topic' : /^#\/(requests|school|petty|procure)/.test(t.href) ? 'spend' : /^#\/(pool|resource)/.test(t.href) ? 'res' : /^#\/(card|funds|settle|cards)/.test(t.href) ? 'fund' : 'desk';
+  const risks = todo.filter((t) => t.href.startsWith('#/card/'));
+  const todoTable = (rows: Todo[], none: string) => rows.length === 0 ? <Empty>{none}</Empty> : (
+    <div className="scroll"><table className="wb-table">
+      <thead><tr><th>类型</th><th>事项</th><th /></tr></thead>
+      <tbody>{rows.map((t, i) => <tr key={i}><td><Badge tone={t.tone}>{t.tag}</Badge></td><td className="wrap">{t.text}</td><td className="r"><a className="wb-op" href={t.href}>{t.go}</a></td></tr>)}</tbody>
+    </table></div>);
+  interface Step { nm: string; ds?: string; v: string; f?: string; href: string; warn?: boolean; on?: boolean; no?: string }
+  const strip = (items: Step[], label: string) => (
+    <nav className="flowline n" aria-label={label} style={{ ['--n' as string]: items.length }}>
+      {items.map((g, i) => (
+        <a key={g.nm} className={`stage${g.on ? ' on' : ''}${g.warn ? ' warnline' : ''}`} href={g.href} aria-current={g.on ? 'step' : undefined}>
+          <span className="no">{g.no ?? `0${i + 1}`}</span><span className="nm">{g.nm}</span>{g.ds && <span className="ds">{g.ds}</span>}<span className="v">{g.v}</span>{g.f && <span className="f">{g.f}</span>}
+        </a>
+      ))}
+    </nav>);
+  const hero = (eyebrow: string, label: string, value: number | string, unit: string, right: React.ReactNode, neg = false) => (
+    <div className="wb-hero">
+      <div>
+        <div className="eyebrow">{eyebrow}</div>
+        <h1><small>{label}</small><em className={neg ? 'neg' : ''}>{typeof value === 'number' ? big(value) : value}</em> {unit}</h1>
       </div>
+      <div>{right}</div>
+    </div>);
+  const head = (no: string, title: string, path?: React.ReactNode) => <div className="wb-sh"><span className="no">{no}</span><h2>{title}</h2>{path && <span className="path">{path}</span>}</div>;
+  const execTrack = (total: number, a: number, c: number, what: string) => total > 0 ? <Track segs={[
+    { cls: 'sa big', value: a, text: `已入账 ${pct(a, total)}`, tip: `已入账 ${money(a)}，占${what} ${pct(a, total)}` },
+    { cls: 'sc big', value: c, text: `已承诺 ${pct(c, total)}`, tip: `已承诺 ${money(c)}，占${what} ${pct(c, total)}` },
+    { cls: 'sr big', value: Math.max(total - a - c, 0), text: `可用 ${pct(Math.max(total - a - c, 0), total)}`, tip: `可用 ${money(total - a - c)}，占${what} ${pct(Math.max(total - a - c, 0), total)}` }]} /> : null;
+  const fundFacts = (
+    <div className="wb-facts">
+      <span>下达<b>{money(cur)}</b></span><span>已入账<b>{money(actual)}</b></span><span>已承诺<b>{money(commit)}</b></span>
+      {quotaSum > 0 && <span>项目额度合计<b>{money(quotaSum)}</b></span>}{quotaSum > 0 && <span>额度剩余<b>{money(unapplied)}</b></span>}
+      {unassigned >= 0.005 && <span className="w">尚未分到科目<b>{money(unassigned)}</b></span>}
+      {recall >= 1 && <span className="w">预计到期回收<b>{money(recall)}</b></span>}
+    </div>);
 
-      <section className="wb-sec">
-        <div className="wb-sh"><span className="no">01</span><h2>待办事项</h2>{seesCards && <a className="btn" href="#/requests/new">提交支出申请</a>}</div>
-        <div className="tabs" style={{ marginBottom: 8 }}>
-          <button className="sm" aria-pressed={tab === 'todo'} onClick={() => setTab('todo')}>待办 {todo.length}</button>
-          <button className="sm" aria-pressed={tab === 'mine'} onClick={() => setTab('mine')}>本人发起 {mineOpen.length}</button>
-          <a className="more" href="#/track">全部在途事项 →</a>
-        </div>
-        {tab === 'todo' ? (todo.length === 0 ? <Empty>暂无待办事项。</Empty> : (
-          <div className="scroll"><table className="wb-table">
-            <thead><tr><th>类型</th><th>事项</th><th /></tr></thead>
-            <tbody>{todo.map((t, i) => <tr key={i}><td><Badge tone={t.tone}>{t.tag}</Badge></td><td className="wrap">{t.text}</td><td className="r"><a className="wb-op" href={t.href}>{t.go}</a></td></tr>)}</tbody>
-          </table></div>
-        )) : (mineOpen.length === 0 ? <Empty>暂无进行中的申请。{mine.length > 0 && <> <a href="#/requests/posted">查看已入账申请</a></>}</Empty> : (
-          <div className="scroll"><table className="wb-table">
-            <thead><tr><th>单据</th><th>所属</th><th className="r">金额</th><th>状态</th><th /></tr></thead>
-            <tbody>{mineOpen.map((r) => <tr key={r.id}><td className="wrap">{r.title}<span className="sub2">{[r.code, `预计 ${day(r.eta_date)} 入账`].filter(Boolean).join(' · ')}</span></td>
-              <td>{r.project_name ?? cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
-              <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge> <Flow status={r.status} /></td><td className="r"><a className="wb-op" href={`#/requests/${r.status}`}>查看</a></td></tr>)}</tbody>
-          </table></div>
-        ))}
-      </section>
+  // 课题这一侧本年度的合计
+  const topicAll = tot(execYear ? data.exec.filter((l) => l.year === execYear.year && num(l.fixed) > 0) : []);
+  const topicLeft = topicAll.fixed - topicAll.used;
+  const openReqs = data.reqs.filter((r) => OPEN.includes(r.status)).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const dueCards = active.filter((c) => day(c.cutoff_date) < now);
+  const soonCards = active.filter((c) => day(c.cutoff_date) >= now && (Date.parse(day(c.cutoff_date)) - Date.parse(now)) / 864e5 <= 60);
+  const ledgerN = data.school.reduce((t, r) => t + r.n, 0);
+  const resLive = data.resources.filter((r) => r.active);
+  const resAsk = data.res.filter((r) => ['pending', 'reviewed', 'approved'].includes(r.status));
 
+  // ---------- 中心总览 ----------
+  if (view === 'center') {
+    const src: Seg[] = funds.filter((p) => num(p.granted) > 0).map((p, i) => ({ cls: `${i % 2 ? 'sy1' : 'sy0'} big`, value: num(p.granted), text: p.name, tip: `项目「${p.name}」占用额度 ${money(p.granted)}` }));
+    if (unapplied > 0) src.push({ cls: 'hatch big', value: unapplied, text: `额度剩余 ${wan(unapplied)}`, tip: `各项目额度剩余合计 ${money(unapplied)}，尚未下达` });
+    const give = new Map<string, number>();
+    for (const a of data.allocs.filter((x) => yearCards.some((c) => c.card_id === x.card_id))) { const p = data.projects.find((x) => x.id === a.project_id); const top = p?.parent_id ?? a.project_id; give.set(top, (give.get(top) ?? 0) + num(a.amount)); }
+    const out = [...give.values()].reduce((t, v) => t + v, 0);
+    const dst: Seg[] = [...give.entries()].sort((a, b) => b[1] - a[1]).map(([id, v], i) => ({ cls: `u${i % 3} big`, value: v, text: data.projects.find((p) => p.id === id)?.name ?? '课题', tip: `下达到「${data.projects.find((p) => p.id === id)?.name ?? ''}」${money(v)}` }));
+    if (cur > out) dst.push({ cls: 'hatch big', value: cur - out, text: `尚未下达到课题 ${wan(cur - out)}`, tip: `有效期内经费卡中尚未下达到课题的部分 ${money(cur - out)}` });
+    return (
+      <div className="wb">
+        {hero(`中心总览 · ${thisYear} 年度`, '全中心有效期内可用经费', avail, '元', <>
+          {src.length > 0 ? <Track cap="经费来源 · 各项目占用额度与额度剩余" segs={src} /> : <Empty>暂无项目。</Empty>}
+          {dst.length > 0 && <div style={{ marginTop: 10 }}><Track cap="经费去向 · 已下达到各课题与尚未下达" segs={dst} /></div>}
+          {fundFacts}
+        </>, avail < 0)}
+        <section className="wb-sec">
+          {head('01', '各部分', '点进该部分的汇总页')}
+          {strip([
+            { no: '项目', nm: `${funds.length} 个项目 · ${active.length} 张经费卡`, v: money(avail), f: `有效期内可用${dueCards.length ? ` · ${dueCards.length} 张到期待结清` : ''}`, href: '#/s-fund', warn: dueCards.length > 0 },
+            { no: '课题', nm: `${tops.length} 个课题 · ${data.projects.filter((p) => p.layer === 'paper' && p.active).length} 个研究单元`, v: execYear ? money(topicLeft) : '—', f: execYear ? `${execYear.year} 年度可用` : '暂无已下达的年度预算', href: '#/s-topic' },
+            { no: '支出', nm: `${openReqs.length} 笔在途`, v: money(amt(openReqs)), f: `${ready.length} 笔待提交学校${returned.length ? ` · ${returned.length} 笔被退回` : ''}`, href: '#/s-spend', warn: returned.length > 0 },
+            { no: '资源', nm: `${data.resources.length} 项资源`, v: `${resLive.length} 项在用`, f: `${resAsk.length} 项申领在办`, href: '#/s-res' },
+          ], '各部分')}
+        </section>
+        <section className="wb-sec">
+          {head('02', '年度进度', '各预算年度当前环节')}
+          <div className="yearline" aria-label="各预算年度当前环节">
+            {yearRows.map((r) => (
+              <a key={r.year} className="yr" href={r.href}>
+                <span><span className="yn">{r.year}</span><span className="yt">{r.text}</span></span>
+                <ol>{STEPS.map((n, i) => { const k = i + 1; const on = k >= r.at && k < r.at + r.span; return (
+                  <li key={n} className={`${on ? 'on' : k < r.at ? 'done' : ''}${i === 3 || i === 6 ? ' seg' : ''}`} aria-current={on ? 'step' : undefined}><i>0{k}</i>{n}</li>); })}</ol>
+              </a>
+            ))}
+          </div>
+        </section>
+        <section className="wb-sec">
+          {head('03', '风险与提醒', '全中心范围')}
+          {todoTable(risks, '暂无风险提醒。')}
+        </section>
+      </div>
+    );
+  }
+
+  // ---------- 项目汇总 ----------
+  if (view === 'fund') {
+    const canApply = funds.filter((p) => p.quota != null && num(p.quota) - num(p.granted) > 0);
+    const noGrant = active.filter((c) => cardTotal(c) <= 0);
+    const list = todo.filter((t) => secOf(t) === 'fund' || ['待提交学校', '已退回', '待回写'].includes(t.tag));
+    return (
+      <div className="wb">
+        {hero(`项目 · 汇总 · ${funds.length} 个在执行的项目 · ${active.length} 张经费卡`, '有效期内经费卡可用额度', avail, '元', <>{execTrack(cur, actual, commit, '下达数') ?? <Empty>当前没有在有效期内的经费卡。</Empty>}{fundFacts}</>, avail < 0)}
+        <section className="wb-sec">
+          {head('01', '流程', '申请下达 › 学校下达 › 支出申请 › 提交报销 › 学校入账 › 到期结清')}
+          {strip([
+            { nm: '申请下达', ds: '连同提交学校的科目预算', v: `${canApply.length} 个项目`, f: `额度剩余 ${money(unapplied)}`, href: '#/funds' },
+            { nm: '学校下达', ds: '开经费卡，登记下达数', v: `${active.length} 张`, f: noGrant.length ? `${noGrant.length} 张尚未填下达数` : '均已填下达数', href: '#/cards', warn: noGrant.length > 0 },
+            { nm: '支出申请', ds: '批准后占用经费卡', v: `${pending.length + committed.length} 笔在途`, f: `已承诺 ${money(commit)}`, href: '#/requests' },
+            { nm: '提交报销', ds: '报销材料交学校审核', v: `${ready.length} 笔待交`, f: `${atSchool.length} 笔学校审核中${returned.length ? ` · ${returned.length} 笔退回` : ''}`, href: '#/school', warn: returned.length > 0 },
+            { nm: '学校入账', ds: '上传学校明细账校准', v: money(actual), f: ledgerN ? `学校明细账 ${ledgerN} 笔` : '尚未导入学校明细账', href: '#/ledger' },
+            { nm: '到期结清', ds: '结余回收或结转', v: `${dueCards.length} 张到期`, f: `${soonCards.length} 张 60 天内到期`, href: '#/settle', warn: dueCards.length > 0 },
+          ], '项目流程')}
+        </section>
+        <section className="wb-sec">{head('02', '待办', '只列这一部分的事项')}{todoTable(list, '这一部分暂无待办事项。')}</section>
       {seesCards && (
         <section className="wb-sec">
-          <div className="wb-sh"><span className="no">02</span><h2>项目</h2><span className="path"><b>项目</b> › <b>经费卡</b> › <b>明细、执行</b>　点击逐级展开</span></div>
+          <div className="wb-sh"><span className="no">03</span><h2>项目</h2><span className="path"><b>项目</b> › <b>经费卡</b> › <b>明细、执行</b>　点击逐级展开</span></div>
           <div className="wb-key"><span><i className="sy1" />各经费卡已下达</span><span><i className="hatch" />额度剩余 / 尚未下达</span><span><i className="sa" />已入账</span><span><i className="sc" />已承诺</span><span><i className="sr" />可用</span></div>
           {fundNodes.length === 0 ? <Empty>暂无项目。<a href="#/funds">前往项目管理</a>新建项目，并将经费卡归入项目。</Empty> : <div className="wb-acc">{fundNodes}</div>}
           {loose > 0 && <p className="hint">另有 {loose} 张经费卡尚未归入项目，未计入上图。<a href="#/funds">前往项目管理归入 →</a></p>}
         </section>
       )}
 
+      </div>
+    );
+  }
+
+  // ---------- 课题汇总 ----------
+  if (view === 'topic') {
+    const y = planYear ?? execYear;
+    const at = !y ? 0 : y.stage === 'declare' ? 1 : ['summary', 'approved', 'applied'].includes(y.stage) ? 2 : ['granted', 'fixed'].includes(y.stage) ? 3 : y.stage === 'issued' ? 4 : 5;
+    const sumOf = (k: 'declared' | 'applied' | 'fixed') => (y ? data.lines.filter((l) => l.year === y.year).reduce((t, l) => t + num(l[k]), 0) : 0);
+    const subs = y ? data.budgets.filter((b) => b.year === y.year && b.status === 'submitted').length : 0;
+    return (
+      <div className="wb">
+        {hero(`课题 · 汇总${execYear ? ` · ${execYear.year} 年度` : ''} · ${tops.length} 个课题`, execYear ? '本年度各课题可用合计' : '年度预算', execYear ? topicLeft : '未下达', execYear ? '元' : '', <>
+          {execTrack(topicAll.fixed, topicAll.actual, Math.max(topicAll.used - topicAll.actual, 0), '核定数') ?? <Empty>暂无已下达的年度预算。</Empty>}
+          <div className="wb-facts"><span>核定数<b>{money(topicAll.fixed)}</b></span><span>已入账<b>{money(topicAll.actual)}</b></span><span>已承诺<b>{money(Math.max(topicAll.used - topicAll.actual, 0))}</b></span>
+            {data.pcaps.filter((c) => c.year === execYear?.year).length > 0 && <span>上限合计<b>{money(data.pcaps.filter((c) => c.year === execYear?.year).reduce((t, c) => t + num(c.amount), 0))}</b></span>}</div>
+        </>, topicLeft < 0)}
+        <section className="wb-sec">
+          {head('01', '流程', y ? `${y.year} 年度 · 申报 › 汇总报批 › 核定下达 › 执行 › 年度决算` : '申报 › 汇总报批 › 核定下达 › 执行 › 年度决算')}
+          {strip([
+            { nm: '申报', ds: '研究单元负责人填报', v: y ? `${subs} 个已提交` : '—', f: y ? `申报数 ${money(sumOf('declared'))}` : '暂无已启动的年度', href: y ? `#/budget/${y.year}` : '#/budget', on: at === 1 },
+            { nm: '汇总报批', ds: '财务岗汇总，报学校', v: y && at >= 2 ? money(sumOf('applied')) : '—', f: '申请数', href: y ? `#/budget/${y.year}` : '#/budget', on: at === 2 },
+            { nm: '核定下达', ds: '核定后下达到经费卡', v: y && at >= 3 ? money(sumOf('fixed')) : '—', f: '核定数', href: '#/caps', on: at === 3 },
+            { nm: '执行', ds: '从预算行提交支出申请', v: execYear ? pct(topicAll.used, topicAll.fixed) : '—', f: execYear ? `已用 ${money(topicAll.used)}` : '下达后开始执行', href: '#/requests', on: at === 4 },
+            { nm: '年度决算', ds: '年末未使用的不结转', v: at === 5 ? '已决算' : '未决算', f: execYear ? `未使用 ${money(topicLeft)}` : '', href: y ? `#/review/${y.year}` : '#/review', on: at === 5 },
+          ], '课题流程')}
+        </section>
+        <section className="wb-sec">{head('02', '待办', '只列这一部分的事项')}{todoTable(todo.filter((t) => secOf(t) === 'topic'), '这一部分暂无待办事项。')}</section>
       {(topicNodes.length > 0 || orphans.length > 0 || planYear) && (
         <section className="wb-sec">
-          <div className="wb-sh"><span className="no">{seesCards ? '03' : '02'}</span><h2>课题</h2><span className="path"><b>课题</b> › <b>研究单元</b> › <b>预算行</b>{execYear ? `　${execYear.year} 年度 · 点击逐级展开` : ''}</span></div>
+          <div className="wb-sh"><span className="no">03</span><h2>课题</h2><span className="path"><b>课题</b> › <b>研究单元</b> › <b>预算行</b>{execYear ? `　${execYear.year} 年度 · 点击逐级展开` : ''}</span></div>
           {planYear && <p className="hint"><a href={`#/budget/${planYear.year}`}>{planYear.year} 年度预算</a>：{STAGE_TEXT[planYear.stage]}{planYear.stage === 'declare' ? `，${day(planYear.due_date)} 截止` : ''}。申报数合计 {money(planTotal('requested'))}{planTotal('applied') > 0 ? `，申请数 ${money(planTotal('applied'))}` : ''}{planTotal('fixed') > 0 ? `，核定数 ${money(planTotal('fixed'))}` : ''}。</p>}
           {topicNodes.length + orphans.length === 0 ? <Empty>暂无已下达的年度预算。年度预算下达后，此处按课题、研究单元、预算行显示核定数与执行情况。</Empty> : (
             <>
@@ -310,27 +407,112 @@ export function Home({ me }: { me: Me }) {
         </section>
       )}
 
-      {seesCards && (
+        {!(topicNodes.length > 0 || orphans.length > 0 || planYear) && <section className="wb-sec">{head('03', '课题')}<Empty>暂无课题。<a href="#/projects">前往课题管理</a></Empty></section>}
+      </div>
+    );
+  }
+
+  // ---------- 支出汇总 ----------
+  if (view === 'spend') {
+    const check = pending.filter((r) => r.step === 'check'), confirm = pending.filter((r) => !check.includes(r));
+    const pettyOpen = data.petty.filter((r) => r.status === 'pending' || r.status === 'approved');
+    const segs: Seg[] = [
+      { cls: 'sy0 big', value: amt(pending), text: '待确认、核对', tip: `待确认、核对 ${pending.length} 笔，${money(amt(pending))}` },
+      { cls: 'sc big', value: amt(buying), text: '采购中', tip: `采购中 ${buying.length} 笔，${money(amt(buying))}` },
+      { cls: 'sy1 big', value: amt(ready), text: '待提交学校', tip: `待提交学校 ${ready.length} 笔，${money(amt(ready))}` },
+      { cls: 'sa big', value: amt(atSchool) + amt(returned), text: '学校审核中', tip: `学校审核中 ${atSchool.length} 笔、已退回 ${returned.length} 笔，${money(amt(atSchool) + amt(returned))}` }];
+    return (
+      <div className="wb">
+        {hero(`支出 · 汇总 · ${openReqs.length} 笔在途`, '在途支出合计', amt(openReqs), '元', <>
+          {openReqs.length > 0 ? <Track cap="在途支出 · 按所在环节" segs={segs} /> : <Empty>暂无在途支出。</Empty>}
+          <div className="wb-facts"><span>已入账<b>{posted.length} 笔</b></span><span>备用金在办<b>{pettyOpen.length} 笔</b></span><a className="btn" href="#/requests/new">提交支出申请</a></div>
+        </>)}
         <section className="wb-sec">
-          <div className="wb-sh"><span className="no">04</span><h2>年度进度</h2><span className="path">各预算年度当前环节与在途支出</span></div>
-          <div className="yearline" aria-label="各预算年度当前环节">
-            {yearRows.map((r) => (
-              <a key={r.year} className="yr" href={r.href}>
-                <span><span className="yn">{r.year}</span><span className="yt">{r.text}</span></span>
-                <ol>{STEPS.map((n, i) => { const k = i + 1; const on = k >= r.at && k < r.at + r.span; return (
-                  <li key={n} className={`${on ? 'on' : k < r.at ? 'done' : ''}${i === 3 || i === 6 ? ' seg' : ''}`} aria-current={on ? 'step' : undefined}><i>0{k}</i>{n}</li>); })}</ol>
-              </a>
-            ))}
-          </div>
-          <nav className="flowline three" aria-label="执行中的三步" style={{ marginTop: 16 }}>
-            {stages.map((s, i) => (
-              <a key={s.name} className="stage" href={s.href}>
-                <span className="no">0{i + 4}</span><span className="nm">{s.name}</span><span className="ds">{s.desc}</span><span className="v">{s.v}</span><span className="f">{s.f}</span>
-              </a>
-            ))}
-          </nav>
+          {head('01', '流程', '申请 › 确认与核对 › 采购 › 提交学校 › 学校审核 › 入账')}
+          {strip([
+            { nm: '申请', ds: '先申请、后支出', v: `${confirm.length} 笔`, f: `待负责人确认 ${money(amt(confirm))}`, href: '#/requests/pending' },
+            { nm: '确认与核对', ds: '负责人确认后财务岗核对', v: `${check.length} 笔`, f: `待核对 ${money(amt(check))}`, href: '#/requests/pending' },
+            { nm: '采购', ds: '按采购路径分阶段', v: `${buying.length} 笔`, f: `采购中 ${money(amt(buying))}`, href: seesCards ? '#/procure' : '#/requests/committed' },
+            { nm: '提交学校', ds: '报销材料齐全后提交', v: `${ready.length} 笔`, f: `待提交 ${money(amt(ready))}`, href: to('#/school', 'committed'), warn: ready.length > 0 },
+            { nm: '学校审核', ds: '批准入账或退回', v: `${atSchool.length} 笔`, f: returned.length ? `${returned.length} 笔已退回` : `审核中 ${money(amt(atSchool))}`, href: to('#/school', 'at_school'), warn: returned.length > 0 },
+            { nm: '入账', ds: '以学校正式入账为准', v: `${posted.length} 笔`, f: `已入账 ${money(amt(posted))}`, href: '#/requests/posted' },
+          ], '支出流程')}
         </section>
-      )}
+        <section className="wb-sec">{head('02', '待办', '只列这一部分的事项')}{todoTable(todo.filter((t) => secOf(t) === 'spend'), '这一部分暂无待办事项。')}</section>
+        <section className="wb-sec">
+          {head('03', '在途支出', <a href="#/requests">全部申请 →</a>)}
+          {openReqs.length === 0 ? <Empty>暂无在途支出。</Empty> : (
+            <div className="scroll"><table className="wb-table">
+              <thead><tr><th>单据</th><th>所属</th><th className="r">金额</th><th>状态</th><th /></tr></thead>
+              <tbody>{openReqs.slice(0, 30).map((r) => <tr key={r.id}><td className="wrap">{r.title}<span className="sub2">{[r.code, `预计 ${day(r.eta_date)} 入账`].filter(Boolean).join(' · ')}</span></td>
+                <td>{r.project_name ?? cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
+                <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge> <Flow status={r.status} /></td><td className="r"><a className="wb-op" href={`#/requests/${r.status}`}>查看</a></td></tr>)}</tbody>
+            </table></div>)}
+          {openReqs.length > 30 && <p className="hint">仅列出最近 30 笔，其余见「支出申请」。</p>}
+        </section>
+      </div>
+    );
+  }
+
+  // ---------- 资源汇总 ----------
+  if (view === 'res') {
+    const api = resLive.filter((r) => r.kind === 'api'), asset = resLive.filter((r) => r.kind === 'asset');
+    const st = (k: string) => data.res.filter((r) => r.status === k).length;
+    return (
+      <div className="wb">
+        {hero(`资源 · 汇总 · ${data.resources.length} 项资源`, '在用资源', `${resLive.length}`, '项', <>
+          {resLive.length > 0 ? <Track cap="在用资源 · 按类别" segs={[{ cls: 'sy0 big', value: api.length, text: `接口额度 ${api.length} 项`, tip: `接口额度 ${api.length} 项` }, { cls: 'sy1 big', value: asset.length, text: `设备 ${asset.length} 项`, tip: `设备 ${asset.length} 项` }]} /> : <Empty>暂无在用资源。</Empty>}
+          <div className="wb-facts"><span>申领在办<b>{resAsk.length} 项</b></span><span>已停用<b>{data.resources.length - resLive.length} 项</b></span><a className="btn" href="#/resource">申领资源</a></div>
+        </>)}
+        <section className="wb-sec">
+          {head('01', '流程', '申领 › 批示 › 批准 › 分发 › 使用与盘点')}
+          {strip([
+            { nm: '申领', ds: '成员提出申领', v: `${st('pending')} 项`, f: '待研究单元负责人批示', href: '#/resource' },
+            { nm: '批示', ds: '研究单元负责人批示', v: `${st('reviewed')} 项`, f: '待批准', href: seesCards ? '#/pool' : '#/resource', warn: st('reviewed') > 0 },
+            { nm: '批准', ds: '批准后待分发', v: `${st('approved')} 项`, f: '待分发', href: seesCards ? '#/pool' : '#/resource', warn: st('approved') > 0 },
+            { nm: '分发', ds: '发放额度或交付设备', v: `${data.res.length - resAsk.length} 项`, f: '已办结', href: seesCards ? '#/pool' : '#/resource' },
+            { nm: '使用与盘点', ds: '定期盘点，到期回收', v: `${resLive.length} 项在用`, f: '资产盘点', href: seesCards ? '#/stock' : '#/resource' },
+          ], '资源流程')}
+        </section>
+        <section className="wb-sec">{head('02', '待办', '只列这一部分的事项')}{todoTable(todo.filter((t) => secOf(t) === 'res'), '这一部分暂无待办事项。')}</section>
+        <section className="wb-sec">
+          {head('03', '资源', `${data.resources.length} 项`)}
+          {data.resources.length === 0 ? <Empty>暂无可查看的资源。</Empty> : (
+            <div className="scroll"><table className="wb-table">
+              <thead><tr><th>资源</th><th>类别</th><th className="r">总量</th><th style={{ minWidth: 200 }}>分配情况</th><th>状态</th></tr></thead>
+              <tbody>{[...data.resources].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, 'zh')).map((r) => { const total = num(r.total ?? 0), used = num(r.allocated ?? 0); return (
+                <tr key={r.id} style={r.active ? undefined : { opacity: .55 }}><td>{r.name}</td><td>{r.kind === 'api' ? '接口额度' : '设备'}</td><td className="r">{r.total != null ? `${total.toLocaleString('zh-CN')}${r.unit ? ` ${r.unit}` : ''}` : '—'}</td>
+                  <td>{total > 0 ? <Track segs={[{ cls: 'sa', value: Math.min(used, total), tip: `已分配 ${used.toLocaleString('zh-CN')}` }, { cls: 'sr', value: Math.max(total - used, 0), tip: `未分配 ${(total - used).toLocaleString('zh-CN')}` }]} /> : <span className="sub2">已分配 {used.toLocaleString('zh-CN')}</span>}</td>
+                  <td>{r.active ? <Badge tone="ok">在用</Badge> : <Badge>已停用</Badge>}</td></tr>); })}</tbody>
+            </table></div>)}
+        </section>
+      </div>
+    );
+  }
+
+  // ---------- 工作台：只管本人现在要办的事 ----------
+  return (
+    <div className="wb">
+      {hero(`工作台 · ${me.name} · ${ROLE[me.role]}`, '待办事项', `${todo.length}`, '项', <>
+        <div className="wb-facts"><span>本人发起、进行中<b>{mineOpen.length} 笔</b></span>{risks.length > 0 && <span className="w">风险提醒<b>{risks.length} 项</b></span>}<a className="btn" href="#/requests/new">提交支出申请</a></div>
+        <div className="wb-facts">{seesCards && <a href="#/center">中心总览 →</a>}{seesCards && <a href="#/s-fund">项目汇总 →</a>}<a href="#/s-topic">课题汇总 →</a><a href="#/s-spend">支出汇总 →</a><a href="#/s-res">资源汇总 →</a></div>
+      </>)}
+      <section className="wb-sec">
+        {head('01', '待办事项')}
+        <div className="tabs" style={{ marginBottom: 8 }}>
+          <button className="sm" aria-pressed={tab === 'todo'} onClick={() => setTab('todo')}>待办 {todo.length}</button>
+          <button className="sm" aria-pressed={tab === 'mine'} onClick={() => setTab('mine')}>本人发起 {mineOpen.length}</button>
+          <a className="more" href="#/track">全部在途事项 →</a>
+        </div>
+        {tab === 'todo' ? todoTable(todo, '暂无待办事项。') : (mineOpen.length === 0 ? <Empty>暂无进行中的申请。{mine.length > 0 && <> <a href="#/requests/posted">查看已入账申请</a></>}</Empty> : (
+          <div className="scroll"><table className="wb-table">
+            <thead><tr><th>单据</th><th>所属</th><th className="r">金额</th><th>状态</th><th /></tr></thead>
+            <tbody>{mineOpen.map((r) => <tr key={r.id}><td className="wrap">{r.title}<span className="sub2">{[r.code, `预计 ${day(r.eta_date)} 入账`].filter(Boolean).join(' · ')}</span></td>
+              <td>{r.project_name ?? cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
+              <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge> <Flow status={r.status} /></td><td className="r"><a className="wb-op" href={`#/requests/${r.status}`}>查看</a></td></tr>)}</tbody>
+          </table></div>
+        ))}
+      </section>
     </div>
   );
 }

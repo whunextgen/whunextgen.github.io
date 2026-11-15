@@ -4,6 +4,7 @@ import { ApiError, logout, view, type Me } from './api';
 import { ROLE, can, today } from './ui';
 import { Overview } from './pages/Overview';
 import { Funds } from './pages/Funds';
+import { SyncPage } from './pages/Sync';
 import { Home } from './pages/Home';
 import { History } from './pages/Legacy';
 import { CardPage } from './pages/Card';
@@ -96,27 +97,28 @@ function App() {
   type Page = [string, string];
   const keep = (...p: (Page | false)[]) => p.filter(Boolean) as Page[];
   const SUB = new Set(['/cards']);   // 缩进显示的下一级：经费卡在项目之下
+  // 每个部分的标题可以点，进入该部分的汇总页（home）
   const groups = [
-    { label: '', no: '', note: '', pages: keep(['/', '工作台'], ['/tasks', '任务管理']) },
-    { label: '项目', no: '', note: '额度、经费卡、入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/school', '入账跟踪'], seesCards && ['/settle', '经费结清']) },
-    { label: '课题', no: '', note: '研究单元、预算、决算', pages: keep(['/projects', '课题管理'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算']) },
-    { label: '支出', no: '', note: '申请、审批、发放', pages: keep(['/requests', '支出申请'], ['/petty', '备用金管理'], seesPeople && ['/staff', '人员经费'], ['/ask', '报销咨询']) },
-    { label: '资源', no: '', note: '申领、调配、盘点', pages: keep(['/resource', '资源申领'], seesRes && ['/pool', '资源调配'], seesRes && ['/stock', '资产盘点']) },
-    { label: '系统', no: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesDesk && ['/desk', '预算参数'], seesLegacy && ['/history', '历史数据']) },
+    { label: '', home: '', note: '', pages: keep(['/', '工作台'], seesCards && ['/center', '中心总览'], ['/tasks', '任务管理']) },
+    { label: '项目', home: seesCards ? '/s-fund' : '', note: '额度、经费卡、入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/school', '报销与入账'], seesCards && ['/ledger', '明细账校准'], seesCards && ['/settle', '经费结清']) },
+    { label: '课题', home: '/s-topic', note: '研究单元、预算、决算', pages: keep(['/projects', '课题管理'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算']) },
+    { label: '支出', home: '/s-spend', note: '申请、采购、报销、发放', pages: keep(['/requests', '支出申请'], seesCards && ['/procure', '采购'], ['/petty', '备用金管理'], seesPeople && ['/staff', '人员经费'], seesCards && ['/rules', '采购与报销要求'], ['/ask', '报销咨询']) },
+    { label: '资源', home: '/s-res', note: '申领、调配、盘点', pages: keep(['/resource', '资源申领'], seesRes && ['/pool', '资源调配'], seesRes && ['/stock', '资产盘点']) },
+    { label: '系统', home: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesDesk && ['/desk', '预算参数'], seesLegacy && ['/history', '历史数据']) },
   ].filter((g) => g.pages.length > 0);
   // 不在导航里、从别的页面点进去的页面
-  const side = keep(['/track', '在途事项'], seesCards && ['/rules', '报销答复记录'], !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
+  const side = keep(['/track', '在途事项'], ...groups.filter((g) => g.home).map((g): Page => [g.home, `${g.label}汇总`]), !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
 
   const cardId = seesCards ? route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1] : undefined;
   const fundId = seesCards ? route.match(/^\/fund\/([^/]+)$/)?.[1] : undefined;
   const proj = route.match(/^\/project\/([^/]+)(?:\/(\d{4}))?$/);
   const [, seg0 = '', arg = ''] = route.split('/');
   // 采购并进学校侧进度，旧的 #/procure 链接照样能用
-  const procure = seg0 === 'procure' || (seg0 === 'school' && arg === 'procure');
-  const seg = seg0 === 'procure' ? 'school' : seg0;
+  const procure = seg0 === 'school' && arg === 'procure';
+  const seg = seg0;
   const allowed = new Set([...groups.flatMap((g) => g.pages), ...side].map(([to]) => to));
   const current = cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
-  const group = groups.find((g) => g.pages.some(([to]) => to === current));
+  const group = groups.find((g) => g.home === current || g.pages.some(([to]) => to === current));
   const page = cardId ? <CardPage me={me} id={cardId} />
     : fundId ? <Funds me={me} only={fundId} />
     : proj ? <ProjectPage me={me} id={proj[1]} start={proj[2] ?? ''} />
@@ -127,6 +129,13 @@ function App() {
     : current === '/projects' ? <Projects me={me} />
     : current === '/desk' ? <Desk me={me} />
     : current === '/funds' ? <Funds me={me} />
+    : current === '/center' ? <Home me={me} view="center" />
+    : current === '/s-fund' ? <Home me={me} view="fund" />
+    : current === '/s-topic' ? <Home me={me} view="topic" />
+    : current === '/s-spend' ? <Home me={me} view="spend" />
+    : current === '/s-res' ? <Home me={me} view="res" />
+    : current === '/ledger' ? <SyncPage />
+    : current === '/procure' ? <Procure me={me} />
     : current === '/cards' ? <Overview me={me} />
     : current === '/rules' ? <Rules me={me} />
     : current === '/requests' ? <Requests me={me} start={arg} />
@@ -155,8 +164,8 @@ function App() {
         <a className="brand" href="#/"><i aria-hidden="true">财</i><span><b>科研财务中台</b><span>CLAIN 中心</span></span></a>
         <nav aria-label="导航">
           {groups.map((g) => (
-            <div className={`sg${g.pages.some(([to]) => to === current) ? ' cur' : ''}`} key={g.label}>
-              {g.label && <div className="sg-h"><b>{g.label}</b>{g.no && <i>{g.no}</i>}</div>}
+            <div className={`sg${g.home === current || g.pages.some(([to]) => to === current) ? ' cur' : ''}`} key={g.label}>
+              {g.label && (g.home ? <a className={`sg-h${g.home === current ? ' on' : ''}`} href={`#${g.home}`} aria-current={g.home === current ? 'page' : undefined}><b>{g.label}</b><i>汇总</i></a> : <div className="sg-h"><b>{g.label}</b></div>)}
               {g.note && <div className="sg-n">{g.note}</div>}
               {g.pages.map(link)}
             </div>

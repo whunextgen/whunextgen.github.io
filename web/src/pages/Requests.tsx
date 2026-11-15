@@ -34,7 +34,7 @@ export function actionsFor(me: Me, r: Req, targets: [string, string][], lines: [
       fields: [{ name: 'posted_on', label: '入账日期', type: 'date', value: today() }, { name: 'amount', label: '入账金额', type: 'number', value: String(num(r.amount)) },
         { name: 'voucher_no', label: '凭证号（选填）', required: false }],
       run: (v) => rpc('post_voucher', { id: r.id, ...v }) });
-    out.push({ label: '退回', title: '学校退回单据', hint: `${what}。退回原因将记入报销答复记录。`, danger: true,
+    out.push({ label: '退回', title: '学校退回单据', hint: `${what}。退回原因将记入采购与报销要求。`, danger: true,
       fields: [{ name: 'reason', label: '退回原因' }], run: (v) => rpc('school_return', { id: r.id, reason: v.reason }) });
   }
   if (can(me, 'request.process') && r.status === 'committed' && r.path && r.stage != null && r.stages != null && r.stage < r.stages) {
