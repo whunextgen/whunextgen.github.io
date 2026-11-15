@@ -41,7 +41,7 @@ export function Projects({ me }: { me: Me }) {
   return (
     <>
       <div className="top"><h2>课题管理</h2>{staff && <button onClick={() => setEdit('new')}>新立课题</button>}</div>
-      <p className="lede">预算按课题和研究单元管理，不按人员分配。研究单元隶属于课题，均由财务岗建立。点击名称进入详情页，可查看预算、成员、上限、调剂、设备和接口额度。</p>
+      <p className="lede">预算按课题和研究单元管理，不按人员分配。课题通过立项申请成立，每年申请延续；研究单元隶属于课题。点击名称进入详情页，可查看预算、成员、上限、调剂、设备和接口额度。</p>
       <section className="card">
         <h3>全部课题和研究单元</h3>
         {rows.length === 0 ? <Empty>{staff ? '暂无课题。请先新立课题并指定负责人，再在其下新增研究单元。' : '暂无课题。新课题请在「立项与延续申请」中申请立项。'}</Empty> : (
@@ -62,7 +62,7 @@ export function Projects({ me }: { me: Me }) {
                   if (d == null && !ex.length && (all || capLine) && r.seen) return <td key={y.year} className="r">{all}{capLine}</td>;
                   if (run && r.seen && ex.length > 0) { const fx = ex.reduce((s, x) => s + num(x.fixed), 0), us = ex.reduce((s, x) => s + num(x.used), 0), ac = ex.reduce((s, x) => s + num(x.actual), 0);
                     return <td key={y.year} className="r"><a href={`#/project/${r.id}/${y.year}`}>{money(fx)}<span className="sub2">已用 {money(us)} · 入账 {money(ac)} · 剩余 {money(fx - us)}</span></a>{all}{capLine}</td>; }
-                  return <td key={y.year} className="r">{!r.seen ? <span className="sub2">仅负责人和财务岗可查看</span> : d == null ? <span className="sub2">未填报</span> : (
+                  return <td key={y.year} className="r">{!r.seen ? <span className="sub2">待立项，评定通过后公开</span> : d == null ? <span className="sub2">未填报</span> : (
                     <a href={`#/budget/${y.year}`}>{money(f ?? a ?? d)}<span className="sub2">{f != null ? '核定数' : a != null ? '申请数' : '申报数'}
                       {b && b.status !== 'submitted' && <> · <Badge tone={b.status === 'returned' ? 'bad' : 'warn'}>{b.status === 'returned' ? '已退回' : '未提交'}</Badge></>}</span></a>)}{r.seen && d != null && all}{r.seen && d != null && capLine}</td>; })}
                 {staff && <td className="r"><div className="acts">
@@ -71,7 +71,7 @@ export function Projects({ me }: { me: Me }) {
             ))}</tbody>
           </table></div>
         )}
-        <p className="hint">已下达的年度显示核定数和执行情况，未下达的年度显示申报数、申请数或核定数。本人仅为成员、非负责人的研究单元，此处仅显示名称，不显示金额；支出申请请在「支出申请」中从该研究单元的预算行提交。</p>
+        <p className="hint">已下达的年度显示核定数和执行情况，未下达的年度显示申报数、申请数或核定数。课题对全体成员公开：已立项的课题和研究单元，其预算、执行、成员、设备和接口额度所有人均可查看；逐笔的支出申请仅申请人、该课题负责人、财务岗和中心负责人可见。待立项的课题在评定通过前不公开金额。</p>
       </section>
       {edit && <ActionDialog title={p ? `修改${paper ? '研究单元' : '课题'}：${p.name}` : under ? `在「${under.name}」下新增研究单元` : '新立课题'} fields={fields} submitLabel="保存" onClose={() => setEdit(null)}
         onSubmit={(v) => rpc('save_project', { id: p?.id ?? null, code: v.code ?? '', name: v.name, kind: paper ? null : v.kind, owner_id: v.owner || null, active: p ? v.active === 'true' : true, parent_id: paper ? v.parent : null }).then(reload)} />}

@@ -546,9 +546,9 @@ ok((await q(`select 1 from api.project where id = $1`, [PA2])).length === 0, '�
 await as(U.mem2, D);
 sv = await one(`select mine, seen from api.project where id = $1`, [PA1]);
 ok(sv.mine === true && sv.seen === true, '论文项目负责人能填自己的论文项目');
-ok((await one(`select seen from api.project where id = $1`, [P1])).seen === false, '论文项目负责人看不到大项目自己的预算');
+ok((await one(`select seen from api.project where id = $1`, [P1])).seen === true, '课题全公开：研究单元负责人看得到所属课题的预算');
 await as(U.mem, D);
-ok((await one(`select seen from api.project where id = $1`, [PA1])).seen === false, '别的大项目负责人看不到这个论文项目的预算');
+ok((await one(`select seen from api.project where id = $1`, [PA1])).seen === true, '课题全公开：别的课题负责人看得到这个研究单元的预算');
 await as(U.fin, D);
 // ---------- 资源申请、库存、密钥、备用金、经费卡属性、补登 ----------
 await q(`select set_resource_info($1, $2)`, [rs, JSON.stringify({ provider: '服务商甲', model: '通用模型', currency: '美元', balance: '820.5' })]);
@@ -623,7 +623,7 @@ await raises('项目负责人不能退回', /./, `select set_project_budget(2027
 await raises('项目负责人不能截止申报', /./, `select advance_budget_year(2027, 'close')`);
 await as(U.mem, D);
 const L3 = await val(`select save_budget_line(null, 2027, $1, $2, '调研差旅', 0, 15000, 15000, 0) v`, [P2, cT]);
-eq((await q(`select * from api.budget_line`)).length, 1, '另一个项目的负责人看不到别人的预算行');
+eq((await q(`select * from api.budget_line`)).length, 3, '课题全公开：别的课题的预算行也看得到');
 await as(U.fin, D);
 const L0 = await val(`select save_budget_line(null, 2027, $1, $2, '公共服务器维保', 10000, 10000, 10000, 10000) v`, [P0, cE]);
 await q(`select set_project_budget(2027, $1, 'submit')`, [P0]);
@@ -1137,7 +1137,7 @@ const PL1 = await val(`select save_budget_line(null, 2029, $1, $2, '算力与设
 const PL2 = await val(`select save_budget_line(null, 2029, $1, $2, '实验耗材', 2000, 2000, 2000, 2000) v`, [PX1, cE]);
 await raises('论文项目的预算连同大项目超过上限就提交不了', /上限为 50000(\.00)?，.*合计 52000(\.00)?，超出 2000/, `select set_project_budget(2029, $1, 'submit')`, [PX1]);
 await raises('论文项目负责人不能申请提高上限', /仅课题负责人和副手可申请提高上限/, `select request_cap(2029, $1, 200000, '要买设备')`, [BX]);
-eq((await q(`select * from api.project_cap`)).length, 0, '论文项目负责人看不到大项目的上限');
+eq((await q(`select * from api.project_cap`)).length, 1, '课题全公开：研究单元负责人看得到课题的上限');
 await as(U.lead, D8);
 let cp = await one(`select amount, used from api.project_cap where project_id = $1 and year = 2029`, [BX]);
 ok(Number(cp.amount) === 50000 && Number(cp.used) === 20000, '大项目负责人看到上限和已经占了多少', JSON.stringify(cp));
@@ -1297,7 +1297,7 @@ eq((await q(`select * from api.budget_revision where line_id in ($1, $2) and not
 await as(U.mem, D9);
 eq((await q(`select * from api.budget_shift where id = $1`, [mv])).length, 1, '调入的论文项目负责人看得到这笔调剂');
 await as(U.mem2, D9);
-eq((await q(`select * from api.budget_shift where id = $1`, [mv])).length, 0, '成员看不到跨项目调剂');
+eq((await q(`select * from api.budget_shift where id = $1`, [mv])).length, 1, '课题全公开：成员看得到课题之间的调剂');
 await as(U.fin, D9);
 ok((await q(`select text from api.outbox where user_id = $1`, [U.mem])).some(o => /课题负责人从「可信评测」调入 2,000\.00 元/.test(o.text)), '跨项目调剂通知调入项目的负责人');
 
