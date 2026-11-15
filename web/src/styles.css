@@ -266,6 +266,12 @@ fieldset.multi .field{margin-bottom:8px}
 .stage.still{cursor:default}.stage.still::after{content:none}.stage.still:hover{transform:none;box-shadow:var(--shadow);border-color:var(--line)}
 .stage.on,.stage.still.on:hover{border-color:var(--ink);box-shadow:var(--lift)}.stage.on .no::after{content:" · 当前"}.stage.done .v{color:var(--mute)}
 .stage.still .v{font-size:clamp(15px,1.55vw,24px);overflow:hidden;text-overflow:ellipsis}
+.wb.obj{counter-reset:sec 1}
+.wb.obj>section.card{background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;padding:30px 0 22px;margin:0}
+.wb.obj>section.card:last-of-type{border-bottom:0}
+.wb.obj>section.card>h3{font:600 clamp(22px,2.4vw,30px)/1.15 var(--sans);letter-spacing:-.01em;margin:0 0 14px}
+.wb.obj>section.card>h3::before{counter-increment:sec;content:"0" counter(sec);font:500 11px var(--mono);color:var(--brand);letter-spacing:.1em;margin-right:14px;vertical-align:middle}
+.wb.obj>section.card>h3 .h3sub{font:400 12px var(--sans);letter-spacing:0}
 .stage:hover{border-color:#c9c9c4;transform:translateY(-2px);box-shadow:var(--lift)}
 .stage:hover::after{color:var(--brand);transform:translateX(4px)}
 

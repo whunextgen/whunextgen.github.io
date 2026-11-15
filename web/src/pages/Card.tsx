@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { ObjHead, Stages, Track, execSegs } from '../tree';
 import { rpc, useViews, type Cap, type Card, type CardIncome, type CardSchoolSubject, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
 import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, can, cardGap, cardGranted, cardTotal, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
 import { cardFields, saveCard } from './Admin';
@@ -133,24 +134,36 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   const schoolRows = [...bySchool.values()].sort((a, b) => b.amount - a.amount);
   const otherRows = cells.map((x) => ({ ...x, rest: num(x.actual) - data.school.filter((r) => r.subject_id === x.subject_id).reduce((t, r) => t + num(r.amount), 0) })).filter((x) => x.rest >= 0.005 || num(x.commit) >= 0.005);
 
+  // 流程：下达 → 支出申请 → 学校入账 → 到期 → 结清
+  const total = cardTotal(c), expired = c.status === 'active' && day(c.cutoff_date) < now;
+  const ledgerN = data.school.reduce((t, r) => t + r.n, 0);
+  const daysLeft = Math.ceil((Date.parse(day(c.cutoff_date)) - Date.parse(now)) / 864e5);
+  const at = c.status === 'settled' ? 6 : expired ? 4 : total <= 0 ? 1 : num(c.actual) > 0 ? 3 : 2;
+  const span = Date.parse(day(c.cutoff_date)) - Date.parse(day(c.start_date));
+  const mark = c.status === 'active' && span > 0 ? Math.min(1, Math.max(0, (Date.parse(now) - Date.parse(day(c.start_date))) / span)) : undefined;
   return (
-    <>
-      <div className="top">
-        <div className="crumb"><a href="#/funds">项目管理</a> / <a href="#/cards">经费卡管理</a> / {c.card_no}</div>
-        <h2>{c.name} · {c.year} 年</h2>
-        {c.status === 'settled' ? <Badge>已结清</Badge> : <Badge tone={day(c.cutoff_date) < now ? 'bad' : 'ok'}>{day(c.cutoff_date) < now ? '已过单据截止' : '在用'}</Badge>}
+    <div className="wb obj">
+      <ObjHead crumb={<><a href="#/funds">项目管理</a> › <a href={`#/fund/${c.project_id}`}>所属项目</a> › 经费卡 {c.card_no}</>}
+        eyebrow={`经费卡 · ${c.card_no} · ${c.year} 年下达`} title={c.name}
+        badge={c.status === 'settled' ? <Badge>已结清</Badge> : <Badge tone={expired ? 'bad' : 'ok'}>{expired ? '已过单据截止' : '在用'}</Badge>}
+        label={c.status === 'settled' ? (num(c.carried_out) > 0 ? '结清时结转' : '结清时回收') : '可用'} value={c.status === 'settled' ? num(num(c.carried_out) > 0 ? c.carried_out : c.recalled ?? 0) : num(c.avail)} neg={c.status !== 'settled' && num(c.avail) < 0}
+        actions={(canSettle || editable) ? <>
         {canSettle && <button className="ghost" onClick={() => setAct({ label: '结清', title: '结清经费卡',
           hint: `${c.name}。结清后按科目固定预算、决算和结余，该经费卡不得再提交支出，结清不可撤销。存在在途支出、在途变更或未入账人员费时不得结清。`,
           danger: true, fields: [], run: () => rpc('settle_card', { card_id: c.card_id }) })}>结清</button>}
         {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '修改经费卡', hint: '负责人、经费性质和科目模板以所属项目为准，请在「项目管理」中修改。',
           fields: cardFields(c), run: (v) => saveCard(c, v) })}>修改</button>}
-      </div>
-      <div className="tiles">
-        <Tile k="现行预算" v={money(c.cur)} f={num(c.adj) ? `年初 ${money(c.orig)}，变更 ${money(c.adj)}` : '未办理预算变更'} />
-        <Tile k="决算数" v={money(c.actual)} f={`执行率 ${pct(num(c.actual), num(c.cur))}`} />
-        <Tile k="承诺" v={money(c.commit)} f={`${open.length} 笔在途`} />
-        <Tile k="可用" v={money(c.avail)} tone={num(c.avail) < 0 ? 'bad' : ''} />
-      </div>
+        </> : undefined}
+        chart={total > 0 ? <Track cap="执行 · 已入账、已承诺、可用" segs={execSegs(total, num(c.actual), num(c.commit), '下达数').map((g) => ({ ...g, cls: `${g.cls} big` }))} mark={mark} /> : <Empty>尚未填写下达数。</Empty>}
+        facts={[['下达数', money(cardGranted(c))], ...(num(c.carried_in) > 0 ? [['结转转入', money(c.carried_in)] as [string, string]] : []), ['已入账', money(c.actual)], ['已承诺', money(c.commit)],
+          ['有效期', `${day(c.start_date)} 至 ${day(c.cutoff_date)}`], ...(c.school_balance != null ? [['学校余额', money(c.school_balance)] as [string, string]] : [])]} />
+      <Stages path="下达 › 支出申请 › 学校入账 › 到期 › 结清" at={at} items={[
+        { nm: '下达', ds: '学校下达到这张经费卡', v: total > 0 ? money(cardGranted(c)) : '尚未填写', f: `${day(c.start_date)} 下达${c.applied != null ? `，申请 ${money(c.applied)}` : ''}` },
+        { nm: '支出申请', ds: '先申请、后支出，批准后占用额度', v: `${open.length} 笔在途`, f: `已承诺 ${money(c.commit)}` },
+        { nm: '学校入账', ds: '明细以学校正式入账为准', v: money(c.actual), f: ledgerN > 0 ? `学校明细账 ${ledgerN} 笔` : '尚未导入学校明细账' },
+        { nm: '到期', ds: '单据截止日后不得再提交支出', v: day(c.cutoff_date), f: c.status === 'settled' ? '' : expired ? '已到期，待结清' : `剩余 ${daysLeft} 天` },
+        { nm: '结清', ds: `结余${END_RULE[c.end_rule] ?? ''}`, v: c.status === 'settled' ? '已结清' : '未结清', f: c.status === 'settled' ? (num(c.carried_out) > 0 ? `结转 ${money(c.carried_out)}` : `回收 ${money(c.recalled ?? 0)}，回到项目额度剩余`) : c.settle_date ? `结清日 ${day(c.settle_date)}` : '尚未设结清日' },
+      ]} />
 
       <section className="card">
         <h3>基本情况</h3>
@@ -191,7 +204,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       </section>
 
       <section className="card">
-        <h3>明细与执行 <span className="h3sub">{c.pooled ? '只控总额，按学校科目列支出' : '科目沿用学校明细账的科目；下达数按科目编预算，支出按科目核对'}</span></h3>
+        <h3>明细 <span className="h3sub">明细即学校入账：{c.pooled ? '只控总额，按学校科目列出已入账的支出' : '科目沿用学校明细账的科目，支出按科目核对'}</span></h3>
         {c.pooled ? (
           <>
             <p className="hint">该经费卡只控总额：下达数连同上年结转 {money(c.cur)}，已入账 {money(c.actual)}，已承诺 {money(c.commit)}，可用 {money(c.avail)}。支出只与可用总额核对，下表按学校科目列出已入账的支出。</p>
@@ -323,6 +336,6 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       <LegacyAdjustList cardId={id} />
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label}
         onSubmit={async (v) => { await act.run(v); reload(); }} onClose={() => setAct(null)} />}
-    </>
+    </div>
   );
 }

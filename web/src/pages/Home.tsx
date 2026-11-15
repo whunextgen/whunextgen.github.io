@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useViews, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task } from '../api';
+import { useViews, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task } from '../api';
 import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, cardGap, cardGranted, cardTotal, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Track, TreeNode, execSegs, type Seg } from '../tree';
 import { cardRisk, nodeState } from './Overview';
@@ -15,7 +15,8 @@ export function Home({ me }: { me: Me }) {
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
     years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[]; tasks: Task[];
-    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[] }>({
+    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[] }>({
+    school: ['card_school_subject'],
     reqs: ['request'], picks: ['card_pick'], cards: ['card'], nodes: ['node'], events: ['fund_event', { done: 'false' }],
     years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'], caps: ['cap_request'], shifts: ['budget_shift'], tasks: ['task', { status: 'open' }],
     funds: ['fund_project'], cells: ['cell'], allocs: ['budget_alloc'], pcaps: ['project_cap'],
@@ -172,14 +173,21 @@ export function Home({ me }: { me: Me }) {
           const give = new Map<string, number>(); for (const a of data.allocs.filter((x) => x.card_id === c.card_id)) give.set(a.project_id, (give.get(a.project_id) ?? 0) + num(a.amount));
           const out = [...give.values()].reduce((s, v) => s + v, 0), total = cardTotal(c), gap = cardGap(c), left = total - num(c.actual) - num(c.commit);
           const mark = c.status === 'active' ? cardRisk(c, now).time : undefined;
+          // 明细即学校入账：按学校科目合并
+          const bySchool = new Map<string, { school_name: string; n: number; amount: number }>();
+          for (const r of data.school.filter((x) => x.card_id === c.card_id)) { const o = bySchool.get(r.school_name) ?? { school_name: r.school_name, n: 0, amount: 0 }; o.n += r.n; o.amount += num(r.amount); bySchool.set(r.school_name, o); }
+          const posted = [...bySchool.values()].sort((a, b) => b.amount - a.amount);
           return (
             <TreeNode key={c.card_id} level={2} lv="经费卡" title={c.name === p.name ? `${c.year} 年下达` : `${c.year} 年下达 · ${c.name}`} meta={`${c.card_no} · 有效期 ${day(c.start_date)} 至 ${day(c.cutoff_date)}`} href={`#/card/${c.card_id}`} open={pi === 0 && live(c)}
               chart={<Track cap="执行" segs={execSegs(total, num(c.actual), num(c.commit), '下达数')} mark={mark} />}
               num={`下达 ${money(total)}`} sub={`执行 ${pct(num(c.actual) + num(c.commit), total)} · 可用 ${money(left)}`}
               status={cardStatus(c) ?? (gap >= 0.005 ? ['warn', `尚有 ${money(gap)} 未分到科目，暂不可支出`] : total <= 0 ? ['warn', '尚未填写下达数']
                 : c.status === 'active' && c.fund_kind === 'horizontal' && num(c.received) < total ? ['warn', `已下达未到账 ${money(total - num(c.received))}，到账前不得支出`] : null)}>
-              {cells.map((x) => <TreeNode key={x.subject_id} level={3} lv="明细" title={x.subject_name}
-                chart={<Track segs={execSegs(num(x.cur), num(x.actual), num(x.commit), '该明细')} scale={total} />} num={money(x.cur)} sub={`可用 ${money(x.avail)}`} status={num(x.avail) < 0 ? ['bad', '超支'] : null} />)}
+              {posted.length > 0
+                ? posted.map((x) => <TreeNode key={x.school_name} level={3} lv="明细" title={x.school_name}
+                  chart={<Track segs={[{ cls: 'sa', value: x.amount, tip: `学校入账 ${x.n} 笔，合计 ${money(x.amount)}，占下达数 ${pct(x.amount, total)}` }]} scale={total} />} num={money(x.amount)} sub={`学校入账 ${x.n} 笔`} />)
+                : cells.filter((x) => num(x.actual) > 0).map((x) => <TreeNode key={x.subject_id} level={3} lv="明细" title={x.subject_name}
+                  chart={<Track segs={[{ cls: 'sa', value: num(x.actual), tip: `已入账 ${money(x.actual)}，占下达数 ${pct(num(x.actual), total)}` }]} scale={total} />} num={money(x.actual)} sub="已入账" />)}
               {give.size > 0 && <div className="wb-give">
                 <div className="wb-cap">下达去向 · 已下达 {money(out)}，尚未下达 {money(Math.max(total - out, 0))}</div>
                 <Track segs={[...[...give.entries()].sort((a, b) => b[1] - a[1]).map(([id, v], i): Seg => ({ cls: `u${i % 3}`, value: v, text: `${projName.get(id) ?? '研究单元'} ${wan(v)}`, tip: `研究单元「${projName.get(id) ?? ''}」自本经费卡下达 ${money(v)}，占 ${pct(v, total)}` })),

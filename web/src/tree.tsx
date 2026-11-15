@@ -55,3 +55,45 @@ export function TreeNode({ level, lv, title, meta, href, chart, num, sub, status
     </div>
   );
 }
+
+// 各级详情页的页头：左边是本级名称和一个大数，右边是一张图和几个数
+export function ObjHead({ crumb, eyebrow, title, badge, actions, label, value, unit = '元', neg, chart, facts }: {
+  crumb: ReactNode; eyebrow: string; title: string; badge?: ReactNode; actions?: ReactNode; label: string; value: number | string; unit?: string; neg?: boolean;
+  chart: ReactNode; facts: [string, ReactNode, boolean?][];
+}) {
+  const big = typeof value === 'number' ? (() => { const [a, d] = money(value).split('.'); return <>{a}<small>.{d}</small></>; })() : value;
+  return (
+    <>
+      <p className="hint" style={{ margin: 0 }}>{crumb}</p>
+      <div className="wb-hero">
+        <div>
+          <div className="eyebrow">{eyebrow}</div>
+          <h2 style={{ margin: '6px 0 0' }}>{title} {badge}</h2>
+          <h1><small>{label}</small><em className={neg ? 'neg' : ''}>{big}</em>{typeof value === 'number' ? ` ${unit}` : ''}</h1>
+          {actions && <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 14 }}>{actions}</div>}
+        </div>
+        <div>
+          {chart}
+          <div className="wb-facts">{facts.map(([k, v, warn]) => <span key={k} className={warn ? 'w' : undefined}>{k}<b>{v}</b></span>)}</div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// 本级的流程：五个环节各带一个数，当前所在环节加重显示
+export interface Stage { nm: string; ds: string; v: ReactNode; f?: ReactNode }
+export function Stages({ path, items, at }: { path: string; items: Stage[]; at: number }) {
+  return (
+    <section className="wb-sec">
+      <div className="wb-sh"><span className="no">01</span><h2>流程</h2><span className="path">{path}</span></div>
+      <div className="flowline" aria-label="流程">
+        {items.map((g, i) => (
+          <div key={g.nm} className={`stage still${i + 1 === at ? ' on' : i + 1 < at ? ' done' : ''}`} aria-current={i + 1 === at ? 'step' : undefined}>
+            <span className="no">0{i + 1}</span><span className="nm">{g.nm}</span><span className="ds">{g.ds}</span><span className="v">{g.v}</span><span className="f">{g.f}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
