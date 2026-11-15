@@ -1531,6 +1531,15 @@ ok(Number(c.recalled) === 50000 && Number(c.carried_out) === 0, '回收的卡结
 await as(U.fin, '2032-01-08');
 eq((await one(`select recalled from api.fund_project where id = $1`, [f2])).recalled, 50000, '项目上看得到历年回收合计');
 eq((await one(`select granted from api.fund_project where id = $1`, [f2])).granted, 0, '结清后被回收的部分不再占项目额度');
+// 年底规则为结余上缴的：结清后上缴的部分仍占额度
+const f4 = await val(`select save_fund_project(null, '上缴样例项目', 'school', 'fiscal', null, 80000, '2031-01-01', '2031-12-31', $1, 'return') v`, [T.N]);
+const d1 = await val(`select open_card($1, 2031, '7006-N', null, '2031-01-05', '2031-12-20', '2031-12-31') v`, [f4]);
+await q(`select set_budget($1, $2)`, [d1, lines({ biz: 30000 })]);
+await as(U.dir, '2032-01-08');
+await q(`select settle_card($1)`, [d1]);
+await as(U.fin, '2032-01-08');
+const p4 = await one(`select granted, recalled from api.fund_project where id = $1`, [f4]);
+ok(Number(p4.granted) === 30000 && Number(p4.recalled) === 30000, '年底规则为结余上缴的，结清后上缴的部分仍占额度；到期回收的才回到额度剩余', JSON.stringify(p4));
 await q(`select close_fund_project($1)`, [f2]);
 ok((await one(`select status from api.fund_project where id = $1`, [f2])).status === 'closed', '各年的卡都结清后可以结题');
 await raises('结题后不能再开卡', /已结题/, `select open_card($1, 2031, '7005-N', 1, '2031-02-01', '2031-12-20')`, [f2]);

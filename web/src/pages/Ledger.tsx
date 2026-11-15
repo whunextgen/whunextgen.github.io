@@ -4,7 +4,7 @@ import { Badge, money, num } from '../ui';
 import { amt, parse } from './Import';
 import { readXls } from '../xls';
 
-// 在经费卡上导入学校财务系统导出的「项目收支明细账」：收入行更新当年下达数和已到账，支出行记为已入账，期末余额更新学校余额。
+// 在经费卡上导入学校财务系统导出的「项目收支明细账」：收入行更新下达数和已到账，支出行记为已入账，期末余额更新学校余额。
 // 文件只在浏览器里读；先列出与中台现有记录的差异，确认后才写入。重复导入不重复写入。
 
 interface Row { line: number; on: string; voucher: string; title: string; code: string; name: string; income: number; expense: number; balance: number | null }
@@ -76,7 +76,7 @@ export function LedgerImport({ card, reqs, onDone }: { card: Card; reqs: Req[]; 
         rows: view.fresh.map((x) => ({ posted_on: x.on, voucher_no: x.voucher, title: x.title, amount: x.expense, school_code: x.code, school_name: x.name })),
         incomes: setIncome ? view.income.map((x) => ({ posted_on: x.on, voucher_no: x.voucher, title: x.title, amount: x.income, school_code: x.code, school_name: x.name })) : null,
         opening: setIncome && led.hasOpening ? led.opening : null, balance: setBalance && led.ending != null ? led.ending : null, pooled }) as { added: number; skipped: number; amount: number; incomes: number };
-      setMsg(['ok', `已导入：新增已入账支出 ${r.added} 笔，合计 ${money(r.amount)}${r.skipped ? `；${r.skipped} 笔中台已有，未重复写入` : ''}${setIncome ? `；收入明细新增 ${r.incomes} 笔，当年下达数和已到账按收入明细合计更新${led.hasOpening ? `，上年结转更新为 ${money(led.opening)}` : ''}` : ''}${setBalance && led.ending != null ? `；学校余额更新为 ${money(led.ending)}` : ''}。`]);
+      setMsg(['ok', `已导入：新增已入账支出 ${r.added} 笔，合计 ${money(r.amount)}${r.skipped ? `；${r.skipped} 笔中台已有，未重复写入` : ''}${setIncome ? `；收入明细新增 ${r.incomes} 笔，下达数和已到账按收入明细合计更新${led.hasOpening ? `，上年结转更新为 ${money(led.opening)}` : ''}` : ''}${setBalance && led.ending != null ? `；学校余额更新为 ${money(led.ending)}` : ''}。`]);
       setLed(null); setFile(''); onDone();
     } catch (e) { setMsg(['bad', (e as ApiError).message]); }
     setBusy(false);
@@ -85,7 +85,7 @@ export function LedgerImport({ card, reqs, onDone }: { card: Card; reqs: Req[]; 
   return (
     <section className="card">
       <h3>导入明细账 <span className="h3sub">学校财务系统导出的项目收支明细账</span></h3>
-      <p className="hint">上传学校财务系统导出的该经费卡的明细账（.xls 或 CSV）。收入行逐笔保存并据此更新当年下达数和已到账，年初余额记为上年结转，支出行记为已入账的支出，期末余额用于更新学校余额；学校余额按这些明细核对。系统先列出与中台现有记录的差异，确认后写入；已导入过的行不会重复写入。文件仅在浏览器中读取。</p>
+      <p className="hint">上传学校财务系统导出的该经费卡的明细账（.xls 或 CSV）。收入行逐笔保存并据此更新下达数和已到账，年初余额记为上年结转，支出行记为已入账的支出，期末余额用于更新学校余额；学校余额按这些明细核对。系统先列出与中台现有记录的差异，确认后写入；已导入过的行不会重复写入。文件仅在浏览器中读取。</p>
       {msg && <div className={`msg ${msg[0]}`} role={msg[0] === 'bad' ? 'alert' : 'status'}>{msg[1]}</div>}
       <label className="field"><span>选择明细账文件</span>
         <input type="file" accept=".xls,.csv,.tsv,.txt,application/vnd.ms-excel,text/csv,text/plain" onChange={(e) => { const f = e.target.files?.[0]; if (f) void load(f); e.target.value = ''; }} /></label>
@@ -102,7 +102,7 @@ export function LedgerImport({ card, reqs, onDone }: { card: Card; reqs: Req[]; 
           <h4>写入内容</h4>
           <p className="sub2">每笔支出记在学校的科目上，科目编号和名称照学校明细账；学校有而中台尚无的科目自动新增，无需逐笔指定。</p>
           <label className="field check"><input type="checkbox" checked={pooled} onChange={(e) => setPooled(e.target.checked)} /><span>该经费卡只控总额，不按科目控制{led.noCtrl ? '（明细账中「额度控制分类」为空，学校未按科目控制）' : ''}。勾选后，支出只与整张卡的可用额核对。</span></label>
-          <label className="field check"><input type="checkbox" checked={setIncome} onChange={(e) => setSetIncome(e.target.checked)} /><span>保存收入明细，并据此更新当年下达数和已到账（收入合计 {money(view.incomeSum)}；当前下达数 {card.granted != null ? money(card.granted) : '未填写'}）；年初余额记为上年结转</span></label>
+          <label className="field check"><input type="checkbox" checked={setIncome} onChange={(e) => setSetIncome(e.target.checked)} /><span>保存收入明细，并据此更新下达数和已到账（收入合计 {money(view.incomeSum)}；当前下达数 {card.granted != null ? money(card.granted) : '未填写'}）；年初余额记为上年结转</span></label>
           <label className="field check"><input type="checkbox" checked={setBalance} disabled={led.ending == null} onChange={(e) => setSetBalance(e.target.checked)} /><span>将学校余额更新为期末余额 {led.ending != null ? money(led.ending) : '—'}（当前 {card.school_balance != null ? money(card.school_balance) : '未回写'}）</span></label>
           {view.fresh.length > 0 && (
             <>

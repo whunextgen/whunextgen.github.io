@@ -10,8 +10,8 @@ export function cardFields(c: Card): Field[] {
   return [
     { name: 'card_no', label: '经费卡号', value: c.card_no },
     { name: 'name', label: '经费卡名称（同一项目同年度有多张时用于区分，如直接费、间接费）', value: c.name },
-    { name: 'applied', label: '当年申请数（元，选填）', type: 'number', required: false, value: c.applied != null ? String(num(c.applied)) : '' },
-    { name: 'granted', label: '当年下达数（元，按下达通知填写；留空则按各科目明细合计）', type: 'number', required: false, value: c.granted != null ? String(num(c.granted)) : '' },
+    { name: 'applied', label: '申请数（元，选填）', type: 'number', required: false, value: c.applied != null ? String(num(c.applied)) : '' },
+    { name: 'granted', label: '下达数（元，按下达通知填写；留空则按各科目明细合计）', type: 'number', required: false, value: c.granted != null ? String(num(c.granted)) : '' },
     { name: 'start_date', label: '下达日', type: 'date', value: day(c.start_date) },
     { name: 'cutoff_date', label: '单据截止日', type: 'date', value: day(c.cutoff_date) },
     { name: 'settle_date', label: '结清日（选填，结清前须填写）', type: 'date', required: false, value: c.settle_date ? day(c.settle_date) : '' },
@@ -153,7 +153,7 @@ export function Admin({ me }: { me: Me }) {
       {tab === 'cards' && (
         <section className="card">
           <h3>经费卡</h3>
-          <p className="hint">每张经费卡是一个项目某一年下来的经费。新开经费卡请到<a href="#/funds">项目管理</a>，同一项目同一年度可有多张；开卡后在经费卡页面录入当年下达数和考核节点，负责人和科目模板以项目为准。</p>
+          <p className="hint">每张经费卡是一个项目某次下达的经费，可以跨年度使用。新开经费卡请到<a href="#/funds">项目管理</a>，同一项目同一年度可有多张；开卡后在经费卡页面录入下达数和考核节点，负责人和科目模板以项目为准。</p>
           {cards.length === 0 ? <Empty>暂无经费卡。</Empty> : (
             <div className="scroll"><table>
               <thead><tr><th>卡号</th><th>年度</th><th>名称</th><th>模板</th><th>负责人</th><th>下达日</th><th>单据截止</th><th>结清日</th><th className="r">现行预算</th><th>状态</th><th /></tr></thead>

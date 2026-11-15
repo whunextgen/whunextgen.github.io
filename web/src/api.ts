@@ -65,7 +65,7 @@ export interface Card {
   fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null; received: string | null; priority: number | null;
   total_amount: string | null; period_start: string | null; period_end: string | null;
   project_id: string; year: number; applied: string | null; carried_in: string; recalled: string | null; carried_out: string | null;
-  granted: string | null;   // 当年下达数，直接填写的；没填时按各科目明细合计算
+  granted: string | null;   // 下达数，直接填写的；没填时按各科目明细合计算
   assigned: string;         // 已分到各学校科目的合计；填了下达数时 cur 是下达数连同结转，assigned 可能小于 cur
   pooled: boolean;          // 只控总额，不按科目控制
   income: string; ledger_actual: string; stray_n: number; stray_amount: string;   // 按明细核对用：收入合计、明细账里的支出合计、明细账之外的已入账支出
