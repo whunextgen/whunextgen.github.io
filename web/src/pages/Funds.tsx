@@ -125,9 +125,17 @@ export function Funds({ me, only }: { me: Me; only?: string }) {
     const back = settled.filter((c) => c.end_rule === 'recall').reduce((t, c) => t + num(c.recalled ?? 0), 0);
     const carried = settled.reduce((t, c) => t + num(c.carried_out ?? 0), 0);
     const big = (x: number) => { const [a, d] = money(x).split('.'); return <>{a}<small>.{d}</small></>; };
-    // 额度构成：各经费卡占用（到期回收的结余已扣除）与额度剩余
-    const segs: Seg[] = [...cs].reverse().map((c, i) => { const g = cardGranted(c) - (c.status === 'settled' && c.end_rule === 'recall' ? num(c.recalled ?? 0) : 0);
-      return { cls: `${i % 2 ? 'sy1' : 'sy0'} big`, value: g, text: `${c.year} 年 ${c.card_no}`, tip: `${c.year} 年下达的经费卡 ${c.card_no}${c.name === p.name ? '' : `（${c.name}）`}占用额度 ${money(g)}${quota ? `，占额度 ${pct(g, quota)}` : ''}` }; });
+    // 额度构成：每张经费卡的占用（到期回收的结余已扣除）分成已入账、已承诺、可用，最后是额度剩余
+    const segs: Seg[] = [...cs].reverse().flatMap((c): Seg[] => {
+      const g = cardGranted(c) - (c.status === 'settled' && c.end_rule === 'recall' ? num(c.recalled ?? 0) : 0);
+      const a = Math.min(num(c.actual), g), k = c.status === 'active' ? Math.min(num(c.commit), Math.max(g - a, 0)) : 0, rest = Math.max(g - a - k, 0);
+      const who = `${c.year} 年下达的经费卡 ${c.card_no}${c.name === p.name ? '' : `（${c.name}）`}`;
+      return [
+        { cls: 'sa big', value: a, text: `${c.card_no} 已入账`, tip: `${who}：已入账 ${money(a)}${quota ? `，占额度 ${pct(a, quota)}` : ''}` },
+        { cls: 'sc big', value: k, text: '已承诺', tip: `${who}：已承诺 ${money(k)}` },
+        { cls: 'sr big', value: rest, text: c.status === 'active' ? '可用' : '结转', tip: `${who}：${c.status === 'active' ? '可用' : '结清时结转'} ${money(rest)}` },
+      ];
+    });
     if (quota != null && quota > granted) segs.push({ cls: 'hatch big', value: quota - granted, text: `额度剩余 ${pct(quota - granted, quota)}`, tip: `额度剩余 ${money(quota - granted)}，占额度 ${pct(quota - granted, quota)}；尚未下达，不是可用经费` });
     // 流程：立项 → 下达 → 执行 → 到期处理 → 结题。当前所在环节加重显示
     const at = p.status === 'closed' ? 5 : cs.length === 0 ? 2 : liveCs.length > 0 ? 3 : due.length > 0 ? 4 : 5;
@@ -151,7 +159,8 @@ export function Funds({ me, only }: { me: Me; only?: string }) {
               : <h1><small>有效期内可用</small><em className={avail < 0 ? 'neg' : ''}>{big(avail)}</em> 元</h1>}
           </div>
           <div>
-            {segs.length > 0 ? <Track cap={quota != null ? '额度构成 · 各经费卡占用与额度剩余（到期回收的结余已扣除）' : '各经费卡已下达 · 额度尚未填写'} segs={segs} /> : <Empty>尚未开出经费卡。</Empty>}
+            {segs.length > 0 ? <Track cap={quota != null ? '额度构成 · 各经费卡的已入账、已承诺、可用，以及额度剩余（到期回收的结余已扣除）' : '各经费卡的已入账、已承诺、可用 · 额度尚未填写'} segs={segs} /> : <Empty>尚未开出经费卡。</Empty>}
+            {segs.length > 0 && <div className="wb-key" style={{ margin: '8px 0 0' }}><span><i className="sa" />已入账</span><span><i className="sc" />已承诺</span><span><i className="sr" />可用</span>{quota != null && quota > granted && <span><i className="hatch" />额度剩余</span>}</div>}
             <div className="wb-facts">
               <span>额度<b>{quota != null ? money(quota) : '尚未填写'}</b></span><span>占用额度<b>{money(granted)}</b></span>
               <span>有效期内可用<b>{money(avail)}</b></span><span>历年已入账<b>{money(actual)}</b></span>{commit > 0 && <span>已承诺<b>{money(commit)}</b></span>}
