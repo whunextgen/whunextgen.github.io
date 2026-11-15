@@ -74,7 +74,7 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
           const acts = actionsFor(me, r, targets, lines);
           return (
             <tr key={r.id}>
-              <td className="wrap">{r.title}
+              <td className="wrap"><a href={`#/req/${r.id}`}>{r.title}</a>
                 <div className="sub2">{[r.code, r.requester_name ?? userName?.get(r.requested_by ?? ''), r.requested_by === me.id ? '本人提交' : '',
                   r.path && `${r.path} ${r.stage}/${r.stages}`, r.split_group && '分摊', r.project_id && tagged?.has(r.project_id) && '晨星', r.emergency && '紧急通道'].filter(Boolean).join(' · ')}</div>
                 {r.status === 'rejected' && r.return_note && <div className="sub2 neg">原因：{r.return_note}</div>}</td>

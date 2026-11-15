@@ -70,7 +70,7 @@ export function Procure({ me }: { me: Me }) {
               const acts = live(r) ? actionsFor(me, r, []).filter((a) => ['推进采购', '废标/流标', '提交学校'].includes(a.label)) : [];
               return (
                 <tr key={r.id}>
-                  <td className="wrap">{r.title}<div className="sub2">{[r.code, r.path, group.length > 1 && `分摊 ${group.length} 处，合计 ${money(group.reduce((s, x) => s + num(x.amount), 0))}`].filter(Boolean).join(' · ')}</div>
+                  <td className="wrap"><a href={`#/req/${r.id}`}>{r.title}</a><div className="sub2">{[r.code, r.path, group.length > 1 && `分摊 ${group.length} 处，合计 ${money(group.reduce((s, x) => s + num(x.amount), 0))}`].filter(Boolean).join(' · ')}</div>
                     <Steps r={r} />
                     {ev.length > 0 && <div className="sub2" style={{ marginTop: 6 }}>{ev.slice(0, 3).map((e) => `${day(e.at)} ${EVENT[e.kind] ?? e.kind}${e.note ? `（${e.note}）` : ''}`).join('；')}</div>}</td>
                   <td>{c ? <a href={`#/card/${c.id}`}>{c.name}</a> : '—'}<div className="sub2">截止 {day(c?.cutoff_date)}</div></td>

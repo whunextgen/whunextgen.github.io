@@ -5,6 +5,7 @@ import { ROLE, can, today } from './ui';
 import { Overview } from './pages/Overview';
 import { Funds } from './pages/Funds';
 import { SyncPage } from './pages/Sync';
+import { RequestPage } from './pages/Request';
 import { Home } from './pages/Home';
 import { History } from './pages/Legacy';
 import { CardPage } from './pages/Card';
@@ -109,6 +110,7 @@ function App() {
   // 不在导航里、从别的页面点进去的页面
   const side = keep(['/track', '在途事项'], ...groups.filter((g) => g.home).map((g): Page => [g.home, `${g.label}汇总`]), !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
 
+  const reqId = route.match(/^\/req\/([^/]+)$/)?.[1];
   const cardId = seesCards ? route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1] : undefined;
   const fundId = seesCards ? route.match(/^\/fund\/([^/]+)$/)?.[1] : undefined;
   const proj = route.match(/^\/project\/([^/]+)(?:\/(\d{4}))?$/);
@@ -117,9 +119,10 @@ function App() {
   const procure = seg0 === 'school' && arg === 'procure';
   const seg = seg0;
   const allowed = new Set([...groups.flatMap((g) => g.pages), ...side].map(([to]) => to));
-  const current = cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
+  const current = reqId ? '/requests' : cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
   const group = groups.find((g) => g.home === current || g.pages.some(([to]) => to === current));
-  const page = cardId ? <CardPage me={me} id={cardId} />
+  const page = reqId ? <RequestPage me={me} id={reqId} />
+    : cardId ? <CardPage me={me} id={cardId} />
     : fundId ? <Funds me={me} only={fundId} />
     : proj ? <ProjectPage me={me} id={proj[1]} start={proj[2] ?? ''} />
     : current === '/budget' ? <BudgetPage me={me} start={arg} />

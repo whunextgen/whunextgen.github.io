@@ -45,7 +45,7 @@ function BatchPost({ rows, cardName, onDone, onCancel }: { rows: Req[]; cardName
         <thead><tr><th /><th>事项</th><th>经费卡</th><th className="r">申请金额</th><th>入账日期</th><th className="r">入账金额</th><th>凭证号</th></tr></thead>
         <tbody>{rows.map((r) => (
           <tr key={r.id}><td><input type="checkbox" aria-label={`入账：${r.title}`} checked={!!on[r.id]} onChange={(e) => setOn({ ...on, [r.id]: e.target.checked })} /></td>
-            <td className="wrap">{r.title}<div className="sub2">{r.code}</div></td><td>{cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
+            <td className="wrap"><a href={`#/req/${r.id}`}>{r.title}</a><div className="sub2">{r.code}</div></td><td>{cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
             <td><input type="date" required={!!on[r.id]} disabled={!on[r.id]} value={f[r.id].posted_on} onChange={(e) => patch(r.id, { posted_on: e.target.value })} /></td>
             <td className="r"><input type="number" min="0.01" step="0.01" required={!!on[r.id]} disabled={!on[r.id]} value={f[r.id].amount} onChange={(e) => patch(r.id, { amount: e.target.value })} /></td>
             <td><input disabled={!on[r.id]} maxLength={60} value={f[r.id].voucher_no} onChange={(e) => patch(r.id, { voucher_no: e.target.value })} style={{ width: 150 }} /></td></tr>))}</tbody>

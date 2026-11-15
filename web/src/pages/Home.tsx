@@ -446,7 +446,7 @@ export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
               <thead><tr><th>单据</th><th>所属</th><th className="r">金额</th><th>状态</th><th /></tr></thead>
               <tbody>{openReqs.slice(0, 30).map((r) => <tr key={r.id}><td className="wrap">{r.title}<span className="sub2">{[r.code, `预计 ${day(r.eta_date)} 入账`].filter(Boolean).join(' · ')}</span></td>
                 <td>{r.project_name ?? cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
-                <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge> <Flow status={r.status} /></td><td className="r"><a className="wb-op" href={`#/requests/${r.status}`}>查看</a></td></tr>)}</tbody>
+                <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge> <Flow status={r.status} /></td><td className="r"><a className="wb-op" href={`#/req/${r.id}`}>查看</a></td></tr>)}</tbody>
             </table></div>)}
           {openReqs.length > 30 && <p className="hint">仅列出最近 30 笔，其余见「支出申请」。</p>}
         </section>
@@ -509,7 +509,7 @@ export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
             <thead><tr><th>单据</th><th>所属</th><th className="r">金额</th><th>状态</th><th /></tr></thead>
             <tbody>{mineOpen.map((r) => <tr key={r.id}><td className="wrap">{r.title}<span className="sub2">{[r.code, `预计 ${day(r.eta_date)} 入账`].filter(Boolean).join(' · ')}</span></td>
               <td>{r.project_name ?? cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
-              <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge> <Flow status={r.status} /></td><td className="r"><a className="wb-op" href={`#/requests/${r.status}`}>查看</a></td></tr>)}</tbody>
+              <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge> <Flow status={r.status} /></td><td className="r"><a className="wb-op" href={`#/req/${r.id}`}>查看</a></td></tr>)}</tbody>
           </table></div>
         ))}
       </section>
