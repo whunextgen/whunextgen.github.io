@@ -16,6 +16,7 @@ export function Desk({ me }: { me: Me }) {
   const next = Number(today().slice(0, 4)) + 1;
   const cats = data.cats.slice().sort((a, b) => a.sort - b.sort);
   const tpl = new Map(data.cards.map((c) => [c.template_id, c.template_name]));
+  const cardName = new Map(data.cards.map((c) => [c.card_id, c.name]));   // 经费卡自编的预算科目按卡名列出
   const subs = data.subjects.slice().sort((a, b) => (tpl.get(a.template_id) ?? '').localeCompare(tpl.get(b.template_id) ?? '', 'zh') || a.sort - b.sort);
   const linked = (id: string) => subs.filter((s) => data.map.some((m) => m.category_id === id && m.subject_id === s.id));
   return (
@@ -54,7 +55,7 @@ export function Desk({ me }: { me: Me }) {
       {link && <ActionDialog title={`${link.name} 对应的学校科目`} submitLabel="保存" onClose={() => setLink(null)}
         hint="勾选该预算科目可列支的学校科目。不同经费卡的预算模板科目不同，各模板中可用的科目均须勾选。"
         fields={[{ name: 'subjects', label: '学校科目', type: 'multi', required: false, value: linked(link.id).map((s) => s.id).join(','),
-          options: subs.map((s): [string, string] => [s.id, `${tpl.get(s.template_id) ?? '模板'} · ${s.code} ${s.name}`]) }]}
+          options: subs.map((s): [string, string] => [s.id, s.card_id ? `${cardName.get(s.card_id) ?? '经费卡'} · ${s.name}` : `${tpl.get(s.template_id) ?? '模板'} · ${s.code} ${s.name}`]) }]}
         onSubmit={(v) => rpc('set_category_subjects', { category_id: link.id, subjects: v.subjects.split(',').filter(Boolean) }).then(reload)} />}
       {yr && <ActionDialog title={y ? `修改 ${y.year} 年度预算申报截止日` : '启动新年度预算'} submitLabel="保存" onClose={() => setYr(null)}
         fields={[...(y ? [] : [{ name: 'year', label: '年度', type: 'number', value: String(next) } as Field]), { name: 'due', label: '申报截止日', type: 'date', value: y ? day(y.due_date) : '' }]}

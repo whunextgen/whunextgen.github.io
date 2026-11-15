@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { ObjHead, Stages, Track, execSegs } from '../tree';
-import { rpc, useViews, type Cap, type Card, type CardIncome, type CardSchoolSubject, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
+import { rpc, useViews, type Cap, type Card, type CardIncome, type CardSchoolSubject, type CardSubjectMap, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
 import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, can, cardGap, cardGranted, cardTotal, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
 import { cardFields, saveCard } from './Admin';
 import { LedgerImport } from './Ledger';
@@ -45,34 +45,51 @@ function NewChange({ cardId, cells, onDone, onCancel }: { cardId: string; cells:
   );
 }
 
-// 年初预算：首次录入由财务岗做；录入后要更正只能由中心负责人做，日常调整走预算变更
+// 明细：按任务书的预算科目编。预算科目是本卡自己的，名称照任务书写，可以自己新增。
+// 首次录入由财务岗做；录入后要更正金额只能由中心负责人做，日常调整走预算变更
+interface BRow { key: string; id?: string; name: string; was: string; amount: string; fixed: boolean; adj: number; spent: number }
 function SetBudget({ cardId, cells, first, onDone, onCancel }: { cardId: string; cells: Cell[]; first: boolean; onDone: () => void; onCancel: () => void }) {
-  const [amt, setAmt] = useState<Record<string, string>>(() => Object.fromEntries(cells.filter((x) => num(x.orig)).map((x) => [x.subject_id, String(num(x.orig))])));
+  const [rows, setRows] = useState<BRow[]>(() => cells.map((x) => ({ key: x.subject_id, id: x.subject_id, name: x.subject_name, was: x.subject_name, amount: num(x.orig) ? String(num(x.orig)) : '',
+    fixed: !x.subject_code.startsWith('item-'), adj: num(x.adj), spent: num(x.commit) + num(x.actual) })));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const val = (id: string) => Math.round(Number(amt[id] || 0) * 100) / 100;
-  const total = cells.reduce((s, x) => s + val(x.subject_id), 0);
+  const val = (v: string) => Math.round(Number(v || 0) * 100) / 100;
+  const total = rows.reduce((t, r) => t + val(r.amount), 0);
+  const set = (key: string, p: Partial<BRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
+  const named = rows.filter((r) => r.id || r.name.trim());
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setError('');
-    try { await rpc('set_budget', { card_id: cardId, lines: cells.map((x) => ({ subject_id: x.subject_id, amount: val(x.subject_id) })) }); onDone(); }
-    catch (err) { setError((err as Error).message); setBusy(false); }
+    const next = rows.map((r) => ({ ...r }));
+    try {
+      // 先把新增、改名的预算科目存好，再存金额；中途出错时已存好的科目保留，改正后再保存即可
+      for (const r of next) {
+        const name = r.name.trim();
+        if (!r.id && name) { r.id = await rpc('save_card_subject', { id: null, card_id: cardId, name }) as string; r.was = name; }
+        else if (r.id && !r.fixed && name && name !== r.was) { await rpc('save_card_subject', { id: r.id, card_id: null, name }); r.was = name; }
+      }
+      const lines = next.filter((r) => r.id).map((r) => ({ subject_id: r.id!, amount: val(r.amount) }));
+      if (lines.length > 0 && (total > 0 || !first)) await rpc('set_budget', { card_id: cardId, lines });
+      onDone();
+    } catch (err) { setRows(next); setError((err as Error).message); setBusy(false); }
   };
   return (
     <form onSubmit={submit} className="change">
-      <p className="hint">{first ? '按任务书或下达通知把下达数逐科目填入明细，不使用的科目留空。填了下达数的，明细合计不得超过下达数。保存时校验模板的比例上限。'
-        : '更正明细。已办理的预算变更继续叠加；更正后各科目的现行预算不得低于已承诺和已入账的合计，明细合计不得超过下达数。'}</p>
+      <p className="hint">{first ? '按任务书的预算表逐项填写：预算科目的名称照任务书写，没有的点「新增预算科目」。填了下达数的，明细合计不得超过下达数。保存后再把学校明细账里的科目对应到这些预算科目。'
+        : '更正明细。已办理的预算变更继续叠加；更正后各预算科目的现行预算不得低于已承诺和已入账的合计，明细合计不得超过下达数。'}</p>
       <div className="scroll"><table>
-        <thead><tr><th>科目</th><th className="r">年初预算（元）</th>{!first && <><th className="r">变更</th><th className="r">已承诺和已入账</th></>}</tr></thead>
-        <tbody>{cells.map((x) => (
-          <tr key={x.subject_id}><td>{x.subject_name}</td>
-            <td className="r"><input type="number" min="0" step="0.01" aria-label={`${x.subject_name} 年初预算`} value={amt[x.subject_id] ?? ''}
-              onChange={(e) => setAmt({ ...amt, [x.subject_id]: e.target.value })} /></td>
-            {!first && <><td className="r">{num(x.adj) ? money(x.adj) : '—'}</td><td className="r">{money(num(x.commit) + num(x.actual))}</td></>}</tr>))}
-          <tr className="sum"><td>合计</td><td className="r">{money(total)}</td>{!first && <><td /><td /></>}</tr></tbody>
+        <thead><tr><th>预算科目</th><th className="r">年初预算（元）</th>{!first && <><th className="r">变更</th><th className="r">已承诺和已入账</th></>}<th /></tr></thead>
+        <tbody>{rows.map((r) => (
+          <tr key={r.key}><td>{r.fixed ? r.name : <input aria-label="预算科目名称" maxLength={40} placeholder="如：差旅费" value={r.name} onChange={(e) => set(r.key, { name: e.target.value })} />}</td>
+            <td className="r"><input type="number" min="0" step="0.01" aria-label={`${r.name || '预算科目'} 年初预算`} value={r.amount} onChange={(e) => set(r.key, { amount: e.target.value })} /></td>
+            {!first && <><td className="r">{r.adj ? money(r.adj) : '—'}</td><td className="r">{money(r.spent)}</td></>}
+            <td className="r">{!r.id && <button type="button" className="sm ghost" onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}>去掉</button>}</td></tr>))}
+          <tr className="sum"><td>合计</td><td className="r">{money(total)}</td>{!first && <><td /><td /></>}<td /></tr></tbody>
       </table></div>
+      <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
+        <button type="button" className="sm ghost" onClick={() => setRows((rs) => [...rs, { key: `new-${Date.now()}-${rs.length}`, name: '', was: '', amount: '', fixed: false, adj: 0, spent: 0 }])}>新增预算科目</button></div>
       {error && <div className="msg bad" role="alert">{error}</div>}
       <div className="actions"><button type="button" className="ghost" onClick={onCancel}>取消</button>
-        <button type="submit" disabled={busy || total <= 0}>{busy ? '保存中…' : first ? '录入年初预算' : '保存更正'}</button></div>
+        <button type="submit" disabled={busy || named.length === 0}>{busy ? '保存中…' : first ? '保存明细' : '保存更正'}</button></div>
     </form>
   );
 }
@@ -94,15 +111,18 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   const [act, setAct] = useState<Act | null>(null);
   const [adding, setAdding] = useState(false);
   const [budgeting, setBudgeting] = useState(false);
-  const { data, error, reload } = useViews<{ card: Card[]; cells: Cell[]; nodes: Node[]; caps: Cap[]; changes: Change[]; reqs: Req[]; settle: SettleLine[]; templates: Template[]; users: User[]; school: CardSchoolSubject[]; incomes: CardIncome[] }>({
-    incomes: ['card_income', f], school: ['card_school_subject', f], templates: ['template'], users: ['users'], card: ['card', f], cells: ['cell', f], nodes: ['node', f], caps: ['cap', f], changes: ['budget_change', f], reqs: ['request', f], settle: ['settlement', f],
+  const { data, error, reload } = useViews<{ card: Card[]; cells: Cell[]; nodes: Node[]; caps: Cap[]; changes: Change[]; reqs: Req[]; settle: SettleLine[]; templates: Template[]; users: User[]; school: CardSchoolSubject[]; incomes: CardIncome[]; maps: CardSubjectMap[] }>({
+    maps: ['card_subject_map', f], incomes: ['card_income', f], school: ['card_school_subject', f], templates: ['template'], users: ['users'], card: ['card', f], cells: ['cell', f], nodes: ['node', f], caps: ['cap', f], changes: ['budget_change', f], reqs: ['request', f], settle: ['settlement', f],
   }, id);
   if (!data) return <Loading error={error} />;
   const c = data.card[0];
   if (!c) return <><div className="top"><h2>经费卡管理</h2></div><Empty>经费卡不存在或无权查看。<a href="#/cards">返回经费卡管理</a></Empty></>;
   const now = today();
   const cells = [...data.cells].sort((a, b) => a.sort - b.sort || a.subject_code.localeCompare(b.subject_code));
-  const used = cells.filter((x) => num(x.cur) || num(x.commit) || num(x.actual));
+  // 预算科目是本卡自编的（按任务书），编号以 item- 开头；学校明细账的科目编号以数字开头
+  const isOwn = (x: Cell) => x.subject_code.startsWith('item-');
+  const own = cells.filter(isOwn);
+  const used = cells.filter((x) => isOwn(x) || num(x.cur) || num(x.commit) || num(x.actual));
   const name = new Map(cells.map((x) => [x.subject_id, x.subject_name]));
   const open = data.reqs.filter((r) => !['posted', 'released', 'rejected'].includes(r.status));
   const staff = can(me, 'card.manage');
@@ -122,9 +142,16 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   });
   const diff = c.school_available != null ? num(c.avail) - num(c.school_available) : null;
   const gap = cardGap(c);   // 下达了但还没分到科目的部分
-  // 科目沿用学校明细账的科目（编号以数字开头）。编预算时列出学校科目，以及此前已有金额或支出的其他科目；一个学校科目都还没有时列出全部
   const isSchool = (x: Cell) => /^\d/.test(x.subject_code) || x.subject_code.startsWith('school-');
-  const budgetCells = cells.some(isSchool) ? cells.filter((x) => x.subject_code !== 'school' && (isSchool(x) || num(x.orig) || num(x.cur) || num(x.commit) || num(x.actual))) : cells.filter((x) => x.subject_code !== 'school');
+  // 编明细时列出本卡的预算科目，以及此前在其他科目上录过金额的（便于更正为零）
+  const budgetCells = cells.filter((x) => isOwn(x) || (x.subject_code !== 'school' && num(x.orig) > 0));
+  const tail = (n: string) => n.replace(/^[^-]*-/, '');   // 学校科目名称的后半段
+  const subjectActs = (x: Cell) => isOwn(x) ? <>
+    <button className="sm ghost" onClick={() => setAct({ label: '保存', title: `预算科目改名：${x.subject_name}`, fields: [{ name: 'name', label: '名称', value: x.subject_name }], run: (v) => rpc('save_card_subject', { id: x.subject_id, card_id: null, name: v.name }) })}>改名</button>
+    <button className="sm ghost danger" onClick={() => setAct({ label: '删除', title: `删除预算科目：${x.subject_name}`, danger: true, fields: [], hint: '没有金额、没有支出、没有对应学校科目的预算科目才能删除。', run: () => rpc('delete_card_subject', { id: x.subject_id }) })}>删除</button></>
+    : isSchool(x) && own.length > 0 ? <button className="sm ghost" onClick={() => setAct({ label: '对应', title: `学校科目「${x.subject_name}」对应到预算科目`,
+      hint: '对应后，该学校科目下已入账的支出记在所选预算科目下，之后导入明细账也照此归集。', fields: [{ name: 'subject', label: '预算科目', options: own.map((o): [string, string] => [o.subject_id, o.subject_name]) }],
+      run: (v) => rpc('map_school_subject', { card_id: c.card_id, ledger: x.subject_id, subject: v.subject }) })}>对应到预算科目</button> : null;
   // 学校余额按明细核对：上年结转 + 收入明细合计 − 明细账里的支出合计
   const hasLedger = num(c.ledger_actual) > 0 || num(c.income) > 0;
   const byLedger = num(c.carried_in) + num(c.income) - num(c.ledger_actual);
@@ -204,7 +231,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       </section>
 
       <section className="card">
-        <h3>{c.pooled ? '执行' : '明细与执行'} <span className="h3sub">{c.pooled ? '只控总额；执行以学校明细账为准，按学校科目列出' : '明细为按科目编的预算；执行以学校明细账为准，按科目核对'}</span></h3>
+        <h3>{c.pooled ? '执行' : '明细与执行'} <span className="h3sub">{c.pooled ? '只控总额；执行以学校明细账为准，按学校科目列出' : '明细按任务书的预算科目编；执行以学校明细账为准，归到对应的预算科目下'}</span></h3>
         {c.pooled ? (
           <>
             <p className="hint">该经费卡只控总额：下达数连同上年结转 {money(c.cur)}，已入账 {money(c.actual)}，已承诺 {money(c.commit)}，可用 {money(c.avail)}。支出只与可用总额核对，下表按学校科目列出已入账的支出。</p>
@@ -226,29 +253,40 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
           <>
             {canBudget && !budgeting && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
               <button className={noBudget ? 'sm' : 'sm ghost'} onClick={() => setBudgeting(true)}>{noBudget ? '录入明细' : '更正明细'}</button></div>}
+            {editable && !canBudget && !budgeting && <div className="actions" style={{ marginTop: 0, justifyContent: 'flex-start' }}>
+              <button className="sm ghost" onClick={() => setAct({ label: '保存', title: '新增预算科目', hint: '名称照任务书的预算表写。金额的更正由中心负责人办理。', fields: [{ name: 'name', label: '名称' }], run: (v) => rpc('save_card_subject', { id: null, card_id: c.card_id, name: v.name }) })}>新增预算科目</button></div>}
             {budgeting && <SetBudget cardId={c.card_id} cells={budgetCells} first={noBudget} onDone={() => { setBudgeting(false); reload(); }} onCancel={() => setBudgeting(false)} />}
             {used.length === 0 ? (!budgeting && <Empty>该经费卡尚未录入明细。{editable && !canBudget && '明细由财务岗录入。'}</Empty>) : (
               <div className="scroll"><table>
-                <thead><tr><th>科目</th><th className="r">下达数</th><th className="r">变更</th><th className="r">现行预算</th><th className="r">决算数</th>
-                  <th className="r">承诺</th><th className="r">可用</th><th>执行</th></tr></thead>
+                <thead><tr><th>预算科目</th><th className="r">下达数</th><th className="r">变更</th><th className="r">现行预算</th><th className="r">决算数</th>
+                  <th className="r">承诺</th><th className="r">可用</th><th>执行</th>{editable && <th />}</tr></thead>
                 <tbody>
-                  {used.flatMap((x) => [
-                    <tr key={x.subject_id}><td>{x.subject_name}{isSchool(x) && <span className="sub2"> {x.subject_code}</span>}</td><td className="r">{money(x.orig)}</td><td className="r">{num(x.adj) ? money(x.adj) : '—'}</td>
-                      <td className="r">{money(x.cur)}</td><td className="r">{money(x.actual)}</td><td className="r">{money(x.commit)}</td>
-                      <td className={`r ${num(x.avail) < 0 ? 'neg' : ''}`}>{money(x.avail)}</td>
-                      <td><Bar cur={num(x.cur)} actual={num(x.actual)} commit={num(x.commit)} /></td></tr>,
-                    ...data.school.filter((r) => r.subject_id === x.subject_id && x.subject_code === 'school').sort((a, b) => num(b.amount) - num(a.amount)).map((r) => (
-                      <tr key={`${x.subject_id}-${r.school_name}`}><td style={{ paddingLeft: 24 }}><span className="sub2">{r.school_name} · {r.n} 笔</span></td><td /><td /><td /><td className="r"><span className="sub2">{money(r.amount)}</span></td><td /><td /><td /></tr>)),
-                  ])}
+                  {used.flatMap((x) => {
+                    const sch = data.school.filter((r) => r.subject_id === x.subject_id);
+                    return [
+                      <tr key={x.subject_id}><td>{x.subject_name}{isSchool(x) && <span className="sub2"> 学校科目 {x.subject_code}{own.length > 0 ? '，尚未对应预算科目' : ''}</span>}</td><td className="r">{money(x.orig)}</td><td className="r">{num(x.adj) ? money(x.adj) : '—'}</td>
+                        <td className="r">{money(x.cur)}</td><td className="r">{money(x.actual)}</td><td className="r">{money(x.commit)}</td>
+                        <td className={`r ${num(x.avail) < 0 ? 'neg' : ''}`}>{money(x.avail)}</td>
+                        <td><Bar cur={num(x.cur)} actual={num(x.actual)} commit={num(x.commit)} /></td>
+                        {editable && <td className="r"><div className="acts">{subjectActs(x)}</div></td>}</tr>,
+                      // 预算科目下列出对应的学校科目和各自的入账
+                      ...(isOwn(x) ? data.maps.filter((m) => m.subject_id === x.subject_id).map((m) => { const rs = sch.filter((r) => tail(r.school_name) === m.ledger_name); return (
+                        <tr key={`${x.subject_id}-${m.ledger_subject_id}`}><td style={{ paddingLeft: 24 }}><span className="sub2">学校科目 {m.ledger_name} {m.ledger_code}{rs.length > 0 ? ` · ${rs.reduce((t, r) => t + r.n, 0)} 笔` : ''}</span></td><td /><td /><td />
+                          <td className="r"><span className="sub2">{rs.length > 0 ? money(rs.reduce((t, r) => t + num(r.amount), 0)) : '—'}</span></td><td /><td /><td />
+                          {editable && <td className="r"><button className="sm ghost" onClick={() => setAct({ label: '取消对应', title: `取消对应：${m.ledger_name}`, fields: [], hint: `取消后，学校科目「${m.ledger_name}」下已入账的支出不再记在「${x.subject_name}」下，改回按学校科目单列。`, run: () => rpc('map_school_subject', { card_id: c.card_id, ledger: m.ledger_subject_id, subject: null }) })}>取消对应</button></td>}</tr>); }) : []),
+                      ...(x.subject_code === 'school' ? [...sch].sort((a, b) => num(b.amount) - num(a.amount)).map((r) => (
+                        <tr key={`${x.subject_id}-${r.school_name}`}><td style={{ paddingLeft: 24 }}><span className="sub2">{r.school_name} · {r.n} 笔</span></td><td /><td /><td /><td className="r"><span className="sub2">{money(r.amount)}</span></td><td /><td /><td />{editable && <td />}</tr>)) : []),
+                    ];
+                  })}
                   <tr className="sum"><td>合计</td><td className="r">{money(c.orig)}</td><td className="r">{num(c.adj) ? money(c.adj) : '—'}</td><td className="r">{money(c.assigned ?? c.cur)}</td>
-                    <td className="r">{money(c.actual)}</td><td className="r">{money(c.commit)}</td><td className="r">{money(num(c.assigned ?? c.cur) - num(c.actual) - num(c.commit))}</td><td /></tr>
+                    <td className="r">{money(c.actual)}</td><td className="r">{money(c.commit)}</td><td className="r">{money(num(c.assigned ?? c.cur) - num(c.actual) - num(c.commit))}</td><td />{editable && <td />}</tr>
                 </tbody>
               </table></div>
             )}
-            {cells.length > used.length && <p className="sub2">另有 {cells.length - used.length} 个科目无预算且无支出，未列出。</p>}
+            {cells.length > used.length && <p className="sub2">另有 {cells.length - used.length} 个学校科目无预算且无支出，未列出。</p>}
             {gap >= 0.005 && <p className="sub2">下达数连同上年结转共 {money(c.cur)}，其中 {money(gap)} 尚未分到科目；本表合计为已分到科目的部分。</p>}
             {used.some((x) => num(x.avail) < 0) && editable && (
-              <div className="msg warn" role="status">部分科目已有支出但尚未编预算，可用为负。科目沿用学校明细账的科目：需要按科目控制的，请点「{noBudget ? '录入明细' : '更正明细'}」按学校科目编预算；学校对该卡只控总额、不按科目控制的，请改为只控总额，改后支出只与可用总额核对。
+              <div className="msg warn" role="status">部分学校科目已有支出但没有预算，可用为负。需要按科目控制的，请先点「{noBudget ? '录入明细' : '更正明细'}」按任务书编好预算科目，再把这些学校科目逐个对应到预算科目；学校对该卡只控总额、不按科目控制的，请改为只控总额，改后支出只与可用总额核对。
                 <button className="sm" style={{ marginLeft: 8 }} onClick={() => rpc('set_card_pooled', { card_id: c.card_id, pooled: true }).then(reload)}>改为只控总额</button></div>
             )}
           </>

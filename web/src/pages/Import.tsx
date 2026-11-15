@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ApiError, rpc, useViews, type Card, type CardPick, type ExpenseType, type LinePick, type Req, type Subject } from '../api';
+import { ApiError, rpc, subjectsOf, useViews, type Card, type CardPick, type ExpenseType, type LinePick, type Req, type Subject } from '../api';
 import { Badge, Empty, Loading, day, money, num, today } from '../ui';
 
 // 从学校系统导入：财务岗在学校财务系统里导出，在这里上传、粘贴，或者对着学校系统逐项填写；系统只列出和现有数据的差异，财务岗勾选确认后才写入。
@@ -259,7 +259,7 @@ export function Backfill() {
       const cs = cards.filter((c) => c.card_no.trim() === no).sort((a, b) => b.year - a.year);
       const c = cs.find((x) => x.year === Number(on.slice(0, 4))) ?? cs[0];
       if (!c) return fail(no ? `中台无卡号为「${no}」的在用经费卡` : '缺少经费卡号');
-      const subs = data.subjects.filter((x) => x.template_id === c.template_id);
+      const subs = subjectsOf(data.subjects, c);
       const sb = subs.find((x) => x.name === sj || x.school_name === sj || x.code === sj) ?? (sj ? one(subs.filter((x) => x.name.includes(sj) || sj.includes(x.name))) : undefined);
       if (!sb) return fail(sj ? `该经费卡无学校科目「${sj}」` : '缺少学校科目');
       const tp = data.types.find((x) => x.name === ty) ?? (ty ? one(data.types.filter((x) => x.name.includes(ty) || ty.includes(x.name))) : undefined);
@@ -271,7 +271,7 @@ export function Backfill() {
     setRows([...rows, ...good]); setBad(skipped); setPaste('');
     setMsg(good.length > 0 ? ['ok', `已读入 ${good.length} 行，加入下方待写入清单${skipped.length > 0 ? `；${skipped.length} 行未读入，原因见下` : ''}。核对后确认补登。`] : ['bad', `未读入任何行，${skipped.length} 行的原因见下。`]);
   };
-  const subjects = data.subjects.filter((s) => s.template_id === card?.template_id).sort((a, b) => a.sort - b.sort);
+  const subjects = subjectsOf(data.subjects, card);
   const set = (p: Partial<typeof blank>) => setV({ ...v, ...p });
   const name = { card: new Map(cards.map((c) => [c.id, c.name])), subject: new Map(data.subjects.map((s) => [s.id, s.name])), type: new Map(data.types.map((t) => [t.id, t.name])) };
   const add = (e: React.FormEvent) => { e.preventDefault(); setMsg(null);

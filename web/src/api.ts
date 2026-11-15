@@ -91,7 +91,15 @@ export interface Cell { card_id: string; subject_id: string; subject_code: strin
 export interface Node { node_id: string; card_id: string; node_date: string; ratio: string; consequence: string; need: string; forecast: string }
 export interface Cap { card_id: string; cap_id: string; name: string; max_ratio: string; used: string; max_amount: string }
 export interface CardPick { id: string; card_no: string; name: string; template_id: string; start_date: string; cutoff_date: string; status: string; year: number }
-export interface Subject { id: string; template_id: string; code: string; name: string; school_name: string | null; sort: number }
+// card_id 不为空的是某张经费卡自编的预算科目（按任务书），只用在那张卡上；为空的是模板共用的科目（含学校明细账的科目）
+export interface Subject { id: string; template_id: string; code: string; name: string; school_name: string | null; sort: number; card_id: string | null }
+// 某张经费卡可选的科目：本卡编了预算科目的只用本卡的，否则用模板的
+export function subjectsOf(all: Subject[], card: { id: string; template_id: string } | undefined): Subject[] {
+  if (!card) return [];
+  const own = all.filter((x) => x.card_id === card.id);
+  return (own.length > 0 ? own : all.filter((x) => x.template_id === card.template_id && !x.card_id)).sort((a, b) => a.sort - b.sort);
+}
+export interface CardSubjectMap { card_id: string; ledger_subject_id: string; ledger_code: string; ledger_name: string; subject_id: string }
 export interface ExpenseType { id: string; name: string; required_path: string | null }
 export type ReqStatus = 'pending' | 'committed' | 'at_school' | 'posted' | 'returned' | 'released' | 'rejected';
 export interface Req {

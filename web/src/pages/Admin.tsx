@@ -54,7 +54,7 @@ export function Admin({ me }: { me: Me }) {
   const userName = new Map(data.users.map((u) => [u.id, u.name]));
   const cards = [...data.cards].sort((a, b) => a.status.localeCompare(b.status) || a.card_no.localeCompare(b.card_no));
   const t = data.templates.find((x) => x.id === tpl) ?? data.templates[0];
-  const subs = data.subjects.filter((s) => s.template_id === t?.id).sort((a, b) => a.sort - b.sort || a.code.localeCompare(b.code));
+  const subs = data.subjects.filter((s) => s.template_id === t?.id && !s.card_id).sort((a, b) => a.sort - b.sort || a.code.localeCompare(b.code));
   const subName = new Map(subs.map((s) => [s.id, s.name]));
   const caps = data.caps.filter((k) => k.template_id === t?.id);
   const year = new Date().getFullYear();
@@ -181,7 +181,7 @@ export function Admin({ me }: { me: Me }) {
               <thead><tr><th>代码</th><th>名称</th><th>科目锁定</th><th className="r">科目数</th><th className="r">在用经费卡</th><th /></tr></thead>
               <tbody>{data.templates.map((x) => (
                 <tr key={x.id}><td className="code">{x.code}</td><td>{x.name}</td><td>{x.locked ? <Badge tone="warn">锁定</Badge> : '—'}</td>
-                  <td className="r">{data.subjects.filter((s) => s.template_id === x.id).length}</td><td className="r">{x.cards}</td>
+                  <td className="r">{data.subjects.filter((s) => s.template_id === x.id && !s.card_id).length}</td><td className="r">{x.cards}</td>
                   <td><div className="acts"><button className="sm ghost" aria-pressed={t?.id === x.id} onClick={() => setTpl(x.id)}>查看科目</button>
                     {btn({ label: '修改', title: `修改模板：${x.name}`, fields: [{ name: 'code', label: '模板代码', value: x.code }, { name: 'name', label: '模板名称', value: x.name },
                       { name: 'locked', label: '科目锁定（不可变更预算）', type: 'check', value: String(x.locked) }],

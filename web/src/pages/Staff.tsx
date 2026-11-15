@@ -49,7 +49,7 @@ export function StaffPage({ me }: { me: Me }) {
   const people: [string, string][] = data.people.map((p) => [p.id, p.name]);
   const types: [string, string][] = data.types.map((t) => [t.id, t.name]);
   const cards: [string, string][] = data.cards.filter((c) => c.status === 'active').map((c) => [c.id, `${c.card_no} ${c.name}（${day(c.start_date)} 至 ${day(c.cutoff_date)}）`]);
-  const codes = [...new Map(data.subjects.map((s) => [s.code, s.name])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'zh-CN'));
+  const codes = [...new Map(data.subjects.filter((s) => !s.card_id).map((s) => [s.code, s.name])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'zh-CN'));
   const who: Field[] = [{ name: 'person_id', label: '人员', options: people }, { name: 'pay_type_id', label: '发放类型', options: types }];
   const range: Field[] = [{ name: 'from', label: '起始月份', type: 'month', value: now }, { name: 'to', label: '结束月份', type: 'month', value: now }];
 

@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { rpc, type ProjectTag, useViews, type CardPick, type ExpenseType, type LinePick, type Me, type Project, type Req, type ReqStatus, type Subject, type User } from '../api';
+import { rpc, subjectsOf, type ProjectTag, useViews, type CardPick, type ExpenseType, type LinePick, type Me, type Project, type Req, type ReqStatus, type Subject, type User } from '../api';
 import { ActionDialog, Badge, Empty, Flow, Loading, can, REQ, reqBadge, day, money, num, today, type Field } from '../ui';
 
 export const PATHS = ['直采', '集采', '分散采购'];
@@ -69,7 +69,7 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
         <thead><tr><th>事项</th>{cardName && <th>经费卡</th>}<th>研究单元 · 预算行</th><th className="r">金额</th><th>预计入账</th><th>状态</th><th /></tr></thead>
         <tbody>{rows.map((r) => {
           const targets = r.status === 'returned' && can(me, 'request.process') ? (cards ?? []).filter((c) => c.status === 'active' && c.id !== r.card_id)
-            .flatMap((c) => (subjects ?? []).filter((s) => s.template_id === c.template_id).sort((a, b) => a.sort - b.sort)
+            .flatMap((c) => subjectsOf(subjects ?? [], c)
               .map((s): [string, string] => [`${c.id}|${s.id}`, `${c.name} · ${s.name}`])) : [];
           const acts = actionsFor(me, r, targets, lines);
           return (
@@ -110,7 +110,7 @@ function NewRequest({ cards, subjects, types, picks, canCard, onDone }: { cards:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const card = usable.find((c) => c.id === v.card_id);
-  const subsOf = (cardId: string) => { const c = usable.find((x) => x.id === cardId); return subjects.filter((s) => s.template_id === c?.template_id).sort((a, b) => a.sort - b.sort); };
+  const subsOf = (cardId: string) => { const c = usable.find((x) => x.id === cardId); return subjectsOf(subjects, c); };
   const type = types.find((t) => t.id === v.expense_type_id);
   const set = (patch: Partial<typeof v>) => setV({ ...v, ...patch });
   const setPart = (i: number, patch: Partial<Part>) => setParts(parts.map((p, j) => (j === i ? { ...p, ...patch } : p)));

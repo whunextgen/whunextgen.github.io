@@ -16,7 +16,7 @@ export interface Env {
   FEISHU_NOTIFY?: string;                     // 设为 on 才真正发飞书通知；不设时消息只在数据库里排队，过 24 小时作废
 }
 
-const VIEWS = new Set(['me', 'users', 'card_pick', 'fund_project', 'card_school_subject', 'card_income', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
+const VIEWS = new Set(['me', 'users', 'card_pick', 'fund_project', 'card_school_subject', 'card_subject_map', 'card_income', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
   'request', 'request_event', 'procurement_event', 'budget_change', 'fund_event', 'person', 'pay_type', 'staff',
   'payroll_sheet', 'settlement', 'emergency', 'year_actual', 'settle_check',
   'template', 'template_cap', 'user_admin', 'outbox', 'project_tag', 'resource', 'allocation',
@@ -71,6 +71,9 @@ const RPC: Record<string, [string, string][]> = {
   set_node: [['card_id', 'uuid'], ['node_date', 'date'], ['ratio', 'numeric'], ['consequence', 'text']],
   delete_node: [['id', 'uuid']],
   set_budget: [['card_id', 'uuid'], ['lines', 'jsonb']],
+  save_card_subject: [['id', 'uuid'], ['card_id', 'uuid'], ['name', 'text']],
+  delete_card_subject: [['id', 'uuid']],
+  map_school_subject: [['card_id', 'uuid'], ['ledger', 'uuid'], ['subject', 'uuid']],
   set_emergency_limit: [['year', 'int'], ['per_request', 'numeric'], ['per_year', 'numeric']],
   save_user: [['id', 'uuid'], ['name', 'text'], ['email', 'text'], ['role', 'text'], ['active', 'boolean']],
   merge_user: [['from_id', 'uuid'], ['into_id', 'uuid']],

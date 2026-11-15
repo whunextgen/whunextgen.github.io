@@ -1604,6 +1604,38 @@ await q("select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: schoolSu
 ok(Number((await card(kl)).assigned) === 6000, '学校科目上已有支出、尚未补预算时，其他科目的预算仍可更正');
 await q("select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: schoolSub, amount: 2000 }])]);
 await raises('不能把学校科目的预算调低到已入账以下', /./, "select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: schoolSub, amount: 100 }])]);
+// 经费卡自编预算科目：明细按任务书的预算科目编，学校科目对应到预算科目
+await as(U.mem, '2032-06-01');
+await raises('成员不能编预算科目', /需要权限/, `select save_card_subject(null, $1, '差旅费')`, [kl]);
+await as(U.fin, '2032-06-01');
+const it = await val(`select save_card_subject(null, $1, '差旅费') v`, [kl]);
+ok((await one(`select subject_name, orig from api.cell where card_id = $1 and subject_id = $2`, [kl, it])).subject_name === '差旅费', '财务岗可在经费卡上自己新增预算科目');
+ok((await one(`select card_id from api.subject where id = $1`, [it])).card_id === kl, '预算科目是这张卡自己的');
+await raises('同一张卡预算科目不重名', /已有同名的预算科目/, `select save_card_subject(null, $1, '差旅费')`, [kl]);
+await q(`select save_card_subject($1, null, '差旅费（国内）')`, [it]);
+ok((await one(`select name from api.subject where id = $1`, [it])).name === '差旅费（国内）', '预算科目可以改名');
+const boxSub = (await one("select subject_id as id from api.cell where card_id = $1 and subject_code = '3020103'", [kl])).id;
+await raises('已录金额的学校科目先更正为零再对应', /已录有明细金额/, `select map_school_subject($1, $2, $3)`, [kl, schoolSub, it]);
+eq(await val(`select map_school_subject($1, $2, $3) v`, [kl, boxSub, it]), 1, '学校科目对应到预算科目，已入账的支出随之改记');
+ok(Number((await one(`select actual from api.cell where card_id = $1 and subject_id = $2`, [kl, it])).actual) === 300 && Number((await one(`select actual from api.cell where card_id = $1 and subject_id = $2`, [kl, boxSub])).actual) === 0, '执行归到预算科目下');
+ok((await q(`select * from api.card_school_subject where card_id = $1 and subject_id = $2`, [kl, it])).some(x => x.school_name === '非财政支出-工作盒饭' && Number(x.amount) === 300), '预算科目下仍能按学校科目看入账');
+await val(imp, [kl, JSON.stringify([{ posted_on: '2032-04-01', voucher_no: '(B)020', title: '样例盒饭二', amount: 400, school_code: '72-3020103', school_name: '非财政支出-工作盒饭' }]), null, null, null, null]);
+ok(Number((await one(`select actual from api.cell where card_id = $1 and subject_id = $2`, [kl, it])).actual) === 700, '之后再导入明细账，已对应的学校科目直接记在预算科目下');
+eq((await q(`select * from api.card_subject_map where card_id = $1`, [kl])).length, 1, '可查到学校科目对应到哪个预算科目');
+await raises('有支出的预算科目不能删', /请先取消对应/, `select delete_card_subject($1)`, [it]);
+await as(U.dir, '2032-06-01');
+await raises('一张卡的预算科目不能用在另一张卡上', /属于另一张经费卡|不属于该卡/, "select set_budget($1, $2)", [kv, JSON.stringify([{ subject_id: it, amount: 1 }])]);
+await q("select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: it, amount: 1500 }])]);
+ok(Number((await one(`select avail from api.cell where card_id = $1 and subject_id = $2`, [kl, it])).avail) === 800, '预算科目的可用 = 明细 − 对应学校科目的入账');
+await as(U.fin, '2032-06-01');
+eq(await val(`select map_school_subject($1, $2, null) v`, [kl, boxSub]), 2, '取消对应，支出改回学校科目下');
+ok(Number((await one(`select actual from api.cell where card_id = $1 and subject_id = $2`, [kl, boxSub])).actual) === 700, '取消对应后执行回到学校科目');
+await raises('录有金额的预算科目不能删', /请先更正为零/, `select delete_card_subject($1)`, [it]);
+await as(U.dir, '2032-06-01');
+await q("select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: it, amount: 0 }])]);
+await as(U.fin, '2032-06-01');
+await q(`select delete_card_subject($1)`, [it]);
+eq((await q(`select 1 from api.cell where card_id = $1 and subject_id = $2`, [kl, it])).length, 0, '没有金额、支出和对应的预算科目可以删除');
 await as(U.fin, '2032-06-01');
 // ---------- 年度预算按档次：财务岗编总预算、直接确定金额的课题、档次，课题带明细申请档次，中心负责人评定 ----------
 const fy = await val(`select save_fund_project(null, '档次测算项目', 'school', null, null, 500000, '2033-01-01', '2033-12-31', $1, 'recall') v`, [T.N]);

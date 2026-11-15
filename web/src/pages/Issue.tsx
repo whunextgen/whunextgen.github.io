@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { rpc, useViews, type BudgetAlloc, type BudgetCategory, type BudgetYear, type Card, type CategorySubject, type Cell, type LineExec, type Me, type Project, type Subject } from '../api';
+import { rpc, subjectsOf, useViews, type BudgetAlloc, type BudgetCategory, type BudgetYear, type Card, type CategorySubject, type Cell, type LineExec, type Me, type Project, type Subject } from '../api';
 import { ActionDialog, Badge, Empty, END_RULE, Loading, can, day, money, num, type Field } from '../ui';
 
 interface Act { title: string; hint?: string; fields: Field[]; submitLabel?: string; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
@@ -35,7 +35,7 @@ export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: Budg
   const allocAct = (l: LineExec, p?: Project): Act => {
     const mine = data.allocs.filter((a) => a.line_id === l.id);
     const subs = new Set(data.map.filter((m) => m.category_id === l.category_id).map((m) => m.subject_id));
-    const cand = inYear.flatMap((c) => data.subjects.filter((s) => s.template_id === c.template_id && subs.has(s.id)).sort((a, b) => a.sort - b.sort).map((s) => ({ c, s })));
+    const cand = inYear.flatMap((c) => subjectsOf(data.subjects, { id: c.card_id, template_id: c.template_id }).filter((s) => subs.has(s.id)).map((s) => ({ c, s })));
     const keys = new Set(cand.map(({ c, s }) => `${c.card_id}|${s.id}`));
     const extra = mine.filter((a) => !keys.has(`${a.card_id}|${a.subject_id}`));
     const fields: Field[] = [
