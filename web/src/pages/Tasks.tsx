@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { ObjHead, Stages, Track } from '../tree';
 import { rpc, useViews, type CardPick, type Me, type PeoplePick, type Task, type TaskStep } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, day, today } from '../ui';
 import type { Act } from './Caps';
@@ -12,7 +13,8 @@ export const taskDue = (t: Task, now: string): [string, string] => {
 const STEPS_HINT = '每行一步，办理人逐步勾选完成。';
 
 // 任务列表：派给我的、我派出去的；有派任务权限的人看得到全部
-export function Tasks({ me }: { me: Me }) {
+// only 给出时是单个任务的页面（#/tasks/<id>）
+export function Tasks({ me, only }: { me: Me; only?: string }) {
   const assign = can(me, 'task.assign');
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error, reload } = useViews<{ tasks: Task[]; steps: TaskStep[]; people: PeoplePick[]; cards: CardPick[] }>({
@@ -56,7 +58,7 @@ export function Tasks({ me }: { me: Me }) {
     const canDo = live && (t.mine || t.can_manage);
     return (
       <section className="card task" key={t.id}>
-        <h3>{t.title}
+        <h3>{only ? '步骤与办理' : <a href={`#/tasks/${t.id}`}>{t.title}</a>}
           {live ? <Badge tone={dueTone}>{dueText}</Badge> : <Badge tone={t.status === 'done' ? 'ok' : ''}>{t.status === 'done' ? '已办结' : '已撤销'}</Badge>}
           {steps.length > 0 && <span className="h3sub">{t.steps_done} / {t.steps} 步</span>}
         </h3>
@@ -92,6 +94,35 @@ export function Tasks({ me }: { me: Me }) {
       </section>
     );
   };
+
+  if (only) {
+    const t = data.tasks.find((x) => x.id === only);
+    const dialog = act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.submitLabel} danger={act.danger}
+      onSubmit={async (v) => { await act.run(v); reload(); }} onClose={() => setAct(null)} />;
+    if (!t) return <><div className="top"><h2>任务</h2></div><Empty>该任务不存在或无权查看。<a href="#/tasks">返回任务管理</a></Empty></>;
+    const steps = stepsOf(t.id), [dueText, dueTone] = taskDue(t, now), live = t.status === 'open';
+    const at = t.status === 'cancelled' ? 0 : t.status === 'done' ? 4 : 2;
+    return (
+      <div className="wb obj">
+        <ObjHead crumb={<><a href="#/tasks">任务管理</a> › {t.title}</>}
+          eyebrow={['任务', t.mine ? '办理人：本人' : `办理人：${t.assignee_name ?? '—'}`, t.created_by === me.id ? '本人创建' : `${t.creator_name ?? '—'} 指派`].join(' · ')} title={t.title}
+          badge={live ? <Badge tone={dueTone}>{dueText}</Badge> : <Badge tone={t.status === 'done' ? 'ok' : ''}>{t.status === 'done' ? '已办结' : '已撤销'}</Badge>}
+          label="步骤进度" value={t.steps > 0 ? `${t.steps_done} / ${t.steps} 步` : live ? '未分步骤' : '已办结'}
+          chart={steps.length > 0 ? <Track cap="各步骤 · 已完成与未完成" segs={steps.map((x, i) => ({ cls: `${x.done ? 'sa' : 'sr'} big`, value: 1, text: `${i + 1}`, tip: `第 ${i + 1} 步：${x.text}，${x.done ? `已完成${x.done_by_name ? `（${x.done_by_name} ${day(x.done_at)}）` : ''}` : '未完成'}` }))} />
+            : <Empty>该任务未分步骤，办理完成后直接办结。</Empty>}
+          facts={[['创建日期', day(t.created_at)], ['期限', t.due_date ? day(t.due_date) : '未设'], ...(t.card_id ? [['关联经费卡', <a href={`#/card/${t.card_id}`}>{t.card_name}</a>] as [string, React.ReactNode]] : []),
+            ...(t.closed_at ? [[t.status === 'done' ? '办结日期' : '撤销日期', day(t.closed_at)] as [string, string]] : [])]} />
+        {t.status !== 'cancelled' && <Stages path="指派 › 办理 › 办结" at={at} items={[
+          { nm: '指派', ds: '指定办理人和期限', v: day(t.created_at), f: t.created_by === me.id ? '本人创建' : `${t.creator_name ?? '—'} 指派` },
+          { nm: '办理', ds: '逐步勾选，可加备注', v: t.steps > 0 ? `${t.steps_done} / ${t.steps} 步` : '未分步骤', f: live ? dueText : '' },
+          { nm: '办结', ds: '全部步骤完成后办结', v: t.status === 'done' ? '已办结' : '未办结', f: t.closed_at ? `${t.closed_by_name ?? ''} ${day(t.closed_at)}` : '' },
+        ]} />}
+        {err && <div className="msg bad" role="alert">{err}</div>}
+        {card(t)}
+        {dialog}
+      </div>
+    );
+  }
 
   return (
     <>

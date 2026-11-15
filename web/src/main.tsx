@@ -6,6 +6,7 @@ import { Overview } from './pages/Overview';
 import { Funds } from './pages/Funds';
 import { SyncPage } from './pages/Sync';
 import { RequestPage } from './pages/Request';
+import { ResourceOne } from './pages/ResourceOne';
 import { Home } from './pages/Home';
 import { History } from './pages/Legacy';
 import { CardPage } from './pages/Card';
@@ -111,6 +112,7 @@ function App() {
   const side = keep(['/track', '在途事项'], ...groups.filter((g) => g.home).map((g): Page => [g.home, `${g.label}汇总`]), !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
 
   const reqId = route.match(/^\/req\/([^/]+)$/)?.[1];
+  const resId = route.match(/^\/res\/([^/]+)$/)?.[1];
   const cardId = seesCards ? route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1] : undefined;
   const fundId = seesCards ? route.match(/^\/fund\/([^/]+)$/)?.[1] : undefined;
   const proj = route.match(/^\/project\/([^/]+)(?:\/(\d{4}))?$/);
@@ -119,16 +121,17 @@ function App() {
   const procure = seg0 === 'school' && arg === 'procure';
   const seg = seg0;
   const allowed = new Set([...groups.flatMap((g) => g.pages), ...side].map(([to]) => to));
-  const current = reqId ? '/requests' : cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
+  const current = reqId ? '/requests' : resId ? '/s-res' : cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
   const group = groups.find((g) => g.home === current || g.pages.some(([to]) => to === current));
   const page = reqId ? <RequestPage me={me} id={reqId} />
+    : resId ? <ResourceOne me={me} id={resId} />
     : cardId ? <CardPage me={me} id={cardId} />
     : fundId ? <Funds me={me} only={fundId} />
     : proj ? <ProjectPage me={me} id={proj[1]} start={proj[2] ?? ''} />
     : current === '/budget' ? <BudgetPage me={me} start={arg} />
     : current === '/caps' ? <CapsPage me={me} start={arg} />
     : current === '/ask' ? <Ask me={me} />
-    : current === '/tasks' ? <Tasks me={me} />
+    : current === '/tasks' ? <Tasks me={me} only={arg || undefined} />
     : current === '/projects' ? <Projects me={me} />
     : current === '/desk' ? <Desk me={me} />
     : current === '/funds' ? <Funds me={me} />
@@ -154,7 +157,7 @@ function App() {
     : current === '/resource' ? <ResourcePage me={me} />
     : current === '/pool' ? <PoolPage me={me} />
     : current === '/stock' ? <StockPage />
-    : current === '/petty' ? <PettyPage me={me} />
+    : current === '/petty' ? <PettyPage me={me} only={arg || undefined} />
     : current === '/track' ? <TrackPage me={me} />
     : current === '/history' ? <History staff={can(me, 'read.legacy')} />
     : current === '/admin' ? <Admin me={me} />

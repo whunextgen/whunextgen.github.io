@@ -87,7 +87,7 @@ export function Stages({ path, items, at }: { path: string; items: Stage[]; at: 
   return (
     <section className="wb-sec">
       <div className="wb-sh"><span className="no">01</span><h2>流程</h2><span className="path">{path}</span></div>
-      <div className="flowline" aria-label="流程">
+      <div className={items.length === 5 ? 'flowline' : 'flowline n'} style={{ ['--n' as string]: items.length }} aria-label="流程">
         {items.map((g, i) => (
           <div key={g.nm} className={`stage still${i + 1 === at ? ' on' : i + 1 < at ? ' done' : ''}`} aria-current={i + 1 === at ? 'step' : undefined}>
             <span className="no">0{i + 1}</span><span className="nm">{g.nm}</span><span className="ds">{g.ds}</span><span className="v">{g.v}</span><span className="f">{g.f}</span>

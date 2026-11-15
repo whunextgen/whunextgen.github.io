@@ -248,7 +248,7 @@ export function PoolPage({ me }: { me: Me }) {
           <div className="scroll"><table>
             <thead><tr><th>资源</th><th>类型</th><th className="r">全年计划</th><th className="r">已分发</th><th className="r">在途需求</th><th className="r">按 120% 备货</th><th className="r">现有剩余</th><th className="r">建议采购</th><th className="r">单价</th><th className="r">折合（元）</th></tr></thead>
             <tbody>{pool.map(({ r, left, plan, buy }) => (
-              <tr key={r.id}><td>{r.name}{spec(r) && <div className="sub2">{spec(r)}</div>}</td><td>{KIND[r.kind]}</td><td className="r">{planned(r.id, 'plan_qty') > 0 ? qty(planned(r.id, 'plan_qty'), r.unit) : '—'}</td><td className="r">{qty(planned(r.id, 'granted'), r.unit)}</td>
+              <tr key={r.id}><td><a href={`#/res/${r.id}`}>{r.name}</a>{spec(r) && <div className="sub2">{spec(r)}</div>}</td><td>{KIND[r.kind]}</td><td className="r">{planned(r.id, 'plan_qty') > 0 ? qty(planned(r.id, 'plan_qty'), r.unit) : '—'}</td><td className="r">{qty(planned(r.id, 'granted'), r.unit)}</td>
                 <td className="r">{num(r.asked) > 0 ? qty(r.asked, r.unit) : '—'}</td><td className="r">{num(r.asked) > 0 ? qty(plan, r.unit) : '—'}</td>
                 <td className="r">{left == null ? '不限量' : qty(left, r.unit)}</td><td className={`r ${buy > 0 ? 'neg' : ''}`}>{left == null ? '—' : buy > 0 ? qty(buy, r.unit) : '充足'}</td>
                 <td className="r">{r.unit_price != null ? money(r.unit_price) : '—'}</td><td className="r">{buy > 0 && price(r) != null ? money(buy * price(r)!) : '—'}</td></tr>
@@ -393,7 +393,7 @@ export function StockPage() {
               ? <thead><tr><th>名称</th><th>账号</th><th className="r">总配额</th><th className="r">已分配</th><th className="r">已用</th><th className="r">服务商余额</th><th className="r">在途需求</th><th>密钥</th><th /></tr></thead>
               : <thead><tr><th>名称</th><th>编号</th><th className="r">库存</th><th className="r">已发出</th><th className="r">剩余</th><th className="r">单价</th><th>存放</th><th className="r">在途需求</th><th /></tr></thead>}
             <tbody>{list.map((r) => { const left = r.total == null ? null : num(r.total) - num(r.allocated); return (
-              <tr key={r.id}><td>{r.name}{!r.active && <> <Badge>已停用</Badge></>}{spec(r) && <div className="sub2">{spec(r)}</div>}{r.note && <div className="sub2">{r.note}</div>}</td>
+              <tr key={r.id}><td><a href={`#/res/${r.id}`}>{r.name}</a>{!r.active && <> <Badge>已停用</Badge></>}{spec(r) && <div className="sub2">{spec(r)}</div>}{r.note && <div className="sub2">{r.note}</div>}</td>
                 <td className="code">{r.ref ?? '—'}</td>
                 {tab === 'api' ? <>
                   <td className="r">{r.total == null ? '不限' : qty(r.total, r.unit)}</td><td className="r">{qty(r.allocated, r.unit)}<div className="sub2">{r.holders} 人</div></td>

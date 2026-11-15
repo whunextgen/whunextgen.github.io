@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { ObjHead, Stages, Track } from '../tree';
 import { rpc, useViews, type LinePick, type Me, type PettyCash, type Req, type ResourceRequest, type User } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, REQ, Tile, day, money, num, today } from '../ui';
 import { KIND, RES_REQ, qty, type Act } from './Resource';
@@ -9,7 +10,8 @@ const PETTY: Record<PettyCash['status'], [string, string]> = {
 const days = (from: string) => Math.max(0, Math.floor((Date.parse(today()) - Date.parse(day(from))) / 864e5));
 
 // ---------- 备用金：先领后核销的小额周转；从预算行里领，领用期间占着这一行预算 ----------
-export function PettyPage({ me }: { me: Me }) {
+// only 给出时是单笔备用金的页面（#/petty/<id>）
+export function PettyPage({ me, only }: { me: Me; only?: string }) {
   const { data, error, reload } = useViews<{ rows: PettyCash[]; reqs: Req[]; lines: LinePick[] }>({ rows: ['petty_cash'], reqs: ['request'], lines: ['line_pick'] });
   const [act, setAct] = useState<Act | null>(null);
   const [all, setAll] = useState(false);
@@ -44,10 +46,34 @@ export function PettyPage({ me }: { me: Me }) {
       { name: 'note', label: '说明（选填）', required: false }],
     run: (v) => rpc('settle_petty_cash', { id: r.id, spent: v.spent, settled_on: v.settled_on, note: v.note, request_id: v.request_id }),
   });
-  const shown = all ? rows : open;
+  const one = only ? rows.find((r) => r.id === only) : undefined;
+  const shown = only ? (one ? [one] : []) : all ? rows : open;
 
+  const headOf = (r: PettyCash) => {
+    const amt = num(r.amount), spent = r.spent != null ? num(r.spent) : null;
+    const at = r.status === 'rejected' || r.status === 'withdrawn' ? 0 : r.status === 'pending' ? 2 : r.status === 'approved' ? 4 : 5;
+    return (<>
+      <ObjHead crumb={<><a href="#/s-spend">支出</a> › <a href="#/petty">备用金管理</a> › {r.requester_name} {day(r.created_at)}</>}
+        eyebrow={`备用金 · ${r.requester_name} · ${day(r.created_at)} 提交`} title={r.purpose} badge={<Badge tone={PETTY[r.status][1]}>{PETTY[r.status][0]}</Badge>}
+        label={r.status === 'settled' ? '实际支出' : '领用金额'} value={r.status === 'settled' && spent != null ? spent : amt}
+        chart={spent != null ? <Track cap="核销 · 实际支出与退回" segs={[{ cls: 'sa big', value: spent, text: `实际支出 ${money(spent)}`, tip: `实际支出 ${money(spent)}` }, { cls: 'sr big', value: Math.max(amt - spent, 0), text: `退回 ${money(amt - spent)}`, tip: `退回 ${money(amt - spent)}，释放预算` }]} />
+          : at === 0 ? <Empty>该申请已{r.status === 'rejected' ? '驳回' : '撤回'}，不占用预算。</Empty>
+          : <Track cap="领用期间占用预算行" segs={[{ cls: 'sc big', value: amt, text: `${r.status === 'pending' ? '待审批' : '已领用，待核销'} ${money(amt)}`, tip: `${money(amt)} 占用预算行` }]} />}
+        facts={[['研究单元 · 预算行', <a href={`#/project/${r.project_id}`}>{r.project_name ?? r.project_code}{r.line_purpose ? ` · ${r.line_purpose}` : ''}</a>], ['领用', money(amt)],
+          ...(r.decided_by_name ? [['审批', `${r.decided_by_name}${r.decided_at ? ` ${day(r.decided_at)}` : ''}`] as [string, string]] : []),
+          ...(r.settled_on ? [['核销日', day(r.settled_on)] as [string, string]] : []),
+          ...(r.expense_request_id ? [['对应支出申请', <a href={`#/req/${r.expense_request_id}`}>查看</a>] as [string, React.ReactNode]] : [])]} />
+      {at > 0 && <Stages path="申请 › 审批 › 领用 › 核销" at={at} items={[
+        { nm: '申请', ds: '选择预算行，填写金额和用途', v: day(r.created_at), f: `${r.requester_name} 提交` },
+        { nm: '审批', ds: '中心负责人审批', v: r.status === 'pending' ? '待审批' : '已批准', f: r.decided_by_name ? `${r.decided_by_name}${r.decide_note ? `：${r.decide_note}` : ''}` : '' },
+        { nm: '领用', ds: '领用期间占用预算行', v: r.status === 'pending' ? '未领用' : money(amt), f: r.status === 'approved' ? `已领用 ${days(r.decided_at ?? r.created_at)} 天` : '' },
+        { nm: '核销', ds: '凭票据核销，未用退回', v: spent != null ? money(spent) : '未核销', f: spent != null ? `退回 ${money(amt - spent)}${r.settle_note ? ` · ${r.settle_note}` : ''}` : '' },
+      ]} />}
+    </>);
+  };
   return (
-    <>
+    <div className={only ? 'wb obj' : undefined}>
+      {only ? (one ? headOf(one) : <><div className="top"><h2>备用金</h2></div><Empty>该笔备用金不存在或无权查看。<a href="#/petty">返回备用金管理</a></Empty></>) : <>
       <div className="top"><h2>备用金管理</h2><button onClick={() => setAct(saveAct())}>申请备用金</button></div>
       <div className="tiles">
         <Tile k="待审批" v={rows.filter((r) => r.status === 'pending').length} f="待中心负责人审批" tone={can(me, 'petty.approve') && rows.some((r) => r.status === 'pending') ? 'warn' : ''} />
@@ -55,19 +81,20 @@ export function PettyPage({ me }: { me: Me }) {
         <Tile k={`${year} 年已核销`} v={money(sum(settled, 'spent'))} f={`${settled.length} 笔，退回 ${money(sum(settled) - sum(settled, 'spent'))}`} />
         <Tile k="最长未核销" v={out.length ? `${Math.max(...out.map((r) => days(r.decided_at ?? r.created_at)))} 天` : '—'} f="领用后应及时凭票核销" />
       </div>
-      <section className="card wide">
-        <h3>备用金申请</h3>
-        <p className="hint">备用金为先领用后报销，不在预算之外：申请时选择预算行 → 中心负责人审批 → 领用 → 财务岗凭票核销。领用期间占用该预算行；核销时实际支出部分对应同一预算行上的支出申请，由该笔申请计入经费卡，未使用部分释放回预算。</p>
-        <div className="tabs" style={{ marginBottom: 12 }}>
+      </>}
+      {(!only || one) && <section className={only ? 'card' : 'card wide'}>
+        <h3>{only ? '办理' : '备用金申请'}</h3>
+        {!only && <p className="hint">备用金为先领用后报销，不在预算之外：申请时选择预算行 → 中心负责人审批 → 领用 → 财务岗凭票核销。领用期间占用该预算行；核销时实际支出部分对应同一预算行上的支出申请，由该笔申请计入经费卡，未使用部分释放回预算。</p>}
+        {!only && <div className="tabs" style={{ marginBottom: 12 }}>
           <button className="sm" aria-pressed={!all} onClick={() => setAll(false)}>在途 {open.length}</button>
           <button className="sm" aria-pressed={all} onClick={() => setAll(true)}>全部 {rows.length}</button>
-        </div>
+        </div>}
         {shown.length === 0 ? <Empty>{all ? '暂无备用金申请。' : '暂无在途备用金。'}</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th>提交日期</th><th>申请人</th><th>研究单元 · 预算行</th><th className="r">领用</th><th>用途</th><th>状态</th><th className="r">实际支出</th><th className="r">退回</th><th /></tr></thead>
             <tbody>{shown.map((r) => (
               <tr key={r.id}><td>{day(r.created_at)}</td><td>{r.requester_name}</td><td>{r.project_code}<div className="sub2">{r.line_purpose}</div></td><td className="r">{money(r.amount)}</td>
-                <td className="wrap">{r.purpose}{r.decide_note && <div className="sub2">{r.decided_by_name}：{r.decide_note}</div>}{r.settle_note && <div className="sub2">核销：{r.settle_note}</div>}</td>
+                <td className="wrap">{only ? r.purpose : <a href={`#/petty/${r.id}`}>{r.purpose}</a>}{r.decide_note && <div className="sub2">{r.decided_by_name}：{r.decide_note}</div>}{r.settle_note && <div className="sub2">核销：{r.settle_note}</div>}</td>
                 <td><Badge tone={PETTY[r.status][1]}>{PETTY[r.status][0]}</Badge>{r.status === 'approved' && <div className="sub2">已领用 {days(r.decided_at ?? r.created_at)} 天</div>}</td>
                 <td className="r">{r.spent != null ? money(r.spent) : '—'}{r.settled_on && <div className="sub2">{day(r.settled_on)}</div>}</td>
                 <td className="r">{r.spent != null ? money(num(r.amount) - num(r.spent)) : '—'}</td>
@@ -80,10 +107,10 @@ export function PettyPage({ me }: { me: Me }) {
             ))}</tbody>
           </table></div>
         )}
-      </section>
+      </section>}
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label}
         onSubmit={async (v) => { await act.run(v); reload(); }} onClose={() => setAct(null)} />}
-    </>
+    </div>
   );
 }
 

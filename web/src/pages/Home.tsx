@@ -461,7 +461,7 @@ export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
     return (
       <div className="wb">
         {hero(`资源 · 汇总 · ${data.resources.length} 项资源`, '在用资源', `${resLive.length}`, '项', <>
-          {resLive.length > 0 ? <Track cap="在用资源 · 按类别" segs={[{ cls: 'sy0 big', value: api.length, text: `接口额度 ${api.length} 项`, tip: `接口额度 ${api.length} 项` }, { cls: 'sy1 big', value: asset.length, text: `设备 ${asset.length} 项`, tip: `设备 ${asset.length} 项` }]} /> : <Empty>暂无在用资源。</Empty>}
+          {resLive.length > 0 ? <Track cap="在用资源 · 按类别" segs={[{ cls: 'sy0 big', value: api.length, text: `接口额度 ${api.length} 项`, tip: `接口额度 ${api.length} 项` }, { cls: 'sy1 big', value: asset.length, text: `资产 ${asset.length} 项`, tip: `资产 ${asset.length} 项` }]} /> : <Empty>暂无在用资源。</Empty>}
           <div className="wb-facts"><span>申领在办<b>{resAsk.length} 项</b></span><span>已停用<b>{data.resources.length - resLive.length} 项</b></span><a className="btn" href="#/resource">申领资源</a></div>
         </>)}
         <section className="wb-sec">
@@ -481,7 +481,7 @@ export function Home({ me, view = 'desk' }: { me: Me; view?: HomeView }) {
             <div className="scroll"><table className="wb-table">
               <thead><tr><th>资源</th><th>类别</th><th className="r">总量</th><th style={{ minWidth: 200 }}>分配情况</th><th>状态</th></tr></thead>
               <tbody>{[...data.resources].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, 'zh')).map((r) => { const total = num(r.total ?? 0), used = num(r.allocated ?? 0); return (
-                <tr key={r.id} style={r.active ? undefined : { opacity: .55 }}><td>{r.name}</td><td>{r.kind === 'api' ? '接口额度' : '设备'}</td><td className="r">{r.total != null ? `${total.toLocaleString('zh-CN')}${r.unit ? ` ${r.unit}` : ''}` : '—'}</td>
+                <tr key={r.id} style={r.active ? undefined : { opacity: .55 }}><td><a href={`#/res/${r.id}`}>{r.name}</a></td><td>{r.kind === 'api' ? '接口额度' : '资产'}</td><td className="r">{r.total != null ? `${total.toLocaleString('zh-CN')}${r.unit ? ` ${r.unit}` : ''}` : '—'}</td>
                   <td>{total > 0 ? <Track segs={[{ cls: 'sa', value: Math.min(used, total), tip: `已分配 ${used.toLocaleString('zh-CN')}` }, { cls: 'sr', value: Math.max(total - used, 0), tip: `未分配 ${(total - used).toLocaleString('zh-CN')}` }]} /> : <span className="sub2">已分配 {used.toLocaleString('zh-CN')}</span>}</td>
                   <td>{r.active ? <Badge tone="ok">在用</Badge> : <Badge>已停用</Badge>}</td></tr>); })}</tbody>
             </table></div>)}
