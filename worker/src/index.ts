@@ -81,7 +81,7 @@ const RPC: Record<string, [string, string][]> = {
   save_budget_tier: [['id', 'uuid'], ['year', 'int'], ['name', 'text'], ['amount', 'numeric'], ['slots', 'int'], ['labor_ratio', 'numeric'], ['limits', 'jsonb']],
   publish_budget_plan: [['year', 'int'], ['on', 'boolean']],
   pick_tier: [['year', 'int'], ['project', 'uuid'], ['tier', 'uuid'], ['reason', 'text']],
-  decide_tier: [['year', 'int'], ['project', 'uuid'], ['tier', 'uuid'], ['note', 'text']],
+  decide_tier: [['year', 'int'], ['project', 'uuid'], ['tier', 'uuid'], ['note', 'text'], ['on', 'date']],
   settle_tiers: [['year', 'int']],
   unsettle_tiers: [['year', 'int']],
   set_project_morningstar: [['id', 'uuid'], ['on', 'boolean']],

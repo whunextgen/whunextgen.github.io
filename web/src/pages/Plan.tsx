@@ -7,7 +7,7 @@ const wan = (x: number) => `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 || x % 1e4 ==
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
 // 总预算与档次：财务岗按明年各项目可用的经费测算总预算，划出公共开支等模块，余下的编成档次；
-// 中心负责人批准后，各课题带着明细申请档次，中心负责人在名额内评定；评定完成后档次即课题上限、明细即预算行，转入下达。
+// 中心负责人批准后，各课题带着明细申请档次；评定由联席会议决定、助理录入结果；中心负责人确认评定完成后，档次即课题上限、明细即预算行，转入下达。
 export function PlanPage({ me, start }: { me: Me; start: string }) {
   const { data, error, reload } = useViews<{ years: BudgetYear[]; plans: BudgetPlan[]; sources: BudgetSource[]; modules: BudgetModule[]; tiers: BudgetTier[]; picks: TierPick[];
     funds: FundProject[]; cards: Card[]; projects: Project[]; cats: BudgetCategory[] }>({
@@ -17,6 +17,7 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
   const [act, setAct] = useState<Act | null>(null);
   if (!data) return <Loading error={error} />;
   const finance = can(me, 'budget.setup'), director = can(me, 'budget.approve'), staff = finance || director || can(me, 'read.finance');
+  const recorder = can(me, 'budget.evaluate');   // 录入联席会议的评定结果
   const years = [...data.years].sort((a, b) => b.year - a.year);
   const y = years.find((x) => x.year === Number(start)) ?? years.find((x) => x.stage === 'declare') ?? years[0];
   if (!y) return <><div className="top"><h2>总预算与档次</h2></div><Empty>尚未启动任何年度的预算。{finance && <>请先在「<a href="#/budget">预算编制</a>」中启动年度预算。</>}</Empty></>;
@@ -69,11 +70,11 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
       { name: 'reason', label: '申请理由（上年度执行情况和本年度计划）', type: 'area', value: k?.reason ?? '' }],
     run: (v) => rpc('pick_tier', { year, project: p.id, tier: v.tier, reason: v.reason }) }; };
   const decideAct = (k: TierPick): Act => ({
-    title: `评定：${k.project_name}`, label: '定档',
-    hint: `申请「${tierOf(k.tier_id)?.name ?? ''}」，已提交明细合计 ${money(k.total)}${k.drafts > 0 ? `，另有 ${k.drafts} 份预算尚未提交` : ''}。申请理由：${k.reason ?? '未填写'}。所定档次的名额未满、明细符合该档的金额和限制方可评定；需调整明细的，请在「预算编制」中退回该课题。`,
-    fields: [{ name: 'tier', label: '评定的档次', value: k.decided_tier_id ?? k.tier_id, options: tiers.map((t): [string, string] => [t.id, `${t.name}：${money(t.amount)}，名额 ${t.slots}，已评 ${t.decided}`]) },
-      { name: 'note', label: '意见（选填）', required: false, value: k.decide_note ?? '' }],
-    run: (v) => rpc('decide_tier', { year, project: k.project_id, tier: v.tier, note: v.note || null }) });
+    title: `录入评定结果：${k.project_name}`, label: '录入',
+    hint: `申请「${tierOf(k.tier_id)?.name ?? ''}」，已提交明细合计 ${money(k.total)}${k.drafts > 0 ? `，另有 ${k.drafts} 份预算尚未提交` : ''}。申请理由：${k.reason ?? '未填写'}。评定由联席会议决定，此处按会议结果录入。所定档次的名额未满、明细符合该档的金额和限制方可录入；需调整明细的，由财务岗在「预算编制」中退回该课题。`,
+    fields: [{ name: 'on', label: '联席会议日期', type: 'date', value: k.meeting_on ? day(k.meeting_on) : today() }, { name: 'tier', label: '评定的档次', value: k.decided_tier_id ?? k.tier_id, options: tiers.map((t): [string, string] => [t.id, `${t.name}：${money(t.amount)}，名额 ${t.slots}，已评 ${t.decided}`]) },
+      { name: 'note', label: '会议意见（选填）', required: false, value: k.decide_note ?? '' }],
+    run: (v) => rpc('decide_tier', { year, project: k.project_id, tier: v.tier, note: v.note || null, on: v.on }) });
 
   const segs: Seg[] = [...modules.map((m, i): Seg => ({ cls: `${i % 2 ? 'sy1' : 'sy0'} big`, value: num(m.amount), text: m.name, tip: `模块「${m.name}」${money(m.amount)}，占总预算 ${pct(num(m.amount), total)}` })),
     ...tiers.map((t, i): Seg => ({ cls: `u${i % 3} big`, value: num(t.amount) * t.slots, text: `${t.name} ${t.slots} 个`, tip: `「${t.name}」每个课题 ${money(t.amount)} × ${t.slots} 个名额，合计 ${money(num(t.amount) * t.slots)}` })),
@@ -99,7 +100,7 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
         { nm: '编档次', ds: '每档金额、名额、限制', v: `${tiers.length} 档`, f: tiers.length ? `名额 ${tiers.reduce((t, x) => t + x.slots, 0)} 个` : '' },
         { nm: '批准方案', ds: '中心负责人批准后公布', v: published ? '已批准' : '未批准', f: plan?.plan_at ? day(plan.plan_at) : '' },
         { nm: '申请档次', ds: '课题选档并提交明细', v: `${picks.length} 个课题`, f: published ? `申报截止 ${day(y.due_date)}` : '方案批准后开始' },
-        { nm: '评定', ds: '中心负责人在名额内定档', v: picks.length ? `${picks.length - undecided} / ${picks.length}` : '—', f: undecided > 0 ? `${undecided} 个待评定` : '' },
+        { nm: '评定', ds: '联席会议决定，助理录入', v: picks.length ? `${picks.length - undecided} / ${picks.length}` : '—', f: undecided > 0 ? `${undecided} 个待评定` : '' },
         { nm: '下达执行', ds: '档次即上限，明细即预算行', v: ['fixed', 'issued', 'closed'].includes(y.stage) ? (y.stage === 'fixed' ? '待下达' : '已下达') : '—', f: '' },
         { nm: '年度决算', ds: '年末复盘', v: y.stage === 'closed' ? '已决算' : '—', f: '' },
       ]} />
@@ -163,25 +164,26 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
         </section>
       )}
 
-      {staff && published && (
+      {(staff || recorder) && published && (
         <section className="card">
-          <h3>评定 <span className="h3sub">{picks.length} 个课题申请，{picks.length - undecided} 个已评定</span></h3>
+          <h3>评定 <span className="h3sub">{picks.length} 个课题申请，{picks.length - undecided} 个已录入结果</span></h3>
+          <p className="hint">评定由联席会议决定，结果由助理在此录入；全部录入后由中心负责人确认评定完成，转入下达。</p>
           {picks.length === 0 ? <Empty>尚无课题申请档次。</Empty> : (
             <div className="scroll"><table>
-              <thead><tr><th>课题</th><th>负责人</th><th>申请的档次</th><th className="r">明细合计</th><th>限制</th><th>评定</th>{director && y.stage === 'declare' && <th />}</tr></thead>
+              <thead><tr><th>课题</th><th>负责人</th><th>申请的档次</th><th className="r">明细合计</th><th>限制</th><th>评定结果</th>{recorder && y.stage === 'declare' && <th />}</tr></thead>
               <tbody>{picks.map((k) => { const t = tierOf(k.tier_id), d = tierOf(k.decided_tier_id); return (
                 <tr key={k.project_id}><td><a href={`#/project/${k.project_id}/${year}`}>{k.project_name}</a>{k.reason && <div className="sub2" style={{ marginLeft: 0 }}>{k.reason}</div>}</td><td>{k.owner_name ?? '—'}</td>
                   <td>{t?.name}<span className="sub2">{t ? money(t.amount) : ''}</span></td><td className="r">{money(k.total)}{k.drafts > 0 && <div className="sub2" style={{ marginLeft: 0 }}>另有 {k.drafts} 份未提交</div>}</td>
                   <td className="wrap">{k.violation ? <Badge tone="bad">{k.violation}</Badge> : <Badge tone="ok">符合</Badge>}</td>
-                  <td>{d ? <><Badge tone="ok">{d.name}</Badge>{k.decide_note && <div className="sub2" style={{ marginLeft: 0 }}>{k.decide_note}</div>}</> : <Badge tone="warn">待评定</Badge>}</td>
-                  {director && y.stage === 'declare' && <td className="r"><div className="acts">{btn(d ? '改评' : '定档', decideAct(k), d ? 'sm ghost' : 'sm')}
-                    {d && btn('撤销评定', { title: `撤销评定：${k.project_name}`, label: '撤销', danger: true, fields: [], run: () => rpc('decide_tier', { year, project: k.project_id, tier: null, note: null }) })}</div></td>}</tr>); })}</tbody>
+                  <td>{d ? <><Badge tone="ok">{d.name}</Badge><div className="sub2" style={{ marginLeft: 0 }}>{[k.meeting_on && `${day(k.meeting_on)} 联席会议`, k.decided_by_name && `${k.decided_by_name} 录入`, k.decide_note].filter(Boolean).join(' · ')}</div></> : <Badge tone="warn">待评定</Badge>}</td>
+                  {recorder && y.stage === 'declare' && <td className="r"><div className="acts">{btn(d ? '更正' : '录入结果', decideAct(k), d ? 'sm ghost' : 'sm')}
+                    {d && btn('撤销', { title: `撤销已录入的评定结果：${k.project_name}`, label: '撤销', danger: true, fields: [], run: () => rpc('decide_tier', { year, project: k.project_id, tier: null, note: null }) })}</div></td>}</tr>); })}</tbody>
             </table></div>
           )}
           {director && y.stage === 'declare' && picks.length > 0 && <div className="actions" style={{ justifyContent: 'flex-start' }}>
-            <button className="sm" disabled={undecided > 0} title={undecided > 0 ? '全部课题评定后方可办理' : undefined} onClick={() => setAct({ title: `${year} 年度评定完成，转入下达`, label: '确认',
-              hint: `${picks.length} 个课题已全部评定。确认后：各课题的档次金额成为年度上限，已提交的明细成为核定的预算行；财务岗随后在「预算编制」中下达到经费卡。尚未提交的预算不带入。`, fields: [], run: () => rpc('settle_tiers', { year }) })}>评定完成，转入下达</button>
-            {undecided > 0 && <span className="sub2">尚有 {undecided} 个课题未评定。</span>}</div>}
+            <button className="sm" disabled={undecided > 0} title={undecided > 0 ? '全部课题的评定结果录入后方可办理' : undefined} onClick={() => setAct({ title: `${year} 年度评定完成，转入下达`, label: '确认',
+              hint: `${picks.length} 个课题的评定结果已全部录入。确认后：各课题的档次金额成为年度上限，已提交的明细成为核定的预算行；财务岗随后在「预算编制」中下达到经费卡。尚未提交的预算不带入。`, fields: [], run: () => rpc('settle_tiers', { year }) })}>评定完成，转入下达</button>
+            {undecided > 0 && <span className="sub2">尚有 {undecided} 个课题的评定结果未录入。</span>}</div>}
           {director && y.stage === 'fixed' && <div className="actions" style={{ justifyContent: 'flex-start' }}>
             <button className="sm ghost" onClick={() => setAct({ title: '撤回评定完成', label: '撤回', danger: true, fields: [], hint: '回到评定阶段，各课题的上限和核定数一并撤销。已有预算行下达到经费卡的不得撤回。', run: () => rpc('unsettle_tiers', { year }) })}>撤回评定完成</button>
             <a className="btn sm" href={`#/budget/${year}`}>前往预算编制下达</a></div>}
