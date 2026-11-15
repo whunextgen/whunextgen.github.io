@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { rpc, useViews, type BudgetLine, type BudgetYear, type LineExec, type Me, type Project, type ProjectBudget, type ProjectCap, type User } from '../api';
+import { rpc, useViews, type ProjectTag, type BudgetLine, type BudgetYear, type LineExec, type Me, type Project, type ProjectBudget, type ProjectCap, type User } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, money, num, type Field } from '../ui';
 import { KIND, STAGE_TEXT } from './Budget';
 import { capped } from './Caps';
@@ -9,7 +9,8 @@ import { typeText } from './Project';
 // 点名称进详情页，预算、成员、上限、调剂、设备、接口额度都在那一页。
 export function Projects({ me }: { me: Me }) {
   const staff = can(me, 'budget.setup');
-  const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; users: User[]; caps: ProjectCap[] }>({
+  const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; users: User[]; caps: ProjectCap[]; tags: ProjectTag[] }>({
+    tags: ['project_tag'],
     projects: ['project'], years: ['budget_year'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], users: ['users'], caps: ['project_cap'],
   });
   const [edit, setEdit] = useState<Project | 'new' | { under: Project } | null>(null);
@@ -36,6 +37,7 @@ export function Projects({ me }: { me: Me }) {
     { name: 'owner', label: paper ? '负责人' : '负责人（中心公共开支可留空）', required: paper, options: data.users.filter((u) => u.active).map((u) => [u.id, u.name]), value: p?.owner_id ?? '' },
     ...(p ? [{ name: 'active', label: '在用', type: 'check', value: String(p.active) } as Field] : [])];
 
+  const tagged = new Set(data.tags.filter((t) => t.morningstar).map((t) => t.id));
   return (
     <>
       <div className="top"><h2>课题管理</h2>{staff && <button onClick={() => setEdit('new')}>新立课题</button>}</div>
@@ -47,7 +49,7 @@ export function Projects({ me }: { me: Me }) {
             <thead><tr><th>课题 / 研究单元</th><th>类型</th><th>负责人</th>{years.map((y) => <th key={y.year} className="r">{y.year} 年度<span className="sub2">{STAGE_TEXT[y.stage]}</span></th>)}{staff && <th />}</tr></thead>
             <tbody>{rows.map((r) => (
               <tr key={r.id} style={r.active ? undefined : { opacity: .55 }}>
-                <td style={r.layer === 'paper' ? { paddingLeft: 28 } : undefined}>{r.seen ? <a href={`#/project/${r.id}`}>{r.name}</a> : r.name}<span className="sub2">{r.code}{r.active ? '' : ' · 已停用'}{r.layer === 'paper' && !bigs.some((b) => b.id === r.parent_id) ? ` · 隶属 ${r.parent_name}` : ''}</span>
+                <td style={r.layer === 'paper' ? { paddingLeft: 28 } : undefined}>{r.seen ? <a href={`#/project/${r.id}`}>{r.name}</a> : r.name}{tagged.has(r.id) && <> <Badge>晨星</Badge></>}<span className="sub2">{r.code}{r.active ? '' : ' · 已停用'}{r.layer === 'paper' && !bigs.some((b) => b.id === r.parent_id) ? ` · 隶属 ${r.parent_name}` : ''}</span>
                   {r.kind !== 'public' && <div className="sub2" style={{ marginLeft: 0 }}>成员 {r.members} 人{r.member && r.owner_id !== me.id ? ' · 本人在名单中' : ''}</div>}</td><td>{typeText(r)}</td>
                 <td>{r.owner_name ?? '—'}{r.owner_id === me.id && <span className="sub2">本人</span>}</td>
                 {years.map((y) => { const b = data.budgets.find((x) => x.project_id === r.id && x.year === y.year);
@@ -64,7 +66,7 @@ export function Projects({ me }: { me: Me }) {
                     <a href={`#/budget/${y.year}`}>{money(f ?? a ?? d)}<span className="sub2">{f != null ? '核定数' : a != null ? '申请数' : '申报数'}
                       {b && b.status !== 'submitted' && <> · <Badge tone={b.status === 'returned' ? 'bad' : 'warn'}>{b.status === 'returned' ? '已退回' : '未提交'}</Badge></>}</span></a>)}{r.seen && d != null && all}{r.seen && d != null && capLine}</td>; })}
                 {staff && <td className="r"><div className="acts">
-                  {r.layer !== 'paper' && r.kind !== 'public' && r.active && <button className="ghost sm" onClick={() => setEdit({ under: r })}>新增研究单元</button>}<button className="ghost sm" onClick={() => setEdit(r)}>修改</button></div></td>}
+                  {r.layer !== 'paper' && r.kind !== 'public' && r.active && <button className="ghost sm" onClick={() => setEdit({ under: r })}>新增研究单元</button>}{r.kind !== 'public' && <button className="ghost sm" onClick={() => rpc('set_project_morningstar', { id: r.id, on: !tagged.has(r.id) }).then(reload)}>{tagged.has(r.id) ? '取消晨星标签' : '标为晨星'}</button>}<button className="ghost sm" onClick={() => setEdit(r)}>修改</button></div></td>}
               </tr>
             ))}</tbody>
           </table></div>

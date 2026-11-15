@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { rpc, useViews, type CardPick, type ExpenseType, type LinePick, type Me, type Project, type QuotaPick, type Req, type ReqStatus, type Subject, type User } from '../api';
+import { rpc, type ProjectTag, useViews, type CardPick, type ExpenseType, type LinePick, type Me, type Project, type Req, type ReqStatus, type Subject, type User } from '../api';
 import { ActionDialog, Badge, Empty, Flow, Loading, can, REQ, reqBadge, day, money, num, today, type Field } from '../ui';
 
 export const PATHS = ['直采', '集采', '分散采购'];
@@ -58,7 +58,8 @@ export function actionsFor(me: Me, r: Req, targets: [string, string][], lines: [
   return out;
 }
 
-export function RequestTable({ me, rows, subjectName, cardName, userName, cards, subjects, projectName, lines, onChange }: {
+export function RequestTable({ me, rows, subjectName, cardName, userName, cards, subjects, projectName, lines, tagged, onChange }: {
+  tagged?: Set<string>;
   me: Me; rows: Req[]; projectName?: Map<string, string>; lines?: [string, string][]; cards?: CardPick[]; subjects?: Subject[]; subjectName?: Map<string, string>; cardName?: Map<string, string>; userName?: Map<string, string>; onChange: () => void;
 }) {
   const [act, setAct] = useState<Action | null>(null);
@@ -75,7 +76,7 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
             <tr key={r.id}>
               <td className="wrap">{r.title}
                 <div className="sub2">{[r.code, r.requester_name ?? userName?.get(r.requested_by ?? ''), r.requested_by === me.id ? '本人提交' : '',
-                  r.path && `${r.path} ${r.stage}/${r.stages}`, r.split_group && '分摊', r.morningstar_quota_id && '晨星额度', r.emergency && '紧急通道'].filter(Boolean).join(' · ')}</div>
+                  r.path && `${r.path} ${r.stage}/${r.stages}`, r.split_group && '分摊', r.project_id && tagged?.has(r.project_id) && '晨星', r.emergency && '紧急通道'].filter(Boolean).join(' · ')}</div>
                 {r.status === 'rejected' && r.return_note && <div className="sub2 neg">原因：{r.return_note}</div>}</td>
               {cardName && <td>{cardName.get(r.card_id ?? '') ?? '—'}</td>}
               <td className="wrap">{r.project_name ?? projectName?.get(r.project_id ?? '') ?? '—'}<div className="sub2">{r.line_purpose ?? subjectName?.get(r.subject_id) ?? ''}</div></td>
@@ -97,9 +98,9 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
 interface Part { card_id: string; subject_id: string; amount: string }
 const blank = (): Part => ({ card_id: '', subject_id: '', amount: '' });
 
-function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: { cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; quotas: QuotaPick[]; picks: LinePick[]; canCard: boolean; onDone: (msg: string) => void }) {
+function NewRequest({ cards, subjects, types, picks, canCard, onDone }: { cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; picks: LinePick[]; canCard: boolean; onDone: (msg: string) => void }) {
   const usable = cards.filter((c) => c.status === 'active');
-  const [v, setV] = useState({ card_id: '', subject_id: '', expense_type_id: '', title: '', amount: '', eta_date: '', path: '', emergency: false, quota_id: '' });
+  const [v, setV] = useState({ card_id: '', subject_id: '', expense_type_id: '', title: '', amount: '', eta_date: '', path: '', emergency: false });
   const [split, setSplit] = useState(false);
   // 年度预算下达之后按研究单元提交：只选研究单元和预算行，经费卡由系统在这一行下达到的卡里挑
   const [byLine, setByLine] = useState(picks.length > 0);
@@ -124,11 +125,11 @@ function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: 
         await rpc('submit_project_request', { line_id: line.id, expense_type_id: v.expense_type_id, title: v.title, amount: v.amount, eta_date: v.eta_date, emergency: v.emergency, path });
         onDone(`已提交：${v.title}，${money(v.amount)}，计入「${picks.find((x) => x.id === line.id)?.project_name ?? ''}」预算。先由研究单元负责人确认，再由财务岗核对；超出预算行的另由中心负责人审批。当前环节可在下方列表查看。`);
       } else if (split) {
-        await rpc('submit_split', { expense_type_id: v.expense_type_id, title: v.title, eta_date: v.eta_date, path, quota_id: v.quota_id,
+        await rpc('submit_split', { expense_type_id: v.expense_type_id, title: v.title, eta_date: v.eta_date, path,
           parts: parts.map((p) => ({ card_id: p.card_id, subject_id: p.subject_id, amount: Math.round(num(p.amount) * 100) / 100 })) });
         onDone(`已提交：${v.title}，分摊 ${parts.length} 项，合计 ${money(total)}。后续逐笔确认、核对。`);
       } else {
-        await rpc('submit_request_quota', { ...v, path });
+        await rpc('submit_request', { ...v, path });
         onDone(`已提交：${v.title}，${money(v.amount)}。待研究单元负责人确认、财务岗核对。`);
       }
     } catch (err) { setError((err as Error).message); setBusy(false); }
@@ -174,10 +175,6 @@ function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: 
           <select value={type?.required_path ?? v.path} disabled={!!type?.required_path} onChange={(e) => set({ path: e.target.value })}>
             <option value="">不涉及采购</option>{PATHS.map((p) => <option key={p}>{p}</option>)}
           </select></label>
-        {!byLine && quotas.length > 0 && <label className="field"><span>计入晨星额度</span>
-          <select value={v.quota_id} onChange={(e) => set({ quota_id: e.target.value })}>
-            <option value="">不计入</option>{quotas.map((q) => <option key={q.id} value={q.id}>{q.leader_name} {q.year} 年额度</option>)}
-          </select></label>}
         {!byLine && <label className="field check"><input type="checkbox" checked={split} onChange={(e) => { setSplit(e.target.checked); if (e.target.checked) set({ emergency: false }); }} /><span>一笔支出分摊至多张经费卡或多个科目</span></label>}
         {!split && <label className="field check"><input type="checkbox" checked={v.emergency} onChange={(e) => set({ emergency: e.target.checked })} /><span>使用紧急通道（事后补批，设单笔和全年上限）</span></label>}
       </div>
@@ -208,8 +205,8 @@ function NewRequest({ cards, subjects, types, quotas, picks, canCard, onDone }: 
 
 export function Requests({ me, start = '' }: { me: Me; start?: string }) {
   const staff = can(me, 'read.finance'), adds = staff || can(me, 'request.process');
-  const { data, error, reload } = useViews<{ reqs: Req[]; cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; users: User[]; quotas: QuotaPick[]; picks: LinePick[]; projects: Project[] }>({
-    reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], types: ['expense_type'], users: ['users'], quotas: ['quota_pick'], picks: ['line_pick'], projects: ['project'],
+  const { data, error, reload } = useViews<{ reqs: Req[]; cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; users: User[]; tags: ProjectTag[]; picks: LinePick[]; projects: Project[] }>({
+    reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], types: ['expense_type'], users: ['users'], tags: ['project_tag'], picks: ['line_pick'], projects: ['project'],
   });
   const [tab, setTab] = useState<'open' | 'mine' | 'self' | ReqStatus>(start in REQ || start === 'mine' ? (start as ReqStatus) : 'open');
   const [adding, setAdding] = useState(start === 'new');
@@ -241,7 +238,7 @@ export function Requests({ me, start = '' }: { me: Me; start?: string }) {
       {done && <div className="msg ok" role="status">{done}</div>}
       {adding && (data.picks.length === 0 && !adds
         ? <section className="card"><h3>提交支出申请</h3><Empty>本人当前不在任何已下达预算研究单元的成员名单内，无法提交支出申请。请研究单元负责人在「课题管理」页加入名单；加入后即可选择该研究单元的预算行。</Empty></section>
-        : <NewRequest cards={data.cards} subjects={data.subjects} types={data.types} quotas={data.quotas} picks={data.picks} canCard={staff}
+        : <NewRequest cards={data.cards} subjects={data.subjects} types={data.types} picks={data.picks} canCard={staff}
             onDone={(msg) => { setAdding(false); setDone(msg); setTab('open'); reload(); }} />)}
       <section className="card">
         <h3>{staff ? '全部申请' : data.projects.some((p) => p.mine) ? '我的申请及负责研究单元的申请' : '我的申请'}</h3>
@@ -251,7 +248,7 @@ export function Requests({ me, start = '' }: { me: Me; start?: string }) {
         </div>
         {rows.length === 0 ? <Empty>{tab === 'open' ? '暂无进行中的申请。' : tab === 'mine' ? '暂无待办申请。' : '该状态下暂无申请。'}</Empty> : (
           <>
-            <RequestTable me={me} rows={rows} cards={data.cards} subjects={data.subjects} cardName={staff ? maps.card : undefined} subjectName={maps.subject} userName={maps.user} projectName={maps.project} lines={maps.lines} onChange={reload} />
+            <RequestTable me={me} rows={rows} tagged={new Set(data.tags.filter((t) => t.morningstar).map((t) => t.id))} cards={data.cards} subjects={data.subjects} cardName={staff ? maps.card : undefined} subjectName={maps.subject} userName={maps.user} projectName={maps.project} lines={maps.lines} onChange={reload} />
             <p className="sub2">{rows.length} 笔，合计 {money(total)}</p>
           </>
         )}

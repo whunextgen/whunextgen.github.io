@@ -13,7 +13,6 @@ import { School } from './pages/School';
 import { StaffPage } from './pages/Staff';
 import { Settle } from './pages/Settle';
 import { Admin } from './pages/Admin';
-import { QuotaPage } from './pages/Quota';
 import { Procure } from './pages/Procure';
 import { PoolPage, ResourcePage, StockPage } from './pages/Resource';
 import { PettyPage, TrackPage } from './pages/Petty';
@@ -100,7 +99,7 @@ function App() {
   const groups = [
     { label: '', no: '', note: '', pages: keep(['/', '工作台'], ['/tasks', '任务管理']) },
     { label: '项目', no: '', note: '额度、经费卡、入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/school', '入账跟踪'], seesCards && ['/settle', '经费结清']) },
-    { label: '课题', no: '', note: '研究单元、预算、决算', pages: keep(['/projects', '课题管理'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算'], seesCards && ['/quota', '晨星额度管理']) },
+    { label: '课题', no: '', note: '研究单元、预算、决算', pages: keep(['/projects', '课题管理'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算']) },
     { label: '支出', no: '', note: '申请、审批、发放', pages: keep(['/requests', '支出申请'], ['/petty', '备用金管理'], seesPeople && ['/staff', '人员经费'], ['/ask', '报销咨询']) },
     { label: '资源', no: '', note: '申领、调配、盘点', pages: keep(['/resource', '资源申领'], seesRes && ['/pool', '资源调配'], seesRes && ['/stock', '资产盘点']) },
     { label: '系统', no: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesDesk && ['/desk', '预算参数'], seesLegacy && ['/history', '历史数据']) },
@@ -129,7 +128,6 @@ function App() {
     : current === '/desk' ? <Desk me={me} />
     : current === '/funds' ? <Funds me={me} />
     : current === '/cards' ? <Overview me={me} />
-    : current === '/quota' ? <QuotaPage me={me} />
     : current === '/rules' ? <Rules me={me} />
     : current === '/requests' ? <Requests me={me} start={arg} />
     : current === '/staff' ? <StaffPage me={me} />

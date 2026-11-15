@@ -378,7 +378,7 @@ await db.exec(`reset role`);
 for (const t of ['耗材', 'API 充值']) await q(`insert into reimb_ruling (card_id, expense_type_id, ruled_on, ruled_by, verdict) values ($1, $2, '2026-12-01', '财务甲', 'yes')`, [nc, TY[t]]);
 await db.exec(`set role app_api`);
 await as(U.fin, D);
-const nreq = (t, a) => val(`select submit_request_quota($1, $2, $3, $4, $5, '2027-03-01', false, null, null) v`, [nc, s1, TY['耗材'], t, a]);
+const nreq = (t, a) => val(`select submit_request($1, $2, $3, $4, $5, '2027-03-01', false, null) v`, [nc, s1, TY['耗材'], t, a]);
 const b1 = await nreq('批量一', 5000), b2 = await nreq('批量二', 6000);
 await raises('登录用户取不到发送队列', /当前角色/, `select * from outbox_take(10)`);
 await as(U.dir, D);
@@ -404,29 +404,6 @@ await q(`select outbox_done($1, false, '网络错误')`, [took[1].msg_id]);
 await as(U.fin, D);
 const ob2 = await q(`select * from api.outbox`);
 ok(ob2.find(o => String(o.id) === String(took[0].msg_id)).status === 'sent' && ob2.find(o => String(o.id) === String(took[1].msg_id)).status === 'queued', '发送成功标记已发，失败留在队列重试');
-
-// ---------- 晨星额度 ----------
-await raises('财务岗不能设晨星额度', /当前角色/, `select save_quota(null, $1, 2026, 10000, 0.3)`, [U.lead]);
-await as(U.dir, D);
-const qd = await val(`select save_quota(null, $1, 2026, 10000, 0.3) v`, [U.lead]);
-await raises('同一人同一年只有一个额度', /年已有额度，请直接修改/, `select save_quota(null, $1, 2026, 5000, 0.3)`, [U.lead]);
-await as(U.fin, D);
-const subq = `select submit_request_quota($1, $2, $3, $4, $5, '2027-03-01', false, null, $6) v`;
-const rq = await val(subq, [nc, s1, TY['耗材'], '挂额度', 4000, qd]);
-await raises('超出晨星额度拦截', /晨星额度不足/, subq, [nc, s1, TY['耗材'], '超额度', 7000, qd]);
-await raises('晨星额度里劳务不超过 30%', /劳务类支出超过上限/, subq, [nc, s2, TY['耗材'], '超劳务', 3500, qd]);
-eq((await q(`select * from api.request where title in ('超额度', '超劳务')`)).length, 0, '额度拦截时申请整笔不提交');
-await as(U.mem, D);
-eq((await q(`select * from api.quota`)).length, 0, '成员看不到额度金额');
-eq((await q(`select * from api.quota_pick where id = $1`, [qd])).length, 1, '成员提交时能选到当年额度');
-await as(U.lead, D);
-const myq = await q(`select * from api.quota`);
-ok(myq.length === 1 && Number(myq[0].used) === 4000 && Number(myq[0].actual) === 0 && myq[0].quarter === 4 && myq[0].behind, '负责人看到自己的额度、占用和季度执行');
-await as(U.dir, D);
-await raises('额度不能调到低于已占用', /晨星额度不足/, `select save_quota($1, null, null, 3000, 0.3)`, [qd]);
-await as(U.fin, D);
-await q(`select set_request_quota($1, null)`, [rq]);
-eq((await one(`select used from api.quota where id = $1`, [qd])).used, 0, '取消挂接后额度释放');
 
 // ---------- 资源使用权 ----------
 const rs = await val(`select save_resource(null, 'api', '大模型接口', 'sk-…a3f9', 1000, '美元') v`);
@@ -998,28 +975,18 @@ await as(U.fin, '2027-07-05');
 await q(`select allocate_line($1, $2)`, [L0, JSON.stringify([{ card_id: C.C, subject_id: SUB.P.equip, amount: 65000 }])]);
 eq((await alloc(L0))['2121-C'], 65000, '下达之后还可以补下达');
 
-// 晨星额度并入项目预算
-await as(U.dir, '2027-07-05');
-const qm = await val(`select save_quota(null, $1, 2027, 20000, 0.3) v`, [U.mem]);
+// 晨星只是标签：课题、研究单元上可以标上或取消；额度的入口已取消
 await as(U.fin, '2027-07-05');
-const PX = await val(`select quota_to_project($1) v`, [qm]);
-const px = await one(`select code, kind, owner_id, labor_cap_ratio from api.project where id = $1`, [PX]);
-ok(px.kind === 'line' && px.owner_id === U.mem && Number(px.labor_cap_ratio) === 0.3 && /^CX-/.test(px.code), '晨星额度转成独立研究线项目，负责人和劳务上限带过来');
-await raises('同一个额度不能转两次', /该额度已转为独立研究线/, `select quota_to_project($1)`, [qm]);
 await q(`select open_budget_year(2028, '2027-11-30')`);
-await as(U.dir, '2027-07-05');
-const qm8 = await val(`select save_quota(null, $1, 2028, 20000, 0.3) v`, [U.mem]);
-ok((await one(`select project_id from api.quota where id = $1`, [qm8])).project_id === PX, '下一年的额度自动沿用同一个项目');
+const tagP = (await one(`select id from api.project limit 1`)).id;
+await q(`select set_project_morningstar($1, true)`, [tagP]);
+ok((await one(`select morningstar from api.project_tag where id = $1`, [tagP])).morningstar === true, '课题或研究单元可以标为晨星');
+await q(`select set_project_morningstar($1, false)`, [tagP]);
+ok((await one(`select morningstar from api.project_tag where id = $1`, [tagP])).morningstar === false, '晨星标签可以取消');
 await as(U.mem, '2027-07-05');
-const X1 = await val(`select save_budget_line(null, 2028, $1, $2, '学生劳务', 7000, 0, 0, 0) v`, [PX, cL]);
-const X2 = await val(`select save_budget_line(null, 2028, $1, $2, '工作站', 10000, 0, 0, 0) v`, [PX, cE]);
-await raises('晨星项目劳务类预算不能超过上限', /劳务类预算 7000.*超过上限 6000/, `select set_project_budget(2028, $1, 'submit')`, [PX]);
-await q(`select save_budget_line($1, null, null, $2, '学生劳务', 5000, 0, 0, 0)`, [X1, cL]);
-await q(`select save_budget_line($1, null, null, $2, '工作站', 20000, 0, 0, 0)`, [X2, cE]);
-await raises('晨星项目预算不能超过额度', /晨星额度为 20000.*超出 5000/, `select set_project_budget(2028, $1, 'submit')`, [PX]);
-await q(`select save_budget_line($1, null, null, $2, '工作站', 15000, 0, 0, 0)`, [X2, cE]);
-await q(`select set_project_budget(2028, $1, 'submit')`, [PX]);
-ok((await one(`select status from api.project_budget where project_id = $1 and year = 2028`, [PX])).status === 'submitted', '额度以内、劳务不超上限的晨星项目预算可以提交');
+await raises('成员不能改晨星标签', /需要权限|当前角色/, `select set_project_morningstar($1, true)`, [tagP]);
+eq((await q(`select 1 from pg_proc where proname in ('save_quota', 'quota_to_project', 'set_request_quota', 'submit_request_quota')`)).length, 0, '晨星额度的函数已取消');
+eq((await q(`select 1 from pg_views where schemaname = 'api' and viewname in ('quota', 'quota_pick')`)).length, 0, '晨星额度的视图已取消');
 
 // 年度决算
 await as(U.dir, '2027-12-20');
