@@ -104,11 +104,11 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
         facts={[[`${year || ''} 年度预算`.trim(), own.n || kt.length ? money(all.budget) : '未填报'], ['已入账', run ? money(all.actual) : '—'], ['已承诺', run ? money(pendingAmt) : '—'],
           ...(cap ? [['年度上限', money(cap.amount)] as [string, string], ['上限内剩余可排', money(num(cap.amount) - num(cap.used))] as [string, string]] : []),
           ...(!isUnit && kids.length ? [['研究单元', `${kids.length} 个`] as [string, string]] : [])]} />
-      {y && <Stages path="申报 › 核定下达 › 支出申请 › 学校入账 › 年度决算" at={stepNo} items={[
+      {y && <Stages path="申报 › 核定下达 › 支出申请 › 执行 › 年度决算" at={stepNo} items={[
         { nm: '申报', ds: `${un}负责人填报年度预算`, v: own.n || kt.length ? `${own.n + kt.reduce((t, x) => t + x.t.n, 0)} 行` : '未填报', f: run ? '已申报' : STAGE_TEXT[y.stage] },
         { nm: '核定下达', ds: '中心核定后下达到经费卡', v: run ? money(all.budget) : '—', f: run ? '核定数' : '尚未下达' },
         { nm: '支出申请', ds: '从预算行提交，批准后占用预算', v: run ? money(pendingAmt) : '—', f: run ? '已承诺，尚未入账' : '下达后方可申请' },
-        { nm: '学校入账', ds: '以学校正式入账为准', v: run ? money(all.actual) : '—', f: run ? `执行率 ${pct(all.actual, all.budget)}` : '' },
+        { nm: '执行', ds: '以学校明细账的入账为准', v: run ? money(all.actual) : '—', f: run ? `执行率 ${pct(all.actual, all.budget)}` : '' },
         { nm: '年度决算', ds: '年末未使用的不结转', v: y.stage === 'closed' ? '已决算' : '未决算', f: run ? `未使用 ${money(all.budget - all.used)}` : '' },
       ]} />}
       {years.length > 1 && <div className="tabs" style={{ marginBottom: 12 }}>{years.map((n) => <a key={n.year} className="btn sm" aria-current={n.year === year ? 'page' : undefined} href={`#/project/${r.id}/${n.year}`}>{n.year}</a>)}</div>}

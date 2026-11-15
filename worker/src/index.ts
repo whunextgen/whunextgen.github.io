@@ -335,8 +335,9 @@ export default {
           const v = body[name];
           return v === undefined || v === null || v === '' ? null : type === 'jsonb' ? JSON.stringify(v) : String(v);
         });
-        // JSON 参数先按文本收、再转 jsonb：直接写 ::jsonb 时驱动会把已经是 JSON 的字符串再编码一次，数据库收到的就成了一个字符串而不是数组
-        const call = `select public.${fn}(${spec.map(([, type], i) => `$${i + 1}::${type === 'jsonb' ? 'text::jsonb' : type}`).join(', ')}) as result`;
+        // 所有参数一律先按文本收、再转成目标类型。直接写 ::jsonb 或 ::boolean 时，驱动会按目标类型把已是文本的值再编码一次：
+        // JSON 字符串被再编码成一个字符串；文本 'true' 被布尔编码器当成“不是 true”而写成 false
+        const call = `select public.${fn}(${spec.map(([, type], i) => `$${i + 1}::text::${type}`).join(', ')}) as result`;
         const [row] = await withUser(env, uid, (sql) => sql.unsafe(call, args));
         return json({ result: row?.result ?? null }, 200, cors);
       }

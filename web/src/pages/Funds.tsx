@@ -134,7 +134,7 @@ export function Funds({ me, only }: { me: Me; only?: string }) {
     const stages = [
       { nm: '立项', ds: '批复额度和期限', v: quota != null ? money(quota) : '尚未填写', f: p.period_start || p.period_end ? `${day(p.period_start)} 至 ${day(p.period_end)}` : '期限尚未填写' },
       { nm: '下达', ds: '每次下达开一张经费卡', v: `${cs.length} 张`, f: cs.length > 0 ? `历年下达 ${money(issued)}` : '尚未开出经费卡' },
-      { nm: '执行', ds: '支出与有效期内的经费卡核对', v: money(actual), f: `已入账；有效期内 ${liveCs.length} 张，可用 ${money(avail)}` },
+      { nm: '执行', ds: '以学校明细账的入账为准', v: money(actual), f: `已入账；有效期内 ${liveCs.length} 张，可用 ${money(avail)}` },
       { nm: '到期处理', ds: `经费卡到期后${END_RULE[p.end_rule]}`, v: `${settled.length} 张已结清`, f: [due.length > 0 && `${due.length} 张已到期待结清`, back > 0 && `回收 ${money(back)}，回到额度剩余`, carried > 0 && `结转 ${money(carried)}`].filter(Boolean).join('；') || '暂无到期的经费卡' },
       { nm: '结题', ds: p.close_rule === 'return' ? '项目结束时结余上缴' : '项目结束时无须上缴', v: p.status === 'closed' ? '已结题' : '未结题', f: p.returned != null ? `上缴 ${money(p.returned)}` : p.status === 'closed' ? '' : '经费卡全部结清后可结题' },
     ];

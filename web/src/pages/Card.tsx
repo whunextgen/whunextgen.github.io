@@ -157,10 +157,10 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
         chart={total > 0 ? <Track cap="执行 · 已入账、已承诺、可用" segs={execSegs(total, num(c.actual), num(c.commit), '下达数').map((g) => ({ ...g, cls: `${g.cls} big` }))} mark={mark} /> : <Empty>尚未填写下达数。</Empty>}
         facts={[['下达数', money(cardGranted(c))], ...(num(c.carried_in) > 0 ? [['结转转入', money(c.carried_in)] as [string, string]] : []), ['已入账', money(c.actual)], ['已承诺', money(c.commit)],
           ['有效期', `${day(c.start_date)} 至 ${day(c.cutoff_date)}`], ...(c.school_balance != null ? [['学校余额', money(c.school_balance)] as [string, string]] : [])]} />
-      <Stages path="下达 › 支出申请 › 学校入账 › 到期 › 结清" at={at} items={[
+      <Stages path="下达 › 支出申请 › 执行 › 到期 › 结清" at={at} items={[
         { nm: '下达', ds: '学校下达到这张经费卡', v: total > 0 ? money(cardGranted(c)) : '尚未填写', f: `${day(c.start_date)} 下达${c.applied != null ? `，申请 ${money(c.applied)}` : ''}` },
         { nm: '支出申请', ds: '先申请、后支出，批准后占用额度', v: `${open.length} 笔在途`, f: `已承诺 ${money(c.commit)}` },
-        { nm: '学校入账', ds: '明细以学校正式入账为准', v: money(c.actual), f: ledgerN > 0 ? `学校明细账 ${ledgerN} 笔` : '尚未导入学校明细账' },
+        { nm: '执行', ds: '以学校明细账的入账为准', v: money(c.actual), f: ledgerN > 0 ? `学校明细账 ${ledgerN} 笔` : '尚未导入学校明细账' },
         { nm: '到期', ds: '单据截止日后不得再提交支出', v: day(c.cutoff_date), f: c.status === 'settled' ? '' : expired ? '已到期，待结清' : `剩余 ${daysLeft} 天` },
         { nm: '结清', ds: `结余${END_RULE[c.end_rule] ?? ''}`, v: c.status === 'settled' ? '已结清' : '未结清', f: c.status === 'settled' ? (num(c.carried_out) > 0 ? `结转 ${money(c.carried_out)}` : `回收 ${money(c.recalled ?? 0)}，回到项目额度剩余`) : c.settle_date ? `结清日 ${day(c.settle_date)}` : '尚未设结清日' },
       ]} />
@@ -204,7 +204,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       </section>
 
       <section className="card">
-        <h3>明细 <span className="h3sub">明细即学校入账：{c.pooled ? '只控总额，按学校科目列出已入账的支出' : '科目沿用学校明细账的科目，支出按科目核对'}</span></h3>
+        <h3>{c.pooled ? '执行' : '明细与执行'} <span className="h3sub">{c.pooled ? '只控总额；执行以学校明细账为准，按学校科目列出' : '明细为按科目编的预算；执行以学校明细账为准，按科目核对'}</span></h3>
         {c.pooled ? (
           <>
             <p className="hint">该经费卡只控总额：下达数连同上年结转 {money(c.cur)}，已入账 {money(c.actual)}，已承诺 {money(c.commit)}，可用 {money(c.avail)}。支出只与可用总额核对，下表按学校科目列出已入账的支出。</p>

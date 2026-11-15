@@ -173,7 +173,7 @@ export function Home({ me }: { me: Me }) {
           const give = new Map<string, number>(); for (const a of data.allocs.filter((x) => x.card_id === c.card_id)) give.set(a.project_id, (give.get(a.project_id) ?? 0) + num(a.amount));
           const out = [...give.values()].reduce((s, v) => s + v, 0), total = cardTotal(c), gap = cardGap(c), left = total - num(c.actual) - num(c.commit);
           const mark = c.status === 'active' ? cardRisk(c, now).time : undefined;
-          // 明细即学校入账：按学校科目合并
+          // 执行以学校明细账为准：按学校科目合并。明细是经费卡上按科目编的预算
           const bySchool = new Map<string, { school_name: string; n: number; amount: number }>();
           for (const r of data.school.filter((x) => x.card_id === c.card_id)) { const o = bySchool.get(r.school_name) ?? { school_name: r.school_name, n: 0, amount: 0 }; o.n += r.n; o.amount += num(r.amount); bySchool.set(r.school_name, o); }
           const posted = [...bySchool.values()].sort((a, b) => b.amount - a.amount);
@@ -183,11 +183,10 @@ export function Home({ me }: { me: Me }) {
               num={`下达 ${money(total)}`} sub={`执行 ${pct(num(c.actual) + num(c.commit), total)} · 可用 ${money(left)}`}
               status={cardStatus(c) ?? (gap >= 0.005 ? ['warn', `尚有 ${money(gap)} 未分到科目，暂不可支出`] : total <= 0 ? ['warn', '尚未填写下达数']
                 : c.status === 'active' && c.fund_kind === 'horizontal' && num(c.received) < total ? ['warn', `已下达未到账 ${money(total - num(c.received))}，到账前不得支出`] : null)}>
-              {posted.length > 0
-                ? posted.map((x) => <TreeNode key={x.school_name} level={3} lv="明细" title={x.school_name}
-                  chart={<Track segs={[{ cls: 'sa', value: x.amount, tip: `学校入账 ${x.n} 笔，合计 ${money(x.amount)}，占下达数 ${pct(x.amount, total)}` }]} scale={total} />} num={money(x.amount)} sub={`学校入账 ${x.n} 笔`} />)
-                : cells.filter((x) => num(x.actual) > 0).map((x) => <TreeNode key={x.subject_id} level={3} lv="明细" title={x.subject_name}
-                  chart={<Track segs={[{ cls: 'sa', value: num(x.actual), tip: `已入账 ${money(x.actual)}，占下达数 ${pct(num(x.actual), total)}` }]} scale={total} />} num={money(x.actual)} sub="已入账" />)}
+              {cells.filter((x) => num(x.cur) > 0).map((x) => <TreeNode key={x.subject_id} level={3} lv="明细" title={x.subject_name}
+                chart={<Track segs={execSegs(num(x.cur), num(x.actual), num(x.commit), '该明细')} scale={total} />} num={money(x.cur)} sub={`可用 ${money(x.avail)}`} status={num(x.avail) < 0 ? ['bad', '超支'] : null} />)}
+              {posted.map((x) => <TreeNode key={`s-${x.school_name}`} level={3} lv="执行" title={x.school_name}
+                chart={<Track segs={[{ cls: 'sa', value: x.amount, tip: `学校明细账 ${x.n} 笔，合计 ${money(x.amount)}，占下达数 ${pct(x.amount, total)}` }]} scale={total} />} num={money(x.amount)} sub={`学校明细账 ${x.n} 笔`} />)}
               {give.size > 0 && <div className="wb-give">
                 <div className="wb-cap">下达去向 · 已下达 {money(out)}，尚未下达 {money(Math.max(total - out, 0))}</div>
                 <Track segs={[...[...give.entries()].sort((a, b) => b[1] - a[1]).map(([id, v], i): Seg => ({ cls: `u${i % 3}`, value: v, text: `${projName.get(id) ?? '研究单元'} ${wan(v)}`, tip: `研究单元「${projName.get(id) ?? ''}」自本经费卡下达 ${money(v)}，占 ${pct(v, total)}` })),
@@ -291,7 +290,7 @@ export function Home({ me }: { me: Me }) {
 
       {seesCards && (
         <section className="wb-sec">
-          <div className="wb-sh"><span className="no">02</span><h2>项目</h2><span className="path"><b>项目</b> › <b>经费卡</b> › <b>明细</b>　点击逐级展开</span></div>
+          <div className="wb-sh"><span className="no">02</span><h2>项目</h2><span className="path"><b>项目</b> › <b>经费卡</b> › <b>明细、执行</b>　点击逐级展开</span></div>
           <div className="wb-key"><span><i className="sy1" />各经费卡已下达</span><span><i className="hatch" />额度剩余 / 尚未下达</span><span><i className="sa" />已入账</span><span><i className="sc" />已承诺</span><span><i className="sr" />可用</span></div>
           {fundNodes.length === 0 ? <Empty>暂无项目。<a href="#/funds">前往项目管理</a>新建项目，并将经费卡归入项目。</Empty> : <div className="wb-acc">{fundNodes}</div>}
           {loose > 0 && <p className="hint">另有 {loose} 张经费卡尚未归入项目，未计入上图。<a href="#/funds">前往项目管理归入 →</a></p>}
