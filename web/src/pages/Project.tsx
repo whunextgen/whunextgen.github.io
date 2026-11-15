@@ -25,7 +25,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
   if (!data) return <Loading error={error} />;
   const r = data.projects.find((x) => x.id === id);
   if (!r) return <><div className="top"><h2>课题管理</h2></div><Empty>课题或研究单元不存在或无权查看。<a href="#/projects">返回课题管理</a></Empty></>;
-  const un = typeText(r);   // 本页是课题、研究单元、独立研究线还是中心公共开支
+  const un = typeText(r);   // 本页是课题、研究单元还是中心公共开支
   const head = (
     <div className="top">
       <div className="crumb"><a href="#/projects">课题管理</a>{r.layer === 'paper' && r.parent_id && <> / {data.projects.some((x) => x.id === r.parent_id && x.seen) ? <a href={`#/project/${r.parent_id}`}>{r.parent_name}</a> : r.parent_name}</>} · {r.code} · {typeText(r)}{r.owner_name ? ` · 负责人 ${r.owner_name}` : ''}{r.active ? '' : ' · 已停用'}</div>

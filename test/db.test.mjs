@@ -1753,6 +1753,7 @@ await as(U.fin, '2032-06-05');
 const autoId = await val(`select save_project(null, null, '编号自动生成的课题', 'public', null, true) v`);
 const autoCode = (await one(`select code from api.project where id = $1`, [autoId])).code;
 ok(/^P-\d{2,}$/.test(autoCode), '新立课题不填编号时自动生成', autoCode);
+await raises('课题类型只有课题和中心公共开支两种', /类型仅限课题或中心公共开支/, `select save_project(null, null, '第三种类型', 'line', null, true)`);
 // 旧入口直接建的卡自动补上经费项目
 await db.exec(`reset role`);
 const legacyCard = await one(`select c.year, p.name from fund_card c join fund_project p on p.id = c.project_id where c.card_no = '4131-A'`);

@@ -13,7 +13,7 @@ export const STAGE_TEXT: Record<BudgetStage, string> = {
   declare: '方案编制与课题申请中', summary: '财务岗汇总中', approved: '已批准，待报学校', applied: '已报学校，待批复',
   granted: '学校已批复，核定中', fixed: '评定完成，待下达到经费卡', issued: '已下达，执行中', closed: '已决算',
 };
-export const KIND: Record<Project['kind'], string> = { project: '课题', line: '独立研究线', public: '中心公共开支' };
+export const KIND: Record<Project['kind'], string> = { project: '课题', public: '中心公共开支' };
 const PB: Record<ProjectBudget['status'] | 'none', [string, string]> = { none: ['未填报', ''], draft: ['填报中', 'warn'], submitted: ['已提交', 'ok'], returned: ['已退回', 'bad'] };
 const Q = ['q1', 'q2', 'q3', 'q4'] as const;
 const QN = ['1–3 月', '4–6 月', '7–9 月', '10–12 月'];

@@ -166,7 +166,7 @@ export interface Emergency { year: number; per_request: string; per_year: string
 
 // ---------- 年度预算 ----------
 export type BudgetStage = 'declare' | 'summary' | 'approved' | 'applied' | 'granted' | 'fixed' | 'issued' | 'closed';
-export interface Project { id: string; code: string; name: string; kind: 'project' | 'line' | 'public'; owner_id: string | null; owner_name: string | null; active: boolean; mine: boolean; labor_cap_ratio: string | null;
+export interface Project { id: string; code: string; name: string; kind: 'project' | 'public'; owner_id: string | null; owner_name: string | null; active: boolean; mine: boolean; labor_cap_ratio: string | null;
   layer: 'big' | 'paper'; parent_id: string | null; parent_code: string | null; parent_name: string | null; parent_owner_id: string | null; seen: boolean;
   member: boolean; can_roster: boolean; members: number }
 export interface ProjectMember { id: string; project_id: string; user_id: string; user_name: string; joined_on: string; left_on: string | null; added_by_name: string | null; holding: number }
@@ -194,7 +194,7 @@ export interface BudgetLine { id: string; budget_id: string; year: number; proje
   declared: string; applied: string | null; adjust_note: string | null; fixed: string | null;
   resource_id: string | null; resource_name: string | null; resource_kind: 'api' | 'asset' | null; resource_unit: string | null; plan_qty: string | null }
 export interface ResourcePlan { id: string; year: number; project_id: string; project_code: string; project_name: string; category_name: string; purpose: string;
-  resource_id: string; resource_name: string; kind: 'api' | 'asset'; unit: string | null; plan_qty: string; asked: string; granted: string; open: boolean; project_kind: 'project' | 'line' | 'public' }
+  resource_id: string; resource_name: string; kind: 'api' | 'asset'; unit: string | null; plan_qty: string; asked: string; granted: string; open: boolean; project_kind: 'project' | 'public' }
 export interface CategorySubject { category_id: string; subject_id: string }
 export interface BudgetAlloc { id: string; line_id: string; year: number; project_id: string; card_id: string | null; card_no: string | null; card_name: string | null; end_rule: 'recall' | 'carry'; card_end: string;
   subject_id: string; subject_name: string; amount: string; used: string; actual: string }

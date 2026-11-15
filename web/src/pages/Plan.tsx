@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { rpc, useViews, type BudgetCategory, type BudgetModule, type BudgetPlan, type BudgetSource, type BudgetTier, type BudgetYear, type ModuleTopic, type Card, type FundProject, type Me, type Project, type TierPick } from '../api';
+import { rpc, useViews, type BudgetCategory, type BudgetModule, type BudgetPlan, type BudgetSource, type BudgetTier, type BudgetYear, type ModuleTopic, type Card, type FundProject, type Me, type Project, type TierPick, type User } from '../api';
 import { ActionDialog, Badge, Empty, END_RULE, Loading, can, cardTotal, day, money, num, pct, today, type Field } from '../ui';
 import { ObjHead, Track, type Seg } from '../tree';
 import { BudgetFlow } from './BudgetFlow';
@@ -11,10 +11,10 @@ interface Act { title: string; hint?: string; label: string; fields: Field[]; da
 // 中心负责人批准后，各课题带着明细申请档次；评定由联席会议决定、助理录入结果；中心负责人确认评定完成后，档次即课题上限、明细即预算行，转入下达。
 export function PlanPage({ me, start }: { me: Me; start: string }) {
   const { data, error, reload } = useViews<{ years: BudgetYear[]; plans: BudgetPlan[]; sources: BudgetSource[]; modules: BudgetModule[]; tiers: BudgetTier[]; picks: TierPick[];
-    funds: FundProject[]; cards: Card[]; projects: Project[]; cats: BudgetCategory[]; mtopics: ModuleTopic[] }>({
+    funds: FundProject[]; cards: Card[]; projects: Project[]; cats: BudgetCategory[]; mtopics: ModuleTopic[]; users: User[] }>({
     mtopics: ['module_topic'],
     years: ['budget_year'], plans: ['budget_plan'], sources: ['budget_source'], modules: ['budget_module'], tiers: ['budget_tier'], picks: ['tier_pick'],
-    funds: ['fund_project'], cards: ['card'], projects: ['project'], cats: ['budget_category'],
+    funds: ['fund_project'], cards: ['card'], projects: ['project'], cats: ['budget_category'], users: ['users'],
   });
   const [act, setAct] = useState<Act | null>(null);
   if (!data) return <Loading error={error} />;
@@ -45,13 +45,25 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
     run: (v) => rpc('save_budget_source', { year, fund_project: p.id, amount: v.amount || null, note: v.note || null }) }; };
   // 可由方案直接确定金额的课题：已立项、本年度没有申请档次、方案里还没有的
   const fixable = data.projects.filter((p) => p.layer !== 'paper' && p.active && !picks.some((k) => k.project_id === p.id) && !modules.some((m) => m.project_id === p.id)).sort((a, b) => a.code.localeCompare(b.code));
+  // 课题可以从已有的里选，也可以就在这里新立（如中心公共开支），不必先去课题管理
   const moduleAct = (m?: BudgetModule): Act => ({
     title: m ? `修改金额：${m.name}` : '直接确定课题的金额', label: '保存',
-    hint: m ? '该课题的金额由本方案直接确定，从总预算中先行扣除，不参加档次评定。' : `中心公共开支这样的课题，金额由本方案直接确定，从总预算中先行扣除，不参加档次评定；课题连同研究单元的明细合计不得超过这个金额。${fixable.length === 0 ? '目前没有可选的课题，请先在课题管理中新立课题。' : ''}`,
-    fields: [...(m ? [] : [{ name: 'project', label: '课题', options: fixable.map((p): [string, string] => [p.id, `${p.code} ${p.name}`]) }]),
+    hint: m ? '该课题的金额由本方案直接确定，从总预算中先行扣除，不参加档次评定。' : '中心公共开支这样的课题，金额由本方案直接确定，从总预算中先行扣除，不参加档次评定；课题连同研究单元的明细合计不得超过这个金额。课题可以从已有的里选，也可以在下面填名称直接新立，编号自动生成。',
+    fields: [...(m ? [] : [
+      ...(fixable.length > 0 ? [{ name: 'project', label: '已有课题', required: false, options: fixable.map((p): [string, string] => [p.id, `${p.code} ${p.name}`]) } as Field] : []),
+      { name: 'new_name', label: fixable.length > 0 ? '或新立课题：名称' : '新立课题：名称', required: fixable.length === 0 } as Field,
+      { name: 'new_kind', label: '新立课题的类型', options: [['public', '中心公共开支'], ['project', '课题']] as [string, string][], value: 'public' } as Field,
+      { name: 'new_owner', label: '新立课题的负责人（中心公共开支可留空）', required: false, options: data.users.filter((u) => u.active).map((u): [string, string] => [u.id, u.name]) } as Field]),
       { name: 'amount', label: '金额（元）', type: 'number' as const, value: m ? String(num(m.amount)) : '' },
       { name: 'note', label: '说明（选填）', required: false, value: m?.note ?? '' }],
-    run: (v) => rpc('save_budget_module', { id: m?.id ?? null, year, project: m?.project_id ?? v.project, amount: v.amount, note: v.note || null }) });
+    run: async (v) => {
+      let project = m?.project_id ?? v.project ?? '';
+      const name = (v.new_name ?? '').trim();
+      if (!m && project && name) throw new Error('已选了已有课题，就不要再填新立课题的名称');
+      if (!m && !project && !name) throw new Error('请选择已有课题，或填写新立课题的名称');
+      if (!m && !project) project = await rpc('save_project', { id: null, code: null, name, kind: v.new_kind || 'public', owner_id: v.new_owner || null, active: true, parent_id: null }) as string;
+      return rpc('save_budget_module', { id: m?.id ?? null, year, project, amount: v.amount, note: v.note || null });
+    } });
   const cats: [string, string][] = data.cats.filter((c) => c.active && !c.labor).sort((a, b) => a.sort - b.sort).map((c) => [c.id, c.name]);
   const tierAct = (t?: BudgetTier): Act => ({
     title: t ? `修改档次：${t.name}` : '新增档次', label: '保存',
