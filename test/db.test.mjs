@@ -1605,22 +1605,23 @@ ok(Number((await card(kl)).assigned) === 6000, '学校科目上已有支出、�
 await q("select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: schoolSub, amount: 2000 }])]);
 await raises('不能把学校科目的预算调低到已入账以下', /./, "select set_budget($1, $2)", [kl, JSON.stringify([{ subject_id: schoolSub, amount: 100 }])]);
 await as(U.fin, '2032-06-01');
-// ---------- 年度预算按档次：财务岗编总预算、模块、档次，课题带明细申请档次，中心负责人评定 ----------
+// ---------- 年度预算按档次：财务岗编总预算、直接确定金额的课题、档次，课题带明细申请档次，中心负责人评定 ----------
 const fy = await val(`select save_fund_project(null, '档次测算项目', 'school', null, null, 500000, '2033-01-01', '2033-12-31', $1, 'recall') v`, [T.N]);
 await q(`select open_budget_year(2033, '2032-11-30')`);
 await raises('没测算总预算编不了档次', /超过总预算/, `select save_budget_tier(null, 2033, '一档', 100000, 1, 0.3, null)`);
 await q(`select save_budget_source(2033, $1, 300000)`, [fy]);
-await q(`select save_budget_module(null, 2033, '中心公共开支', 60000)`);
+await q(`select save_budget_module(null, 2033, $1, 60000)`, [P0]);
 const t1 = await val(`select save_budget_tier(null, 2033, '一档', 100000, 1, 0.3, $1::text::jsonb) v`, [JSON.stringify([{ category_id: cE, ratio: 0.5 }])]);
 const t2 = await val(`select save_budget_tier(null, 2033, '二档', 50000, 2, 0.3, null) v`);
-await raises('模块和档次合计不能超过总预算', /超过总预算，超出 60000/, `select save_budget_tier(null, 2033, '三档', 50000, 2, null, null)`);
+await raises('直接确定金额的课题和档次合计不能超过总预算', /超过总预算，超出 60000/, `select save_budget_tier(null, 2033, '三档', 50000, 2, null, null)`);
 const pl = await one(`select total, modules, tiers, published from api.budget_plan where year = 2033`);
-ok(Number(pl.total) === 300000 && Number(pl.modules) === 60000 && Number(pl.tiers) === 200000 && pl.published === false, '总预算、模块合计、档次合计', JSON.stringify(pl));
-// 模块也是课题：按名称对上已有课题，没有的新建一个
-ok((await one(`select project_id from api.budget_module where year = 2033 and name = '中心公共开支'`)).project_id === P0, '模块按名称对应到已有的课题');
-await q(`select save_budget_module(null, 2033, '学术交流', 20000)`);
-const MT = (await one(`select project_id from api.budget_module where year = 2033 and name = '学术交流'`)).project_id;
-ok(!!MT && (await one(`select name, layer from api.project where id = $1`, [MT])).name === '学术交流', '没有同名课题的模块新建一个课题');
+ok(Number(pl.total) === 300000 && Number(pl.modules) === 60000 && Number(pl.tiers) === 200000 && pl.published === false, '总预算、直接确定的金额合计、档次合计', JSON.stringify(pl));
+// 中心公共开支就是一个课题：方案里直接选课题、写金额
+ok((await one(`select name, project_id from api.budget_module where year = 2033 and project_id = $1`, [P0])).name === '中心公共开支', '方案里直接给课题确定金额，名称就是课题的名称');
+await raises('同一课题一个年度只确定一次金额', /已在本年度方案中确定了金额/, `select save_budget_module(null, 2033, $1, 100)`, [P0]);
+await raises('要选课题', /请选择课题/, `select save_budget_module(null, 2033, null, 100)`);
+const MT = await val(`select save_project(null, 'P-T0', '学术交流', 'project', $1, true) v`, [U.dir]);
+await q(`select save_budget_module(null, 2033, $1, 20000)`, [MT]);
 const TB = await val(`select save_project(null, 'P-T1', '档次课题甲', 'project', $1, true) v`, [U.lead]);
 const TU = await val(`select save_project(null, '', '档次研究单元', null, $1, true, $2) v`, [U.mem, TB]);
 await raises('财务岗不能批准方案', /需要权限/, `select publish_budget_plan(2033)`);
@@ -1630,16 +1631,16 @@ await raises('方案批准前不能申请档次', /方案尚未批准/, `select 
 await as(U.dir, '2032-06-02');
 await q(`select publish_budget_plan(2033)`);
 await as(U.fin, '2032-06-02');
-await raises('方案批准后不能再改', /方案已批准/, `select save_budget_module(null, 2033, '机动', 10000)`);
+await raises('方案批准后不能再改', /方案已批准/, `select save_budget_module(null, 2033, $1, 10000)`, [TB]);
 await raises('编了档次的年度不走旧的截止申报', /按档次评定/, `select advance_budget_year(2033, 'close')`);
 const ML = await val(`select save_budget_line(null, 2033, $1, $2, '会议注册', 30000, 0, 0, 0) v`, [MT, cE]);
-await raises('模块对应课题的明细不能超过模块金额', /超过模块「学术交流」的金额 20000/, `select set_project_budget(2033, $1, 'submit')`, [MT]);
+await raises('明细不能超过方案为课题确定的金额', /超过预算方案为本课题确定的金额 20000/, `select set_project_budget(2033, $1, 'submit')`, [MT]);
 await q(`select save_budget_line($1, null, null, $2, '会议注册', 15000, 0, 0, 0)`, [ML, cE]);
 await q(`select set_project_budget(2033, $1, 'submit')`, [MT]);
-await raises('模块对应的课题不申请档次', /是本年度预算方案中的模块/, `select pick_tier(2033, $1, $2)`, [MT, t2]);
+await raises('方案直接确定金额的课题不申请档次', /已由本年度预算方案直接确定/, `select pick_tier(2033, $1, $2)`, [MT, t2]);
 await as(U.lead, '2032-06-03');
 eq((await q(`select * from api.budget_tier where year = 2033`)).length, 2, '方案批准后课题负责人看得到档次');
-eq((await q(`select * from api.budget_module`)).length, 0, '课题负责人看不到模块');
+eq((await q(`select * from api.budget_module`)).length, 0, '课题负责人看不到方案里直接确定金额的一栏');
 const TL = await val(`select save_budget_line(null, 2033, $1, $2, '工作站', 60000, 0, 0, 0) v`, [TB, cE]);
 await raises('没选档次不能提交预算', /请先为课题选择申请的档次/, `select set_project_budget(2033, $1, 'submit')`, [TB]);
 await q(`select pick_tier(2033, $1, $2, '上年度执行良好')`, [TB, t1]);
@@ -1713,8 +1714,8 @@ const npOk = await one(`select active, proposed, (select fixed from project_budg
   (select count(*)::int from project q where q.parent_id = $1 and not q.proposed) units from project where id = $1`, [NP, NL]);
 await db.exec(`set role app_api`);
 ok(npOk.active === true && npOk.proposed === false && Number(npOk.fixed) === 20000 && Number(npOk.cap) === 50000 && npOk.units === 2, '立项通过的课题连同研究单元正式成立，档次成为上限', JSON.stringify(npOk));
-eq((await one(`select amount from api.project_cap where year = 2033 and project_id = $1`, [MT])).amount, 20000, '评定完成后模块金额成为对应课题的年度上限');
-eq((await one(`select fixed from api.budget_line where id = $1`, [ML])).fixed, 15000, '模块对应课题的明细一并核定');
+eq((await one(`select amount from api.project_cap where year = 2033 and project_id = $1`, [MT])).amount, 20000, '评定完成后方案确定的金额成为该课题的年度上限');
+eq((await one(`select fixed from api.budget_line where id = $1`, [ML])).fixed, 15000, '该课题的明细一并核定');
 await as(U.fin, '2032-06-05');
 // 旧入口直接建的卡自动补上经费项目
 await db.exec(`reset role`);

@@ -77,7 +77,7 @@ const RPC: Record<string, [string, string][]> = {
   set_school_balance: [['card_id', 'uuid'], ['balance', 'numeric'], ['frozen', 'numeric'], ['available', 'numeric']],
   post_vouchers: [['rows', 'jsonb']],
   save_budget_source: [['year', 'int'], ['fund_project', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
-  save_budget_module: [['id', 'uuid'], ['year', 'int'], ['name', 'text'], ['amount', 'numeric'], ['note', 'text'], ['project', 'uuid']],
+  save_budget_module: [['id', 'uuid'], ['year', 'int'], ['project', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
   save_budget_tier: [['id', 'uuid'], ['year', 'int'], ['name', 'text'], ['amount', 'numeric'], ['slots', 'int'], ['labor_ratio', 'numeric'], ['limits', 'jsonb']],
   publish_budget_plan: [['year', 'int'], ['on', 'boolean']],
   pick_tier: [['year', 'int'], ['project', 'uuid'], ['tier', 'uuid'], ['reason', 'text']],

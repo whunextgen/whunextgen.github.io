@@ -6,8 +6,8 @@ import { ObjHead, Stages, Track, type Seg } from '../tree';
 const wan = (x: number) => `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 || x % 1e4 === 0 ? 0 : 1)} 万`;
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
-// 总预算与档次：财务岗按明年各项目可用的经费测算总预算，划出公共开支等模块，余下的编成档次。
-// 模块也是课题：每个模块对应一个课题，金额由方案直接确定，不参加档次评定；
+// 总预算与档次：财务岗按明年各项目可用的经费测算总预算，先给中心公共开支这样的课题直接确定金额，余下的编成档次。
+// 没有单独的一类东西叫模块：中心公共开支就是一个课题，只是金额由方案直接确定，不参加档次评定；
 // 中心负责人批准后，各课题带着明细申请档次；评定由联席会议决定、助理录入结果；中心负责人确认评定完成后，档次即课题上限、明细即预算行，转入下达。
 export function PlanPage({ me, start }: { me: Me; start: string }) {
   const { data, error, reload } = useViews<{ years: BudgetYear[]; plans: BudgetPlan[]; sources: BudgetSource[]; modules: BudgetModule[]; tiers: BudgetTier[]; picks: TierPick[];
@@ -37,7 +37,7 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
   // 走到哪一环
   const at = y.stage === 'closed' ? 9 : y.stage === 'issued' ? 8 : y.stage === 'fixed' ? 7 : y.stage !== 'declare' ? 7 : published ? (picks.length > 0 && undecided === 0 ? 6 : picks.length > 0 ? 6 : 5) : tiers.length > 0 ? 4 : modules.length > 0 ? 3 : total > 0 ? 2 : 1;
 
-  // ---------- 财务岗：测算、模块、档次 ----------
+  // ---------- 财务岗：测算、直接确定金额的课题、档次 ----------
   const funds = data.funds.filter((p) => !p.auto && p.status === 'active').sort((a, b) => a.name.localeCompare(b.name, 'zh'));
   const liveLeft = (p: FundProject) => data.cards.filter((c) => c.project_id === p.id && c.status === 'active').reduce((t, c) => t + Math.max(cardTotal(c) - num(c.actual) - num(c.commit), 0), 0);
   const sourceAct = (p: FundProject): Act => { const s = sources.find((x) => x.fund_project_id === p.id); return {
@@ -45,16 +45,19 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
     hint: `该项目额度剩余 ${p.quota != null ? money(Math.max(num(p.quota) - num(p.granted), 0)) : '未填额度'}，在用经费卡预计结余 ${money(liveLeft(p))}，经费卡到期处理为${END_RULE[p.end_rule]}。按预计明年可用于中心的数填写；不计入的留空。`,
     fields: [{ name: 'amount', label: '计入金额（元）', type: 'number', required: false, value: s ? String(num(s.amount)) : '' }, { name: 'note', label: '说明（选填）', required: false, value: s?.note ?? '' }],
     run: (v) => rpc('save_budget_source', { year, fund_project: p.id, amount: v.amount || null, note: v.note || null }) }; };
+  // 可由方案直接确定金额的课题：已立项、本年度没有申请档次、方案里还没有的
+  const fixable = data.projects.filter((p) => p.layer !== 'paper' && p.active && !picks.some((k) => k.project_id === p.id) && !modules.some((m) => m.project_id === p.id)).sort((a, b) => a.code.localeCompare(b.code));
   const moduleAct = (m?: BudgetModule): Act => ({
-    title: m ? `修改模块：${m.name}` : '新增模块', label: '保存', hint: '模块也是课题：金额由本方案直接确定，从总预算中先行扣除，不参加档次评定，例如中心公共开支。可对应一个已有课题；不选的，按模块名称对应同名课题，没有则新建一个课题，负责人和成员在课题管理中设定。',
-    fields: [{ name: 'name', label: '模块名称', value: m?.name }, { name: 'amount', label: '金额（元）', type: 'number', value: m ? String(num(m.amount)) : '' },
-      { name: 'project', label: '对应的课题（选填）', required: false, value: m?.project_id ?? '', options: data.projects.filter((p) => p.layer !== 'paper' && p.active && !picks.some((k) => k.project_id === p.id)).map((p): [string, string] => [p.id, `${p.code} ${p.name}`]) },
+    title: m ? `修改金额：${m.name}` : '直接确定课题的金额', label: '保存',
+    hint: m ? '该课题的金额由本方案直接确定，从总预算中先行扣除，不参加档次评定。' : `中心公共开支这样的课题，金额由本方案直接确定，从总预算中先行扣除，不参加档次评定；课题连同研究单元的明细合计不得超过这个金额。${fixable.length === 0 ? '目前没有可选的课题，请先在课题管理中新立课题。' : ''}`,
+    fields: [...(m ? [] : [{ name: 'project', label: '课题', options: fixable.map((p): [string, string] => [p.id, `${p.code} ${p.name}`]) }]),
+      { name: 'amount', label: '金额（元）', type: 'number' as const, value: m ? String(num(m.amount)) : '' },
       { name: 'note', label: '说明（选填）', required: false, value: m?.note ?? '' }],
-    run: (v) => rpc('save_budget_module', { id: m?.id ?? null, year, name: v.name, amount: v.amount, note: v.note || null, project: v.project || null }) });
+    run: (v) => rpc('save_budget_module', { id: m?.id ?? null, year, project: m?.project_id ?? v.project, amount: v.amount, note: v.note || null }) });
   const cats: [string, string][] = data.cats.filter((c) => c.active && !c.labor).sort((a, b) => a.sort - b.sort).map((c) => [c.id, c.name]);
   const tierAct = (t?: BudgetTier): Act => ({
     title: t ? `修改档次：${t.name}` : '新增档次', label: '保存',
-    hint: `扣除模块后可分给课题 ${money(total - modSum)}，现有档次合计 ${money(tierSum)}。各档「金额 × 名额」合计不得超过可分给课题的数。限制按该档金额的比例计，课题连同研究单元的明细须符合。`,
+    hint: `扣除直接确定金额的课题后，可按档次分配 ${money(total - modSum)}，现有档次合计 ${money(tierSum)}。各档「金额 × 名额」合计不得超过可按档次分配的数。限制按该档金额的比例计，课题连同研究单元的明细须符合。`,
     fields: [{ name: 'name', label: '档次名称', value: t?.name }, { name: 'amount', label: '每个课题的金额（元）', type: 'number', value: t ? String(num(t.amount)) : '' },
       { name: 'slots', label: '名额', type: 'number', value: t ? String(t.slots) : '' },
       { name: 'labor', label: '劳务类比例上限（%，选填）', type: 'number', required: false, value: t?.labor_ratio != null ? String(num(t.labor_ratio) * 100) : '' },
@@ -67,7 +70,7 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
   const del = (title: string, run: () => Promise<unknown>): Act => ({ title, label: '删除', danger: true, fields: [], hint: '删除后不可恢复。', run });
 
   // ---------- 课题负责人：申请档次 ----------
-  // 模块对应的课题不申请档次，不列在申请里
+  // 方案直接确定金额的课题不申请档次，不列在申请里
   const moduleIds = new Set(data.mtopics.filter((m) => m.year === year).map((m) => m.project_id));
   const myTopics = data.projects.filter((p) => p.layer !== 'paper' && p.kind !== 'public' && p.active && !moduleIds.has(p.id) && (p.mine || finance));
   // 任何成员都可以申请立项；通过立项即为该课题的负责人
@@ -92,7 +95,7 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
       { name: 'note', label: '会议意见（选填）', required: false, value: k.decide_note ?? '' }],
     run: (v) => rpc('decide_tier', { year, project: k.project_id, tier: v.tier, note: v.note || null, on: v.on }) });
 
-  const segs: Seg[] = [...modules.map((m, i): Seg => ({ cls: `${i % 2 ? 'sy1' : 'sy0'} big`, value: num(m.amount), text: m.name, tip: `模块「${m.name}」${money(m.amount)}，占总预算 ${pct(num(m.amount), total)}` })),
+  const segs: Seg[] = [...modules.map((m, i): Seg => ({ cls: `${i % 2 ? 'sy1' : 'sy0'} big`, value: num(m.amount), text: m.name, tip: `课题「${m.name}」由方案直接确定 ${money(m.amount)}，占总预算 ${pct(num(m.amount), total)}` })),
     ...tiers.map((t, i): Seg => ({ cls: `u${i % 3} big`, value: num(t.amount) * t.slots, text: `${t.name} ${t.slots} 个`, tip: `「${t.name}」每个课题 ${money(t.amount)} × ${t.slots} 个名额，合计 ${money(num(t.amount) * t.slots)}` })),
     ...(room > 0 ? [{ cls: 'hatch big', value: room, text: '未分配', tip: `未分配 ${money(room)}` }] : [])];
   const rejectAct = (k: TierPick): Act => ({
@@ -108,16 +111,16 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
         eyebrow={`年度预算 · ${year} 年度 · ${published ? `方案已批准${plan?.plan_by_name ? `（${plan.plan_by_name}）` : ''}` : '方案编制中'}`} title={`${year} 年度预算`}
         badge={y.stage === 'declare' ? <Badge tone={published ? 'pri' : 'warn'}>{published ? '课题申请与评定中' : '方案编制中'}</Badge> : <Badge tone="ok">{y.stage === 'closed' ? '已决算' : y.stage === 'issued' ? '已下达，执行中' : '评定完成，待下达'}</Badge>}
         label={staff ? '年度总预算' : '档次合计'} value={staff ? total : tierSum}
-        chart={staff ? (segs.length > 0 ? <Track cap="总预算的去向 · 各模块、各档次与未分配" segs={segs} /> : <Empty>尚未测算总预算。</Empty>)
+        chart={staff ? (segs.length > 0 ? <Track cap="总预算的去向 · 直接确定金额的课题、各档次与未分配" segs={segs} /> : <Empty>尚未测算总预算。</Empty>)
           : tiers.length > 0 ? <Track cap="各档次 · 金额 × 名额" segs={tiers.map((t, i): Seg => ({ cls: `u${i % 3} big`, value: num(t.amount) * t.slots, text: `${t.name} ${t.slots} 个`, tip: `「${t.name}」每个课题 ${money(t.amount)}，名额 ${t.slots}` }))} /> : <Empty>档次方案尚未批准公布。</Empty>}
-        facts={staff ? [['模块合计', money(modSum)], ['可分给课题', money(total - modSum)], ['档次合计', money(tierSum)], ['未分配', money(room), room < 0], ['已申请课题', `${picks.length} 个`]]
+        facts={staff ? [['直接确定金额的课题', money(modSum)], ['可按档次分配', money(total - modSum)], ['档次合计', money(tierSum)], ['未分配', money(room), room < 0], ['已申请课题', `${picks.length} 个`]]
           : [['档次', `${tiers.length} 档`], ['名额', `${tiers.reduce((t, x) => t + x.slots, 0)} 个`], ['申报截止', day(y.due_date)]]}
         actions={director && y.stage === 'declare' ? (published
-          ? <button className="sm ghost" onClick={() => setAct({ title: '撤回批准', label: '撤回', danger: true, fields: [], hint: '撤回后财务岗可继续修改总预算、模块和档次。已有课题申请档次的不得撤回。', run: () => rpc('publish_budget_plan', { year, on: false }) })}>撤回批准</button>
-          : <button className="sm" onClick={() => setAct({ title: `批准 ${year} 年度预算方案`, label: '批准', fields: [], hint: `总预算 ${money(total)}，模块合计 ${money(modSum)}，档次合计 ${money(tierSum)}，未分配 ${money(room)}。批准后向各课题公布档次，课题即可申请。`, run: () => rpc('publish_budget_plan', { year, on: true }) })}>批准方案</button>) : undefined} />
-      <Stages path="测算总预算 › 划出模块 › 编档次 › 批准方案 › 立项与延续申请 › 评定 › 下达执行 › 年度决算" at={at} items={[
+          ? <button className="sm ghost" onClick={() => setAct({ title: '撤回批准', label: '撤回', danger: true, fields: [], hint: '撤回后财务岗可继续修改总预算、直接确定金额的课题和档次。已有课题申请档次的不得撤回。', run: () => rpc('publish_budget_plan', { year, on: false }) })}>撤回批准</button>
+          : <button className="sm" onClick={() => setAct({ title: `批准 ${year} 年度预算方案`, label: '批准', fields: [], hint: `总预算 ${money(total)}，直接确定金额的课题合计 ${money(modSum)}，档次合计 ${money(tierSum)}，未分配 ${money(room)}。批准后向各课题公布档次，课题即可申请。`, run: () => rpc('publish_budget_plan', { year, on: true }) })}>批准方案</button>) : undefined} />
+      <Stages path="测算总预算 › 直接确定金额的课题 › 编档次 › 批准方案 › 立项与延续申请 › 评定 › 下达执行 › 年度决算" at={at} items={[
         { nm: '测算总预算', ds: '财务岗按各项目可用经费测算', v: staff ? wan(total) : '—', f: staff ? `${sources.length} 个项目计入` : '' },
-        { nm: '划出模块', ds: '模块也是课题，金额由方案定', v: staff ? wan(modSum) : '—', f: staff ? `${modules.length} 个模块` : '' },
+        { nm: '直接确定金额', ds: '中心公共开支等课题，不参加评定', v: staff ? wan(modSum) : '—', f: staff ? `${modules.length} 个课题` : '' },
         { nm: '编档次', ds: '每档金额、名额、限制', v: `${tiers.length} 档`, f: tiers.length ? `名额 ${tiers.reduce((t, x) => t + x.slots, 0)} 个` : '' },
         { nm: '批准方案', ds: '中心负责人批准后公布', v: published ? '已批准' : '未批准', f: plan?.plan_at ? day(plan.plan_at) : '' },
         { nm: '立项与延续', ds: '课题选档并提交明细', v: `${picks.length} 个课题`, f: published ? `申报截止 ${day(y.due_date)}` : '方案批准后开始' },
@@ -144,14 +147,14 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
 
       {staff && (
         <section className="card">
-          <h3>模块 <span className="h3sub">模块也是课题：金额由方案直接确定，从总预算中先行扣除，不参加档次评定</span></h3>
-          {modules.length === 0 ? <Empty>尚未划出模块。</Empty> : (
-            <table><thead><tr><th>模块（课题）</th><th>负责人</th><th className="r">金额</th><th className="r">已提交明细</th><th>说明</th>{editable && <th />}</tr></thead>
-              <tbody>{modules.map((m) => <tr key={m.id}><td>{m.project_id ? <a href={`#/project/${m.project_id}/${year}`}>{m.name}</a> : m.name}</td><td>{m.owner_name ?? <span className="sub2">未指定</span>}</td><td className="r">{money(m.amount)}</td><td className="r">{num(m.used) > 0 ? money(m.used) : '—'}</td><td className="wrap">{m.note ?? '—'}</td>
-                {editable && <td className="r"><div className="acts">{btn('修改', moduleAct(m))}{btn('删除', del(`删除模块：${m.name}`, () => rpc('save_budget_module', { id: m.id, year, name: m.name, amount: null, note: null })))}</div></td>}</tr>)}</tbody>
-              <tfoot><tr><th scope="row">扣除后可按档次分给课题</th><td /><td className="r">{money(total - modSum)}</td><td /><td />{editable && <td />}</tr></tfoot></table>
+          <h3>直接确定金额的课题 <span className="h3sub">中心公共开支这样的课题，金额由方案直接确定，从总预算中先行扣除，不参加档次评定</span></h3>
+          {modules.length === 0 ? <Empty>尚未给任何课题直接确定金额。</Empty> : (
+            <table><thead><tr><th>课题</th><th>负责人</th><th className="r">金额</th><th className="r">已提交明细</th><th>说明</th>{editable && <th />}</tr></thead>
+              <tbody>{modules.map((m) => <tr key={m.id}><td><a href={`#/project/${m.project_id}/${year}`}>{m.name}</a><div className="sub2">{m.code}</div></td><td>{m.owner_name ?? <span className="sub2">未指定</span>}</td><td className="r">{money(m.amount)}</td><td className="r">{num(m.used) > 0 ? money(m.used) : '—'}</td><td className="wrap">{m.note ?? '—'}</td>
+                {editable && <td className="r"><div className="acts">{btn('修改', moduleAct(m))}{btn('移出', del(`移出方案：${m.name}`, () => rpc('save_budget_module', { id: m.id, year, project: m.project_id, amount: null, note: null })))}</div></td>}</tr>)}</tbody>
+              <tfoot><tr><th scope="row">扣除后可按档次分配</th><td /><td className="r">{money(total - modSum)}</td><td /><td />{editable && <td />}</tr></tfoot></table>
           )}
-          {editable && <div className="actions" style={{ justifyContent: 'flex-start' }}>{btn('新增模块', moduleAct(), 'sm')}</div>}
+          {editable && <div className="actions" style={{ justifyContent: 'flex-start' }}>{btn('直接确定课题的金额', moduleAct(), 'sm')}</div>}
         </section>
       )}
 
@@ -167,7 +170,7 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
           </table></div>
         )}
         {editable && <div className="actions" style={{ justifyContent: 'flex-start' }}>{btn('新增档次', tierAct(), 'sm')}</div>}
-        {finance && y.stage === 'declare' && published && <p className="hint">方案已批准。如需修改总预算、模块或档次，请中心负责人先撤回批准。</p>}
+        {finance && y.stage === 'declare' && published && <p className="hint">方案已批准。如需修改总预算、直接确定金额的课题或档次，请中心负责人先撤回批准。</p>}
       </section>
 
       {published && y.stage === 'declare' && (myTopics.length > 0 || canPropose) && (
