@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ObjHead, Stages, Track, execSegs } from '../tree';
-import { rpc, useViews, type ProjectTag, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember } from '../api';
+import { rpc, useViews, type ModuleTopic, type ProjectTag, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember } from '../api';
 import { ActionDialog, Badge, Empty, Loading, Tile, can, day, money, num, pct, today } from '../ui';
 import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
@@ -14,8 +14,8 @@ export const typeText = (r: Project) => r.layer === 'paper' ? '研究单元' : r
 export function ProjectPage({ me, id, start }: { me: Me; id: string; start: string }) {
   const director = can(me, 'budget.approve');
   const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; lines: BudgetLine[]; exec: LineExec[]; cats: BudgetCategory[]; shifts: BudgetShift[];
-    members: ProjectMember[]; people: PeoplePick[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; reqs: Req[]; resreqs: ResourceRequest[] }>({
-    reqs: ['request'], resreqs: ['resource_request'],
+    members: ProjectMember[]; people: PeoplePick[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; reqs: Req[]; resreqs: ResourceRequest[]; mtopics: ModuleTopic[] }>({
+    reqs: ['request'], resreqs: ['resource_request'], mtopics: ['module_topic'],
     tags: ['project_tag'],
     projects: ['project'], years: ['budget_year'], lines: ['budget_line'], exec: ['line_exec'], cats: ['budget_category'], shifts: ['budget_shift'],
     members: ['project_member'], people: ['people_pick'], caps: ['project_cap'], capreqs: ['cap_request'], assets: ['project_asset'], pallocs: ['project_allocation'],
@@ -107,7 +107,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
   return (
     <div className="wb obj">
       <ObjHead crumb={<><a href="#/projects">课题管理</a>{isUnit && r.parent_id && <> › {data.projects.some((x) => x.id === r.parent_id && x.seen) ? <a href={`#/project/${r.parent_id}`}>{r.parent_name}</a> : r.parent_name}</>} › {r.name}</>}
-        eyebrow={`${un} · ${r.code}${r.owner_name ? ` · 负责人 ${r.owner_name}` : ''}${y ? ` · ${year} 年度` : ''}`} title={r.name} badge={<>{data.tags.some((t) => t.id === r.id && t.proposed) && <Badge tone="warn">待立项</Badge>}{data.tags.some((t) => t.id === r.id && t.morningstar) && <> <Badge>晨星</Badge></>}{r.active === false && <> <Badge>已停用</Badge></>}</>}
+        eyebrow={`${un} · ${r.code}${r.owner_name ? ` · 负责人 ${r.owner_name}` : ''}${y ? ` · ${year} 年度` : ''}`} title={r.name} badge={<>{data.mtopics.some((m) => m.project_id === r.id && m.year === year) && <Badge>模块</Badge>}{data.tags.some((t) => t.id === r.id && t.proposed) && <> <Badge tone="warn">待立项</Badge></>}{data.tags.some((t) => t.id === r.id && t.morningstar) && <> <Badge>晨星</Badge></>}{r.active === false && <> <Badge>已停用</Badge></>}</>}
         label={run ? '可用' : `${year || ''} 年度预算`.trim()} value={!y ? '未启动' : run ? all.budget - all.used : own.n || kt.length ? all.budget : '未填报'} neg={run && all.budget - all.used < 0}
         chart={run && all.budget > 0 ? <Track cap="执行 · 已入账、已承诺、可用" segs={execSegs(all.budget, all.actual, pendingAmt, '核定数').map((g) => ({ ...g, cls: `${g.cls} big` }))} />
           : !isUnit && kt.length > 0 && all.budget > 0 ? <Track cap="预算构成 · 各研究单元与课题自身" segs={[...kt.map(({ k, t }, i) => ({ cls: `u${i % 3} big`, value: t.budget, text: k.name, tip: `研究单元「${k.name}」预算 ${money(t.budget)}，占 ${pct(t.budget, all.budget)}` })), { cls: 'sy0 big', value: own.budget, text: '课题自身', tip: `课题自身的预算行 ${money(own.budget)}` }]} />

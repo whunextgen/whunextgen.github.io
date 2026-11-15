@@ -75,7 +75,8 @@ export interface CardSchoolSubject { card_id: string; subject_id: string; school
 // 项目：额度和期限在这里；每年下来的经费是它下面当年的一张经费卡
 export interface BudgetPlan { year: number; published: boolean; plan_at: string | null; plan_by_name: string | null; total: string | null; modules: string | null; tiers: string }
 export interface BudgetSource { year: number; fund_project_id: string; amount: string; note: string | null }
-export interface BudgetModule { id: string; year: number; name: string; amount: string; note: string | null }
+export interface BudgetModule { id: string; year: number; name: string; amount: string; note: string | null; project_id: string | null; used: string; owner_name: string | null }
+export interface ModuleTopic { year: number; project_id: string; name: string; amount: string }
 export interface BudgetTier { id: string; year: number; name: string; amount: string; slots: number; labor_ratio: string | null; limits: { category_id: string; ratio: number | string }[]; sort: number; picked: number; decided: number }
 export interface TierPick { year: number; project_id: string; project_name: string; owner_name: string | null; tier_id: string; reason: string | null; picked_at: string;
   decided_tier_id: string | null; decide_note: string | null; decided_at: string | null; total: string; drafts: number; violation: string | null; meeting_on: string | null; decided_by_name: string | null; kind: 'new' | 'renew'; rejected: boolean; units: number }
