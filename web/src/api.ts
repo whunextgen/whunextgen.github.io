@@ -73,6 +73,12 @@ export interface Card {
 export interface CardIncome { id: string; card_id: string; posted_on: string; voucher_no: string | null; title: string; amount: string; school_code: string | null; school_name: string | null }
 export interface CardSchoolSubject { card_id: string; subject_id: string; school_name: string; school_code: string | null; n: number; amount: string }
 // 项目：额度和期限在这里；每年下来的经费是它下面当年的一张经费卡
+export interface BudgetPlan { year: number; published: boolean; plan_at: string | null; plan_by_name: string | null; total: string | null; modules: string | null; tiers: string }
+export interface BudgetSource { year: number; fund_project_id: string; amount: string; note: string | null }
+export interface BudgetModule { id: string; year: number; name: string; amount: string; note: string | null }
+export interface BudgetTier { id: string; year: number; name: string; amount: string; slots: number; labor_ratio: string | null; limits: { category_id: string; ratio: number | string }[]; sort: number; picked: number; decided: number }
+export interface TierPick { year: number; project_id: string; project_name: string; owner_name: string | null; tier_id: string; reason: string | null; picked_at: string;
+  decided_tier_id: string | null; decide_note: string | null; decided_at: string | null; total: string; drafts: number; violation: string | null }
 export interface ProjectTag { id: string; morningstar: boolean }
 export interface FundProject { id: string; name: string; source: 'school' | 'national' | 'provincial' | 'enterprise' | 'other' | null; fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null;
   owner_id: string | null; owner_name: string | null; quota: string | null; period_start: string | null; period_end: string | null; template_id: string; template_name: string;
