@@ -163,7 +163,7 @@ export function Home({ me }: { me: Me }) {
     const noCard = !cs.some(live);
     const back = cs.filter((c) => c.status === 'settled' && c.end_rule === 'recall').reduce((t, c) => t + num(c.recalled ?? 0), 0);
     return (
-      <TreeNode key={p.id} level={1} lv="项目" title={p.name} meta={meta} open={pi === 0}
+      <TreeNode key={p.id} level={1} lv="项目" title={p.name} meta={meta} href={`#/fund/${p.id}`} open={pi === 0}
         chart={segs.length > 0 ? <Track cap={quota != null ? '额度构成 · 各经费卡占用与额度剩余（到期回收的结余已扣除）' : '各经费卡已下达 · 额度尚未填写'} segs={segs} /> : <div className="wb-bar"><div className="wb-cap">尚未开出经费卡</div></div>}
         num={quota != null ? `额度 ${money(quota)}` : '额度尚未填写'} sub={`占用额度 ${money(granted)}${back > 0 ? `（已扣到期回收 ${money(back)}）` : ''}${quota != null ? ` · 额度剩余 ${money(Math.max(quota - granted, 0))}` : ''}`}
         status={noCard ? ['warn', '当前没有在有效期内的经费卡，无可用经费'] : null}>

@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { Track, execSegs, type Seg } from '../tree';
 import { rpc, useViews, type Card, type FundProject, type Me, type Template, type User } from '../api';
-import { ActionDialog, Badge, CLOSE_RULE, Empty, END_RULE, FUND_KIND, FUND_SOURCE, Loading, ROLE, Tile, can, cardGap, cardGranted, day, money, num, today, type Field } from '../ui';
+import { ActionDialog, Badge, CLOSE_RULE, Empty, END_RULE, FUND_KIND, FUND_SOURCE, Loading, ROLE, Tile, can, cardGap, cardGranted, day, money, num, pct, today, type Field } from '../ui';
 
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
 // 项目：学校、国家等渠道批下来的，记额度和期限。每次下达的经费是项目下的一张经费卡，经费卡可以跨年度使用，到期后按到期处理回收或结转；结余上缴按项目办，在项目结束时处理。
-export function Funds({ me }: { me: Me }) {
+// only 给出时是单个项目的详情页（#/fund/<id>），否则是项目管理的列表
+export function Funds({ me, only }: { me: Me; only?: string }) {
   const { data, error, reload } = useViews<{ projects: FundProject[]; cards: Card[]; templates: Template[]; users: User[] }>({
     projects: ['fund_project'], cards: ['card'], templates: ['template'], users: ['users'],
   });
@@ -23,7 +25,8 @@ export function Funds({ me }: { me: Me }) {
   const loose = pending.flatMap((p) => cardsOf(p).map((c) => ({ p, c }))).sort((a, b) => a.c.card_no.localeCompare(b.c.card_no));
   const projects = data.projects.filter((p) => !p.auto).sort((a, b) => a.status.localeCompare(b.status) || (a.period_end ?? '9').localeCompare(b.period_end ?? '9') || a.name.localeCompare(b.name, 'zh'));
   const active = projects.filter((p) => p.status === 'active');
-  const shown = showClosed ? projects : active;
+  const one = only ? data.projects.find((p) => p.id === only && !p.auto) : undefined;
+  const shown = only ? (one ? [one] : []) : showClosed ? projects : active;
   const withQuota = active.filter((p) => p.quota != null);
   const sum = (f: (p: FundProject) => number, ps = active) => ps.reduce((s, p) => s + f(p), 0);
   const realIds = new Set(projects.map((p) => p.id));
@@ -106,6 +109,115 @@ export function Funds({ me }: { me: Me }) {
     : num(c.carried_out) > 0 ? <Badge>已结清，结转 {money(c.carried_out)}</Badge>
     : num(c.recalled) > 0 ? <Badge tone="warn">已结清，回收 {money(c.recalled)}</Badge> : <Badge>已结清</Badge>;
 
+  // ---------- 单个项目的详情页 ----------
+  if (only) {
+    const dialog = act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label}
+      onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />;
+    const p = one;
+    if (!p) return <><p className="hint"><a href="#/funds">项目管理</a> › 项目</p><section className="card"><Empty>未找到该项目，或无权查看。</Empty></section></>;
+    const now = today();
+    const cs = data.cards.filter((c) => c.project_id === p.id).sort((a, b) => b.year - a.year || a.card_no.localeCompare(b.card_no));
+    const quota = p.quota != null ? num(p.quota) : null; const granted = num(p.granted); const rest = left(p);
+    const liveCs = cs.filter(live); const due = cs.filter((c) => c.status === 'active' && day(c.cutoff_date) < now); const settled = cs.filter((c) => c.status === 'settled');
+    const avail = liveCs.reduce((t, c) => t + num(c.avail), 0);
+    const actual = cs.reduce((t, c) => t + num(c.actual), 0); const commit = cs.filter((c) => c.status === 'active').reduce((t, c) => t + num(c.commit), 0);
+    const issued = cs.reduce((t, c) => t + cardGranted(c), 0);
+    const back = settled.filter((c) => c.end_rule === 'recall').reduce((t, c) => t + num(c.recalled ?? 0), 0);
+    const carried = settled.reduce((t, c) => t + num(c.carried_out ?? 0), 0);
+    const big = (x: number) => { const [a, d] = money(x).split('.'); return <>{a}<small>.{d}</small></>; };
+    // 额度构成：各经费卡占用（到期回收的结余已扣除）与额度剩余
+    const segs: Seg[] = [...cs].reverse().map((c, i) => { const g = cardGranted(c) - (c.status === 'settled' && c.end_rule === 'recall' ? num(c.recalled ?? 0) : 0);
+      return { cls: `${i % 2 ? 'sy1' : 'sy0'} big`, value: g, text: `${c.year} 年 ${c.card_no}`, tip: `${c.year} 年下达的经费卡 ${c.card_no}${c.name === p.name ? '' : `（${c.name}）`}占用额度 ${money(g)}${quota ? `，占额度 ${pct(g, quota)}` : ''}` }; });
+    if (quota != null && quota > granted) segs.push({ cls: 'hatch big', value: quota - granted, text: `额度剩余 ${pct(quota - granted, quota)}`, tip: `额度剩余 ${money(quota - granted)}，占额度 ${pct(quota - granted, quota)}；尚未下达，不是可用经费` });
+    // 流程：立项 → 下达 → 执行 → 到期处理 → 结题。当前所在环节加重显示
+    const at = p.status === 'closed' ? 5 : cs.length === 0 ? 2 : liveCs.length > 0 ? 3 : due.length > 0 ? 4 : 5;
+    const stages = [
+      { nm: '立项', ds: '批复额度和期限', v: quota != null ? money(quota) : '尚未填写', f: p.period_start || p.period_end ? `${day(p.period_start)} 至 ${day(p.period_end)}` : '期限尚未填写' },
+      { nm: '下达', ds: '每次下达开一张经费卡', v: `${cs.length} 张`, f: cs.length > 0 ? `历年下达 ${money(issued)}` : '尚未开出经费卡' },
+      { nm: '执行', ds: '支出与有效期内的经费卡核对', v: money(actual), f: `已入账；有效期内 ${liveCs.length} 张，可用 ${money(avail)}` },
+      { nm: '到期处理', ds: `经费卡到期后${END_RULE[p.end_rule]}`, v: `${settled.length} 张已结清`, f: [due.length > 0 && `${due.length} 张已到期待结清`, back > 0 && `回收 ${money(back)}，回到额度剩余`, carried > 0 && `结转 ${money(carried)}`].filter(Boolean).join('；') || '暂无到期的经费卡' },
+      { nm: '结题', ds: p.close_rule === 'return' ? '项目结束时结余上缴' : '项目结束时无须上缴', v: p.status === 'closed' ? '已结题' : '未结题', f: p.returned != null ? `上缴 ${money(p.returned)}` : p.status === 'closed' ? '' : '经费卡全部结清后可结题' },
+    ];
+    const timeOf = (c: Card) => { const a = Date.parse(day(c.start_date)), b = Date.parse(day(c.cutoff_date)); return b > a ? Math.min(1, Math.max(0, (Date.parse(now) - a) / (b - a))) : undefined; };
+    return (
+      <div className="wb">
+        <p className="hint" style={{ margin: 0 }}><a href="#/funds">项目管理</a> › {p.name}</p>
+        <div className="wb-hero">
+          <div>
+            <div className="eyebrow">项目{p.source ? ` · ${FUND_SOURCE[p.source]}` : ''}{p.fund_kind ? ` · ${FUND_KIND[p.fund_kind]}` : ''}{p.owner_name ? ` · 负责人 ${p.owner_name}` : ''}</div>
+            <h2 style={{ margin: '6px 0 0' }}>{p.name} {p.status === 'closed' ? <Badge>已结题</Badge> : p.period_end && day(p.period_end) < now ? <Badge tone="warn">已过期限</Badge> : null}</h2>
+            {rest != null
+              ? <h1><small>额度剩余</small><em className={rest < 0 ? 'neg' : ''}>{big(rest)}</em> 元</h1>
+              : <h1><small>有效期内可用</small><em className={avail < 0 ? 'neg' : ''}>{big(avail)}</em> 元</h1>}
+          </div>
+          <div>
+            {segs.length > 0 ? <Track cap={quota != null ? '额度构成 · 各经费卡占用与额度剩余（到期回收的结余已扣除）' : '各经费卡已下达 · 额度尚未填写'} segs={segs} /> : <Empty>尚未开出经费卡。</Empty>}
+            <div className="wb-facts">
+              <span>额度<b>{quota != null ? money(quota) : '尚未填写'}</b></span><span>占用额度<b>{money(granted)}</b></span>
+              <span>有效期内可用<b>{money(avail)}</b></span><span>历年已入账<b>{money(actual)}</b></span>{commit > 0 && <span>已承诺<b>{money(commit)}</b></span>}
+              {back > 0 && <span>到期回收<b>{money(back)}</b></span>}
+            </div>
+          </div>
+        </div>
+
+        <section className="wb-sec">
+          <div className="wb-sh"><span className="no">01</span><h2>流程</h2><span className="path">立项 › 下达 › 执行 › 到期处理 › 结题</span></div>
+          <div className="flowline" aria-label="项目流程">
+            {stages.map((g, i) => (
+              <div key={g.nm} className={`stage still${i + 1 === at ? ' on' : i + 1 < at ? ' done' : ''}`} aria-current={i + 1 === at ? 'step' : undefined}>
+                <span className="no">0{i + 1}</span><span className="nm">{g.nm}</span><span className="ds">{g.ds}</span><span className="v">{g.v}</span><span className="f">{g.f}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="wb-sec">
+          <div className="wb-sh"><span className="no">02</span><h2>经费卡</h2>{staff && p.status === 'active' ? <button onClick={() => setAct(openAct(p))} style={{ marginLeft: 'auto' }}>开经费卡</button> : <span className="path">{cs.length} 张</span>}</div>
+          <div className="wb-key"><span><i className="sa" />已入账</span><span><i className="sc" />已承诺</span><span><i className="sr" />可用</span></div>
+          {cs.length === 0 ? <Empty>尚未开出经费卡。</Empty> : (
+            <div className="scroll"><table className="wb-table">
+              <thead><tr><th>下达年度</th><th>经费卡号</th><th>名称</th><th className="r">下达数</th><th className="r">结转转入</th><th style={{ minWidth: 220 }}>执行</th><th className="r">可用</th><th>有效期</th><th>状态</th>{staff && <th />}</tr></thead>
+              <tbody>{cs.map((c) => { const total = num(c.cur); return (
+                <tr key={c.card_id}><td>{c.year}{outOf(p, c) && <> <Badge tone="warn">期限外</Badge></>}</td><td><a className="mono" href={`#/card/${c.card_id}`}>{c.card_no}</a></td><td>{c.name === p.name ? <span className="sub2">同项目</span> : c.name}</td>
+                  <td className="r">{money(cardGranted(c))}{c.applied != null && <div className="sub2" style={{ marginLeft: 0 }}>申请 {money(c.applied)}</div>}</td>
+                  <td className="r">{num(c.carried_in) > 0 ? money(c.carried_in) : '—'}</td>
+                  <td>{total > 0 ? <Track segs={execSegs(total, num(c.actual), num(c.commit), '下达数')} mark={c.status === 'active' ? timeOf(c) : undefined} /> : <span className="sub2">尚未下达</span>}</td>
+                  <td className={`r ${num(c.avail) < 0 ? 'neg' : ''}`}>{c.status === 'settled' ? '—' : money(c.avail)}</td>
+                  <td>{day(c.start_date)} 至 {day(c.cutoff_date)}{c.status === 'active' && day(c.cutoff_date) < now && <> <Badge tone="warn">已到期</Badge></>}</td><td>{fate(c)}</td>
+                  {staff && <td><div className="acts">{c.status === 'active' && p.status === 'active' && <button className="sm ghost" onClick={() => setAct(moveAct(c))}>改归属</button>}
+                    {blank(c) && <button className="sm ghost" onClick={() => setAct(delCardAct(c))}>删除</button>}</div></td>}</tr>); })}</tbody>
+            </table></div>
+          )}
+          {cs.some((c) => outOf(p, c)) && <p className="hint">标有「期限外」的经费卡，其下达年度不在项目期限之内。项目如已延期，请修改项目期限；否则请核对该经费卡的下达年度。</p>}
+          {p.status === 'active' && liveCs.length === 0 && cs.length > 0 && <p className="hint">该项目当前没有在有效期内的经费卡，无可用经费。</p>}
+        </section>
+
+        <section className="wb-sec">
+          <div className="wb-sh"><span className="no">03</span><h2>项目信息</h2></div>
+          <table><tbody>
+            <tr><th scope="row">来源渠道</th><td>{p.source ? FUND_SOURCE[p.source] : <span className="sub2">尚未填写</span>}</td>
+              <th scope="row">经费性质</th><td>{p.fund_kind ? FUND_KIND[p.fund_kind] : <span className="sub2">尚未填写</span>}</td></tr>
+            <tr><th scope="row">负责人</th><td>{p.owner_name ?? <span className="sub2">尚未填写</span>}</td>
+              <th scope="row">科目模板</th><td>{p.template_name}</td></tr>
+            <tr><th scope="row">额度</th><td>{quota != null ? money(quota) : <span className="sub2">尚未填写</span>}</td>
+              <th scope="row">期限</th><td>{p.period_start || p.period_end ? `${day(p.period_start)} 至 ${day(p.period_end)}` : <span className="sub2">尚未填写</span>}</td></tr>
+            <tr><th scope="row">经费卡到期处理</th><td>{END_RULE[p.end_rule]}<span className="sub2"> {p.end_rule === 'carry' ? '结余带入更晚的同卡号经费卡' : '结余回到额度剩余，可重新申请'}</span></td>
+              <th scope="row">项目结束处理</th><td>{CLOSE_RULE[p.close_rule] ?? CLOSE_RULE.none}</td></tr>
+            {p.note && <tr><th scope="row">备注</th><td colSpan={3} className="wrap">{p.note}</td></tr>}
+          </tbody></table>
+          {staff && p.status === 'active' && (
+            <div className="actions" style={{ justifyContent: 'flex-start' }}>
+              <button className="sm ghost" onClick={() => setAct(projectAct(p))}>修改</button>
+              {cs.length === 0 && <button className="sm ghost" onClick={() => setAct({ ...delProjectAct(p), run: () => delProjectAct(p).run({}).then(() => { location.hash = '#/funds'; }) })}>删除</button>}
+              {cs.length > 0 && cs.every((c) => c.status === 'settled') && <button className="sm ghost" onClick={() => setAct(closeAct(p))}>结题</button>}
+            </div>
+          )}
+        </section>
+        {dialog}
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="top"><h2>项目管理</h2>{staff && <button onClick={() => setAct(projectAct())}>新建项目</button>}</div>
@@ -142,7 +254,7 @@ export function Funds({ me }: { me: Me }) {
         const facts = [p.source && FUND_SOURCE[p.source], p.fund_kind && FUND_KIND[p.fund_kind], p.owner_name && `负责人 ${p.owner_name}`, p.template_name, `经费卡到期处理：${END_RULE[p.end_rule]}`, p.close_rule === 'return' && '项目结束时结余上缴'].filter(Boolean).join(' · ');
         return (
           <section className="card" key={p.id}>
-            <h3>{p.name} {p.status === 'closed' ? <Badge>已结题</Badge> : p.period_end && day(p.period_end) < today() ? <Badge tone="warn">已过期限</Badge> : null}
+            <h3><a href={`#/fund/${p.id}`}>{p.name}</a> {p.status === 'closed' ? <Badge>已结题</Badge> : p.period_end && day(p.period_end) < today() ? <Badge tone="warn">已过期限</Badge> : null}
               <span className="h3sub">{facts}</span></h3>
             <table><tbody>
               <tr><th scope="row">额度</th><td>{p.quota != null ? money(p.quota) : <span className="sub2">尚未填写</span>}</td>

@@ -109,15 +109,17 @@ function App() {
   const side = keep(['/track', '在途事项'], seesCards && ['/rules', '报销答复记录'], !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
 
   const cardId = seesCards ? route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1] : undefined;
+  const fundId = seesCards ? route.match(/^\/fund\/([^/]+)$/)?.[1] : undefined;
   const proj = route.match(/^\/project\/([^/]+)(?:\/(\d{4}))?$/);
   const [, seg0 = '', arg = ''] = route.split('/');
   // 采购并进学校侧进度，旧的 #/procure 链接照样能用
   const procure = seg0 === 'procure' || (seg0 === 'school' && arg === 'procure');
   const seg = seg0 === 'procure' ? 'school' : seg0;
   const allowed = new Set([...groups.flatMap((g) => g.pages), ...side].map(([to]) => to));
-  const current = cardId ? '/cards' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
+  const current = cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
   const group = groups.find((g) => g.pages.some(([to]) => to === current));
   const page = cardId ? <CardPage me={me} id={cardId} />
+    : fundId ? <Funds me={me} only={fundId} />
     : proj ? <ProjectPage me={me} id={proj[1]} start={proj[2] ?? ''} />
     : current === '/budget' ? <BudgetPage me={me} start={arg} />
     : current === '/caps' ? <CapsPage me={me} start={arg} />

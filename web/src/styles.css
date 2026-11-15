@@ -263,6 +263,9 @@ fieldset.multi .field{margin-bottom:8px}
 .stage .ds{font-size:12px;color:var(--mute)}
 .stage .v{margin-top:10px;font-size:26px;font-weight:600;line-height:1.25;letter-spacing:-.02em;white-space:nowrap;font-variant-numeric:tabular-nums}
 .stage .f{font-size:12px;color:var(--mute)}
+.stage.still{cursor:default}.stage.still::after{content:none}.stage.still:hover{transform:none;box-shadow:var(--shadow);border-color:var(--line)}
+.stage.on,.stage.still.on:hover{border-color:var(--ink);box-shadow:var(--lift)}.stage.on .no::after{content:" · 当前"}.stage.done .v{color:var(--mute)}
+.stage.still .v{font-size:clamp(15px,1.55vw,24px);overflow:hidden;text-overflow:ellipsis}
 .stage:hover{border-color:#c9c9c4;transform:translateY(-2px);box-shadow:var(--lift)}
 .stage:hover::after{color:var(--brand);transform:translateX(4px)}
 

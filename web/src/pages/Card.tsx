@@ -155,7 +155,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       <section className="card">
         <h3>基本情况</h3>
         <table><tbody>
-          <tr><th scope="row">下达年度</th><td>{c.year} 年，有效期至 {day(c.cutoff_date)}<span className="sub2"> 额度和期限见<a href="#/funds">项目管理</a></span></td>
+          <tr><th scope="row">下达年度</th><td>{c.year} 年，有效期至 {day(c.cutoff_date)} · <a href={`#/fund/${c.project_id}`}>所属项目</a><span className="sub2"> 额度和期限见<a href="#/funds">项目管理</a></span></td>
             <th scope="row">申请数</th><td>{c.applied != null ? money(c.applied) : <span className="sub2">尚未填写</span>}</td></tr>
           <tr><th scope="row">下达数</th><td>{money(cardGranted(c))}{c.granted == null && <span className="sub2"> 未单独填写，按明细合计</span>}
             {gap >= 0.005 && <> <Badge tone="warn">尚有 {money(gap)} 未分到科目，暂不可支出</Badge></>}
