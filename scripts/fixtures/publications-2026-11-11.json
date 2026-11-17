@@ -1,5 +1,5 @@
 {
-  "verifiedAt": "2026-11-11",
+  "verifiedAt": "2026-11-17",
   "publications": [
     {
       "id": "batch_1768841452014_2",
@@ -1239,6 +1239,23 @@
       "verifiedAt": "2026-11-11",
       "verification": "SSRN indexed citation and NaCTEM author publication list (https://nactem.ac.uk/finai.php); direct automated fetch blocked by SSRN.",
       "added": true
+    },
+    {
+      "id": "2026-llm-mental-health-counseling-loops-survey",
+      "file": "2026-llm-mental-health-counseling-loops-survey.yml",
+      "title": "From Understanding Utterances to Understanding Individuals: A Survey of LLM-based Mental Health Counseling Loops",
+      "authors": [
+        "Mengxi Xiao",
+        "Qianqian Xie",
+        "Min Peng"
+      ],
+      "year": 2026,
+      "venue": "SSRN preprint",
+      "link": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7690000",
+      "source": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7690000",
+      "verifiedAt": "2026-11-17",
+      "verification": "SSRN original abstract page and suggested citation; posted 2026-11-14, written 2026-10-13; DOI 10.2139/ssrn.7690000",
+      "added": true
     }
   ],
   "members": [
@@ -1348,7 +1365,8 @@
         "batch_1768841452014_1",
         "batch_1768841452014_2",
         "batch_1768841452014_31",
-        "diting-emnlp-2026"
+        "diting-emnlp-2026",
+        "2026-llm-mental-health-counseling-loops-survey"
       ]
     },
     {

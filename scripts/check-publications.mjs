@@ -16,7 +16,7 @@ const fixture = JSON.parse(readFileSync(new URL('fixtures/publications-2026-11-1
 const compiled = ts.transpileModule(readFileSync(new URL('lib/publications.ts', root), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
 const { publicationsForPerson } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 
-assert.equal(displayed.length, 49);
+assert.equal(displayed.length, fixture.publications.length);
 assert.equal(new Set(displayed.map(p => p.id)).size, displayed.length, 'Unique publication IDs');
 assert.equal(new Set(displayed.map(p => p.title.toLowerCase().replace(/[^\p{L}\p{N}]/gu, ''))).size, displayed.length, 'No duplicate paper titles');
 assert.equal(new Set(displayed.map(p => p.link)).size, displayed.length, 'No duplicate primary paper links');
