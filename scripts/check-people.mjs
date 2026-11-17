@@ -23,7 +23,7 @@ const displayName = p => p.nameZh || p.name;
 const active = people.filter(p => !hasLeftLab(p));
 const alumni = people.filter(hasLeftLab);
 // Photos supplied by members in the November 12–13 website review.
-const photoUpdates = new Set(["jiacheng-dai", "shan-hua", "chenying-lin", "jiarong-song", "luyuan-jiao", "qiyi-xu", "yao-xiong", "xiudong-chen", "ruochen-zhang", "tianyu-hao", "yicheng-he", "xuelin-zhang", "ruiyu-wang", "keying-wu", "xingyue-ren", "zhentao-li", "bingquan-zhang", "sichen-hui", "sijia-li", "yaoyu-zhu", "liuyisheng-zhou", "yijia-liu", "fei-wang", "ziyan-kuang", "yihang-tang", "ruiyu-zhang", "lingyao-kong", "baojie-qu"]);
+const photoUpdates = new Set(["jiacheng-dai", "shan-hua", "chenying-lin", "jiarong-song", "luyuan-jiao", "qiyi-xu", "yao-xiong", "xiudong-chen", "ruochen-zhang", "tianyu-hao", "yicheng-he", "xuelin-zhang", "ruiyu-wang", "keying-wu", "xingyue-ren", "zhentao-li", "bingquan-zhang", "sichen-hui", "sijia-li", "yaoyu-zhu", "liuyisheng-zhou", "yijia-liu", "fei-wang", "ziyan-kuang", "yihang-tang", "ruiyu-zhang", "lingyao-kong", "baojie-qu", "fengyuan-liu", "ying-peng", "guanai-chen", "xiaoyu-zhang", "zebang-guo", "yinhan-chen"]);
 const originalFiles = execFileSync('git', ['ls-tree', '-r', '--name-only', 'HEAD', 'content/people'], { cwd: root, encoding: 'utf8' }).trim().split('\n');
 for (const file of originalFiles) {
   const original = load(execFileSync('git', ['show', `HEAD:${file}`], { cwd: root, encoding: 'utf8' }));
