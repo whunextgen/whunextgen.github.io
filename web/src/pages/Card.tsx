@@ -154,7 +154,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
       run: (v) => rpc('map_school_subject', { card_id: c.card_id, ledger: x.subject_id, subject: v.subject }) })}>对应到预算科目</button> : null;
   // 学校余额按明细核对：上年结转 + 收入明细合计 − 明细账里的支出合计
   const hasLedger = num(c.ledger_actual) > 0 || num(c.income) > 0;
-  const byLedger = num(c.carried_in) + num(c.income) - num(c.ledger_actual);
+  const byLedger = num(c.carried_in) + num(c.income) - num(c.ledger_actual) - num(c.school_recalled);
   // 只控总额的卡按学校科目列支出：同名的学校科目合并；没有学校科目的支出（在中台里申请的）按本卡科目列
   const bySchool = new Map<string, { school_name: string; school_code: string | null; n: number; amount: number }>();
   for (const r of data.school) { const o = bySchool.get(r.school_name) ?? { school_name: r.school_name, school_code: r.school_code, n: 0, amount: 0 }; o.n += r.n; o.amount += num(r.amount); bySchool.set(r.school_name, o); }
@@ -217,8 +217,9 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
             <th scope="row">到期处理</th><td>{END_RULE[c.end_rule]}{c.settle_date ? `，结清日 ${day(c.settle_date)}` : '，尚未设结清日'}</td></tr>
           <tr><th scope="row">学校余额核对</th>
             <td colSpan={3}>{c.school_synced_at == null ? '尚未回写学校余额，无法核对。导入学校的明细账后按明细核对。'
-              : hasLedger ? <>按明细核对：上年结转 {money(c.carried_in)} + 收入 {money(c.income)} − 明细账支出 {money(c.ledger_actual)} = <b>{money(byLedger)}</b>；学校余额 <b>{money(c.school_balance)}</b>（{day(c.school_synced_at)} 回写）
+              : hasLedger ? <>按明细核对：上年结转 {money(c.carried_in)} + 收入 {money(c.income)} − 明细账支出 {money(c.ledger_actual)}{num(c.school_recalled) > 0 && <> − 学校已回收 {money(c.school_recalled)}</>} = <b>{money(byLedger)}</b>；学校余额 <b>{money(c.school_balance)}</b>（{day(c.school_synced_at)} 回写）
                   {' '}{Math.abs(byLedger - num(c.school_balance)) < 0.005 ? <Badge tone="ok">相符</Badge> : <Badge tone="bad">相差 {money(byLedger - num(c.school_balance))}</Badge>}
+                  {num(c.income) > 0 && Math.abs(byLedger - num(c.school_balance)) >= 0.005 && <div className="sub2" style={{ marginLeft: 0 }}>学校中途回收过经费的，请在「报销与入账」页登记一笔回收，核对时即予扣除。回收的经费不计入支出，项目剩余仍按额度减去花销计算。</div>}
                   {num(c.income) <= 0 && <div className="sub2" style={{ marginLeft: 0 }}>尚无收入明细：请重新导入一次明细账，收入行和年初余额会补上，已有的支出不会重复。</div>}</>
                 : <>余额 {money(c.school_balance)}，冻结 {money(c.school_frozen)}，可用 {money(c.school_available)}（{day(c.school_synced_at)} 回写）
                   {diff != null && Math.abs(diff) >= 0.005 && <> <Badge tone="bad">与本系统可用相差 {money(diff)}</Badge></>}</>}

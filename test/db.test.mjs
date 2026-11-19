@@ -1630,6 +1630,10 @@ eq((await q(`select 1 from api.settlement where card_id = $1`, [kr])).length, 0,
 await as(U.fin, '2032-06-01');
 await val(reg, [kr, '结清后出账', 100, '2032-05-30', 'at_school']);
 ok(Number((await card(kr)).commit) === 100, '改回后可以补登在途支出');
+// 学校中途回收的经费：登记后核对时扣除，不计入支出
+await q(`select add_fund_event($1, '回收', '2032-05-31', 300, null)`, [kr]);
+c = await card(kr);
+ok(Number(c.school_recalled) === 300 && Number(c.actual) === 400 && Number(c.carried_in) + Number(c.income) - Number(c.ledger_actual) - Number(c.school_recalled) === 300, '学校回收单独记，核对时扣除，已入账的花销不变', JSON.stringify([c.school_recalled, c.actual, c.income, c.ledger_actual]));
 // 只控总额的卡：支出只与整张卡的总额核对，与科目的预算无关
 ok((await card(kl)).pooled === true, '导入时可把经费卡设为只控总额');
 await q(recH, [kl, SUB.N.biz, TY['耗材'], '科目上没有预算', 5000]);
