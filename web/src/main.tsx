@@ -86,7 +86,7 @@ function App() {
     view<Me>('me').then((rows) => setMe(rows[0] ?? null))
       .catch((e: ApiError) => { if (e.status !== 401) setError(e.message); setMe(null); });
   }, []);
-  // 本人是否在已立项的课题或研究单元里（负责人或成员）：支出申请、备用金、资源申领的入口据此显示。待立项的不算
+  // 本人是否在已立项的课题或研究单元里（负责人或成员）：支出申请、备用金、接口额度申领的入口据此显示。待立项的不算；设备申领不受此限
   const [inTopic, setInTopic] = useState(false);
   const [owns, setOwns] = useState(false);   // 本人是否负责某个已立项的课题或研究单元
   const uid = me?.id;
@@ -109,7 +109,7 @@ function App() {
   const seesAdmin = can(me, 'read.admin', 'rbac.manage', 'user.manage', 'rule.manage', 'card.manage');
   const seesCaps = can(me, 'budget.approve', 'budget.setup'), seesReview = can(me, 'budget.review'), seesLegacy = can(me, 'read.legacy') || seesAdmin;
   // 导航按对象分组：项目（及其经费卡、入账、结清）、课题（及其研究单元、预算、决算）、支出、资源、系统。每组标题下一行说这一组管什么
-  const canUse = seesStaff || can(me, 'request.process') || inTopic;   // 能用支出申请、备用金、资源申领
+  const canUse = seesStaff || can(me, 'request.process') || inTopic;   // 能用支出申请、备用金、接口额度申领。设备申领人人可进：没立项也能领中心公共设备
   type Page = [string, string];
   const keep = (...p: (Page | false)[]) => p.filter(Boolean) as Page[];
   const SUB = new Set(['/cards']);   // 缩进显示的下一级：经费卡在项目之下
@@ -118,7 +118,7 @@ function App() {
   const groups = [
     { top: '', label: '', home: '', note: '', pages: keep(['/', '首页'], ['/tasks', '任务管理']) },
     // 课题：成员和负责人办的事——从预算行支出、领备用金、申领资源
-    { top: '', label: '课题', home: '/s-topic', note: '研究单元、支出申请、资源申领', pages: keep(['/projects', '课题管理'], !seesStaff && ['/plan', '立项与延续申请'], canUse && ['/requests', '支出申请'], canUse && ['/petty', '备用金管理'], canUse && ['/resource', '资源申领'], ['/ask', '报销咨询']) },
+    { top: '', label: '课题', home: '/s-topic', note: '研究单元、支出申请、设备与接口额度申领', pages: keep(['/projects', '课题管理'], !seesStaff && ['/plan', '立项与延续申请'], canUse && ['/requests', '支出申请'], canUse && ['/petty', '备用金管理'], ['/equipment', '设备申领'], canUse && ['/resource', '接口额度申领'], ['/ask', '报销咨询']) },
     // 财务：并列三组。年度预算是每年申报、核定、下达、决算这一轮；项目是学校这一侧的经费；资源是中心的接口额度和资产
     { top: '财务', label: '年度预算', home: '', note: '总预算、档次、下达、决算', pages: keep(seesStaff && ['/plan', '总预算与档次'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算'], seesDesk && ['/desk', '预算参数']) },
     { top: '财务', label: '项目', home: seesCards ? '/s-fund' : '', note: '经费卡、采购、报销入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/procure', '采购'], seesCards && ['/school', '报销与入账'], seesPeople && ['/staff', '人员经费'], seesCards && ['/ledger', '明细账校准'], seesCards && ['/settle', '经费结清']) },
@@ -172,7 +172,8 @@ function App() {
       {procure ? <Procure me={me} /> : <School me={me} />}</>
     : current === '/review' ? <Review me={me} start={arg} />
     : current === '/settle' ? <Settle me={me} />
-    : current === '/resource' ? <ResourcePage me={me} />
+    : current === '/resource' ? <ResourcePage me={me} only="api" />
+    : current === '/equipment' ? <ResourcePage me={me} only="asset" />
     : current === '/pool' ? <PoolPage me={me} />
     : current === '/stock' ? <StockPage />
     : current === '/petty' ? <PettyPage me={me} only={arg || undefined} />

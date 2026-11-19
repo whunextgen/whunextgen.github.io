@@ -133,7 +133,7 @@ export function TrackPage({ me }: { me: Me }) {
       who: r.requested_by === me.id ? '我' : r.requester_name, amount: money(r.amount), at: r.created_at, wait: r.status === 'pending' ? '中心负责人审批' : '财务岗凭票核销', badge: PETTY[r.status], href: '#/petty' })),
     ...data.res.filter((r) => ['pending', 'reviewed', 'approved'].includes(r.status)).map((r): Item => ({ id: r.id, type: '资源申请', flag: r.urgent ? '加急' : '', title: r.purpose,
       sub: `${r.resource_name ?? KIND[r.kind]}${r.project_code ? ` · ${r.project_code}` : ''}`, who: r.requested_by === me.id ? '我' : r.requester_name, amount: qty(r.approved_amount ?? r.amount, r.unit), at: r.created_at,
-      wait: { pending: '研究单元负责人批示', reviewed: '财务岗批准', approved: '财务岗分发' }[r.status as 'pending'], badge: RES_REQ[r.status], href: staff ? '#/pool' : '#/resource' })),
+      wait: { pending: '研究单元负责人批示', reviewed: '财务岗批准', approved: '财务岗分发' }[r.status as 'pending'], badge: RES_REQ[r.status], href: staff ? '#/pool' : r.kind === 'asset' ? '#/equipment' : '#/resource' })),
   ].sort((a, b) => Number(!!b.flag) - Number(!!a.flag) || a.at.localeCompare(b.at));
   const types = ['支出申请', '备用金', '资源申请'] as const;
   const shown = items.filter((i) => !type || i.type === type);

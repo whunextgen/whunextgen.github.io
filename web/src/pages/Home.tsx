@@ -13,7 +13,7 @@ const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
 // 各部分的待办列在该部分的汇总页里，不另设待办页。
 const STEPS = ['申报', '汇总报批', '核定下达', '申请', '承诺', '入账', '复盘结清'];
 export type HomeView = 'home' | 'mine' | 'center' | 'fund' | 'topic' | 'res';
-// canUse：本人在已立项的课题或研究单元里，能用支出申请、备用金和资源申领
+// canUse：本人在已立项的课题或研究单元里，能用支出申请、备用金和接口额度申领。设备申领不受此限
 export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view?: HomeView; canUse?: boolean }) {
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
@@ -113,7 +113,9 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
     count(resOf('reviewed').length, 'warn', '资源待批准', '资源申请研究单元负责人已批示，待批准', '审批', '#/pool');
     count(resOf('approved').length, 'warn', '资源待分发', '资源申请已批准，待分发', '分发', '#/pool');
   }
-  count(resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id).length, 'warn', '待批示', '资源申请属本人负责的研究单元，待批示', '批示', '#/resource');
+  const toReview = resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id);
+  count(toReview.filter((r) => r.kind === 'asset').length, 'warn', '待批示', '设备申领属本人负责的研究单元，待批示', '批示', '#/equipment');
+  count(toReview.filter((r) => r.kind === 'api').length, 'warn', '待批示', '接口额度申请属本人负责的研究单元，待批示', '批示', '#/resource');
   if (seesCards) {
     for (const c of active.filter((x) => num(x.avail) < 0))
       todo.push({ tone: 'bad', tag: '超支', text: `${c.name} ${c.year} 年经费卡可用为 ${money(c.avail)}`, go: '查看', href: `#/card/${c.card_id}` });
@@ -437,7 +439,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
       <div className="wb">
         {hero(`资源 · 汇总 · ${data.resources.length} 项资源`, '在用资源', `${resLive.length}`, '项', <>
           {resLive.length > 0 ? <Track cap="在用资源 · 按类别" segs={[{ cls: 'sy0 big', value: api.length, text: `接口额度 ${api.length} 项`, tip: `接口额度 ${api.length} 项` }, { cls: 'sy1 big', value: asset.length, text: `资产 ${asset.length} 项`, tip: `资产 ${asset.length} 项` }]} /> : <Empty>暂无在用资源。</Empty>}
-          <div className="wb-facts"><span>申领在办<b>{resAsk.length} 项</b></span><span>已停用<b>{data.resources.length - resLive.length} 项</b></span><a className="btn" href="#/resource">申领资源</a></div>
+          <div className="wb-facts"><span>申领在办<b>{resAsk.length} 项</b></span><span>已停用<b>{data.resources.length - resLive.length} 项</b></span><a className="btn" href="#/equipment">设备申领</a><a className="btn ghost" href="#/resource">接口额度申领</a></div>
         </>)}
         <section className="wb-sec">
           {head('01', '流程', '申领 › 批示 › 批准 › 分发 › 使用与盘点')}
@@ -446,7 +448,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
             { nm: '批示', ds: '研究单元负责人批示', v: `${st('reviewed')} 项`, f: '待批准', href: seesCards ? '#/pool' : '#/resource', warn: st('reviewed') > 0 },
             { nm: '批准', ds: '批准后待分发', v: `${st('approved')} 项`, f: '待分发', href: seesCards ? '#/pool' : '#/resource', warn: st('approved') > 0 },
             { nm: '分发', ds: '发放额度或交付设备', v: `${data.res.length - resAsk.length} 项`, f: '已办结', href: seesCards ? '#/pool' : '#/resource' },
-            { nm: '使用与盘点', ds: '定期盘点，到期回收', v: `${resLive.length} 项在用`, f: '资产盘点', href: seesCards ? '#/stock' : '#/resource' },
+            { nm: '使用与盘点', ds: '定期盘点，到期回收', v: `${resLive.length} 项在用`, f: '资产盘点', href: seesCards ? '#/stock' : '#/equipment' },
           ], '资源流程')}
         </section>
         <section className="wb-sec">{head('02', '待办', '只列这一部分的事项')}{todoTable(todo.filter((t) => secOf(t) === 'res'), '这一部分暂无待办事项。')}</section>
@@ -478,9 +480,9 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   return (
     <div className="wb">
       {hero(`我的事项 · ${me.name} · ${ROLE[me.role]}`, '本人发起、进行中', `${mineOpen.length + myPetty.length + myRes.length}`, '项', <>
-        <div className="wb-facts"><span>支出申请<b>{mineOpen.length} 笔</b></span><span>备用金<b>{myPetty.length} 笔</b></span><span>资源申领<b>{myRes.length} 项</b></span></div>
-        {canUse ? <div className="wb-facts"><a className="btn" href="#/requests/new">提交支出申请</a><a className="btn ghost" href="#/resource">申领资源</a><a className="btn ghost" href="#/petty">申请备用金</a></div>
-          : <div className="wb-facts"><span>本人尚不在已立项的课题或研究单元中，暂不能提交支出申请、申领资源和申请备用金。</span><a className="btn" href="#/plan">立项与延续申请</a></div>}
+        <div className="wb-facts"><span>支出申请<b>{mineOpen.length} 笔</b></span><span>备用金<b>{myPetty.length} 笔</b></span><span>设备与接口额度申领<b>{myRes.length} 项</b></span></div>
+        {canUse ? <div className="wb-facts"><a className="btn" href="#/requests/new">提交支出申请</a><a className="btn ghost" href="#/equipment">申领设备</a><a className="btn ghost" href="#/resource">申请接口额度</a><a className="btn ghost" href="#/petty">申请备用金</a></div>
+          : <div className="wb-facts"><span>本人尚不在已立项的课题或研究单元中，暂不能提交支出申请、申请接口额度和备用金；中心公共设备可直接申领。</span><a className="btn" href="#/equipment">申领设备</a><a className="btn ghost" href="#/plan">立项与延续申请</a></div>}
       </>)}
       <section className="wb-sec">{head('01', '本人的支出申请', <a href="#/requests">全部申请 →</a>)}{mineTable}</section>
       <section className="wb-sec">
@@ -490,7 +492,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
             <thead><tr><th>类型</th><th>事项</th><th>所属</th><th /></tr></thead>
             <tbody>
               {myPetty.map((r) => <tr key={r.id}><td><Badge tone={r.status === 'pending' ? 'warn' : 'pri'}>{r.status === 'pending' ? '备用金待审批' : '备用金待核销'}</Badge></td><td className="wrap">{r.purpose}，{money(r.amount)}</td><td>{r.project_name ?? '—'}</td><td className="r"><a className="wb-op" href={`#/petty/${r.id}`}>查看</a></td></tr>)}
-              {myRes.map((r) => <tr key={r.id}><td><Badge tone="warn">{r.status === 'pending' ? '申领待批示' : r.status === 'reviewed' ? '申领待批准' : '申领待分发'}</Badge></td><td className="wrap">{r.resource_name ?? '资源'}：{r.purpose}</td><td>{r.project_name ?? '—'}</td><td className="r"><a className="wb-op" href="#/resource">查看</a></td></tr>)}
+              {myRes.map((r) => <tr key={r.id}><td><Badge tone="warn">{r.status === 'pending' ? '申领待批示' : r.status === 'reviewed' ? '申领待批准' : '申领待分发'}</Badge></td><td className="wrap">{r.resource_name ?? '资源'}：{r.purpose}</td><td>{r.project_name ?? '—'}</td><td className="r"><a className="wb-op" href={r.kind === 'asset' ? '#/equipment' : '#/resource'}>查看</a></td></tr>)}
             </tbody>
           </table></div>)}
       </section>
