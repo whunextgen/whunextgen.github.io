@@ -211,6 +211,7 @@ export function Requests({ me, start = '' }: { me: Me; start?: string }) {
   const [tab, setTab] = useState<'open' | 'mine' | 'self' | ReqStatus>(start in REQ || start === 'mine' ? (start as ReqStatus) : 'open');
   const [adding, setAdding] = useState(start === 'new');
   const [done, setDone] = useState('');
+  const [reg, setReg] = useState(false);
   const maps = useMemo(() => ({
     card: new Map((data?.cards ?? []).map((c) => [c.id, c.name])),
     subject: new Map((data?.subjects ?? []).map((s) => [s.id, s.name])),
@@ -234,7 +235,23 @@ export function Requests({ me, start = '' }: { me: Me; start?: string }) {
   return (
     <>
       <div className="top"><h2>支出申请</h2>
-        <button onClick={() => { setAdding(!adding); setDone(''); }} className={adding ? 'ghost' : ''}>{adding ? '收起' : '提交支出申请'}</button></div>
+        <div className="acts">
+          {can(me, 'request.process', 'ledger.post') && <button className="ghost" onClick={() => { setReg(true); setDone(''); }}>补登在途支出</button>}
+          <button onClick={() => { setAdding(!adding); setDone(''); }} className={adding ? 'ghost' : ''}>{adding ? '收起' : '提交支出申请'}</button></div></div>
+      {reg && <ActionDialog title="补登在途支出" submitLabel="补登"
+        hint="用于登记已经发生、学校尚未入账的支出。补登后计入该经费卡的在途金额；导入学校明细账时按金额对应，自动转为已入账。此后的支出仍须先提交支出申请。"
+        fields={[
+          { name: 'card_id', label: '经费卡', options: data.cards.filter((c) => c.status === 'active').map((c): [string, string] => [c.id, c.name]) },
+          { name: 'title', label: '事项' },
+          { name: 'amount', label: '金额（元）', type: 'number' },
+          { name: 'spent_on', label: '发生日期', type: 'date', value: today() },
+          { name: 'state', label: '当前状态', value: 'at_school', options: [['at_school', '已提交学校，尚未入账'], ['committed', '已批准，尚未提交学校']] },
+          { name: 'user_id', label: '申请人（不选则记为本人）', required: false, options: data.users.filter((u) => u.active).map((u): [string, string] => [u.id, u.name]) },
+          { name: 'note', label: '说明（选填）', required: false },
+        ]}
+        onSubmit={async (v) => { await rpc('register_inflight', { card_id: v.card_id, title: v.title, amount: v.amount, spent_on: v.spent_on, state: v.state, subject_id: null, user_id: v.user_id || null, note: v.note || null });
+          setDone(`已补登：${v.title}，${money(v.amount)}，计入在途金额。`); setTab('open'); reload(); }}
+        onClose={() => setReg(false)} />}
       {done && <div className="msg ok" role="status">{done}</div>}
       {adding && (data.picks.length === 0 && !adds
         ? <section className="card"><h3>提交支出申请</h3><Empty>本人当前不在任何已下达预算研究单元的成员名单内，无法提交支出申请。请研究单元负责人在「课题管理」页加入名单；加入后即可选择该研究单元的预算行。</Empty></section>

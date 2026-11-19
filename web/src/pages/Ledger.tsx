@@ -75,8 +75,8 @@ export function LedgerImport({ card, reqs, onDone }: { card: Card; reqs: Req[]; 
       const r = await rpc('import_ledger', { card_id: card.card_id,
         rows: view.fresh.map((x) => ({ posted_on: x.on, voucher_no: x.voucher, title: x.title, amount: x.expense, school_code: x.code, school_name: x.name })),
         incomes: setIncome ? view.income.map((x) => ({ posted_on: x.on, voucher_no: x.voucher, title: x.title, amount: x.income, school_code: x.code, school_name: x.name })) : null,
-        opening: setIncome && led.hasOpening ? led.opening : null, balance: setBalance && led.ending != null ? led.ending : null, pooled }) as { added: number; skipped: number; amount: number; incomes: number };
-      setMsg(['ok', `已导入：新增已入账支出 ${r.added} 笔，合计 ${money(r.amount)}${r.skipped ? `；${r.skipped} 笔中台已有，未重复写入` : ''}${setIncome ? `；收入明细新增 ${r.incomes} 笔，下达数和已到账按收入明细合计更新${led.hasOpening ? `，上年结转更新为 ${money(led.opening)}` : ''}` : ''}${setBalance && led.ending != null ? `；学校余额更新为 ${money(led.ending)}` : ''}。`]);
+        opening: setIncome && led.hasOpening ? led.opening : null, balance: setBalance && led.ending != null ? led.ending : null, pooled }) as { added: number; matched?: number; skipped: number; amount: number; incomes: number };
+      setMsg(['ok', `已导入：新增已入账支出 ${r.added} 笔${r.matched ? `，另有 ${r.matched} 笔与在途的支出申请对应、已转为已入账` : ''}，合计 ${money(r.amount)}${r.skipped ? `；${r.skipped} 笔中台已有，未重复写入` : ''}${setIncome ? `；收入明细新增 ${r.incomes} 笔，下达数和已到账按收入明细合计更新${led.hasOpening ? `，上年结转更新为 ${money(led.opening)}` : ''}` : ''}${setBalance && led.ending != null ? `；学校余额更新为 ${money(led.ending)}` : ''}。`]);
       setLed(null); setFile(''); onDone();
     } catch (e) { setMsg(['bad', (e as ApiError).message]); }
     setBusy(false);

@@ -5,7 +5,7 @@ import { RequestTable } from './Requests';
 
 // 办理记录里各类动作的叫法
 const EVENT: Record<string, string> = {
-  submit: '提交申请', confirm: '研究单元负责人确认', check: '财务岗核对', approve: '批准', to_school: '提交学校', post: '学校入账',
+  submit: '提交申请', backfill: '补登在途支出', confirm: '研究单元负责人确认', check: '财务岗核对', approve: '批准', to_school: '提交学校', post: '学校入账',
   return: '学校退回', release: '释放', reject: '驳回', move: '变更经费卡', advance: '采购进入下一阶段',
 };
 

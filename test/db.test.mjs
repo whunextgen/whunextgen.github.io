@@ -1583,6 +1583,30 @@ ok(ss.length === 2 && ss.some(x => x.school_name === '非财政支出-国内差�
 await val(imp, [kv, JSON.stringify([{ posted_on: '2032-03-01', voucher_no: '(B)009', title: '财政卡差旅', amount: 50, school_code: '99-3021101', school_name: '财政支出-国内差旅费' }]), null, null, null, null]);
 const sameSub = await q("select subject_id from api.cell where subject_code = '3021101' and card_id in ($1, $2) and actual > 0", [kl, kv]);
 ok(sameSub.length === 2 && sameSub[0].subject_id === sameSub[1].subject_id, '经费类别不同的两张卡，差旅费记在同一个科目上', JSON.stringify(sameSub));
+// 在途支出：补登后计入在途，导入明细账时按金额对上，转为已入账而不重复记
+const fi = await val(`select save_fund_project(null, '在途样例项目', 'national', 'vertical', null, null, null, null, $1, 'carry') v`, [T.N]);
+const ki = await val(`select open_card($1, 2032, '7040-N', null, '2032-01-05', '2032-12-20', '2032-12-31') v`, [fi]);
+const reg = `select register_inflight($1, $2, $3, $4, $5) v`;
+await as(U.mem, '2032-06-01');
+await raises('成员不能补登在途支出', /无权补登/, reg, [ki, '样例电脑', 1234.5, '2032-05-20', 'at_school']);
+await as(U.fin, '2032-06-01');
+await raises('在途支出只有两种状态', /当前状态只能是/, reg, [ki, '样例电脑', 1234.5, '2032-05-20', 'posted']);
+await raises('在途支出的发生日期不能晚于当日', /发生日期/, reg, [ki, '样例电脑', 1234.5, '2032-06-02', 'at_school']);
+const ri = await val(reg, [ki, '样例电脑', 1234.5, '2032-05-20', 'at_school']);
+await val(reg, [ki, '样例盒饭', 88, '2032-05-21', 'committed']);
+c = await card(ki);
+ok(Number(c.commit) === 1322.5 && Number(c.actual) === 0, '补登的在途支出计入经费卡的在途金额', JSON.stringify([c.commit, c.actual]));
+const ledI = JSON.stringify([
+  { posted_on: '2032-06-01', voucher_no: '(B)101', title: '付样例公司设备款', amount: 1234.5, school_code: '72-3100201', school_name: '非财政支出-办公设备购置' },
+  { posted_on: '2032-06-01', voucher_no: '(B)102', title: '样例耗材', amount: 500, school_code: '72-3021801', school_name: '非财政支出-专用材料费' }]);
+ir = await val(imp, [ki, ledI, null, null, null, true]);
+ok(ir.matched === 1 && ir.added === 1 && Number(ir.amount) === 1734.5, '导入明细账：金额对上的在途申请转为已入账，其余新记', JSON.stringify(ir));
+const pr = await one(`select status, title, posted_amount, voucher_no from api.request where id = $1`, [ri]);
+ok(pr.status === 'posted' && pr.title === '样例电脑' && Number(pr.posted_amount) === 1234.5 && pr.voucher_no === '(B)101', '对上的申请保留原事项，带上学校的凭证', JSON.stringify(pr));
+c = await card(ki);
+ok(Number(c.commit) === 88 && Number(c.actual) === 1734.5 && c.stray_n === 0, '对上之后同一笔钱不重复计：在途减少，已入账增加', JSON.stringify([c.commit, c.actual, c.stray_n]));
+ir = await val(imp, [ki, ledI, null, null, null, true]);
+ok(ir.matched === 0 && ir.added === 0 && ir.skipped === 2, '重复导入：已对上的行也不重复写入', JSON.stringify(ir));
 // 只控总额的卡：支出只与整张卡的总额核对，与科目的预算无关
 ok((await card(kl)).pooled === true, '导入时可把经费卡设为只控总额');
 await q(recH, [kl, SUB.N.biz, TY['耗材'], '科目上没有预算', 5000]);

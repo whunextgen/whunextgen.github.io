@@ -130,6 +130,7 @@ const RPC: Record<string, [string, string][]> = {
   set_card_applied: [['card_id', 'uuid'], ['applied', 'numeric']],
   set_card_granted: [['card_id', 'uuid'], ['granted', 'numeric']],
   import_ledger: [['card_id', 'uuid'], ['rows', 'jsonb'], ['incomes', 'jsonb'], ['opening', 'numeric'], ['balance', 'numeric'], ['pooled', 'boolean']],
+  register_inflight: [['card_id', 'uuid'], ['title', 'text'], ['amount', 'numeric'], ['spent_on', 'date'], ['state', 'text'], ['subject_id', 'uuid'], ['user_id', 'uuid'], ['note', 'text']],
   void_stray_posted: [['card_id', 'uuid']],
   set_card_pooled: [['card_id', 'uuid'], ['pooled', 'boolean']],
   close_fund_project: [['id', 'uuid']],
