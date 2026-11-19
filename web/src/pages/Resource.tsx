@@ -44,7 +44,8 @@ const keyAct = (kind: 'resource' | 'allocation', id: string, name: string, has: 
 });
 
 // ---------- 申请与名下：所有人 ----------
-export function ResourcePage({ me }: { me: Me }) {
+// only：设备申领（asset）人人可进，没立项也能领中心公共设备；接口额度申领（api）只对已立项课题的成员开放，入口在 main.tsx 控制
+export function ResourcePage({ me, only }: { me: Me; only: 'api' | 'asset' }) {
   const staff = can(me, 'read.resource');
   const { data, error, reload } = useViews<{ allocs: Allocation[]; plans: ResourcePlan[]; reqs: ResourceRequest[] }>({
     allocs: ['allocation'], plans: ['resource_plan'], reqs: ['resource_request'],
@@ -53,11 +54,11 @@ export function ResourcePage({ me }: { me: Me }) {
   const [key, setKey] = useState<Allocation | null>(null);
   if (!data) return <Loading error={error} />;
 
-  const mine = data.allocs.filter((a) => a.user_id === me.id && a.current).sort((a, b) => a.kind.localeCompare(b.kind) || a.resource_name.localeCompare(b.resource_name, 'zh'));
-  const myReqs = data.reqs.filter((r) => r.requested_by === me.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const toReview = data.reqs.filter((r) => r.status === 'pending' && r.my_project && r.requested_by !== me.id && !staff);
+  const mine = data.allocs.filter((a) => a.kind === only && a.user_id === me.id && a.current).sort((a, b) => a.kind.localeCompare(b.kind) || a.resource_name.localeCompare(b.resource_name, 'zh'));
+  const myReqs = data.reqs.filter((r) => r.kind === only && r.requested_by === me.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const toReview = data.reqs.filter((r) => r.kind === only && r.status === 'pending' && r.my_project && r.requested_by !== me.id && !staff);
   // 资源申请只能挂在做了资源计划的预算行上：选预算行，研究单元和资源跟着预算行走
-  const plans = data.plans.filter((p) => p.open).sort((a, b) => a.project_code.localeCompare(b.project_code) || a.purpose.localeCompare(b.purpose, 'zh'));
+  const plans = data.plans.filter((p) => p.open && p.kind === only).sort((a, b) => a.project_code.localeCompare(b.project_code) || a.purpose.localeCompare(b.purpose, 'zh'));
   const rest = (p: ResourcePlan) => num(p.plan_qty) - num(p.asked) - num(p.granted);
   // 公共资源只有一种：中心公共开支里给博士后、博士、硕士、研究助理个人申领的设备。其余资源都在各研究单元自己的预算里，跟研究单元负责人走
   const pub = plans.filter((p) => p.project_kind === 'public'), own = plans.filter((p) => p.project_kind !== 'public');
@@ -93,11 +94,10 @@ export function ResourcePage({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="top"><h2>资源申领</h2>
-        <div className="acts"><button onClick={() => setAct(reqAct('api'))}>申请接口额度</button><button className="ghost" onClick={() => setAct(reqAct('asset'))}>申领资产</button></div></div>
+      <div className="top"><h2>{only === 'asset' ? '设备申领' : '接口额度申领'}</h2>
+        <div className="acts"><button onClick={() => setAct(reqAct(only))}>{only === 'asset' ? '申领设备' : '申请接口额度'}</button></div></div>
       <div className="tiles">
-        <Tile k="名下接口" v={mine.filter((a) => a.kind === 'api').length} f="正在生效的额度" />
-        <Tile k="名下资产" v={mine.filter((a) => a.kind === 'asset').length} f="本人名下的设备和耗材" />
+        {only === 'api' ? <Tile k="名下接口" v={mine.length} f="正在生效的额度" /> : <Tile k="名下设备" v={mine.length} f="本人名下的设备和耗材" />}
         <Tile k="在途申请" v={myReqs.filter((r) => ['pending', 'reviewed', 'approved'].includes(r.status)).length} f="已提交、尚未分发" />
         <Tile k="即将到期" v={mine.filter((a) => soon(a.to_date)).length} f="一个月内到期" tone={mine.some((a) => soon(a.to_date)) ? 'warn' : ''} />
       </div>
@@ -133,7 +133,7 @@ export function ResourcePage({ me }: { me: Me }) {
         )}
       </section>
 
-      <section className="card wide">
+      {only === 'asset' && <section className="card wide">
         <h3>公共设备 <span className="h3sub">中心统一配给博士后、博士、硕士和研究助理个人</span></h3>
         <p className="hint">中心公共资源仅此一类，编入中心公共开支预算，申领后直接提交财务岗。
           {eligible ? `本人登记身份为${PERSON[me.kind!]}，可申领。` : me.kind ? `本人登记身份为${PERSON[me.kind]}，不在申领范围内，如需设备请在所在研究单元预算中申请。` : '本人身份尚未登记，请财务岗登记后再申领。'}</p>
@@ -147,12 +147,12 @@ export function ResourcePage({ me }: { me: Me }) {
             ))}</tbody>
           </table></div>
         )}
-      </section>
+      </section>}
 
       <section className="card wide">
-        <h3>本人名下资源</h3>
-        <p className="hint">接口密钥加密保存于中台：财务岗分发后，可在此自行取用，每次取用均有记录；额度到期或收回后密钥随之撤销。用量由财务岗按服务商账单回写。</p>
-        {mine.length === 0 ? <Empty>名下暂无资源。如需接口额度或设备，请按上方资源计划提交申请。</Empty> : (
+        <h3>本人名下{only === 'asset' ? '设备' : '接口额度'}</h3>
+        {only === 'api' && <p className="hint">接口密钥加密保存于中台：财务岗分发后，可在此自行取用，每次取用均有记录；额度到期或收回后密钥随之撤销。用量由财务岗按服务商账单回写。</p>}
+        {mine.length === 0 ? <Empty>名下暂无{only === 'asset' ? '设备' : '接口额度'}。如需申请，请按上方资源计划提交。</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th>资源</th><th>类型</th><th className="r">额度 / 数量</th><th className="r">已用</th><th>编号 · 存放</th><th>起始</th><th>到期</th><th>密钥</th></tr></thead>
             <tbody>{mine.map((a) => { const over = a.quota != null && a.used != null && num(a.used) >= num(a.quota) * 0.9; return (
@@ -169,7 +169,7 @@ export function ResourcePage({ me }: { me: Me }) {
 
       <section className="card wide">
         <h3>本人申请</h3>
-        {myReqs.length === 0 ? <Empty>暂无资源申请。</Empty> : (
+        {myReqs.length === 0 ? <Empty>暂无{only === 'asset' ? '设备' : '接口额度'}申请。</Empty> : (
           <div className="scroll"><table className="tight">
             <thead><tr><th>提交日期</th><th>类型</th><th>资源</th><th>研究单元 · 预算行</th><th className="r">申请</th><th className="r">批准</th><th>使用月份</th><th>用途</th><th>状态</th><th /></tr></thead>
             <tbody>{myReqs.map((r) => (

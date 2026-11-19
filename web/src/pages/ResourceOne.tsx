@@ -22,7 +22,7 @@ export function ResourceOne({ me, id }: { me: Me; id: string }) {
   const at = !r.active ? 6 : cur.length > 0 ? 3 : stock.length > 0 || total != null ? 2 : 1;
   return (
     <div className="wb obj">
-      <ObjHead crumb={<>{staff ? <><a href="#/s-res">财务 › 资源</a> › <a href="#/pool">资源调配</a></> : <a href="#/resource">资源申领</a>} › {r.name}</>}
+      <ObjHead crumb={<>{staff ? <><a href="#/s-res">财务 › 资源</a> › <a href="#/pool">资源调配</a></> : r.kind === 'asset' ? <a href="#/equipment">设备申领</a> : <a href="#/resource">接口额度申领</a>} › {r.name}</>}
         eyebrow={['资源', KIND[r.kind], spec].filter(Boolean).join(' · ')} title={r.name} badge={r.active ? <Badge tone="ok">在用</Badge> : <Badge>已停用</Badge>}
         label={total != null ? '未分配' : '已分配'} value={total != null ? qty(total - given, r.unit) : qty(given, r.unit)} neg={total != null && total - given < 0}
         chart={total != null && total > 0 ? <Track cap="分配情况 · 已分配与未分配" segs={[

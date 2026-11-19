@@ -282,7 +282,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
                 <td className="wrap">{q.purpose}</td><td><Badge tone={RES_REQ[q.status][1]}>{RES_REQ[q.status][0]}</Badge></td></tr>)}</tbody>
             </table></div>
           )}
-          <div className="actions" style={{ justifyContent: 'flex-start' }}><a className="btn ghost sm" href="#/resource">申领资源</a><a className="btn ghost sm" href="#/s-res">资源汇总</a></div>
+          <div className="actions" style={{ justifyContent: 'flex-start' }}><a className="btn ghost sm" href="#/equipment">申领设备</a><a className="btn ghost sm" href="#/resource">申请接口额度</a><a className="btn ghost sm" href="#/s-res">资源汇总</a></div>
         </section>
       )}
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.submitLabel} danger={act.danger} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
