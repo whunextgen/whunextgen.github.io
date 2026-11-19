@@ -52,7 +52,7 @@ For users connecting from mainland China, the finance portal is also available a
 
 ## Join the community
 
-We welcome research collaborations, visiting scholars, and talented PhD students, master's students, and research interns. If you are interested in working with us, please visit the [Contact page](https://clain.org/#/contact) or write to [plumjane1225@gmail.com](mailto:plumjane1225@gmail.com).
+We welcome research collaborations, visiting scholars, and talented PhD students, master's students, and research interns. If you are interested in working with us, please visit the [Contact page](https://clain.org/#/contact) or write to [whuclain@gmail.com](mailto:whuclain@gmail.com).
 
 For website corrections and accessibility suggestions, please open an issue in the [website repository](https://github.com/whunextgen/whunextgen.github.io). Keep proposed changes focused and describe the page or section affected.
 
@@ -88,8 +88,8 @@ The website is maintained in English and Chinese. Research and people profiles a
 
 ## Contact
 
-- General collaboration: [plumjane1225@gmail.com](mailto:plumjane1225@gmail.com)
-- Admissions and visiting students: [plumjane1225@gmail.com](mailto:plumjane1225@gmail.com)
+- General collaboration: [whuclain@gmail.com](mailto:whuclain@gmail.com)
+- Admissions and visiting students: [whuclain@gmail.com](mailto:whuclain@gmail.com)
 - Lab address: School of Artificial Intelligence, Wuhan University, 299 Bayi Road, Wuchang District, Wuhan, Hubei, China
 
 Unless a subdirectory or asset states otherwise, the website source is maintained by CLAIN Lab, Wuhan University. Please contact the lab before redistributing site content, profiles, or photographs.
