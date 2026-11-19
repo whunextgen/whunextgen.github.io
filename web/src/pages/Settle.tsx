@@ -10,6 +10,7 @@ export function Settle({ me }: { me: Me }) {
   const thisYear = Number(now.slice(0, 4));
   const [year, setYear] = useState(thisYear);
   const [target, setTarget] = useState<Card | null>(null);
+  const [back, setBack] = useState<Card | null>(null);
   if (!data) return <Loading error={error} />;
 
   const cards = [...data.cards].sort((a, b) => a.card_no.localeCompare(b.card_no));
@@ -88,11 +89,12 @@ export function Settle({ me }: { me: Me }) {
         <h3>已结清</h3>
         {settled.length === 0 ? <Empty>暂无已结清的经费卡。</Empty> : (
           <div className="scroll"><table>
-            <thead><tr><th>结清日期</th><th>经费卡</th><th className="r">预算</th><th className="r">决算</th><th className="r">结余</th><th>结余去向</th></tr></thead>
+            <thead><tr><th>结清日期</th><th>经费卡</th><th className="r">预算</th><th className="r">决算</th><th className="r">结余</th><th>结余去向</th><th /></tr></thead>
             <tbody>{settled.map(({ c, on, budget, actual, balance }) => (
               <tr key={c.card_id}><td>{day(on)}</td><td><a href={`#/card/${c.card_id}`}>{c.name} {c.year}</a></td>
                 <td className="r">{money(budget)}</td><td className="r">{money(actual)}</td><td className="r">{money(balance)}</td>
-                <td>{num(c.carried_out) > 0 ? `结转至下一年 ${money(c.carried_out)}` : num(c.recalled) > 0 ? `回收 ${money(c.recalled)}` : END_RULE[c.end_rule]}</td></tr>
+                <td>{num(c.carried_out) > 0 ? `结转至下一年 ${money(c.carried_out)}` : num(c.recalled) > 0 ? `回收 ${money(c.recalled)}` : END_RULE[c.end_rule]}</td>
+                <td><div className="acts">{can(me, 'card.settle') && num(c.carried_out) === 0 && <button className="sm ghost" onClick={() => setBack(c)}>改回未结清</button>}</div></td></tr>
             ))}</tbody>
           </table></div>
         )}
@@ -101,6 +103,9 @@ export function Settle({ me }: { me: Me }) {
       {target && <ActionDialog title={`结清 ${target.name}`} danger submitLabel="确认结清" fields={[]}
         hint={`结清后各科目的预算、决算和结余即固定，该经费卡不得再提交支出和调整。结余 ${money(num(target.cur) - num(target.actual))} 按「${END_RULE[target.end_rule]}」处理${target.end_rule === 'carry' ? '，按科目带入该项目下一年的经费卡' : '，记为回收数'}。`}
         onSubmit={() => rpc('settle_card', { card_id: target.card_id }).then(reload)} onClose={() => setTarget(null)} />}
+      {back && <ActionDialog title={`改回未结清 ${back.name}`} submitLabel="改回未结清" fields={[{ name: 'note', label: '原因' }]}
+        hint="用于结清后学校仍有出账的经费卡。改回后撤销结清记录和回收数，可继续补登在途支出、导入明细账；待学校出完账后重新结清。"
+        onSubmit={(v) => rpc('reopen_card', { card_id: back.card_id, note: v.note }).then(reload)} onClose={() => setBack(null)} />}
     </>
   );
 }

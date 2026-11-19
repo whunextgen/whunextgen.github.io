@@ -1607,6 +1607,29 @@ c = await card(ki);
 ok(Number(c.commit) === 88 && Number(c.actual) === 1734.5 && c.stray_n === 0, '对上之后同一笔钱不重复计：在途减少，已入账增加', JSON.stringify([c.commit, c.actual, c.stray_n]));
 ir = await val(imp, [ki, ledI, null, null, null, true]);
 ok(ir.matched === 0 && ir.added === 0 && ir.skipped === 2, '重复导入：已对上的行也不重复写入', JSON.stringify(ir));
+// 结清后学校仍有出账的卡，改回未结清
+const fr = await val(`select save_fund_project(null, '改回样例项目', 'national', 'vertical', null, null, null, null, $1, 'recall') v`, [T.N]);
+const kr = await val(`select open_card($1, 2032, '7041-N', null, '2032-01-05', '2032-05-20', '2032-05-31') v`, [fr]);
+await val(imp, [kr, JSON.stringify([{ posted_on: '2032-03-01', voucher_no: '(B)201', title: '样例支出', amount: 400, school_code: '72-3021801', school_name: '非财政支出-专用材料费' }]),
+  JSON.stringify([{ posted_on: '2032-01-10', voucher_no: '(J)201', title: '样例拨款', amount: 1000, school_code: '61', school_name: '其他部委拨款' }]), 0, 600, true]);
+await as(U.dir, '2032-06-01');
+await raises('未结清的卡无须改回', /未结清，无须改回/, `select reopen_card($1, '学校仍有出账')`, [kr]);
+await q(`select settle_card($1)`, [kr]);
+c = await card(kr);
+ok(c.status === 'settled' && Number(c.recalled) === 600, '到期回收的卡结清时记下回收数', JSON.stringify([c.status, c.recalled]));
+await raises('改回未结清要写原因', /请填写改回未结清的原因/, `select reopen_card($1, ' ')`, [kr]);
+await raises('结余已结转的卡不能改回', /已结转至后续经费卡/, `select reopen_card($1, '学校仍有出账')`, [k1]);
+await as(U.fin, '2032-06-01');
+await raises('已结清的卡不能补登在途支出', /已结清/, reg, [kr, '结清后出账', 100, '2032-05-30', 'at_school']);
+await raises('财务岗不能改回未结清', /需要权限/, `select reopen_card($1, '学校仍有出账')`, [kr]);
+await as(U.dir, '2032-06-01');
+await q(`select reopen_card($1, '学校仍有出账')`, [kr]);
+c = await card(kr);
+ok(c.status === 'active' && Number(c.recalled) === 0 && Number(c.actual) === 400, '改回未结清：恢复在用，回收数清零，已入账不变', JSON.stringify([c.status, c.recalled, c.actual]));
+eq((await q(`select 1 from api.settlement where card_id = $1`, [kr])).length, 0, '改回后结清记录撤销');
+await as(U.fin, '2032-06-01');
+await val(reg, [kr, '结清后出账', 100, '2032-05-30', 'at_school']);
+ok(Number((await card(kr)).commit) === 100, '改回后可以补登在途支出');
 // 只控总额的卡：支出只与整张卡的总额核对，与科目的预算无关
 ok((await card(kl)).pooled === true, '导入时可把经费卡设为只控总额');
 await q(recH, [kl, SUB.N.biz, TY['耗材'], '科目上没有预算', 5000]);
