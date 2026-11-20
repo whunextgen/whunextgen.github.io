@@ -3,6 +3,7 @@ import { rpc, useViews, type BudgetCategory, type BudgetYear, type Card, type Ca
 import { ActionDialog, Badge, Empty, Loading, can, day, today, type Field } from '../ui';
 import { STAGE_TEXT } from './Budget';
 import { Backfill, SchoolImport } from './Import';
+import { TokenParams } from '../token';
 
 // 财务工作台：年度预算用到的设置都在这里改，不写死在系统里。
 export function Desk({ me }: { me: Me }) {
@@ -50,6 +51,7 @@ export function Desk({ me }: { me: Me }) {
         </table></div>
         <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="ghost" onClick={() => setCat('new')}>新增科目</button></div>
       </section>
+      <TokenParams me={me} />
       <SchoolImport finance={can(me, 'ledger.post')} />
       {can(me, 'ledger.post') && <Backfill />}
       {link && <ActionDialog title={`${link.name} 对应的学校科目`} submitLabel="保存" onClose={() => setLink(null)}

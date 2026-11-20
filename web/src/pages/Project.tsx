@@ -5,6 +5,7 @@ import { ActionDialog, Badge, Empty, Loading, Tile, can, day, money, num, pct, t
 import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
 import { RequestTable } from './Requests';
+import { UnitToken } from '../token';
 import { KIND as RES_KIND, RES_REQ, qty } from './Resource';
 
 const q = (n: string | number | null | undefined, unit?: string | null) => (n == null ? '—' : `${num(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}${unit ? ` ${unit}` : ''}`);
@@ -206,6 +207,8 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
               : r.mine && <span className="sub2">{y?.stage !== 'issued' ? '预算下达后、决算前方可调剂。' : rows.length < 2 ? '仅有一行预算，无可调剂的预算行。' : '有一笔调剂待中心负责人审批，审批完成后方可提交下一笔。'}</span>}
           </div>
         </section>
+
+        {isUnit && r.active && !data.tags.some((t) => t.id === r.id && t.proposed) && <UnitToken me={me} unit={r} />}
 
         <section className="card" id="sec-members">
           <h3>成员 <span className="h3sub">{members.length} 人</span></h3>

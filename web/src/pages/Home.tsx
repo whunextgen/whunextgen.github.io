@@ -5,6 +5,7 @@ import { Track, TreeNode, execSegs, type Seg } from '../tree';
 import { cardRisk, nodeState } from './Overview';
 import { KIND, STAGE_TEXT, STEP_OF } from './Budget';
 import { taskDue } from './Tasks';
+import { TokenMine } from '../token';
 
 const wan = (x: number) => `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 ? 0 : 1)} 万`;
 const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
@@ -484,6 +485,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
         {canUse ? <div className="wb-facts"><a className="btn" href="#/requests/new">提交支出申请</a><a className="btn ghost" href="#/resource">申领资源</a><a className="btn ghost" href="#/petty">申请备用金</a></div>
           : <div className="wb-facts"><span>本人尚不在已立项的课题或研究单元中，暂不能提交支出申请、申领资源和申请备用金。可请研究单元负责人将本人加入名单；成立研究单元须先经联席会议通过，通过后在「立项与延续申请」中提交申请。</span><a className="btn" href="#/plan">立项与延续申请</a></div>}
       </>)}
+      <section className="wb-sec">{head('00', '本期时间去向', '代币试行 · 每两周登记一次')}<TokenMine me={me} /></section>
       <section className="wb-sec">{head('01', '本人的支出申请', <a href="#/requests">全部申请 →</a>)}{mineTable}</section>
       <section className="wb-sec">
         {head('02', '本人的备用金和资源申领')}

@@ -3,6 +3,7 @@ import { rpc, useViews, type BudgetCategory, type BudgetModule, type BudgetPlan,
 import { ActionDialog, Badge, Empty, END_RULE, Loading, can, cardTotal, day, money, num, pct, today, type Field } from '../ui';
 import { ObjHead, Track, type Seg } from '../tree';
 import { BudgetFlow } from './BudgetFlow';
+import type { TierToken } from '../token';
 
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
@@ -11,8 +12,8 @@ interface Act { title: string; hint?: string; label: string; fields: Field[]; da
 // 中心负责人批准后，各课题带着明细申请档次；评定由联席会议决定、助理录入结果；中心负责人确认评定完成后，档次即课题上限、明细即预算行，转入下达。
 export function PlanPage({ me, start }: { me: Me; start: string }) {
   const { data, error, reload } = useViews<{ years: BudgetYear[]; plans: BudgetPlan[]; sources: BudgetSource[]; modules: BudgetModule[]; tiers: BudgetTier[]; picks: TierPick[];
-    funds: FundProject[]; cards: Card[]; projects: Project[]; cats: BudgetCategory[]; mtopics: ModuleTopic[]; users: User[]; units: UnitApply[]; tags: ProjectTag[] }>({
-    mtopics: ['module_topic'], units: ['unit_apply'], tags: ['project_tag'],
+    funds: FundProject[]; cards: Card[]; projects: Project[]; cats: BudgetCategory[]; mtopics: ModuleTopic[]; users: User[]; units: UnitApply[]; tags: ProjectTag[]; ttok: TierToken[] }>({
+    mtopics: ['module_topic'], units: ['unit_apply'], tags: ['project_tag'], ttok: ['tier_token'],
     years: ['budget_year'], plans: ['budget_plan'], sources: ['budget_source'], modules: ['budget_module'], tiers: ['budget_tier'], picks: ['tier_pick'],
     funds: ['fund_project'], cards: ['card'], projects: ['project'], cats: ['budget_category'], users: ['users'],
   });
@@ -30,6 +31,7 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
   const picks = data.picks.filter((k) => k.year === year).sort((a, b) => a.project_name.localeCompare(b.project_name, 'zh'));
   const total = num(plan?.total ?? 0), modSum = modules.reduce((t, m) => t + num(m.amount), 0), tierSum = tiers.reduce((t, x) => t + num(x.amount) * x.slots, 0), room = total - modSum - tierSum;
   const tierOf = (id: string | null) => tiers.find((t) => t.id === id);
+  const tok = (id: string) => data.ttok.find((x) => x.tier_id === id)?.token_amount ?? null;
   const catName = new Map(data.cats.map((c) => [c.id, c.name]));
   const limitText = (t: BudgetTier) => [t.labor_ratio != null && `劳务类不超过 ${pct(num(t.labor_ratio), 1)}`, ...(t.limits ?? []).map((l) => `${catName.get(l.category_id) ?? '类别'}不超过 ${pct(num(l.ratio), 1)}`)].filter(Boolean).join('；') || '无';
   const undecided = picks.filter((k) => !k.decided_tier_id && !k.rejected).length;
@@ -178,11 +180,14 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
         <h3>档次 <span className="h3sub">{staff ? '各档「金额 × 名额」合计不得超过可分给课题的数' : '每个课题申请一个档次'}</span></h3>
         {tiers.length === 0 ? <Empty>{staff ? '尚未编制档次。' : '档次方案尚未批准公布。'}</Empty> : (
           <div className="scroll"><table>
-            <thead><tr><th>档次</th><th className="r">每个课题</th><th className="r">名额</th><th className="r">小计</th><th>限制</th><th className="r">已申请</th><th className="r">已评定</th>{editable && <th />}</tr></thead>
+            <thead><tr><th>档次</th><th className="r">每个课题</th><th className="r">名额</th><th className="r">小计</th><th>限制</th><th className="r">每个课题的实际币</th><th className="r">已申请</th><th className="r">已评定</th>{editable && <th />}</tr></thead>
             <tbody>{tiers.map((t) => <tr key={t.id}><td>{t.name}</td><td className="r">{money(t.amount)}</td><td className="r">{t.slots}</td><td className="r">{money(num(t.amount) * t.slots)}</td><td className="wrap">{limitText(t)}</td>
+              <td className="r">{tok(t.id) != null ? num(tok(t.id)).toLocaleString('zh-CN') : <span className="sub2">未定</span>}{(finance || director) && <> {btn(tok(t.id) != null ? '改' : '填', { title: `每个课题的实际币：${t.name}`, label: '保存',
+                hint: '实际币按课题、按档次发，代表资源使用权（算力、设备、授权），与金额分开记，不是钱。目前是试行期，只记数量；资源标价和扣减待存量资源盘清后启用。', fields: [{ name: 'amount', label: '每个课题的实际币', type: 'number', required: false, value: tok(t.id) != null ? String(num(tok(t.id))) : '' }],
+                run: (v) => rpc('set_tier_token', { tier: t.id, amount: v.amount || null }) })}</>}</td>
               <td className="r">{t.picked}</td><td className="r">{t.decided}{t.decided >= t.slots && <> <Badge>已评满</Badge></>}</td>
               {editable && <td className="r"><div className="acts">{btn('修改', tierAct(t))}{btn('删除', del(`删除档次：${t.name}`, () => rpc('save_budget_tier', { id: t.id, year, name: t.name, amount: null, slots: null })))}</div></td>}</tr>)}</tbody>
-            <tfoot><tr><th scope="row">合计</th><td /><td className="r">{tiers.reduce((s, t) => s + t.slots, 0)}</td><td className="r">{money(tierSum)}</td><td /><td /><td />{editable && <td />}</tr></tfoot>
+            <tfoot><tr><th scope="row">合计</th><td /><td className="r">{tiers.reduce((s, t) => s + t.slots, 0)}</td><td className="r">{money(tierSum)}</td><td /><td className="r">{tiers.some((t) => tok(t.id) != null) ? tiers.reduce((s, t) => s + num(tok(t.id) ?? 0) * t.slots, 0).toLocaleString('zh-CN') : ''}</td><td /><td />{editable && <td />}</tr></tfoot>
           </table></div>
         )}
         {editable && <div className="actions" style={{ justifyContent: 'flex-start' }}>{btn('新增档次', tierAct(), 'sm')}</div>}
