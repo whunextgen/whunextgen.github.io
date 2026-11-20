@@ -1922,6 +1922,15 @@ await q(`select set_tier_token($1, 12000)`, [t1]);
 eq((await one(`select token_amount from api.tier_token where tier_id = $1`, [t1])).token_amount, 12000, '档次上记每个课题的实际币');
 await as(plain, '2032-06-16');
 ok(Number((await one(`select nominal from api.token_me`)).nominal) === 90 && Number((await one(`select pool_cap from api.unit_pool where project_id = $1`, [U1])).pool_cap) === 100, '参数和池子上限改了之后成员看得到');
+await as(U.dir, '2032-06-16');
+eq((await q(`select * from api.token_param`)).length, 8, '代币参数都设在系统里');
+await raises('计划经济时期不铸造', /挂牌铸造率须为空/, `select set_token_param('rate', '0.12'::jsonb)`);
+await raises('各级系数要齐', /参数不完整/, `select set_token_param('levels', '{"r1": 1}'::jsonb)`);
+await raises('评定的比例不能太低', /30% 到 100% 之间/, `select set_token_param('split', '{"eval": 0.1}'::jsonb)`);
+await q(`select set_token_param('split', '{"eval": 0.85}'::jsonb)`);
+await q(`select set_token_param('levels', '{"r1": 1, "t1": 0.2, "l2": 0.3, "l3": 1, "l4": 3}'::jsonb)`);
+await q(`select set_token_param('resubmit', '{"lower": 0.4, "decay": 0.8, "rounds": 3, "extra": 0.3}'::jsonb)`);
+ok(Number((await one(`select value from api.token_param where key = 'split'`)).value.eval) === 0.85, '中心负责人可以改参数');
 await as(plain, '2032-07-20');
 await raises('期满七日未确认的作废', /未确认的登记已作废/, `select confirm_time_logs($1, $2)`, [U1, PS]);
 // 旧入口直接建的卡自动补上经费项目

@@ -154,26 +154,57 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
   );
 }
 
-// ---------- 预算参数页：各身份每两周的名义币 ----------
+// ---------- 预算参数页：代币参数 ----------
 const KINDS = ['postdoc', 'phd', 'ra', 'master', 'ri', 'visitor'];
+type Num = Record<string, number>;
 export function TokenParams({ me }: { me: Me }) {
   const { data, error, reload } = useViews<{ params: TokenParam[] }>({ params: ['token_param'] });
-  const [edit, setEdit] = useState(false);
+  const [act, setAct] = useState<Act | null>(null);
   if (!data) return <Loading error={error} />;
-  const nominal = (data.params.find((p) => p.key === 'nominal')?.value ?? {}) as Record<string, number>;
-  const phase = data.params.find((p) => p.key === 'phase')?.value;
+  const get = (k: string) => data.params.find((p) => p.key === k)?.value;
+  const nominal = (get('nominal') ?? {}) as Num, lv = (get('levels') ?? {}) as Num, rs = (get('resubmit') ?? {}) as Num, sp = (get('split') ?? {}) as Num;
+  const phase = get('phase'), reserve = Number(get('reserve') ?? 0), valid = Number(get('valid') ?? 0), rate = get('rate') as number | null;
+  const director = can(me, 'budget.approve');
+  const set = (key: string, value: unknown) => rpc('set_token_param', { key, value });
+  const pc = (v: number) => `${Math.round(v * 100)}%`;
+  const fold = (v: number) => `${['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'][Math.round(v * 10)] ?? v}折`;
+  const nf = (name: string, label: string, v: number): Field => ({ name, label, type: 'number', value: String(v) });
+  const rows: [string, string, string, Act][] = [
+    ['评定与成果的比例', `${pc(sp.eval ?? 1)} 按档次评定发，${pc(1 - (sp.eval ?? 1))} 留给成果`, '每年的资源容量先分两块。成果那一块在转入市场经济时期后按成果铸造；每年调整不宜超过 5 个点。',
+      { title: '评定与成果的比例', label: '保存', hint: '填按档次评定发的占比（%）。测算显示一次调整过大时机器闲置率会明显上升，建议每年不超过 5 个点。', fields: [nf('eval', '按档次评定发的占比（%）', Math.round((sp.eval ?? 1) * 100))],
+        run: (v) => set('split', { eval: Number(v.eval) / 100 }) }],
+    ['预备', pc(reserve), '年中新立的课题和突发需要从这里出。',
+      { title: '预备占资源容量的比例', label: '保存', fields: [nf('v', '预备（%）', Math.round(reserve * 100))], run: (v) => set('reserve', Number(v.v) / 100) }],
+    ['一级（公开发布）', `花掉的实际币等额解锁；时间按 ${lv.t1 ?? 0} 计`, '一级只是解锁。时间每两周都会再发，所以对时间打折，防止只为解锁而凑数。',
+      { title: '一级的系数', label: '保存', fields: [nf('r1', '对花掉的实际币', lv.r1 ?? 1), nf('t1', '对投入的时间', lv.t1 ?? 0.3)], run: (v) => set('levels', { ...lv, r1: Number(v.r1), t1: Number(v.t1) }) }],
+    ['二、三、四级追加', `加 ${lv.l2 ?? 0} 倍、加 ${lv.l3 ?? 0} 倍、加 ${lv.l4 ?? 0} 倍`, '在一级之上逐级追加。四级（同行认可）是主要收益。',
+      { title: '二、三、四级的追加倍数', label: '保存', fields: [nf('l2', '二级 · 完整发布', lv.l2 ?? 0), nf('l3', '三级 · 外部反响', lv.l3 ?? 0), nf('l4', '四级 · 同行认可', lv.l4 ?? 0)],
+        run: (v) => set('levels', { ...lv, l2: Number(v.l2), l3: Number(v.l3), l4: Number(v.l4) }) }],
+    ['投稿与重投', `低一档去向${fold(rs.lower ?? 1)}，每多投一轮${fold(rs.decay ?? 1)}，最多 ${rs.rounds ?? 0} 轮，每轮追加投入不超过首轮池子的 ${pc(rs.extra ?? 0)}`,
+      '四级的铸造量按首轮池子定，重投不会把它做大；录用在计划去向之外的打折，清单之外的不算。',
+      { title: '投稿与重投', label: '保存', fields: [nf('lower', '低一档去向的折扣（0 到 1）', rs.lower ?? 0.4), nf('decay', '每多投一轮的折扣（0 到 1）', rs.decay ?? 0.8), nf('rounds', '最多投稿轮数', rs.rounds ?? 3), nf('extra', '每轮追加投入的上限（占首轮池子，0 到 1）', rs.extra ?? 0.3)],
+        run: (v) => set('resubmit', { lower: Number(v.lower), decay: Number(v.decay), rounds: Math.round(Number(v.rounds)), extra: Number(v.extra) }) }],
+    ['挂牌铸造率', rate == null ? '未挂牌：试行期只记录，不铸造' : `每 1 点铸 ${rate} 实际币`, '转入市场经济时期后启用：事先公布，成果核对通过当天按这个数铸造。',
+      { title: '挂牌铸造率', label: '保存', hint: '计划经济时期须留空。', fields: [{ name: 'v', label: '每 1 点铸多少实际币', type: 'number', required: false, value: rate == null ? '' : String(rate) }], run: (v) => set('rate', v.v ? Number(v.v) : null) }],
+    ['铸造所得的有效期', `${valid} 个月`, '个人和课题凭成果得到的实际币，过期作废。',
+      { title: '铸造所得的有效期', label: '保存', fields: [nf('v', '月数', valid)], run: (v) => set('valid', Math.round(Number(v.v))) }],
+  ];
   return (
     <section className="card">
       <h3>代币参数 <span className="h3sub">{phase === 'plan' ? '计划经济时期：只记录，不铸造' : '市场经济时期'}</span></h3>
-      <p className="hint">名义币按人发，每两周一次，按身份定量，代表时间，不能换资源；实际币按课题、按档次发，数量在「总预算与档次」的档次表里填。代币不是钱，不与经费卡和学校账目发生关系。</p>
+      <p className="hint">名义币按人发，每两周一次，按身份定量，代表时间，不能换资源；实际币按课题、按档次发，代表资源使用权，数量在「总预算与档次」的档次表里填。代币不是钱，不与经费卡和学校账目发生关系。下面与铸造有关的参数在转入市场经济时期后才起作用，现在先定下来供大家查看。</p>
       <div className="scroll"><table>
-        <thead><tr><th>身份</th><th className="r">每两周的名义币</th></tr></thead>
-        <tbody>{KINDS.map((k) => <tr key={k}><td>{PERSON[k]}</td><td className="r">{nominal[k] ?? 0}</td></tr>)}</tbody>
+        <thead><tr><th>身份</th>{KINDS.map((k) => <th key={k} className="r">{PERSON[k]}</th>)}{director && <th />}</tr></thead>
+        <tbody><tr><td>每两周的名义币</td>{KINDS.map((k) => <td key={k} className="r">{nominal[k] ?? 0}</td>)}
+          {director && <td className="r"><button className="sm ghost" onClick={() => setAct({ title: '各身份每两周的名义币', label: '保存', hint: '数量反映该身份可投入科研的时间。修改后从下一次登记起生效，已登记的不变。',
+            fields: KINDS.map((k) => nf(k, PERSON[k], nominal[k] ?? 0)), run: (v) => set('nominal', Object.fromEntries(KINDS.map((k) => [k, Number(v[k]) || 0]))) })}>修改</button></td>}</tr></tbody>
       </table></div>
-      {can(me, 'budget.approve') && <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="sm ghost" onClick={() => setEdit(true)}>修改</button></div>}
-      {edit && <ActionDialog title="各身份每两周的名义币" submitLabel="保存" hint="数量反映该身份可投入科研的时间。修改后从下一次登记起生效，已登记的不变。"
-        fields={KINDS.map((k): Field => ({ name: k, label: PERSON[k], type: 'number', value: String(nominal[k] ?? 0) }))}
-        onSubmit={(v) => rpc('set_token_param', { key: 'nominal', value: Object.fromEntries(KINDS.map((k) => [k, Number(v[k]) || 0])) }).then(reload)} onClose={() => setEdit(false)} />}
+      <div className="scroll" style={{ marginTop: 14 }}><table>
+        <thead><tr><th style={{ width: '18%' }}>参数</th><th style={{ width: '34%' }}>现行</th><th>说明</th>{director && <th />}</tr></thead>
+        <tbody>{rows.map(([name, val, note, a]) => <tr key={name}><td>{name}</td><td className="wrap">{val}</td><td className="wrap"><span className="sub2">{note}</span></td>
+          {director && <td className="r"><button className="sm ghost" onClick={() => setAct(a)}>修改</button></td>}</tr>)}</tbody>
+      </table></div>
+      {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.label} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
     </section>
   );
 }
