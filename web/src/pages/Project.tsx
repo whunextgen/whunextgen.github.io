@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ObjHead, Stages, Track, execSegs } from '../tree';
-import { rpc, useViews, type ProjectTag, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember } from '../api';
+import { rpc, useViews, type ProjectTag, type UnitExec, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember } from '../api';
 import { ActionDialog, Badge, Empty, Loading, Tile, can, day, money, num, pct, today } from '../ui';
 import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
@@ -14,9 +14,9 @@ export const typeText = (r: Project) => r.layer === 'paper' ? '研究单元' : r
 export function ProjectPage({ me, id, start }: { me: Me; id: string; start: string }) {
   const director = can(me, 'budget.approve');
   const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; lines: BudgetLine[]; exec: LineExec[]; cats: BudgetCategory[]; shifts: BudgetShift[];
-    members: ProjectMember[]; people: PeoplePick[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; reqs: Req[]; resreqs: ResourceRequest[] }>({
+    members: ProjectMember[]; people: PeoplePick[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; uexec: UnitExec[]; reqs: Req[]; resreqs: ResourceRequest[] }>({
     reqs: ['request'], resreqs: ['resource_request'],
-    tags: ['project_tag'],
+    tags: ['project_tag'], uexec: ['unit_exec'],
     projects: ['project'], years: ['budget_year'], lines: ['budget_line'], exec: ['line_exec'], cats: ['budget_category'], shifts: ['budget_shift'],
     members: ['project_member'], people: ['people_pick'], caps: ['project_cap'], capreqs: ['cap_request'], assets: ['project_asset'], pallocs: ['project_allocation'],
   });
@@ -164,27 +164,33 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
         <div className="actions" style={{ justifyContent: 'flex-start' }}><a className="btn ghost sm" href="#/requests/new">提交支出申请</a><a className="btn ghost sm" href="#/requests">全部支出申请</a></div>
       </section>
 
-      {kids.length > 0 && (
+      {kids.length > 0 && (() => {
+        // 研究单元都用课题的钱：预算行都在课题上，这里按申请记在谁名下分列执行
+        const waiting = new Set(data.tags.filter((t) => t.proposed).map((t) => t.id));
+        const ue = data.uexec.filter((x) => x.topic_id === r.id && x.year === year);
+        const of = (pid: string) => { const x = ue.find((e) => e.project_id === pid); return { n: x?.n ?? 0, used: num(x?.used ?? 0), actual: num(x?.actual ?? 0) }; };
+        const sum = ue.reduce((t, x) => ({ n: t.n + x.n, used: t.used + num(x.used), actual: t.actual + num(x.actual) }), { n: 0, used: 0, actual: 0 });
+        const cells = (t: { n: number; used: number; actual: number }) => <>
+          <td className="r">{run ? t.n : '—'}</td>
+          <td>{run && sum.used > 0 && t.used > 0 ? <Track segs={execSegs(sum.used, t.actual, Math.max(t.used - t.actual, 0), '课题已用')} scale={sum.used} /> : null}</td>
+          <td className="r">{run ? money(t.used) : '—'}</td><td className="r">{run ? money(t.actual) : '—'}</td>
+          <td className="r">{run && sum.used > 0 ? pct(t.used, sum.used) : '—'}</td></>;
+        return (
         <section className="card" id="sec-papers">
           <h3>研究单元 <span className="h3sub">{kids.length} 个 · {year} 年度</span></h3>
-          <p className="hint">研究单元的预算计入本课题的上限。申报期间课题负责人可在预算编制页面直接修改下属各研究单元的预算；预算下达后，课题负责人可在各研究单元之间调剂，合计不变。</p>
+          <p className="hint">研究单元使用本课题的预算，不单独编预算。支出申请记在所属研究单元名下，由该研究单元的负责人确认；下表按研究单元分列本课题预算的执行，只列汇总数。{run ? '' : '预算下达后开始有执行数。'}</p>
           <div className="scroll"><table>
-            <thead><tr><th>研究单元</th><th>负责人</th><th className="r">预算</th><th style={{ minWidth: 180 }}>执行</th><th className="r">已用（含在途）</th><th className="r">已入账</th><th className="r">剩余</th></tr></thead>
+            <thead><tr><th>研究单元</th><th>负责人</th><th className="r">成员</th><th className="r">支出申请</th><th style={{ minWidth: 180 }}>执行</th><th className="r">已用（含在途）</th><th className="r">已入账</th><th className="r">占课题已用</th></tr></thead>
             <tbody>
-              {kids.map((k) => { const t = tot(k.id); return (
-                <tr key={k.id} style={k.active ? undefined : { opacity: .55 }}><td><a href={`#/project/${k.id}/${year}`}>{k.name}</a><span className="sub2">{k.code}{k.active ? '' : ' · 已停用'}</span></td><td>{k.owner_name ?? '—'}</td>
-                  <td className="r">{t.n ? money(t.budget) : <span className="sub2">未填报</span>}</td><td>{run && t.n && t.budget > 0 ? <Track segs={execSegs(t.budget, t.actual, Math.max(t.used - t.actual, 0), '预算')} scale={Math.max(...kt.map((x) => x.t.budget), own.budget)} /> : null}</td><td className="r">{run && t.n ? money(t.used) : '—'}</td><td className="r">{run && t.n ? money(t.actual) : '—'}</td><td className="r">{run && t.n ? money(t.budget - t.used) : '—'}</td></tr>); })}
-              <tr><td>课题自身的预算行</td><td>{r.owner_name ?? '—'}</td><td className="r">{own.n ? money(own.budget) : <span className="sub2">未填报</span>}</td><td>{run && own.n && own.budget > 0 ? <Track segs={execSegs(own.budget, own.actual, Math.max(own.used - own.actual, 0), '预算')} scale={Math.max(...kt.map((x) => x.t.budget), own.budget)} /> : null}</td><td className="r">{run && own.n ? money(own.used) : '—'}</td><td className="r">{run && own.n ? money(own.actual) : '—'}</td><td className="r">{run && own.n ? money(own.budget - own.used) : '—'}</td></tr>
+              {kids.map((k) => (
+                <tr key={k.id} style={k.active ? undefined : { opacity: .55 }}><td>{k.seen ? <a href={`#/project/${k.id}/${year}`}>{k.name}</a> : k.name}<span className="sub2">{k.code}{k.active ? '' : ' · 已停用'}</span>{waiting.has(k.id) && <> <Badge tone="warn">待立项</Badge></>}</td>
+                  <td>{k.owner_name ?? '—'}</td><td className="r">{k.members}</td>{cells(of(k.id))}</tr>))}
+              <tr><td>记在课题名下</td><td>{r.owner_name ?? '—'}</td><td className="r">{r.members}</td>{cells(of(r.id))}</tr>
             </tbody>
-            <tfoot><tr><th scope="row">合计</th><td /><td className="r">{money(all.budget)}</td><td /><td className="r">{run ? money(all.used) : '—'}</td><td className="r">{run ? money(all.actual) : '—'}</td><td className="r">{run ? money(all.budget - all.used) : '—'}</td></tr>
-              {cap && <tr><th scope="row">距上限</th><td /><td className={`r ${num(cap.amount) - num(cap.used) <= 0 ? 'neg' : ''}`}>{money(num(cap.amount) - num(cap.used))}</td><td /><td /><td /><td /></tr>}</tfoot>
+            <tfoot><tr><th scope="row">合计</th><td /><td /><td className="r">{run ? sum.n : '—'}</td><td /><td className="r">{run ? money(sum.used) : '—'}</td><td className="r">{run ? money(sum.actual) : '—'}</td><td /></tr>
+              {cap && <tr><th scope="row">距上限</th><td /><td /><td /><td /><td className={`r ${num(cap.amount) - num(cap.used) <= 0 ? 'neg' : ''}`}>{money(num(cap.amount) - num(cap.used))}</td><td /><td /></tr>}</tfoot>
           </table></div>
-          {r.mine && r.kind !== 'public' && <div className="actions" style={{ justifyContent: 'flex-start' }}>
-            {canMove ? <button className="sm" onClick={() => setAct(moveAct())}>研究单元间预算调剂</button>
-              : <span className="sub2">{y?.stage !== 'issued' ? '预算下达后、决算前方可在研究单元之间调剂。' : '须有两个以上研究单元有预算行方可调剂。'}</span>}
-          </div>}
-        </section>
-      )}
+        </section>); })()}
 
       {r.kind !== 'public' && <>
         <section className="card" id="sec-shift">

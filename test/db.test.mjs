@@ -1300,6 +1300,8 @@ eq((await q(`select * from api.budget_shift where project_id = $1`, [BX])).lengt
 await raises('同一课题的两行不走课题之间的调剂', /两行属同一研究单元，请使用研究单元内调剂/, `select move_budget($1, $2, 1000, '试')`, [PL1, PL2]);
 await as(U.mem2, D9);
 eq((await q(`select * from api.budget_shift where id = $1`, [mv])).length, 1, '课题全公开：成员看得到课题的调剂');
+const ue = await q(`select project_id, n, used, actual from api.unit_exec where topic_id = $1 and year = 2029`, [BX]);
+ok(ue.some((x) => x.project_id === PX1 && x.n > 0 && Number(x.used) > 0) && ue.every((x) => [PX1, BX].includes(x.project_id)), '课题的执行按研究单元分列，成员看得到汇总数', JSON.stringify(ue));
 
 // 设备买回来归公共设备，记下哪个项目出的钱；出钱项目的成员优先领用
 await as(U.fin, D9);

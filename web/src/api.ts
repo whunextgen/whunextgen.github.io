@@ -82,6 +82,8 @@ export interface BudgetTier { id: string; year: number; name: string; amount: st
 export interface TierPick { year: number; project_id: string; project_name: string; owner_name: string | null; tier_id: string; reason: string | null; picked_at: string;
   decided_tier_id: string | null; decide_note: string | null; decided_at: string | null; total: string; drafts: number; violation: string | null; meeting_on: string | null; decided_by_name: string | null; kind: 'new' | 'renew'; rejected: boolean; units: number }
 export interface ProjectTag { id: string; morningstar: boolean; proposed: boolean }
+// 课题的预算按研究单元分列的执行：project_id 为研究单元，或课题本身（记在课题名下的）
+export interface UnitExec { year: number; topic_id: string; project_id: string; n: number; used: string; actual: string }
 // 研究单元申请：先经联席会议通过，再在系统里申请，助理对照纪要核对后成立。veto_until 为三个工作日否决期的最后一天
 export interface UnitApply { id: string; code: string; name: string; parent_id: string; parent_code: string; parent_name: string; owner_id: string | null; owner_name: string | null;
   apply_note: string | null; meeting_on: string | null; minutes_on: string | null; applied_at: string; return_note: string | null; checked_by_name: string | null; checked_at: string | null;

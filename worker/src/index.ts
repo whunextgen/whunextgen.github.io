@@ -22,7 +22,7 @@ const VIEWS = new Set(['me', 'users', 'card_pick', 'fund_project', 'card_school_
   'template', 'template_cap', 'user_admin', 'outbox', 'project_tag', 'resource', 'allocation',
   'legacy_ms_submission', 'legacy_ms_item', 'legacy_budget_adjust', 'legacy_resource_request', 'legacy_quota_ledger', 'legacy_source', 'legacy_record', 'legacy_recon',
   'project', 'budget_category', 'budget_year', 'project_budget', 'budget_line',
-  'budget_plan', 'budget_source', 'budget_module', 'budget_tier', 'tier_pick', 'module_topic', 'unit_apply',
+  'budget_plan', 'budget_source', 'budget_module', 'budget_tier', 'tier_pick', 'module_topic', 'unit_apply', 'unit_exec',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
