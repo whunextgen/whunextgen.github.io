@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ObjHead, Stages, Track } from '../tree';
-import { rpc, useViews, type LinePick, type Me, type PettyCash, type Req, type ResourceRequest, type User } from '../api';
+import { rpc, useViews, type LinePick, type Me, type PettyCash, type Project, type ProjectTag, type Req, type ResourceRequest, type User } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, REQ, Tile, day, money, num, today } from '../ui';
 import { KIND, RES_REQ, qty, type Act } from './Resource';
 
@@ -12,7 +12,7 @@ const days = (from: string) => Math.max(0, Math.floor((Date.parse(today()) - Dat
 // ---------- 备用金：先领后核销的小额周转；从预算行里领，领用期间占着这一行预算 ----------
 // only 给出时是单笔备用金的页面（#/petty/<id>）
 export function PettyPage({ me, only }: { me: Me; only?: string }) {
-  const { data, error, reload } = useViews<{ rows: PettyCash[]; reqs: Req[]; lines: LinePick[] }>({ rows: ['petty_cash'], reqs: ['request'], lines: ['line_pick'] });
+  const { data, error, reload } = useViews<{ rows: PettyCash[]; reqs: Req[]; lines: LinePick[]; projects: Project[]; tags: ProjectTag[] }>({ rows: ['petty_cash'], reqs: ['request'], lines: ['line_pick'], projects: ['project'], tags: ['project_tag'] });
   const [act, setAct] = useState<Act | null>(null);
   const [all, setAll] = useState(false);
   if (!data) return <Loading error={error} />;
@@ -23,13 +23,16 @@ export function PettyPage({ me, only }: { me: Me; only?: string }) {
   const year = today().slice(0, 4);
   const settled = rows.filter((r) => r.status === 'settled' && day(r.settled_on).startsWith(year));
   const sum = (list: PettyCash[], k: 'amount' | 'spent' = 'amount') => list.reduce((s, r) => s + num(r[k]), 0);
+  // 研究单元都用课题的钱：选课题的预算行，申请记在本人所在的研究单元名下
+  const myUnits = data.projects.filter((p) => p.layer === 'paper' && p.active && (p.member || p.mine) && !data.tags.some((t) => t.id === p.id && t.proposed)).map((p): [string, string] => [p.id, `${p.code} ${p.name}`]);
   const saveAct = (r?: PettyCash): Act => ({
     label: r ? '保存' : '提交申请', title: r ? '修改备用金申请' : '申请备用金',
     hint: '备用金用于来不及办理支出申请的小额周转，同样从年度预算列支：选择一行预算，金额不得超过该预算行剩余额度；领用期间占用该预算行。由中心负责人审批，领用后凭票据由财务岗核销，未使用部分退回并释放预算。',
     fields: [{ name: 'line_id', label: '支出预算行', value: r?.budget_line_id,
       options: data.lines.map((l): [string, string] => [l.id, `${l.project_code} ${l.project_name} · ${l.category_name} · ${l.purpose}`]) },
+      ...(myUnits.length > 0 ? [{ name: 'unit_id', label: '所属研究单元（选填；本人在同一课题下多个研究单元名单内时须选）', required: false, options: myUnits }] : []),
       { name: 'amount', label: '金额（元）', type: 'number', value: r ? String(num(r.amount)) : '' }, { name: 'purpose', label: '用途', value: r?.purpose }],
-    run: (v) => rpc('save_petty_cash', { id: r?.id ?? null, amount: v.amount, purpose: v.purpose, line_id: v.line_id }),
+    run: (v) => rpc('save_petty_cash', { id: r?.id ?? null, amount: v.amount, purpose: v.purpose, line_id: v.line_id, unit_id: v.unit_id || null }),
   });
   const decide = (r: PettyCash, action: 'approve' | 'reject' | 'withdraw'): Act => ({
     label: { approve: '批准', reject: '驳回', withdraw: '撤回' }[action], danger: action !== 'approve',

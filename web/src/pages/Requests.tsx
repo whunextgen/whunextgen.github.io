@@ -98,13 +98,16 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
 interface Part { card_id: string; subject_id: string; amount: string }
 const blank = (): Part => ({ card_id: '', subject_id: '', amount: '' });
 
-function NewRequest({ cards, subjects, types, picks, canCard, onDone }: { cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; picks: LinePick[]; canCard: boolean; onDone: (msg: string) => void }) {
+function NewRequest({ cards, subjects, types, picks, units, canCard, onDone }: { cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; picks: LinePick[]; units: Project[]; canCard: boolean; onDone: (msg: string) => void }) {
   const usable = cards.filter((c) => c.status === 'active');
   const [v, setV] = useState({ card_id: '', subject_id: '', expense_type_id: '', title: '', amount: '', eta_date: '', path: '', emergency: false });
   const [split, setSplit] = useState(false);
   // 年度预算下达之后按研究单元提交：只选研究单元和预算行，经费卡由系统在这一行下达到的卡里挑
   const [byLine, setByLine] = useState(picks.length > 0);
   const [line, setLine] = useState({ project: '', id: '' });
+  // 研究单元都用课题的钱：选课题的预算行，申请记在本人所在的研究单元名下
+  const [unit, setUnit] = useState('');
+  const myUnits = units.filter((u) => u.parent_id === line.project);
   const projects = [...new Map(picks.map((x) => [x.project_id, x])).values()].sort((a, b) => a.project_code.localeCompare(b.project_code));
   const [parts, setParts] = useState<Part[]>([blank(), blank()]);
   const [busy, setBusy] = useState(false);
@@ -122,7 +125,7 @@ function NewRequest({ cards, subjects, types, picks, canCard, onDone }: { cards:
     const path = v.path || type?.required_path || null;
     try {
       if (byLine) {
-        await rpc('submit_project_request', { line_id: line.id, expense_type_id: v.expense_type_id, title: v.title, amount: v.amount, eta_date: v.eta_date, emergency: v.emergency, path });
+        await rpc('submit_project_request', { line_id: line.id, expense_type_id: v.expense_type_id, title: v.title, amount: v.amount, eta_date: v.eta_date, emergency: v.emergency, path, unit_id: unit || null });
         onDone(`已提交：${v.title}，${money(v.amount)}，计入「${picks.find((x) => x.id === line.id)?.project_name ?? ''}」预算。先由研究单元负责人确认，再由财务岗核对；超出预算行的另由中心负责人审批。当前环节可在下方列表查看。`);
       } else if (split) {
         await rpc('submit_split', { expense_type_id: v.expense_type_id, title: v.title, eta_date: v.eta_date, path,
@@ -137,21 +140,25 @@ function NewRequest({ cards, subjects, types, picks, canCard, onDone }: { cards:
   return (
     <form className="card" onSubmit={submit}>
       <h3>提交支出申请</h3>
-      <p className="hint">{byLine ? '先申请、后支出。仅可在本人所属成员名单的研究单元内提交，选择研究单元和预算行即可，经费来源由财务岗安排。提交后先由研究单元负责人确认，再由财务岗核对；超出该预算行的不拦截，标明超出金额，另由中心负责人审批。'
+      <p className="hint">{byLine ? '先申请、后支出。研究单元使用所属课题的预算：选择课题和预算行即可，申请记在本人所在的研究单元名下，经费来源由财务岗安排。仅可在本人所属成员名单的课题或研究单元内提交。提交后先由研究单元负责人确认，再由财务岗核对；超出该预算行的不拦截，标明超出金额，另由中心负责人审批。'
         : '先申请、后支出。提交时按可报销规则、可用额度、单据截止日和采购路径检查，不符合的将说明原因。'}</p>
       {picks.length > 0 && canCard && <div className="tabs" style={{ marginBottom: 12 }}>
-        <button type="button" className="sm" aria-pressed={byLine} onClick={() => { setByLine(true); setSplit(false); }}>按研究单元预算</button>
+        <button type="button" className="sm" aria-pressed={byLine} onClick={() => { setByLine(true); setSplit(false); }}>按课题预算</button>
         <button type="button" className="sm" aria-pressed={!byLine} onClick={() => setByLine(false)}>未列入年度预算，按经费卡</button></div>}
       <div className="grid">
         {byLine && <>
-          <label className="field"><span>研究单元</span>
-            <select required value={line.project} onChange={(e) => setLine({ project: e.target.value, id: '' })}>
+          <label className="field"><span>课题</span>
+            <select required value={line.project} onChange={(e) => { setLine({ project: e.target.value, id: '' }); setUnit(''); }}>
               <option value="">请选择</option>{projects.map((x) => <option key={x.project_id} value={x.project_id}>{x.project_code} {x.project_name}</option>)}
             </select></label>
           <label className="field"><span>预算行</span>
             <select required value={line.id} disabled={!line.project} onChange={(e) => setLine({ ...line, id: e.target.value })}>
-              <option value="">{line.project ? '请选择' : '请先选择研究单元'}</option>{picks.filter((x) => x.project_id === line.project).map((x) => <option key={x.id} value={x.id}>{x.category_name} · {x.purpose}</option>)}
+              <option value="">{line.project ? '请选择' : '请先选择课题'}</option>{picks.filter((x) => x.project_id === line.project).map((x) => <option key={x.id} value={x.id}>{x.category_name} · {x.purpose}</option>)}
             </select></label>
+          {myUnits.length > 0 && <label className="field"><span>所属研究单元</span>
+            <select value={unit} onChange={(e) => setUnit(e.target.value)}>
+              <option value="">{myUnits.length > 1 ? '请选择（本人在多个研究单元名单内）' : '按本人所在名单确定'}</option>{myUnits.map((u) => <option key={u.id} value={u.id}>{u.code} {u.name}</option>)}
+            </select></label>}
         </>}
         {!byLine && !split && <>
           <label className="field"><span>经费卡</span>
@@ -256,6 +263,7 @@ export function Requests({ me, start = '' }: { me: Me; start?: string }) {
       {adding && (data.picks.length === 0 && !adds
         ? <section className="card"><h3>提交支出申请</h3><Empty>本人当前不在任何已下达预算研究单元的成员名单内，无法提交支出申请。请研究单元负责人在「课题管理」页加入名单；加入后即可选择该研究单元的预算行。</Empty></section>
         : <NewRequest cards={data.cards} subjects={data.subjects} types={data.types} picks={data.picks} canCard={staff}
+          units={data.projects.filter((p) => p.layer === 'paper' && p.active && (p.member || p.mine) && !data.tags.some((t) => t.id === p.id && t.proposed))}
             onDone={(msg) => { setAdding(false); setDone(msg); setTab('open'); reload(); }} />)}
       <section className="card">
         <h3>{staff ? '全部申请' : data.projects.some((p) => p.mine) ? '我的申请及负责研究单元的申请' : '我的申请'}</h3>

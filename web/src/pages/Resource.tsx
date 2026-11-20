@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { rpc, secretGet, secretSet, useViews, type Allocation, type Me, type Req, type Resource, type ResourcePick, type ResourcePlan, type ResourceRequest, type ResourceStock, type YearCheck, type ResReqStatus,
+import { rpc, secretGet, secretSet, useViews, type Allocation, type Me, type Project, type ProjectTag, type Req, type Resource, type ResourcePick, type ResourcePlan, type ResourceRequest, type ResourceStock, type YearCheck, type ResReqStatus,
   type SecretAccess, type User } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, PERSON, Tile, canPublic, day, money, num, today, type Field } from '../ui';
 
@@ -46,8 +46,8 @@ const keyAct = (kind: 'resource' | 'allocation', id: string, name: string, has: 
 // ---------- 申请与名下：所有人 ----------
 export function ResourcePage({ me }: { me: Me }) {
   const staff = can(me, 'read.resource');
-  const { data, error, reload } = useViews<{ allocs: Allocation[]; plans: ResourcePlan[]; reqs: ResourceRequest[] }>({
-    allocs: ['allocation'], plans: ['resource_plan'], reqs: ['resource_request'],
+  const { data, error, reload } = useViews<{ allocs: Allocation[]; plans: ResourcePlan[]; reqs: ResourceRequest[]; projects: Project[]; tags: ProjectTag[] }>({
+    allocs: ['allocation'], plans: ['resource_plan'], reqs: ['resource_request'], projects: ['project'], tags: ['project_tag'],
   });
   const [act, setAct] = useState<Act | null>(null);
   const [key, setKey] = useState<Allocation | null>(null);
@@ -65,23 +65,26 @@ export function ResourcePage({ me }: { me: Me }) {
   const lineOpts = (kind: 'api' | 'asset') => plans.filter((p) => p.kind === kind && (p.project_kind !== 'public' || eligible)).map((p): [string, string] =>
     [p.id, `${p.project_code} ${p.purpose} · ${p.resource_name}，计划 ${qty(p.plan_qty, p.unit)}，剩余 ${qty(rest(p), p.unit)}`]);
   const none = (kind: 'api' | 'asset') => (lineOpts(kind).length ? '' : `本年度预算中暂无${KIND[kind]}的资源计划，暂不能提交申请。如需使用，请研究单元负责人在年度预算中补充；年中追加的，由财务岗在复盘时调整。`);
+  // 研究单元都用课题的钱：选课题的预算行，申请记在本人所在的研究单元名下，由该研究单元的负责人批示
+  const myUnits = data.projects.filter((p) => p.layer === 'paper' && p.active && (p.member || p.mine) && !data.tags.some((t) => t.id === p.id && t.proposed)).map((p): [string, string] => [p.id, `${p.code} ${p.name}`]);
+  const unitField: Field[] = myUnits.length > 0 ? [{ name: 'unit_id', label: '所属研究单元（选填；本人在同一课题下多个研究单元名单内时须选）', required: false, options: myUnits }] : [];
   const reqAct = (kind: 'api' | 'asset'): Act => kind === 'api' ? {
     label: '提交申请', title: '申请接口额度',
     hint: `资源均由年度预算列支：选择一条已编制资源计划的预算行，累计申请不得超过计划数量。先由研究单元负责人批示，再由财务岗批准并分发；本人负责的研究单元直接提交财务岗。申请中不得填写任何密钥。${none(kind)}`,
-    fields: [{ name: 'line_id', label: '支出预算行', options: lineOpts(kind) },
+    fields: [{ name: 'line_id', label: '支出预算行', options: lineOpts(kind) }, ...unitField,
       { name: 'amount', label: '额度', type: 'number' }, { name: 'period', label: '使用月份', type: 'month', value: today().slice(0, 7) },
       { name: 'purpose', label: '用途' }, { name: 'usage_note', label: '用量估算（模型、调用量；加急申请必填）', required: false },
       { name: 'urgent', label: '加急', type: 'check', value: 'false' }],
     run: (v) => rpc('save_resource_request', { id: null, kind, resource_id: null, line_id: v.line_id, amount: v.amount, period: `${v.period}-01`,
-      purpose: v.purpose, usage_note: v.usage_note, urgent: v.urgent === 'true' }),
+      purpose: v.purpose, usage_note: v.usage_note, urgent: v.urgent === 'true', unit_id: v.unit_id || null }),
   } : {
     label: '提交申请', title: '申领资产',
-    hint: `设备和耗材同样由年度预算列支：选择一条已编制资源计划的预算行，累计申领不得超过计划数量。研究单元内设备由研究单元负责人批示；公共设备仅面向博士后、博士、硕士和研究助理，直接提交财务岗。库存不足时也可先行提交，财务岗按预算办理采购，到货入库后分发。${none(kind)}`,
-    fields: [{ name: 'line_id', label: '支出预算行', options: lineOpts(kind) }, { name: 'amount', label: '数量', type: 'number', value: '1' },
+    hint: `设备和耗材同样由年度预算列支：选择一条已编制资源计划的预算行，累计申领不得超过计划数量。研究单元内设备由研究单元负责人批示；公共设备仅面向博士后、博士、硕士和研究助理，且须已在某个已立项的课题或研究单元的名单内，直接提交财务岗。库存不足时也可先行提交，财务岗按预算办理采购，到货入库后分发。${none(kind)}`,
+    fields: [{ name: 'line_id', label: '支出预算行', options: lineOpts(kind) }, ...unitField, { name: 'amount', label: '数量', type: 'number', value: '1' },
       { name: 'purpose', label: '用途' }, { name: 'usage_note', label: '补充说明（加急申请必填）', required: false },
       { name: 'urgent', label: '加急', type: 'check', value: 'false' }],
     run: (v) => rpc('save_resource_request', { id: null, kind, resource_id: null, line_id: v.line_id, amount: v.amount, period: null,
-      purpose: v.purpose, usage_note: v.usage_note, urgent: v.urgent === 'true' }),
+      purpose: v.purpose, usage_note: v.usage_note, urgent: v.urgent === 'true', unit_id: v.unit_id || null }),
   };
   const decide = (r: ResourceRequest, action: 'review' | 'reject' | 'withdraw'): Act => ({
     label: { review: '同意', reject: '驳回', withdraw: '撤回' }[action], danger: action !== 'review',

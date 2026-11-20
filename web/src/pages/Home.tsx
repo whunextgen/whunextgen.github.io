@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useViews, type Resource, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task } from '../api';
+import { useViews, type Resource, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task, type UnitApply } from '../api';
 import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, cardGap, cardGranted, cardTotal, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Track, TreeNode, execSegs, type Seg } from '../tree';
 import { cardRisk, nodeState } from './Overview';
@@ -18,8 +18,8 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
     years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[]; tasks: Task[];
-    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[]; resources: Resource[] }>({
-    resources: ['resource'],
+    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[]; resources: Resource[]; uapps: UnitApply[] }>({
+    resources: ['resource'], uapps: ['unit_apply'],
     school: ['card_school_subject'],
     reqs: ['request'], picks: ['card_pick'], cards: ['card'], nodes: ['node'], events: ['fund_event', { done: 'false' }],
     years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'], caps: ['cap_request'], shifts: ['budget_shift'], tasks: ['task', { status: 'open' }],
@@ -113,6 +113,8 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
     count(resOf('reviewed').length, 'warn', '资源待批准', '资源申请研究单元负责人已批示，待批准', '审批', '#/pool');
     count(resOf('approved').length, 'warn', '资源待分发', '资源申请已批准，待分发', '分发', '#/pool');
   }
+  if (can(me, 'budget.evaluate')) count(data.uapps.filter((u) => u.proposed && !u.return_note).length, 'warn', '待核对', '研究单元申请，待按联席会议纪要核对', '核对', '#/plan');
+  count(data.uapps.filter((u) => u.mine && u.proposed && !!u.return_note).length, 'bad', '已退回', '研究单元申请已退回，待修改后重新提交', '查看', '#/plan');
   count(resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id).length, 'warn', '待批示', '资源申请属本人负责的研究单元，待批示', '批示', '#/resource');
   if (seesCards) {
     for (const c of active.filter((x) => num(x.avail) < 0))
@@ -249,7 +251,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   const view: HomeView = !landing ? (asked === 'center' && !seesCards ? 'mine' : asked) : seesCards ? 'center' : data.projects.some((p) => p.active && p.owner_id === me.id) ? 'topic' : 'mine';
   type Todo = (typeof todo)[number];
   // 待办按去处归到各部分：课题（预算、上限、决算）、支出（申请、报销、备用金）、资源、项目（经费卡）
-  const secOf = (t: Todo): HomeView => /^#\/(budget|caps|review|requests|petty)/.test(t.href) ? 'topic' : /^#\/(school|procure)/.test(t.href) ? 'fund' : /^#\/(pool|resource)/.test(t.href) ? 'res' : /^#\/(card|funds|settle|cards)/.test(t.href) ? 'fund' : 'mine';
+  const secOf = (t: Todo): HomeView => /^#\/(budget|caps|review|requests|petty|plan)/.test(t.href) ? 'topic' : /^#\/(school|procure)/.test(t.href) ? 'fund' : /^#\/(pool|resource)/.test(t.href) ? 'res' : /^#\/(card|funds|settle|cards)/.test(t.href) ? 'fund' : 'mine';
   const risks = todo.filter((t) => t.href.startsWith('#/card/'));
   const todoTable = (rows: Todo[], none: string) => rows.length === 0 ? <Empty>{none}</Empty> : (
     <div className="scroll"><table className="wb-table">
@@ -480,7 +482,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
       {hero(`我的事项 · ${me.name} · ${ROLE[me.role]}`, '本人发起、进行中', `${mineOpen.length + myPetty.length + myRes.length}`, '项', <>
         <div className="wb-facts"><span>支出申请<b>{mineOpen.length} 笔</b></span><span>备用金<b>{myPetty.length} 笔</b></span><span>资源申领<b>{myRes.length} 项</b></span></div>
         {canUse ? <div className="wb-facts"><a className="btn" href="#/requests/new">提交支出申请</a><a className="btn ghost" href="#/resource">申领资源</a><a className="btn ghost" href="#/petty">申请备用金</a></div>
-          : <div className="wb-facts"><span>本人尚不在已立项的课题或研究单元中，暂不能提交支出申请、申领资源和申请备用金。</span><a className="btn" href="#/plan">立项与延续申请</a></div>}
+          : <div className="wb-facts"><span>本人尚不在已立项的课题或研究单元中，暂不能提交支出申请、申领资源和申请备用金。可请研究单元负责人将本人加入名单；成立研究单元须先经联席会议通过，通过后在「立项与延续申请」中提交申请。</span><a className="btn" href="#/plan">立项与延续申请</a></div>}
       </>)}
       <section className="wb-sec">{head('01', '本人的支出申请', <a href="#/requests">全部申请 →</a>)}{mineTable}</section>
       <section className="wb-sec">

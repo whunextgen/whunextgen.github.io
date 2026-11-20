@@ -53,7 +53,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
   const cat = new Map(data.cats.map((c) => [c.id, c]));
   const lines = data.lines.filter((l) => l.year === year);
   const budget = new Map(data.budgets.filter((b) => b.year === year).map((b) => [b.project_id, b]));
-  const projects = data.projects.filter((p) => p.active || budget.has(p.id))
+  const projects = data.projects.filter((p) => (p.layer !== 'paper' || budget.has(p.id)) && (p.active || budget.has(p.id)))
     .sort((a, b) => Number(a.kind === 'public') - Number(b.kind === 'public') || a.code.localeCompare(b.code));
   const inSum = (l: BudgetLine) => budget.get(l.project_id)?.status === 'submitted';
   const tot = (rows: BudgetLine[], k: 'declared' | 'applied' | 'fixed' | typeof Q[number]) => rows.reduce((s, l) => s + num(l[k]), 0);
@@ -237,7 +237,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
 
       {staff && step >= 3 && y.stage !== 'granted' && <IssuePanel me={me} y={y} projects={projects} cats={data.cats} onStage={reload} />}
 
-      {!staff && projects.filter((p) => p.mine).length === 0 && <Empty>本人名下暂无课题或研究单元。年度预算的明细由课题、研究单元的负责人填报；新课题请在「<a href={`#/plan/${year}`}>立项与延续申请</a>」中申请立项。</Empty>}
+      {!staff && projects.filter((p) => p.mine).length === 0 && <Empty>本人名下暂无课题。年度预算只编在课题上，由课题负责人填报，研究单元使用所属课题的预算；新课题请在「<a href={`#/plan/${year}`}>立项与延续申请</a>」中申请立项。</Empty>}
 
       {projects.filter((p) => p.mine).map((p) => {
         const b = budget.get(p.id); const rows = lines.filter((l) => l.project_id === p.id);
