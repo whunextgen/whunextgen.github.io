@@ -1798,6 +1798,10 @@ await q(`select unsettle_tiers(2033)`);
 ok((await one(`select stage from api.budget_year where year = 2033`)).stage === 'declare' && (await q(`select 1 from api.project_cap where year = 2033`)).length === 0, '撤回评定完成后回到评定阶段，上限一并撤销');
 // 撤回后把立项申请改为定档，再评定完成：课题正式成立
 await q(`select decide_tier(2033, $1, $2, '补充材料后同意', '2032-06-04')`, [NP, t2]);
+await q(`select decide_tier(2033, $1, $2, '补充材料后同意', '2040-01-01')`, [NP, t2]);
+ok((await one(`select meeting_on::text as d from api.tier_pick where year = 2033 and project_id = $1`, [NP])).d === '2040-01-01', '联席会议日期可以晚于今日');
+await q(`select decide_tier(2033, $1, $2, '补充材料后同意', '2032-06-04')`, [NP, t2]);
+ok((await one(`select (app_today() = (now() at time zone 'Asia/Shanghai')::date) as b from (select set_config('app.today', '', true)) s`)).b, '今日按北京时间算');
 await q(`select settle_tiers(2033)`);
 await db.exec(`reset role`);
 const npOk = await one(`select active, proposed, (select fixed from project_budget_line where id = $2) fixed, (select amount from project_cap where year = 2033 and project_id = $1) cap,
