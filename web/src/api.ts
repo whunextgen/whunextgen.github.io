@@ -26,6 +26,9 @@ const post = (path: string, body: unknown) => send(path, { method: 'POST', heade
 export const secretSet = (kind: 'resource' | 'allocation', id: string, secret: string): Promise<string | null> => post('/api/secret/set', { kind, id, secret });
 export const secretGet = (kind: 'resource' | 'allocation', id: string): Promise<string> => post('/api/secret/get', { kind, id });
 
+// 访问令牌：明文由服务端生成，只在这一次返回
+export const createToken = (name: string, write: boolean, days: number): Promise<string> => post('/api/token/create', { name, write, days });
+
 export const logout = () => send('/auth/logout', { method: 'POST' });
 
 // 一次取多张视图；reload 用于写操作之后刷新

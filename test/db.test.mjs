@@ -1938,6 +1938,44 @@ await db.exec(`reset role`);
 const legacyCard = await one(`select c.year, p.name from fund_card c join fund_project p on p.id = c.project_id where c.card_no = '4131-A'`);
 ok(legacyCard.year === 2026 && legacyCard.name === '人才启动经费', '不经经费项目建的卡自动补一个同名项目，年度取下达日所在年', JSON.stringify(legacyCard));
 ok((await one(`select count(*) v from audit_log where table_name = 'fund_project'`).catch(() => ({ v: 1 }))).v > 0, '经费项目的改动留审计记录');
+
+// 访问令牌：只存哈希；凭哈希换身份；默认只读；停用和过期后失效；写操作留记录
+{
+  const H1 = 'a'.repeat(64), H2 = 'b'.repeat(64);
+  const other2 = (await one(`insert into app_user (name, role, feishu_open_id) values ('另一位成员', 'member', 'ou_plain_test2') returning id`)).id;
+  await as(plain, '2032-07-20');
+  const tk1 = (await one(`select create_api_token('我的智能体', $1, 'abcd', false, 30) v`, [H1])).v;
+  await raises('令牌有效期有上限', /1 到 365 天/, `select create_api_token('x', $1, 'abcd', false, 400)`, [H2]);
+  await raises('令牌要写用途', /用途/, `select create_api_token(' ', $1, 'abcd', false, 30)`, [H2]);
+  const mineTok = await q(`select * from api.api_token`);
+  ok(mineTok.length === 1 && mineTok[0].mine && mineTok[0].live && !('hash' in mineTok[0]), '本人看得到自己的令牌，视图不带哈希');
+  await as(null);
+  const who = await one(`select * from api_token_login($1)`, [H1]);
+  ok(who && who.user_id === plain && who.can_write === false, '凭哈希换到持有人身份，默认只读');
+  eq((await q(`select * from api_token_login($1)`, [H2])).length, 0, '不存在的令牌换不到身份');
+  eq((await q(`select * from api.api_token`)).length, 0, '未登录看不到令牌');
+  await as(other2, '2032-07-20');
+  eq((await q(`select * from api.api_token`)).length, 0, '别人看不到我的令牌');
+  await raises('不能停用别人的令牌', /只能停用本人的令牌/, `select revoke_api_token($1)`, [tk1]);
+  await raises('不能替别人的令牌记调用', /令牌与身份不符/, `select log_api_call($1, 'x', true, null)`, [tk1]);
+  await as(plain, '2032-07-20');
+  await q(`select log_api_call($1, 'save_time_log', false, '登记的期次有误')`, [tk1]);
+  const calls = await q(`select * from api.api_call`);
+  ok(calls.length === 1 && calls[0].ok === false && calls[0].token_name === '我的智能体', '经令牌做的写操作留一条记录');
+  for (let i = 0; i < 4; i++) await q(`select create_api_token('第 ${i} 个', $1, 'abcd', true, 7)`, [String(i).repeat(64)]);
+  await raises('每人最多五个有效令牌', /最多同时持有 5 个/, `select create_api_token('多了', $1, 'abcd', false, 7)`, ['c'.repeat(64)]);
+  await as(null);
+  ok((await one(`select * from api_token_login($1)`, ['1'.repeat(64)])).can_write === true, '可写的令牌换到可写');
+  await as(plain, '2032-07-20');
+  await q(`select revoke_api_token($1)`, [tk1]);
+  await as(null);
+  eq((await q(`select * from api_token_login($1)`, [H1])).length, 0, '停用后换不到身份');
+  await db.query(`update api_token set expires_at = now() - interval '1 day' where hash = $1`, ['1'.repeat(64)]);
+  eq((await q(`select * from api_token_login($1)`, ['1'.repeat(64)])).length, 0, '过期后换不到身份');
+  await db.query(`update app_user set active = false where id = $1`, [plain]);
+  eq((await q(`select * from api_token_login($1)`, ['2'.repeat(64)])).length, 0, '持有人停用后换不到身份');
+  await db.query(`update app_user set active = true where id = $1`, [plain]);
+}
 }
 
 console.log(`${pass} passed, ${fail} failed`);

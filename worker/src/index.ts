@@ -27,6 +27,7 @@ const VIEWS = new Set(['me', 'users', 'card_pick', 'fund_project', 'card_school_
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
+  'api_token', 'api_call',
   'project_member', 'people_pick', 'project_cap', 'cap_request', 'budget_shift', 'project_asset', 'project_allocation', 'year_check', 'rule_lookup', 'task', 'task_step']);
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
@@ -167,6 +168,7 @@ const RPC: Record<string, [string, string][]> = {
   add_task_steps: [['id', 'uuid'], ['steps', 'text']],
   tick_task_step: [['step', 'uuid'], ['done', 'boolean'], ['note', 'text']],
   finish_task: [['id', 'uuid'], ['note', 'text']],
+  revoke_api_token: [['id', 'uuid']],
   cancel_task: [['id', 'uuid'], ['note', 'text']],
   reopen_task: [['id', 'uuid'], ['note', 'text']],
   save_year_check: [['year', 'int'], ['resource_id', 'uuid'], ['actual', 'numeric'], ['note', 'text']],
@@ -273,9 +275,110 @@ async function withUser<T>(env: Env, uid: string | null, fn: (sql: postgres.Tran
   }
 }
 
+
+// ---------- 读视图、调函数：页面接口和 MCP 接口共用 ----------
+// run：以某人的身份执行一条带参数的语句。线上走 Hyperdrive；测试里换成内存数据库。
+export type Run = (uid: string | null, text: string, params: unknown[]) => Promise<any[]>;
+const pgRun = (env: Env): Run => (uid, text, params) => withUser(env, uid, (sql) => sql.unsafe(text, params as any)).then((r) => fixArrays(r as any));
+async function readView(run: Run, uid: string, view: string, filters: [string, string][], limit = 2000) {
+  const where = filters.map(([k], i) => `${k}::text = $${i + 1}`).join(' and ');
+  return run(uid, `select * from api.${view}${where ? ' where ' + where : ''} limit ${Math.max(1, Math.min(2000, Math.floor(limit) || 2000))}`, filters.map(([, v]) => v));
+}
+async function callRpc(run: Run, uid: string, fn: string, body: Record<string, unknown>) {
+  const spec = RPC[fn];
+  const args = spec.map(([name, type]) => {
+    const v = body[name];
+    return v === undefined || v === null || v === '' ? null : type === 'jsonb' ? JSON.stringify(v) : String(v);
+  });
+  // 所有参数一律先按文本收、再转成目标类型。直接写 ::jsonb 或 ::boolean 时，驱动会按目标类型把已是文本的值再编码一次：
+  // JSON 字符串被再编码成一个字符串；文本 'true' 被布尔编码器当成“不是 true”而写成 false
+  const call = `select public.${fn}(${spec.map(([, type], i) => `$${i + 1}::text::${type}`).join(', ')}) as result`;
+  const [row] = await run(uid, call, args);
+  return row?.result ?? null;
+}
+
+// ---------- 访问令牌 ----------
+export async function sha256hex(s: string) {
+  return [...new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+const TOKEN_RE = /^clain_[A-Za-z0-9_-]{43}$/;
+export const newToken = () => 'clain_' + b64u(crypto.getRandomValues(new Uint8Array(32)));
+
+// ---------- MCP：后台的全部视图和函数，以令牌持有人的身份开放给智能体 ----------
+// 无状态的 Streamable HTTP：每个 POST 一条 JSON-RPC 消息，直接回 JSON，不开 SSE。
+// 工具只有五个，视图和函数的名字作为参数传：一百多个视图、近两百个函数逐个列成工具，客户端装不下。
+// 密钥的保存和取用（/api/secret）不经 MCP 开放。
+const MCP_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
+const str = { type: 'string' } as const;
+export const MCP_TOOLS = [
+  { name: 'whoami', description: '当前令牌持有人的姓名、角色和权限。先调这个确认身份。', inputSchema: { type: 'object', properties: {} } },
+  { name: 'list_views', description: '列出可读的全部视图及其列。视图是只读的查询，例如 project（课题和研究单元）、budget_line（预算行）、request（支出申请）、card（经费卡）。可用 keyword 按名称筛选。',
+    inputSchema: { type: 'object', properties: { keyword: { ...str, description: '视图名里包含的字样，可省略' } } } },
+  { name: 'read_view', description: '读一个视图的行。只能看到令牌持有人本人有权看到的数据。filters 按列做等值筛选，最多返回 2000 行。',
+    inputSchema: { type: 'object', required: ['view'], properties: { view: { ...str, description: '视图名，见 list_views' },
+      filters: { type: 'object', description: '列名 → 值，等值筛选', additionalProperties: { type: 'string' } }, limit: { type: 'number', description: '最多返回的行数，默认 200，上限 2000' } } } },
+  { name: 'list_actions', description: '列出可调用的全部操作（数据库函数）及其参数名和类型。操作会改动数据，例如提交支出申请、登记两周时间去向。可用 keyword 按名称筛选。',
+    inputSchema: { type: 'object', properties: { keyword: { ...str, description: '操作名里包含的字样，可省略' } } } },
+  { name: 'call_action', description: '调用一个操作，会改动生产数据，以令牌持有人的身份执行，各项权限和业务检查照常生效。需要可写的令牌。调用前先向使用者确认。',
+    inputSchema: { type: 'object', required: ['action', 'args'], properties: { action: { ...str, description: '操作名，见 list_actions' }, args: { type: 'object', description: '参数名 → 值' } } } },
+];
+const MCP_HINT = 'CLAIN 中台的后台接口。先用 whoami 确认身份；list_views / read_view 查数据；list_actions / call_action 办理业务。四个基本对象：项目（学校一侧的经费）、经费卡、课题、研究单元。支出一律先申请。call_action 会改动生产数据，调用前先向使用者确认。';
+const rpcErr = (id: unknown, code: number, message: string) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
+const bizError = (e: any) => (e?.code === '42501' || e?.code === 'P0001' ? String(e.message) : typeof e?.code === 'string' && /^(22|23)/.test(e.code) ? '数据不合法' : null);
+
+async function mcpTool(run: Run, who: { token_id: string; user_id: string; can_write: boolean }, name: string, a: Record<string, any>) {
+  const uid = who.user_id, kw = typeof a.keyword === 'string' ? a.keyword.toLowerCase() : '';
+  if (name === 'whoami') { const [me] = await readView(run, uid, 'me', []); return { ...me, token_can_write: who.can_write }; }
+  if (name === 'list_views') {
+    const names = [...VIEWS].filter((v) => !kw || v.includes(kw)).sort();
+    const cols = await run(uid, `select table_name as v, column_name as c, data_type as t from information_schema.columns where table_schema = 'api' order by table_name, ordinal_position`, []);
+    return names.map((v) => ({ view: v, columns: (cols as any[]).filter((x) => x.v === v).map((x) => `${x.c}:${x.t}`) }));
+  }
+  if (name === 'read_view') {
+    if (typeof a.view !== 'string' || !VIEWS.has(a.view)) throw new Error('没有这个视图，请先用 list_views 查看');
+    const filters = Object.entries(a.filters ?? {}).filter(([k]) => /^[a-z_]+$/.test(k)).map(([k, v]): [string, string] => [k, String(v)]);
+    const rows = await readView(run, uid, a.view, filters, typeof a.limit === 'number' ? a.limit : 200);
+    return { rows, count: rows.length };
+  }
+  if (name === 'list_actions') return Object.entries(RPC).filter(([k]) => !kw || k.includes(kw)).sort(([x], [y]) => x.localeCompare(y)).map(([k, spec]) => ({ action: k, params: spec.map(([n, t]) => `${n}:${t}`) }));
+  if (name === 'call_action') {
+    if (typeof a.action !== 'string' || !RPC[a.action]) throw new Error('没有这个操作，请先用 list_actions 查看');
+    if (!who.can_write) throw new Error('这个令牌是只读的，不能调用操作。需要办理业务请在中台另建一个可写的令牌');
+    const log = (ok: boolean, error: string | null) => run(uid, `select public.log_api_call($1::text::uuid, $2::text, $3::text::boolean, $4::text)`, [who.token_id, a.action, String(ok), error]).catch(() => null);
+    try { const result = await callRpc(run, uid, a.action, (a.args ?? {}) as Record<string, unknown>); await log(true, null); return { result }; }
+    catch (e: any) { await log(false, bizError(e) ?? '服务器错误'); throw e; }
+  }
+  throw new Error('没有这个工具');
+}
+
+export async function mcp(req: Request, run: Run): Promise<Response> {
+  if (req.method !== 'POST') return json({ error: '只接受 POST' }, 405, { allow: 'POST' });
+  const bearer = (req.headers.get('authorization') ?? '').match(/^Bearer\s+(\S+)$/i)?.[1] ?? '';
+  const deny = () => json(rpcErr(null, -32001, '令牌无效、已停用或已过期'), 401, { 'www-authenticate': 'Bearer' });
+  if (!TOKEN_RE.test(bearer)) return deny();
+  const hash = await sha256hex(bearer);
+  const [who] = await run(null, `select token_id, user_id, can_write from public.api_token_login($1::text)`, [hash]);
+  if (!who) return deny();
+  const msg = (await req.json().catch(() => null)) as any;
+  if (!msg || Array.isArray(msg) || msg.jsonrpc !== '2.0' || typeof msg.method !== 'string') return json(rpcErr(msg?.id, -32600, '请求格式有误'), 400);
+  if (msg.id === undefined) return new Response(null, { status: 202 });   // 通知，不需要回
+  const done = (result: unknown) => json({ jsonrpc: '2.0', id: msg.id, result });
+  if (msg.method === 'initialize') return done({ protocolVersion: MCP_VERSIONS.includes(msg.params?.protocolVersion) ? msg.params.protocolVersion : MCP_VERSIONS[0],
+    capabilities: { tools: {} }, serverInfo: { name: 'clain-portal', version: '1.0.0' }, instructions: MCP_HINT });
+  if (msg.method === 'ping') return done({});
+  if (msg.method === 'tools/list') return done({ tools: MCP_TOOLS });
+  if (msg.method === 'tools/call') {
+    const text = (v: unknown, isError = false) => done({ content: [{ type: 'text', text: typeof v === 'string' ? v : JSON.stringify(v) }], isError });
+    try { return text(await mcpTool(run, who, String(msg.params?.name ?? ''), (msg.params?.arguments ?? {}) as Record<string, any>)); }
+    catch (e: any) { const b = bizError(e); if (!b && e?.code) console.error(e); return text(b ?? (e?.code ? '服务器错误' : String(e?.message ?? e)), true); }
+  }
+  return json(rpcErr(msg.id, -32601, '不支持的方法'));
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
+    if (url.pathname === '/mcp') return mcp(req, pgRun(env)).catch((e) => { console.error(e); return json(rpcErr(null, -32603, '服务器错误'), 500); });
     const appOrigin = env.APP_ORIGIN || url.origin;
     const cors = {
       'access-control-allow-origin': appOrigin,
@@ -341,11 +444,7 @@ export default {
       if (view && req.method === 'GET') {
         if (!VIEWS.has(view)) return json({ error: 'not found' }, 404, cors);
         const filters = [...url.searchParams].filter(([k]) => /^[a-z_]+$/.test(k));
-        const rows = await withUser(env, uid, (sql) => {
-          const where = filters.map(([k], i) => `${k}::text = $${i + 1}`).join(' and ');
-          return sql.unsafe(`select * from api.${view}${where ? ' where ' + where : ''} limit 2000`, filters.map(([, v]) => v));
-        });
-        return json(fixArrays(rows as any), 200, cors);
+        return json(await readView(pgRun(env), uid, view, filters), 200, cors);
       }
 
       const fn = url.pathname.match(/^\/api\/rpc\/([a-z_]+)$/)?.[1];
@@ -355,15 +454,15 @@ export default {
         // 写操作只接受来自前端页面的请求
         if (req.headers.get('origin') !== appOrigin) return json({ error: '来源不允许' }, 403, cors);
         const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-        const args = spec.map(([name, type]) => {
-          const v = body[name];
-          return v === undefined || v === null || v === '' ? null : type === 'jsonb' ? JSON.stringify(v) : String(v);
-        });
-        // 所有参数一律先按文本收、再转成目标类型。直接写 ::jsonb 或 ::boolean 时，驱动会按目标类型把已是文本的值再编码一次：
-        // JSON 字符串被再编码成一个字符串；文本 'true' 被布尔编码器当成“不是 true”而写成 false
-        const call = `select public.${fn}(${spec.map(([, type], i) => `$${i + 1}::text::${type}`).join(', ')}) as result`;
-        const [row] = await withUser(env, uid, (sql) => sql.unsafe(call, args));
-        return json({ result: row?.result ?? null }, 200, cors);
+        return json({ result: await callRpc(pgRun(env), uid, fn, body) }, 200, cors);
+      }
+      // 访问令牌：明文在这里生成，只在这一次返回；数据库里只存哈希和末四位
+      if (url.pathname === '/api/token/create' && req.method === 'POST') {
+        if (req.headers.get('origin') !== appOrigin) return json({ error: '来源不允许' }, 403, cors);
+        const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+        const token = newToken();
+        await withUser(env, uid, async (sql) => sql`select public.create_api_token(${String(body.name ?? '')}::text, ${await sha256hex(token)}::text, ${token.slice(-4)}::text, ${String(body.write === true || body.write === 'true')}::text::boolean, ${String(Math.round(Number(body.days)) || 0)}::text::int)`);
+        return json({ result: token }, 200, { ...cors, 'cache-control': 'no-store' });
       }
       // 密钥与账号：保存时加密，取用时解密；数据库里只有密文，每次取用都留记录
       const sec = url.pathname.match(/^\/api\/secret\/(set|get)$/)?.[1];
