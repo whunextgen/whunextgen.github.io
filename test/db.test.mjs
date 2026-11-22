@@ -1820,7 +1820,7 @@ await as(plain, '2032-06-09');
 ok((await val(`select can_use_project($1) v`, [P0])) === false, '不在任何课题或研究单元名单里的人，不能从中心公共开支申请');
 const pu = `select propose_unit($1, $2, $3, $4, $5, $6, $7) v`;
 await raises('中心公共开支之下不设研究单元', /中心公共开支之下不设研究单元/, pu, [null, P0, '公共下面的单元', '2032-06-04', '2032-06-07', '说明', null]);
-await raises('须先经联席会议通过再申请', /日期不得晚于今日/, pu, [null, TB, '还没开会的单元', '2032-06-20', '2032-06-21', '说明', null]);
+ok(!(await one(`select prosrc from pg_proc where proname = 'propose_unit'`)).prosrc.includes('不得晚于今日'), '研究单元申请的日期不限制在今日以前');
 await raises('纪要不会早于会议', /纪要发出日期不得早于会议日期/, pu, [null, TB, '日期颠倒的单元', '2032-06-07', '2032-06-04', '说明', null]);
 await raises('研究单元申请须写说明', /请填写说明/, pu, [null, TB, '没有说明的单元', '2032-06-04', '2032-06-07', ' ', null]);
 const U1 = await val(pu, [null, TB, '成员申请的研究单元', '2032-06-04', '2032-06-07', '研究内容：长任务评测的一个子方向', U.mem2]);
