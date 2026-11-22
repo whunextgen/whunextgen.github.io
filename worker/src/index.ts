@@ -306,7 +306,7 @@ export const newToken = () => 'clain_' + b64u(crypto.getRandomValues(new Uint8Ar
 
 // ---------- MCP：后台的全部视图和函数，以令牌持有人的身份开放给智能体 ----------
 // 无状态的 Streamable HTTP：每个 POST 一条 JSON-RPC 消息，直接回 JSON，不开 SSE。
-// 工具只有五个，视图和函数的名字作为参数传：一百多个视图、近两百个函数逐个列成工具，客户端装不下。
+// 工具只有五个，视图和函数的名字作为参数传：九十多个视图、一百三十多个函数逐个列成工具，客户端装不下。
 // 密钥的保存和取用（/api/secret）不经 MCP 开放。
 const MCP_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const str = { type: 'string' } as const;
