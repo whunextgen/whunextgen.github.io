@@ -26,6 +26,9 @@ const post = (path: string, body: unknown) => send(path, { method: 'POST', heade
 export const secretSet = (kind: 'resource' | 'allocation', id: string, secret: string): Promise<string | null> => post('/api/secret/set', { kind, id, secret });
 export const secretGet = (kind: 'resource' | 'allocation', id: string): Promise<string> => post('/api/secret/get', { kind, id });
 
+// 接口目录：全部视图和操作的名称、列和参数，只有结构，不含数据
+export interface ApiMeta { tools: { name: string; description: string }[]; views: { view: string; columns: string[] }[]; actions: { action: string; params: string[] }[] }
+export const apiMeta = (): Promise<ApiMeta> => send('/api/meta');
 // 访问令牌：明文由服务端生成，只在这一次返回
 export const createToken = (name: string, write: boolean, days: number): Promise<string> => post('/api/token/create', { name, write, days });
 

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { createToken, rpc, useViews, type Me } from '../api';
+import { useEffect, useState } from 'react';
+import { apiMeta, createToken, rpc, useViews, type ApiMeta, type Me } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, day, type Field } from '../ui';
 
 interface ApiToken { id: string; user_id: string; user_name: string; name: string; tail: string; can_write: boolean; created_at: string; expires_at: string; last_used_at: string | null; calls: number; revoked_at: string | null; mine: boolean; live: boolean }
@@ -12,6 +12,9 @@ export function Agent({ me }: { me: Me }) {
   const { data, error, reload } = useViews<{ tokens: ApiToken[]; calls: ApiCall[] }>({ tokens: ['api_token'], calls: ['api_call'] });
   const [act, setAct] = useState<Act | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
+  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [kw, setKw] = useState('');
+  useEffect(() => { apiMeta().then(setMeta).catch(() => setMeta(null)); }, []);
   if (!data) return <Loading error={error} />;
   const admin = can(me, 'user.manage'), url = `${location.origin}/mcp`;
   const tokens = [...data.tokens].sort((a, b) => Number(b.mine) - Number(a.mine) || Number(b.live) - Number(a.live) || b.created_at.localeCompare(a.created_at));
@@ -25,7 +28,7 @@ export function Agent({ me }: { me: Me }) {
     run: async (v) => { setFresh(await createToken(v.name, v.write === 'true', Number(v.days))); } };
   return (
     <>
-      <div className="top"><h2>智能体接入</h2><button onClick={() => setAct(createAct)}>新建访问令牌</button></div>
+      <div className="top"><h2>智能体接入</h2><div className="acts"><a className="btn ghost" href="#/agent" onClick={(e) => { e.preventDefault(); document.getElementById('api-doc')?.scrollIntoView({ behavior: 'smooth' }); }}>接口文档</a><button onClick={() => setAct(createAct)}>新建访问令牌</button></div></div>
       <p className="lede">中台后台的全部视图和操作经 MCP 接口开放。给本人的智能体建一个访问令牌，它就能以本人的身份查数据、办业务；各项权限和业务检查照常生效，经令牌做的每一次操作都留记录。</p>
 
       {fresh && (
@@ -70,6 +73,29 @@ export function Agent({ me }: { me: Me }) {
                 <td className="wrap">{c.ok ? <Badge tone="ok">成功</Badge> : <><Badge tone="bad">未办成</Badge>{c.error && <div className="sub2" style={{ marginLeft: 0 }}>{c.error}</div>}</>}</td></tr>))}</tbody>
           </table></div>
         )}
+      </section>
+
+      <section className="card" id="api-doc">
+        <h3>接口文档 <span className="h3sub">五个工具 · {meta ? `${meta.views.length} 个视图 · ${meta.actions.length} 个操作` : '读取中'}</span></h3>
+        <p className="hint">智能体接入后先调 whoami 确认身份；查数据用 list_views 找到视图，再用 read_view 读；办业务用 list_actions 找到操作和参数，再用 call_action 调。视图只能读到本人有权看到的行；操作以本人的身份执行，办不成时返回原因。同一份说明也放在飞书知识库「CLAIN 知识库 › 首页 › 中台 MCP 接口说明」。</p>
+        <div className="scroll"><table>
+          <thead><tr><th style={{ width: '16%' }}>工具</th><th>用途</th><th style={{ width: '34%' }}>参数</th></tr></thead>
+          <tbody>
+            {(meta?.tools ?? []).map((t) => <tr key={t.name}><td><code>{t.name}</code></td><td className="wrap">{t.description}</td>
+              <td className="wrap"><code>{({ whoami: '无', list_views: 'keyword（可省略）', read_view: 'view，filters（可省略），limit（可省略）', list_actions: 'keyword（可省略）', call_action: 'action，args' } as Record<string, string>)[t.name] ?? ''}</code></td></tr>)}
+          </tbody>
+        </table></div>
+        <p className="hint">示例：读本人能看到的课题，<code>{'read_view {"view": "project", "filters": {"active": "true"}, "limit": 50}'}</code>；登记本期时间去向，<code>{'call_action {"action": "save_time_log", "args": {"period": "2026-11-16", "items": [{"project_id": "…", "percent": 60}]}}'}</code>。</p>
+        <p className="hint">参数类型：uuid 填对象的 id，date 填 2026-11-16 这样的日期，numeric 和 int 填数，boolean 填 true 或 false，jsonb 填对象或数组，text 填文字。不需要的参数可以不传。</p>
+        {meta && <>
+          <div className="actions" style={{ justifyContent: 'flex-start' }}><input placeholder="按名称筛选视图和操作" value={kw} onChange={(e) => setKw(e.target.value.trim().toLowerCase())} style={{ maxWidth: 280 }} /></div>
+          <details open={!!kw}><summary>视图 {meta.views.filter((v) => v.view.includes(kw)).length} 个（只读）</summary>
+            <div className="scroll"><table><thead><tr><th style={{ width: '22%' }}>视图</th><th>列:类型</th></tr></thead>
+              <tbody>{meta.views.filter((v) => v.view.includes(kw)).map((v) => <tr key={v.view}><td><code>{v.view}</code></td><td className="wrap"><span className="sub2" style={{ marginLeft: 0 }}>{v.columns.join('，')}</span></td></tr>)}</tbody></table></div></details>
+          <details open={!!kw}><summary>操作 {meta.actions.filter((x) => x.action.includes(kw)).length} 个（会改动数据，需要可写的令牌）</summary>
+            <div className="scroll"><table><thead><tr><th style={{ width: '28%' }}>操作</th><th>参数:类型</th></tr></thead>
+              <tbody>{meta.actions.filter((x) => x.action.includes(kw)).map((x) => <tr key={x.action}><td><code>{x.action}</code></td><td className="wrap"><span className="sub2" style={{ marginLeft: 0 }}>{x.params.join('，') || '无'}</span></td></tr>)}</tbody></table></div></details>
+        </>}
       </section>
 
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label}

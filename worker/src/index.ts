@@ -16,7 +16,7 @@ export interface Env {
   FEISHU_NOTIFY?: string;                     // 设为 on 才真正发飞书通知；不设时消息只在数据库里排队，过 24 小时作废
 }
 
-const VIEWS = new Set(['me', 'users', 'card_pick', 'fund_project', 'card_school_subject', 'card_subject_map', 'card_income', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
+export const VIEWS = new Set(['me', 'users', 'card_pick', 'fund_project', 'card_school_subject', 'card_subject_map', 'card_income', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
   'request', 'request_event', 'procurement_event', 'budget_change', 'fund_event', 'person', 'pay_type', 'staff',
   'payroll_sheet', 'settlement', 'emergency', 'year_actual', 'settle_check',
   'template', 'template_cap', 'user_admin', 'outbox', 'project_tag', 'resource', 'allocation',
@@ -31,7 +31,7 @@ const VIEWS = new Set(['me', 'users', 'card_pick', 'fund_project', 'card_school_
   'project_member', 'people_pick', 'project_cap', 'cap_request', 'budget_shift', 'project_asset', 'project_allocation', 'year_check', 'rule_lookup', 'task', 'task_step']);
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
-const RPC: Record<string, [string, string][]> = {
+export const RPC: Record<string, [string, string][]> = {
   submit_request: [['card_id', 'uuid'], ['subject_id', 'uuid'], ['expense_type_id', 'uuid'], ['title', 'text'], ['amount', 'numeric'], ['eta_date', 'date'], ['emergency', 'boolean'], ['path', 'text']],
   approve_request: [['id', 'uuid']],
   reject_request: [['id', 'uuid'], ['note', 'text']],
@@ -455,6 +455,13 @@ export default {
         if (req.headers.get('origin') !== appOrigin) return json({ error: '来源不允许' }, 403, cors);
         const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
         return json({ result: await callRpc(pgRun(env), uid, fn, body) }, 200, cors);
+      }
+      // 接口目录：全部视图及其列、全部操作及其参数，供「智能体接入」页的接口文档使用。只有名称和类型，不含数据
+      if (url.pathname === '/api/meta' && req.method === 'GET') {
+        const cols = await pgRun(env)(uid, `select table_name as v, column_name as c, data_type as t from information_schema.columns where table_schema = 'api' order by table_name, ordinal_position`, []);
+        return json({ tools: MCP_TOOLS.map((t) => ({ name: t.name, description: t.description })),
+          views: [...VIEWS].sort().map((v) => ({ view: v, columns: cols.filter((x) => x.v === v).map((x) => `${x.c}:${x.t}`) })),
+          actions: Object.entries(RPC).sort(([x], [y]) => x.localeCompare(y)).map(([k, spec]) => ({ action: k, params: spec.map(([n, t]) => `${n}:${t}`) })) }, 200, cors);
       }
       // 访问令牌：明文在这里生成，只在这一次返回；数据库里只存哈希和末四位
       if (url.pathname === '/api/token/create' && req.method === 'POST') {
