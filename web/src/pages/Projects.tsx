@@ -4,6 +4,7 @@ import { ActionDialog, Badge, Empty, Loading, can, money, num, type Field } from
 import { KIND, STAGE_TEXT } from './Budget';
 import { capped } from './Caps';
 import { typeText } from './Project';
+import { UnitApplyCard } from './Apply';
 
 // 课题和研究单元：预算按它们管。研究单元挂在课题下面。每个一行，看它各年度的预算走到哪一步。
 // 点名称进详情页，预算、成员、上限、调剂、设备、接口额度都在那一页。
@@ -41,7 +42,7 @@ export function Projects({ me }: { me: Me }) {
   return (
     <>
       <div className="top"><h2>课题管理</h2>{staff && <button onClick={() => setEdit('new')}>新立课题</button>}</div>
-      <p className="lede">预算按课题和研究单元管理，不按人员分配。课题通过立项申请成立，每年申请延续；研究单元隶属于课题。点击名称进入详情页，可查看预算、成员、上限、调剂、设备和接口额度。</p>
+      <p className="lede">预算按课题管理，不按人员分配。课题通过立项申请成立，每年申请延续，由联席会议评定档次；研究单元隶属于课题，全年随时可以申请，不参加评定。立项与延续在「<a href="#/apply">立项与延续申请</a>」中办理，研究单元在本页下方申请。点击名称进入详情页，可查看预算、成员、上限、调剂、设备和接口额度。</p>
       <section className="card">
         <h3>全部课题和研究单元</h3>
         {rows.length === 0 ? <Empty>{staff ? '暂无课题。请先新立课题并指定负责人，再在其下新增研究单元。' : '暂无课题。新课题请在「立项与延续申请」中申请立项。'}</Empty> : (
@@ -73,6 +74,7 @@ export function Projects({ me }: { me: Me }) {
         )}
         <p className="hint">已下达的年度显示核定数和执行情况，未下达的年度显示申报数、申请数或核定数。课题对全体成员公开：已立项的课题和研究单元，其预算、执行、成员、设备和接口额度所有人均可查看；逐笔的支出申请仅申请人、该课题负责人、财务岗和中心负责人可见。待立项的课题在评定通过前不公开金额。</p>
       </section>
+      <UnitApplyCard me={me} onChange={reload} />
       {edit && <ActionDialog title={p ? `修改${paper ? '研究单元' : '课题'}：${p.name}` : under ? `在「${under.name}」下新增研究单元` : '新立课题'} fields={fields} submitLabel="保存" onClose={() => setEdit(null)}
         onSubmit={(v) => rpc('save_project', { id: p?.id ?? null, code: v.code ?? '', name: v.name, kind: paper ? null : v.kind, owner_id: v.owner || null, active: p ? v.active === 'true' : true, parent_id: paper ? v.parent : null }).then(reload)} />}
     </>

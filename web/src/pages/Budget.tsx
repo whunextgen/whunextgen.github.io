@@ -158,7 +158,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
         <section className="card">
           <h3>本阶段工作</h3>
           {y.stage === 'declare' && !flow.published && <p className="hint">预算方案尚未批准。请先在「<a href={`#/plan/${year}`}>总预算与档次</a>」中测算总预算、给中心公共开支这样的课题直接确定金额、编好档次，由中心负责人批准后公布；批准后各课题才能申请档次。明细可以先填。</p>}
-          {y.stage === 'declare' && flow.published && <p className="hint">方案已批准，申报截止日 {day(y.due_date)}。各课题在「<a href={`#/plan/${year}`}>立项与延续申请</a>」中选档次，在本页填明细并提交；提交时按所选档次的金额和限制校验，填报有误的可退回重新填报。联席会议的评定结果由中心助理录入，中心负责人在「总预算与档次」中确认评定完成后，档次金额即课题的年度上限、提交的明细即核定的预算行，转入下达。已有 {tpicks.length} 个课题申请，{flow.undecided} 个待评定；{submitted} / {projects.length} 个课题和研究单元已提交明细。</p>}
+          {y.stage === 'declare' && flow.published && <p className="hint">方案已批准，申报截止日 {day(y.due_date)}。各课题在「<a href="#/apply">立项与延续申请</a>」中选档次，在本页填明细并提交；提交时按所选档次的金额和限制校验，填报有误的可退回重新填报。联席会议的评定结果由中心助理录入，中心负责人在「总预算与档次」中确认评定完成后，档次金额即课题的年度上限、提交的明细即核定的预算行，转入下达。已有 {tpicks.length} 个课题申请，{flow.undecided} 个待评定；{submitted} / {projects.length} 个课题和研究单元已提交明细。</p>}
           {y.stage === 'summary' && <p className="hint">在下表中逐行调整申请数，形成报学校的年度总预算草案。{director ? '确认无误后批准。' : '调整完成后提请中心负责人批准。'}</p>}
           {y.stage === 'approved' && <p className="hint">申请数已批准，合计 {money(tot(summed, 'applied'))}。在学校系统报送后，在此登记报送日期。</p>}
           {y.stage === 'applied' && <p className="hint">已于 {day(y.applied_on)} 报学校，申请数合计 {money(tot(summed, 'applied'))}。学校批复后录入批复数。</p>}
@@ -237,7 +237,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
 
       {staff && step >= 3 && y.stage !== 'granted' && <IssuePanel me={me} y={y} projects={projects} cats={data.cats} onStage={reload} />}
 
-      {!staff && projects.filter((p) => p.mine).length === 0 && <Empty>本人名下暂无课题。年度预算只编在课题上，由课题负责人填报，研究单元使用所属课题的预算；新课题请在「<a href={`#/plan/${year}`}>立项与延续申请</a>」中申请立项。</Empty>}
+      {!staff && projects.filter((p) => p.mine).length === 0 && <Empty>本人名下暂无课题。年度预算只编在课题上，由课题负责人填报，研究单元使用所属课题的预算；新课题请在「<a href="#/apply">立项与延续申请</a>」中申请立项。</Empty>}
 
       {projects.filter((p) => p.mine).map((p) => {
         const b = budget.get(p.id); const rows = lines.filter((l) => l.project_id === p.id);
@@ -255,7 +255,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
                   {ti.k.rejected ? <Badge tone="bad">联席会议不予通过</Badge> : dt ? <Badge tone="ok">已评定为「{dt.name}」{money(dt.amount)}</Badge> : <Badge tone="warn">待评定</Badge>}
                   {' '}课题连同研究单元已填明细 {money(ti.filled)}；提交时按{dt ? '评定' : '所选'}档次的金额和限制校验。</p>
               : y.stage === 'declare' && p.kind !== 'public' ? <div className="msg warn" role="status">{flow.published
-                  ? <>该课题尚未申请档次。请先在「<a href={`#/plan/${year}`}>立项与延续申请</a>」中选择档次，再提交明细。</>
+                  ? <>该课题尚未申请档次。请先在「<a href="#/apply">立项与延续申请</a>」中选择档次，再提交明细。</>
                   : '预算方案尚未批准公布，批准后才能申请档次。明细可以先填，申请档次后再提交。'}</div> : null)}
             {b?.status === 'returned' && <div className="msg bad">财务岗退回：{b.return_note}</div>}
             {rows.length === 0 ? <Empty>{y.stage === 'declare' ? '尚未填报明细。' : '未填报明细。'}</Empty> : (
