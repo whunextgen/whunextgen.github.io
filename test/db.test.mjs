@@ -1842,7 +1842,12 @@ ua = await one(`select can_ok, parent_ok_at from api.unit_apply where id = $1`, 
 ok(ua.can_ok === true && ua.parent_ok_at === null, '提交后先待所挂课题的负责人同意');
 await q(`select approve_unit($1)`, [U1]);
 ok((await one(`select parent_ok_by_name n from api.unit_apply where id = $1`, [U1])).n != null, '课题负责人同意后记下同意人');
+await db.exec(`reset role`);
+const asst = await id(`insert into app_user (name, role, feishu_open_id) values ('助理', 'member', 'ou_asst')`);
+await db.exec(`set role app_api`);
 await as(U.dir, '2032-06-10');
+await q(`select grant_role($1, $2, null, null, null, null, null)`, [asst, RID.assistant]);
+await as(asst, '2032-06-10');
 await raises('否决期未满不能确认成立', /三个工作日的否决期至 2032-06-10 届满/, `select confirm_unit($1)`, [U1]);
 await raises('退回须写原因', /请填写退回原因/, `select return_unit($1, ' ')`, [U1]);
 await q(`select return_unit($1, '纪要里没有这一项')`, [U1]);
@@ -1858,9 +1863,9 @@ await raises('重新提交后须课题负责人再次同意', /所挂课题的�
 await as(U.lead, '2032-06-12');
 await q(`select approve_unit($1)`, [U1]);
 await raises('同意过的不能重复同意', /已经同意过了/, `select approve_unit($1)`, [U1]);
-await as(U.dir, '2032-06-14');
+await as(asst, '2032-06-14');
 await raises('否决期最后一天仍不能确认', /否决期至 2032-06-14 届满/, `select confirm_unit($1)`, [U1]);
-await as(U.dir, '2032-06-15');
+await as(asst, '2032-06-15');
 await q(`select confirm_unit($1)`, [U1]);
 await raises('已成立的不能再核对', /该研究单元不是待核对的申请/, `select confirm_unit($1)`, [U1]);
 await as(plain, '2032-06-15');
@@ -1874,6 +1879,18 @@ ok((await one(`select member from api.project where id = $1`, [U1])).member === 
 await raises('他人不能撤回申请', /仅申请人和财务岗可撤回申请/, `select withdraw_unit($1)`, [U2]);
 await as(plain, '2032-06-15');
 await q(`select withdraw_unit($1)`, [U2]);
+// 中心负责人本人确认即表示不否决，不必等否决期届满；课题负责人同意这一条照旧
+const U3 = await val(pu, [null, TB, '负责人当天确认的研究单元', '2032-06-15', '2032-06-15', '说明', null]);
+await as(U.dir, '2032-06-15');
+await raises('中心负责人确认也须课题负责人先同意', /所挂课题的负责人尚未同意/, `select confirm_unit($1)`, [U3]);
+await as(U.lead, '2032-06-15');
+await q(`select approve_unit($1)`, [U3]);
+await as(asst, '2032-06-15');
+await raises('助理仍须等否决期届满', /三个工作日的否决期至 2032-06-18 届满/, `select confirm_unit($1)`, [U3]);
+await as(U.dir, '2032-06-15');
+await q(`select confirm_unit($1)`, [U3]);
+ok((await one(`select proposed, checked_by_name n from api.unit_apply where id = $1`, [U3])).proposed === false, '中心负责人在否决期内确认，研究单元即成立');
+await as(plain, '2032-06-15');
 ok((await q(`select 1 from api.unit_apply where id = $1`, [U2])).length === 0, '成立之前申请人可以撤回');
 await as(U.fin, '2032-06-15');
 ok((await q(`select text from api.outbox where user_id = $1`, [U.lead])).some(o => /之下新成立研究单元「成员申请的研究单元」/.test(o.text)), '成立后通知所挂课题的负责人');
