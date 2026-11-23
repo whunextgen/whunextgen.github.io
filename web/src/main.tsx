@@ -48,6 +48,13 @@ const useRoute = () => {
   return hash;
 };
 
+// 标志：甲骨文「正」，上为囗（城邑），下为止（脚）
+const Mark = () => (
+  <svg viewBox="0 0 160 160" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="55" y="28" width="50" height="36" rx="3" /><path d="M48 82C46 108 58 124 80 128" /><path d="M80 80V128" /><path d="M112 82C114 104 102 122 80 128" /><path d="M80 128C96 132 110 131 122 124" />
+  </svg>
+);
+
 function Login({ reason }: { reason?: string }) {
   return (
     <div className="login">
@@ -194,7 +201,7 @@ function App() {
   return (
     <div className={`shell${open ? ' nav-open' : ''}`}>
       <aside className="sb">
-        <a className="brand" href="#/"><i aria-hidden="true">正</i><span><b>正则</b><span>CLAIN 中台</span></span></a>
+        <a className="brand" href="#/"><i aria-hidden="true"><Mark /></i><span><b>正则</b><span>CLAIN 中台</span></span></a>
         <nav aria-label="导航">
           {groups.map((g, gi) => (
             <div className={`sg${g.top ? ' in' : ''}${g.home === current || g.pages.some(([to]) => to === current) ? ' cur' : ''}`} key={g.label}>
