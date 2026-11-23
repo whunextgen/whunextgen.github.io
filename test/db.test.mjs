@@ -831,7 +831,7 @@ await raises('成员不能登记身份', /./, `select set_user_kind($1, 'phd')`,
 await as(U.fin, D7);
 await raises('中心公共开支不能计划接口额度', /拦截：中心公共开支仅统一配置设备。接口额度类资源请编入各研究单元预算/, `select set_line_resource($1, $2, 100)`, [L0, rs]);
 await q(`select set_line_resource($1, $2, 2)`, [L0, stock]);
-await raises('身份只能是规定的几种', /身份仅限博士后、博士、硕士、研究助理、研究实习生或访问学生/, `select set_user_kind($1, 'boss')`, [U.mem2]);
+await raises('身份只能是规定的几种', /身份仅限教师、博士后、博士、硕士、研究助理、研究实习生或访问学生/, `select set_user_kind($1, 'boss')`, [U.mem2]);
 await as(U.mem2, D7);
 await raises('身份没登记的不能申领公共设备', /拦截：公共设备仅限博士后、博士、硕士和研究助理申领。身份尚未登记的，请先由财务岗登记/, srq, ['asset', null, L0, 1, null, '办公', null, false]);
 await as(U.fin, D7);
@@ -2103,6 +2103,87 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok(tp.owner_scholar_url === 'https://scholar.google.com.hk/citations?user=Own3r' && tp.members >= 1 && tp.can_roster != null, '课题列表给出负责人的链接，原有字段不变', JSON.stringify(tp));
   await as(U.mem2); await q(`select set_scholar_url(' ')`);
   ok((await one(`select scholar_url from api.me`)).scholar_url === null, '留空即清除');
+}
+
+// 人员档案：档案独立于账号；账号的身份和启停跟着档案走；没有档案的新面孔登录后待人事确认
+{ const D = '2026-11-23';
+  const save = `select save_person_record($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) as v`;
+  const rec = (id, name, kind, status, no = null) => [id, no, name, kind, status, null, null, null, null, null, null, null];
+  const acct = async (uid) => { await db.exec(`reset role`); const r = await one(`select active, kind from app_user where id = $1`, [uid]); await db.exec(`set role app_api`); return r; };
+  await as(U.fin, D);
+  const p1 = await val(save, [null, null, '档案甲', 'ra', 'active', '2026-09-01', null, '硕士', '某大学', '金融', null, null]);
+  const r1 = await one(`select * from api.person where id = $1`, [p1]);
+  ok(/^RA-\d{3}$/.test(r1.no) && r1.status === 'active' && r1.user_id === null && r1.has_feishu === false && r1.school === '某大学', '新建档案按类别顺延编号，可以先没有账号');
+  await raises('档案不能重名', /同名请加备注区分/, save, rec(null, '档案甲', 'ri', 'active'));
+  await raises('类别只能是规定的几种', /类别仅限/, save, rec(null, '档案乙', 'boss', 'active'));
+  await raises('待确认不能手工设置', /状态仅限在岗、非编或已离开/, save, rec(null, '档案乙', 'ri', 'pending'));
+  await raises('编号不能重复', /已被占用/, save, rec(null, '档案乙', 'ri', 'active', r1.no));
+  await as(U.mem, D);
+  await raises('成员不能维护档案', /需要权限/, save, rec(null, '档案丙', 'ri', 'active'));
+  eq((await q(`select 1 from api.person`)).length, 0, '成员看不到人员档案');
+  await as(U.fin, D);
+  await q(`select link_person($1, $2)`, [p1, U.mem]);
+  ok((await acct(U.mem)).kind === 'ra', '账号对到档案后，身份随档案');
+  await raises('一条档案只能对应一个账号', /该档案已对应账号/, `select link_person($1, $2)`, [p1, U.mem2]);
+  await q(save, rec(p1, '档案甲', 'master', 'active', r1.no));
+  ok((await acct(U.mem)).kind === 'master', '改档案的类别，账号的身份跟着变');
+  await q(`select set_user_kind($1, 'phd')`, [U.mem]);
+  ok((await one(`select kind from api.person where id = $1`, [p1])).kind === 'phd' && (await acct(U.mem)).kind === 'phd', '在权限管理里登记身份，改的是档案');
+  await q(save, rec(p1, '档案甲', 'phd', 'left', r1.no));
+  const gone = await one(`select status, left_on, account_active from api.person where id = $1`, [p1]);
+  ok(gone.status === 'left' && gone.account_active === false && !!gone.left_on && (await acct(U.mem)).active === false, '档案登记为已离开，账号随即停用，离开日期默认当天');
+  await as(U.mem, D);
+  eq((await q(`select 1 from api.me`)).length, 0, '已离开的人进不来');
+  await as(U.fin, D);
+  await q(save, rec(p1, '档案甲', 'phd', 'active', r1.no));
+  ok((await acct(U.mem)).active === true && (await one(`select left_on from api.person where id = $1`, [p1])).left_on === null, '改回在岗，账号恢复启用');
+  const pf = await val(save, rec(null, '财务岗本人', null, 'active'));
+  await q(`select link_person($1, $2)`, [pf, U.fin]);
+  await raises('不能把自己登记为已离开', /不得将本人登记为已离开/, save, rec(pf, '财务岗本人', null, 'left'));
+  // 预先登记了飞书身份的，首次登录直接认领档案
+  const pp = await val(save, rec(null, '预登记', 'ri', 'active'));
+  await db.exec(`reset role`); await db.query(`update person set feishu_union_id = 'on_pre' where id = $1`, [pp]); await db.exec(`set role app_api`);
+  await as(null, D);
+  const lg = await one(`select id, active, kind from login_feishu('ou_pre', '预登记的飞书名', null, 'on_pre')`);
+  ok(lg.active === true && lg.kind === 'ri', '预先登记飞书身份的，首次登录即认领档案，账号可用');
+  // 没有档案的新面孔
+  const before = (await (async () => { await db.exec(`reset role`); const r = await one(`select count(*)::int n from feishu_outbox`); await db.exec(`set role app_api`); return r; })()).n;
+  const nw = await one(`select id, active from login_feishu('ou_stranger', '陌生人', null, 'on_str')`);
+  ok(nw.active === false, '没有档案的新面孔登录，账号不启用');
+  await as(nw.id, D);
+  eq((await q(`select 1 from api.me`)).length, 0, '待确认的人看不到任何数据');
+  eq((await q(`select 1 from api.project`)).length, 0, '待确认的人看不到课题');
+  await as(U.fin, D);
+  const pend = await one(`select id, status, name, account_active from api.person where user_id = $1`, [nw.id]);
+  ok(pend.status === 'pending' && pend.name === '陌生人' && pend.account_active === false, '同时建一条待人事确认的档案');
+  await db.exec(`reset role`); const after = (await one(`select count(*)::int n from feishu_outbox`)).n; await db.exec(`set role app_api`);
+  ok(after > before, '并通知有人员权限的人');
+  await as(null, D);
+  ok((await one(`select id from login_feishu('ou_stranger', '陌生人', null, 'on_str')`)).id === nw.id, '待确认期间再次登录仍是同一个账号');
+  await as(U.fin, D);
+  eq((await q(`select 1 from api.person where name = '陌生人'`)).length, 1, '不会重复建档');
+  await q(save, rec(pend.id, '陌生人', 'ri', 'active'));
+  ok((await acct(nw.id)).active === true && (await acct(nw.id)).kind === 'ri', '人事确认在岗后账号启用');
+  // 并入已有档案
+  const po = await val(save, rec(null, '老成员', 'phd', 'active'));
+  await as(null, D);
+  const n2 = await one(`select id, active from login_feishu('ou_s2', '老成员的飞书名', null, 'on_s2')`);
+  await as(U.fin, D);
+  await raises('待确认的档案不能作为并入目标', /该档案已对应账号|待确认的档案不能作为并入的目标/, `select link_person((select id from api.person where user_id = $1), $2)`, [n2.id, U.mem2]);
+  await q(`select link_person($1, $2)`, [po, n2.id]);
+  const merged = await one(`select user_id, has_feishu, account_active from api.person where id = $1`, [po]);
+  ok(merged.user_id === n2.id && merged.has_feishu === true && merged.account_active === true && (await acct(n2.id)).kind === 'phd', '待确认的账号并入已有档案后启用，身份随档案');
+  eq((await q(`select 1 from api.person where name = '老成员的飞书名'`)).length, 0, '原来那条待确认的档案并掉');
+  // 档案已离开的，预先登记了飞书身份也进不来
+  const pl = await val(save, rec(null, '已走的人', 'ri', 'left'));
+  await db.exec(`reset role`); await db.query(`update person set feishu_union_id = 'on_left' where id = $1`, [pl]); await db.exec(`set role app_api`);
+  await as(null, D);
+  ok((await one(`select active from login_feishu('ou_left', '已走的人', null, 'on_left')`)).active === false, '档案已离开的人登录，账号不启用');
+  // 合并账号：被并掉的一方只有待确认档案的，档案一并删掉
+  const m1 = await one(`select id from login_feishu('ou_m1', '重复账号', null, 'on_m1')`);
+  await as(U.dir, D);
+  await q(`select merge_user($1, $2)`, [m1.id, U.mem2]);
+  eq((await q(`select 1 from api.person where name = '重复账号'`)).length, 0, '合并账号时并掉待确认的档案');
 }
 
 console.log(`${pass} passed, ${fail} failed`);

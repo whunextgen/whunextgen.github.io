@@ -95,6 +95,9 @@ export const RPC: Record<string, [string, string][]> = {
   propose_name: [['name', 'text'], ['note', 'text']],
   vote_name: [['option', 'uuid']],
   set_scholar_url: [['url', 'text']],
+  save_person_record: [['id', 'uuid'], ['no', 'text'], ['name', 'text'], ['kind', 'text'], ['status', 'text'], ['joined', 'date'], ['left', 'date'],
+    ['edu', 'text'], ['school', 'text'], ['direction', 'text'], ['mentor', 'text'], ['note', 'text']],
+  link_person: [['person', 'uuid'], ['user', 'uuid']],
   approve_unit: [['unit', 'uuid']],
   confirm_unit: [['unit', 'uuid']],
   return_unit: [['unit', 'uuid'], ['note', 'text']],
@@ -425,7 +428,9 @@ export default {
         if (info?.code !== 0 || !u?.open_id) return json({ error: '读取飞书身份失败' }, 401);
         if (env.FEISHU_TENANT_KEY && u.tenant_key !== env.FEISHU_TENANT_KEY) return json({ error: '仅限本单位飞书账号登录' }, 403);
         const [row] = await withUser(env, null, (sql) =>
-          sql`select (login_feishu(${u.open_id}, ${u.name ?? ''}, ${u.enterprise_email || u.email || null}, ${u.union_id ?? null})).id as id`);
+          sql`select id, active from login_feishu(${u.open_id}, ${u.name ?? ''}, ${u.enterprise_email || u.email || null}, ${u.union_id ?? null})`);
+        // 账号未启用：没有人员档案的新面孔待人事确认，或者已停用。不发会话，回到登录页说明
+        if (!row.active) return new Response(null, { status: 302, headers: { location: `${appOrigin}/?wait=1`, 'set-cookie': setCookie('fp_state', '', 0) } });
         const headers = new Headers({ location: appOrigin });
         headers.append('set-cookie', setCookie('fp_session', await sign(env.SESSION_SECRET, 'uid', row.id, 7 * 86400), 7 * 86400));
         headers.append('set-cookie', setCookie('fp_state', '', 0));

@@ -52,7 +52,7 @@ export function useViews<T extends Record<string, unknown[]>>(spec: { [K in keyo
 
 // ---------- 视图的行 ----------
 export type Role = 'finance' | 'director' | 'leader' | 'member';
-export type Kind = 'postdoc' | 'phd' | 'master' | 'ra' | 'ri' | 'visitor';
+export type Kind = 'teacher' | 'postdoc' | 'phd' | 'master' | 'ra' | 'ri' | 'visitor';
 // 数组列万一回来是 {a,b} 这样的字符串，也还原成数组
 export const list = (v: unknown): string[] => Array.isArray(v) ? v : typeof v === 'string' && v.length > 2 && v[0] === '{' ? v.slice(1, -1).split(',').map((x) => x.replace(/^"|"$/g, '')) : [];
 export interface Me { id: string; name: string; role: Role; kind?: Kind | null; perms: string[]; scoped: string[]; scholar_url?: string | null }
@@ -137,7 +137,10 @@ export interface Rule { card_id: string; expense_type_id: string; ruled_on: stri
 export interface Ruling extends Rule { id: string; source: string | null }
 export interface FundEvent { id: string; card_id: string; kind: string; event_date: string; amount: string; todo: string | null; done: boolean; created_at: string }
 export interface ReqEvent { id: string; request_id: string; at: string; kind: string; note: string | null }
-export interface Person { id: string; name: string }
+// 人员档案：独立于账号。status：active 在岗，offroll 非编，left 已离开，pending 待人事确认（已登录、没有档案）
+export interface Person { id: string; name: string; no: string | null; kind: Kind | 'external' | null; status: 'active' | 'offroll' | 'left' | 'pending';
+  joined_on: string | null; left_on: string | null; edu: string | null; school: string | null; direction: string | null; mentor: string | null; note: string | null;
+  user_id: string | null; account_name: string | null; account_active: boolean | null; has_feishu: boolean; has_pay: boolean; updated_at: string }
 export interface PayType { id: string; name: string; subject_code: string; monthly_cap: string | null }
 export interface Staff { id: string; person_id: string; pay_type_id: string; month: string; card_id: string; amount: string; sheet_id: string | null; gap: string | null }
 export interface Sheet { id: string; month: string; pay_type_id: string; card_id: string; status: 'draft' | 'submitted' | 'posted'; posted_on: string | null; total: string }
