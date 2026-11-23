@@ -85,8 +85,8 @@ export function Agent({ me }: { me: Me }) {
               <td className="wrap"><code>{({ whoami: '无', list_views: 'keyword（可省略）', read_view: 'view，filters（可省略），limit（可省略）', list_actions: 'keyword（可省略）', call_action: 'action，args' } as Record<string, string>)[t.name] ?? ''}</code></td></tr>)}
           </tbody>
         </table></div>
-        <p className="hint">示例：读本人能看到的课题，<code>{'read_view {"view": "project", "filters": {"active": "true"}, "limit": 50}'}</code>；登记本期时间去向，<code>{'call_action {"action": "save_time_log", "args": {"period": "2026-11-16", "items": [{"project_id": "…", "percent": 60}]}}'}</code>。</p>
-        <p className="hint">参数类型：uuid 填对象的 id，date 填 2026-11-16 这样的日期，numeric 和 int 填数，boolean 填 true 或 false，jsonb 填对象或数组，text 填文字。不需要的参数可以不传。</p>
+        <p className="hint">示例：读本人能看到的课题，<code>{'read_view {"view": "project", "filters": {"active": "true"}, "limit": 50}'}</code>；登记本期时间去向，<code>{'call_action {"action": "save_time_log", "args": {"period": "2026-11-23", "items": [{"project_id": "…", "percent": 60}]}}'}</code>。</p>
+        <p className="hint">参数类型：uuid 填对象的 id，date 填 2026-11-23 这样的日期，numeric 和 int 填数，boolean 填 true 或 false，jsonb 填对象或数组，text 填文字。不需要的参数可以不传。</p>
         {meta && <>
           <div className="actions" style={{ justifyContent: 'flex-start' }}><input placeholder="按名称筛选视图和操作" value={kw} onChange={(e) => setKw(e.target.value.trim().toLowerCase())} style={{ maxWidth: 280 }} /></div>
           <details open={!!kw}><summary>视图 {meta.views.filter((v) => v.view.includes(kw)).length} 个（只读）</summary>
