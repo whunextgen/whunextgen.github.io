@@ -1,6 +1,8 @@
 id: '1767794829809'
 name: Ying Peng
 nameZh: 彭颖
+isAlumni: true
+leftAt: '2026-11'
 category: Intern
 avatar: "/people/ying-peng.png"
 order: 8003

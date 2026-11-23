@@ -1,6 +1,8 @@
 id: '1767855608015'
 name: Ruiyu Wang
 nameZh: 王瑞钰
+isAlumni: true
+leftAt: '2026-11'
 category: "Intern"
 avatar: "/people/ruiyu-wang.jpg"
 order: 8181

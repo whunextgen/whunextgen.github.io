@@ -1,5 +1,5 @@
 {
-  "asOf": "2026-11-13",
+  "asOf": "2026-11-23",
   "active": [
     {
       "name": "彭敏",
@@ -322,10 +322,6 @@
       "category": "RA"
     },
     {
-      "name": "彭颖",
-      "category": "Intern"
-    },
-    {
       "name": "徐绮依",
       "category": "Intern"
     },
@@ -334,19 +330,11 @@
       "category": "Intern"
     },
     {
-      "name": "林家伟",
-      "category": "Intern"
-    },
-    {
       "name": "林晨颖",
       "category": "Intern"
     },
     {
       "name": "焦禄圆",
-      "category": "Intern"
-    },
-    {
-      "name": "王瑞钰",
       "category": "Intern"
     },
     {
@@ -379,6 +367,22 @@
     },
     {
       "name": "彭睿博",
+      "category": "Intern"
+    },
+    {
+      "name": "舒裕涵",
+      "category": "RA"
+    },
+    {
+      "name": "武星烨",
+      "category": "Intern"
+    },
+    {
+      "name": "徐嘉",
+      "category": "Intern"
+    },
+    {
+      "name": "朱义健",
       "category": "Intern"
     }
   ],
@@ -440,6 +444,21 @@
     {
       "name": "肖天博",
       "category": "Intern"
+    },
+    {
+      "name": "彭颖",
+      "category": "Intern",
+      "leftAt": "2026-11"
+    },
+    {
+      "name": "林家伟",
+      "category": "Intern",
+      "leftAt": "2026-11"
+    },
+    {
+      "name": "王瑞钰",
+      "category": "Intern",
+      "leftAt": "2026-11"
     }
   ]
 }
