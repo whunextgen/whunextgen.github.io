@@ -55,7 +55,7 @@ export type Role = 'finance' | 'director' | 'leader' | 'member';
 export type Kind = 'postdoc' | 'phd' | 'master' | 'ra' | 'ri' | 'visitor';
 // 数组列万一回来是 {a,b} 这样的字符串，也还原成数组
 export const list = (v: unknown): string[] => Array.isArray(v) ? v : typeof v === 'string' && v.length > 2 && v[0] === '{' ? v.slice(1, -1).split(',').map((x) => x.replace(/^"|"$/g, '')) : [];
-export interface Me { id: string; name: string; role: Role; kind?: Kind | null; perms: string[]; scoped: string[] }
+export interface Me { id: string; name: string; role: Role; kind?: Kind | null; perms: string[]; scoped: string[]; scholar_url?: string | null }
 export interface Perm { code: string; name: string; grp: string; scope: 'global' | 'project' | 'card'; sort: number }
 export interface RoleDef { id: string; code: string | null; name: string; note: string | null; builtin: boolean; locked: boolean; implicit: boolean; sort: number; perms: string[]; holders: number }
 export interface RoleGrant { id: string; user_id: string; user_name: string; role_id: string; role_name: string; project_id: string | null; project_name: string | null;
@@ -188,8 +188,8 @@ export interface Emergency { year: number; per_request: string; per_year: string
 export type BudgetStage = 'declare' | 'summary' | 'approved' | 'applied' | 'granted' | 'fixed' | 'issued' | 'closed';
 export interface Project { id: string; code: string; name: string; kind: 'project' | 'public'; owner_id: string | null; owner_name: string | null; active: boolean; mine: boolean; labor_cap_ratio: string | null;
   layer: 'big' | 'paper'; parent_id: string | null; parent_code: string | null; parent_name: string | null; parent_owner_id: string | null; seen: boolean;
-  member: boolean; can_roster: boolean; members: number }
-export interface ProjectMember { id: string; project_id: string; user_id: string; user_name: string; joined_on: string; left_on: string | null; added_by_name: string | null; holding: number }
+  member: boolean; can_roster: boolean; members: number; owner_scholar_url?: string | null }
+export interface ProjectMember { id: string; project_id: string; user_id: string; user_name: string; joined_on: string; left_on: string | null; added_by_name: string | null; holding: number; scholar_url?: string | null }
 export interface PeoplePick { id: string; name: string }
 export interface Task { id: string; title: string; detail: string | null; assignee_id: string; assignee_name: string | null; due_date: string | null; card_id: string | null; card_name: string | null;
   status: 'open' | 'done' | 'cancelled'; created_by: string; creator_name: string | null; created_at: string; closed_by_name: string | null; closed_at: string | null; close_note: string | null;

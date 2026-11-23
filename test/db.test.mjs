@@ -2082,5 +2082,26 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('截止后不能提名', /征名已截止/, `select propose_name('东君', '《九歌》篇名')`);
 }
 
+// 谷歌学术主页：本人填写，只认个人主页链接；课题负责人和成员名单随姓名给出链接，可以清除
+{ await db.exec(`reset role`);
+  const t0 = await one(`select id, owner_id from project where layer = 'big' and kind = 'project' and active and not proposed and owner_id is not null order by code limit 1`);
+  await db.query(`insert into project_member (project_id, user_id, joined_on) select $1, $2, '2026-01-01' where not exists (select 1 from project_member where project_id = $1 and user_id = $2 and left_on is null)`, [t0.id, U.mem2]);
+  await db.exec(`set role app_api`);
+  await as(U.mem2);
+  await raises('须是谷歌学术的链接', /请填写谷歌学术个人主页的链接/, `select set_scholar_url('https://example.com/me')`);
+  await raises('须是个人主页', /请填写谷歌学术个人主页的链接/, `select set_scholar_url('https://scholar.google.com/citations?hl=zh-CN')`);
+  await q(`select set_scholar_url(' https://scholar.google.com/citations?hl=zh-CN&user=AbC_12-x ')`);
+  const url = 'https://scholar.google.com/citations?hl=zh-CN&user=AbC_12-x';
+  ok((await one(`select scholar_url from api.me`)).scholar_url === url, '本人填写后回显，去掉首尾空格');
+  await as(t0.owner_id);
+  await q(`select set_scholar_url('https://scholar.google.com.hk/citations?user=Own3r')`);
+  await as(U.mem);
+  ok((await one(`select scholar_url from api.project_member where project_id = $1 and user_id = $2 and left_on is null`, [t0.id, U.mem2])).scholar_url === url, '成员名单里随姓名给出链接');
+  const tp = await one(`select owner_scholar_url, members, can_roster from api.project where id = $1`, [t0.id]);
+  ok(tp.owner_scholar_url === 'https://scholar.google.com.hk/citations?user=Own3r' && tp.members >= 1 && tp.can_roster != null, '课题列表给出负责人的链接，原有字段不变', JSON.stringify(tp));
+  await as(U.mem2); await q(`select set_scholar_url(' ')`);
+  ok((await one(`select scholar_url from api.me`)).scholar_url === null, '留空即清除');
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

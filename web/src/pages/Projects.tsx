@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type ProjectTag, type BudgetLine, type BudgetYear, type LineExec, type Me, type Project, type ProjectBudget, type ProjectCap, type User } from '../api';
-import { ActionDialog, Badge, Empty, Loading, can, money, num, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, Scholar, can, money, num, type Field } from '../ui';
 import { KIND, STAGE_TEXT } from './Budget';
 import { capped } from './Caps';
 import { typeText } from './Project';
@@ -52,7 +52,7 @@ export function Projects({ me }: { me: Me }) {
               <tr key={r.id} style={r.active ? undefined : { opacity: .55 }}>
                 <td style={r.layer === 'paper' ? { paddingLeft: 28 } : undefined}>{r.seen ? <a href={`#/project/${r.id}`}>{r.name}</a> : r.name}{data.tags.some((t) => t.id === r.id && t.proposed) && <> <Badge tone="warn">待立项</Badge></>}{tagged.has(r.id) && <> <Badge>晨星</Badge></>}<span className="sub2">{r.code}{r.active ? '' : ' · 已停用'}{r.layer === 'paper' && !bigs.some((b) => b.id === r.parent_id) ? ` · 隶属 ${r.parent_name}` : ''}</span>
                   {r.kind !== 'public' && <div className="sub2" style={{ marginLeft: 0 }}>成员 {r.members} 人{r.member && r.owner_id !== me.id ? ' · 本人在名单中' : ''}</div>}</td><td>{typeText(r)}</td>
-                <td>{r.owner_name ?? '—'}{r.owner_id === me.id && <span className="sub2">本人</span>}</td>
+                <td>{r.owner_name ?? '—'}{r.owner_id === me.id && <span className="sub2">本人</span>}<Scholar url={r.owner_scholar_url} /></td>
                 {years.map((y) => { const b = data.budgets.find((x) => x.project_id === r.id && x.year === y.year);
                   const d = sum(r, y.year, 'declared'), a = sum(r, y.year, 'applied'), f = sum(r, y.year, 'fixed');
                   const ex = data.exec.filter((x) => x.project_id === r.id && x.year === y.year), run = y.stage === 'issued' || y.stage === 'closed';

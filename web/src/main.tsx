@@ -1,7 +1,7 @@
 import { Component, StrictMode, useEffect, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ApiError, logout, view, type Me, type Project, type ProjectTag } from './api';
-import { ROLE, can, today } from './ui';
+import { ApiError, logout, rpc, view, type Me, type Project, type ProjectTag } from './api';
+import { ActionDialog, ROLE, can, today } from './ui';
 import { Overview } from './pages/Overview';
 import { Funds } from './pages/Funds';
 import { SyncPage } from './pages/Sync';
@@ -93,6 +93,7 @@ function App() {
   // 本人是否在已立项的课题或研究单元里（负责人或成员）：支出申请、备用金、资源申领的入口据此显示。待立项的不算
   const [inTopic, setInTopic] = useState(false);
   const [owns, setOwns] = useState(false);   // 本人是否负责某个已立项的课题或研究单元
+  const [scholar, setScholar] = useState(false);   // 填写本人的谷歌学术主页
   const uid = me?.id;
   useEffect(() => {
     if (!uid) return;
@@ -206,8 +207,14 @@ function App() {
         </nav>
         <div className="who">
           <span><b>{me.name}</b><span>{owns && ROLE[me.role] === '成员' ? '负责人' : ROLE[me.role]}</span></span>
+          <button className="ghost sm" onClick={() => setScholar(true)} title={me.scholar_url ?? '填写本人的谷歌学术主页'}>Scholar</button>
           <button className="ghost sm" onClick={() => logout().finally(() => location.reload())}>退出</button>
         </div>
+        {scholar && <ActionDialog title="谷歌学术主页" submitLabel="保存"
+          hint="填写本人 Google Scholar 个人主页的链接，课题列表和成员名单里随姓名显示。参与双选的博士须填写。留空即清除。"
+          fields={[{ name: 'url', label: '链接，形如 https://scholar.google.com/citations?user=…', value: me.scholar_url ?? '', required: false }]}
+          onSubmit={(v) => rpc('set_scholar_url', { url: v.url }).then(() => setMe({ ...me, scholar_url: v.url.trim() || null }))}
+          onClose={() => setScholar(false)} />}
       </aside>
       <div className="scrim" onClick={() => setOpen(false)} />
       <div className="body">

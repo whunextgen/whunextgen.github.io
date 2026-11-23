@@ -77,6 +77,8 @@ export const Tile = ({ k, v, f, tone, color, meter }: { k: string; v: ReactNode;
 );
 
 export const Empty = ({ children }: { children: ReactNode }) => <p className="empty">{children}</p>;
+// 谷歌学术主页：本人填写的，随姓名显示
+export const Scholar = ({ url }: { url?: string | null }) => (url ? <a className="sub2" href={url} target="_blank" rel="noreferrer">Scholar</a> : null);
 
 export function Loading({ error }: { error?: Error }) {
   return error ? <div className="msg bad" role="alert">{error.message}</div> : <p className="empty">加载中…</p>;
