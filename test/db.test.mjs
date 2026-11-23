@@ -1804,6 +1804,11 @@ await q(`select decide_tier(2033, $1, $2, '补充材料后同意', '2032-06-04')
 ok((await one(`select (app_today() = (now() at time zone 'Asia/Shanghai')::date) as b from (select set_config('app.today', '', true)) s`)).b, '今日按北京时间算');
 await q(`select settle_tiers(2033)`);
 await db.exec(`reset role`);
+{ const n = async (like) => Number((await one(`select count(*)::int as n from feishu_outbox where payload ->> 'text' like $1`, [like])).n);
+  ok(await n('2033 年度预算方案已批准%') > 0, '方案批准通知全体成员');
+  ok(await n('2033 年度%申请：%') > 0, '课题提交申请通知录入评定结果的人');
+  ok(await n('%2033 年度评定为%') > 0 && await n('%2033 年度%申请不予通过%') > 0, '录入评定结果通知课题负责人');
+  ok(await n('2033 年度评定完成：%') > 0 && await n('2033 年度评定完成，转入下达') > 0 && await n('%评定完成已撤回%') > 0, '评定完成和撤回通知课题负责人与财务岗'); }
 const npOk = await one(`select active, proposed, (select fixed from project_budget_line where id = $2) fixed, (select amount from project_cap where year = 2033 and project_id = $1) cap,
   (select count(*)::int from project q where q.parent_id = $1 and not q.proposed) units from project where id = $1`, [NP, NL]);
 await db.exec(`set role app_api`);
