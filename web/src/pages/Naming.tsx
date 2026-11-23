@@ -26,7 +26,7 @@ export function Naming() {
       <section className="card">
         <h3>候选名字 <span className="h3sub">{names.length} 个 · 已投 {total} 票 · {open ? <Badge tone="pri">进行中</Badge> : <Badge>已截止</Badge>}</span></h3>
         <p className="hint">匿名：页面上不显示名字是谁提的、票是谁投的。系统只为保证每人一票记下账号，不对外展示。</p>
-        {names.length === 0 ? <Empty>暂无候选名字。</Empty> : (
+        {names.length === 0 ? <Empty>还没有人提名，点右上角「提一个新名字」提第一个。</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th style={{ width: '14%' }}>名字</th><th>出处与寓意</th><th style={{ width: '24%' }}>票数</th><th /></tr></thead>
             <tbody>{names.map((n) => (
