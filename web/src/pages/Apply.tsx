@@ -109,7 +109,7 @@ export function UnitApplyCard({ me, onChange }: { me: Me; onChange?: () => void 
                 {u.member_names && <div className="sub2" style={{ marginLeft: 0 }}>成员：{u.member_names}</div>}</td>
               <td><a href={`#/project/${u.parent_id}`}>{u.parent_name}</a></td><td>{u.owner_name ?? '—'}</td>
               <td>{day(u.meeting_on)} 通过<div className="sub2" style={{ marginLeft: 0 }}>{day(u.minutes_on)} 发出纪要</div></td>
-              <td className="wrap">{!u.proposed ? <><Badge tone="ok">已成立</Badge>{u.checked_by_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.checked_by_name} 核对</div>}</>
+              <td className="wrap">{!u.proposed ? <><Badge tone="ok">已成立</Badge>{u.veto_waived_at ? <div className="sub2" style={{ marginLeft: 0 }}>{u.veto_waived_by_name ?? '中心负责人'} 提前通过</div> : u.checked_by_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.checked_by_name} 核对</div>}</>
                 : u.return_note ? <><Badge tone="bad">已退回</Badge><div className="sub2" style={{ marginLeft: 0 }}>{u.return_note}</div></>
                 : !u.parent_ok_at ? <><Badge tone="warn">待课题负责人同意</Badge>{u.parent_owner_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.parent_owner_name}</div>}</>
                 : <>{vetoOver(u) ? <Badge tone="pri">待核对</Badge> : <Badge tone="warn">否决期至 {day(u.veto_until)}</Badge>}{u.parent_ok_by_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.parent_ok_by_name} 已同意</div>}</>}</td>
@@ -118,6 +118,8 @@ export function UnitApplyCard({ me, onChange }: { me: Me; onChange?: () => void 
                   hint: `${u.owner_name ?? '申请人'}申请在「${u.parent_name}」之下成立该研究单元。成立后，研究单元名单里的人使用本课题的预算提交支出申请、申领资源。同意后由助理对照联席会议纪要核对成立。`, run: () => rpc('approve_unit', { unit: u.id }) }, 'sm')}
                 {recorder && u.proposed && !u.return_note && <button className="sm" disabled={!vetoOver(u) || !u.parent_ok_at} title={!u.parent_ok_at ? '所挂课题的负责人同意后方可确认成立' : vetoOver(u) ? undefined : '否决期届满后方可确认成立'} onClick={() => setAct({ title: `确认成立：${u.name}`, label: '确认成立', fields: [],
                   hint: `请对照联席会议纪要核对：${day(u.meeting_on)} 的会议确已通过该研究单元，纪要于 ${day(u.minutes_on)} 发出，否决期已满且中心负责人未否决。确认后研究单元成立，挂在「${u.parent_name}」之下，${u.owner_name ?? '申请人'}为负责人。`, run: () => rpc('confirm_unit', { unit: u.id }) })}>确认成立</button>}
+                {u.can_pass && btn('直接通过', { title: `中心负责人通过：${u.name}`, label: '通过', fields: [],
+                  hint: `不等否决期届满，直接通过该研究单元，即表示中心负责人不行使否决权。通过后研究单元即成立，挂在「${u.parent_name}」之下，${u.owner_name ?? '申请人'}为负责人，不再经助理核对。`, run: () => rpc('pass_unit', { unit: u.id }) }, 'sm')}
                 {(recorder || u.can_ok) && u.proposed && !u.return_note && btn('退回', { title: `退回申请：${u.name}`, label: '退回', danger: true, hint: '会议没有这一项、内容与纪要不符、已被中心负责人否决，或所挂课题的负责人不同意的，退回并写明原因。申请人可修改后重新提交。', fields: [{ name: 'note', label: '退回原因', type: 'area' }], run: (v) => rpc('return_unit', { unit: u.id, note: v.note }) })}
                 {u.mine && u.proposed && btn('修改', unitAct(u))}
                 {(u.mine || finance) && u.proposed && btn('撤回', { title: `撤回申请：${u.name}`, label: '撤回', danger: true, fields: [], hint: '撤回后该申请删除。', run: () => rpc('withdraw_unit', { unit: u.id }) })}</div></td></tr>))}</tbody>

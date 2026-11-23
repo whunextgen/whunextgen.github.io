@@ -100,6 +100,7 @@ export const RPC: Record<string, [string, string][]> = {
   link_person: [['person', 'uuid'], ['user', 'uuid']],
   approve_unit: [['unit', 'uuid']],
   confirm_unit: [['unit', 'uuid']],
+  pass_unit: [['unit', 'uuid']],
   return_unit: [['unit', 'uuid'], ['note', 'text']],
   withdraw_unit: [['unit', 'uuid']],
   save_time_log: [['period', 'date'], ['items', 'jsonb']],

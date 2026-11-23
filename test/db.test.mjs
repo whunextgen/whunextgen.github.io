@@ -1875,6 +1875,27 @@ await raises('他人不能撤回申请', /仅申请人和财务岗可撤回申�
 await as(plain, '2032-06-15');
 await q(`select withdraw_unit($1)`, [U2]);
 ok((await q(`select 1 from api.unit_apply where id = $1`, [U2])).length === 0, '成立之前申请人可以撤回');
+// 研究单元申请：中心负责人可以不等否决期届满直接通过；须课题负责人已同意，其他人不能直接通过
+{ await as(plain, '2032-07-01');
+  const U4 = await val(pu, [null, TB, '中心负责人直接通过的单元', '2032-06-30', '2032-07-01', '研究内容：提前通过', null]);
+  await as(U.dir, '2032-07-01');
+  await raises('课题负责人同意之前不能直接通过', /所挂课题的负责人尚未同意/, `select pass_unit($1)`, [U4]);
+  ok((await one(`select can_pass from api.unit_apply where id = $1`, [U4])).can_pass === false, '课题负责人同意之前不给直接通过');
+  await as(U.lead, '2032-07-01');
+  await q(`select approve_unit($1)`, [U4]);
+  await raises('课题负责人不能直接通过', /需要权限/, `select pass_unit($1)`, [U4]);
+  ok((await one(`select can_pass from api.unit_apply where id = $1`, [U4])).can_pass === false, '课题负责人看不到直接通过');
+  await as(U.dir, '2032-07-02');
+  await raises('否决期内助理核对照旧须等届满', /否决期至 2032-07-06 届满/, `select confirm_unit($1)`, [U4]);
+  ok((await one(`select can_pass from api.unit_apply where id = $1`, [U4])).can_pass === true, '中心负责人在否决期内可以直接通过');
+  await q(`select pass_unit($1)`, [U4]);
+  const p4 = await one(`select proposed, veto_waived_by_name n, veto_waived_at is not null w, checked_by_name c, can_pass from api.unit_apply where id = $1`, [U4]);
+  ok(p4.proposed === false && p4.w && p4.n === p4.c && p4.n != null && p4.can_pass === false, '直接通过即成立，记下通过人', JSON.stringify(p4));
+  await raises('已成立的不能再通过', /该研究单元不是待核对的申请/, `select pass_unit($1)`, [U4]);
+  await as(plain, '2032-07-02');
+  ok((await one(`select owner_id from api.project where id = $1`, [U4])).owner_id === plain, '申请人即为负责人');
+}
+
 await as(U.fin, '2032-06-15');
 ok((await q(`select text from api.outbox where user_id = $1`, [U.lead])).some(o => /之下新成立研究单元「成员申请的研究单元」/.test(o.text)), '成立后通知所挂课题的负责人');
 // 代币试行：名义币按人每两周发，登记时间去向，负责人确认后计入池子；成果按四级登记、助理核对

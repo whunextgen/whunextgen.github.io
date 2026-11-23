@@ -94,7 +94,8 @@ export interface UnitExec { year: number; topic_id: string; project_id: string; 
 export interface UnitApply { id: string; code: string; name: string; parent_id: string; parent_code: string; parent_name: string; owner_id: string | null; owner_name: string | null;
   apply_note: string | null; meeting_on: string | null; minutes_on: string | null; applied_at: string; return_note: string | null; checked_by_name: string | null; checked_at: string | null;
   proposed: boolean; veto_until: string | null; member_names: string | null; member_ids: string | null; mine: boolean;
-  parent_ok_at: string | null; parent_ok_by_name: string | null; parent_owner_name: string | null; can_ok: boolean }
+  parent_ok_at: string | null; parent_ok_by_name: string | null; parent_owner_name: string | null; can_ok: boolean;
+  can_pass: boolean; veto_waived_at: string | null; veto_waived_by_name: string | null }
 // 双周表：每个研究单元每两周一份。missed 为从上一期往前连续未登记的期数，大于 0 即超过两周未登记
 export type BwStage = 'idea' | 'abstract' | 'first_figure' | 'results_table' | 'full_draft' | 'submitted';
 export interface BiweeklyReport { id: string; project_id: string; unit_code: string; unit_name: string; topic_id: string | null; topic_code: string | null; topic_name: string | null; leader_name: string | null;
