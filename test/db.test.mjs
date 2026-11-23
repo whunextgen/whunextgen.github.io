@@ -2017,9 +2017,15 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok(s.filled === false && s.missed === 0 && s.prev_open === false && s.can_fill === true && s.ps === '2032-06-07', '成立所在的一期起须登记，此前的期次不算未登记', JSON.stringify(s));
   await as(U.mem, '2032-06-16');
   await raises('不在研究单元名单里的不能登记', /仅研究单元负责人和成员可登记双周表/, BW, [U1, '2032-06-07', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
-  const U3 = await val(`select propose_unit(null, $1, '待成立的研究单元', '2032-06-08', '2032-06-09', '说明', null) v`, [TB]);
+  // 待成立的研究单元直接写入，不经申请流程，免得随立项方式的改动而改动
+  await db.exec(`reset role`);
+  const U3 = await id(`insert into project (code, name, kind, owner_id, active, layer, parent_id, proposed, applied_at)
+    select 'BW-PENDING', '待成立的研究单元', kind, $1, true, 'paper', id, true, now() from project where id = $2`, [U.mem, TB]);
+  await db.exec(`set role app_api`);
   await raises('研究单元须已成立', /尚未成立或已停用/, BW, [U3, '2032-06-07', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
-  await q(`select withdraw_unit($1)`, [U3]);
+  await db.exec(`reset role`);
+  await q(`delete from project where id = $1`, [U3]);
+  await db.exec(`set role app_api`);
   await as(U.mem2, '2032-06-16');
   const R1 = await bw(U1, '2032-06-07');
   await as(plain, '2032-06-16');
