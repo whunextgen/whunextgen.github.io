@@ -91,6 +91,7 @@ export const RPC: Record<string, [string, string][]> = {
   propose_project: [['year', 'int'], ['name', 'text'], ['tier', 'uuid'], ['reason', 'text'], ['units', 'text']],
   withdraw_proposal: [['year', 'int'], ['project', 'uuid']],
   propose_unit: [['id', 'uuid'], ['parent', 'uuid'], ['name', 'text'], ['meeting_on', 'date'], ['minutes_on', 'date'], ['note', 'text'], ['members', 'text']],
+  approve_unit: [['unit', 'uuid']],
   confirm_unit: [['unit', 'uuid']],
   return_unit: [['unit', 'uuid'], ['note', 'text']],
   withdraw_unit: [['unit', 'uuid']],

@@ -1834,9 +1834,14 @@ ok(ua.parent_id === TB && ua.proposed === true && ua.mine === true && ua.vu === 
 ok((await val(`select can_use_project($1) v`, [TB])) === false, '成立之前不能使用课题的预算');
 await as(U.mem, '2032-06-09');
 await raises('他人不能改申请', /仅申请人可修改申请/, pu, [U1, TB, '改名', '2032-06-04', '2032-06-07', '说明', null]);
+await raises('不是所挂课题的负责人不能同意', /仅所挂课题的负责人和副手可以同意/, `select approve_unit($1)`, [U1]);
 await as(U.lead, '2032-06-09');
 ok((await q(`select 1 from api.unit_apply where id = $1`, [U1])).length === 1, '所挂课题的负责人看得到这份申请');
 await raises('课题负责人不核对，核对由助理按会议结果办', /需要权限/, `select confirm_unit($1)`, [U1]);
+ua = await one(`select can_ok, parent_ok_at from api.unit_apply where id = $1`, [U1]);
+ok(ua.can_ok === true && ua.parent_ok_at === null, '提交后先待所挂课题的负责人同意');
+await q(`select approve_unit($1)`, [U1]);
+ok((await one(`select parent_ok_by_name n from api.unit_apply where id = $1`, [U1])).n != null, '课题负责人同意后记下同意人');
 await as(U.dir, '2032-06-10');
 await raises('否决期未满不能确认成立', /三个工作日的否决期至 2032-06-10 届满/, `select confirm_unit($1)`, [U1]);
 await raises('退回须写原因', /请填写退回原因/, `select return_unit($1, ' ')`, [U1]);
@@ -1848,6 +1853,11 @@ ok((await one(`select return_note from api.unit_apply where id = $1`, [U1])).ret
 await q(pu, [U1, TB, '成员申请的研究单元', '2032-06-08', '2032-06-09', '研究内容：长任务评测的一个子方向', U.mem2]);
 ua = await one(`select return_note, veto_until::text vu from api.unit_apply where id = $1`, [U1]);
 ok(ua.return_note === null && ua.vu === '2032-06-14', '修改后重新提交，否决期跨过周末', JSON.stringify(ua));
+await as(U.dir, '2032-06-14');
+await raises('重新提交后须课题负责人再次同意', /所挂课题的负责人尚未同意/, `select confirm_unit($1)`, [U1]);
+await as(U.lead, '2032-06-12');
+await q(`select approve_unit($1)`, [U1]);
+await raises('同意过的不能重复同意', /已经同意过了/, `select approve_unit($1)`, [U1]);
 await as(U.dir, '2032-06-14');
 await raises('否决期最后一天仍不能确认', /否决期至 2032-06-14 届满/, `select confirm_unit($1)`, [U1]);
 await as(U.dir, '2032-06-15');

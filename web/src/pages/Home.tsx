@@ -114,7 +114,8 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
     count(resOf('reviewed').length, 'warn', '资源待批准', '资源申请研究单元负责人已批示，待批准', '审批', '#/pool');
     count(resOf('approved').length, 'warn', '资源待分发', '资源申请已批准，待分发', '分发', '#/pool');
   }
-  if (can(me, 'budget.evaluate')) count(data.uapps.filter((u) => u.proposed && !u.return_note).length, 'warn', '待核对', '研究单元申请，待按联席会议纪要核对', '核对', '#/projects');
+  count(data.uapps.filter((u) => u.can_ok && u.proposed && !u.return_note && !u.parent_ok_at).length, 'warn', '待同意', '研究单元申请挂在本人负责的课题之下，待同意', '办理', '#/projects');
+  if (can(me, 'budget.evaluate')) count(data.uapps.filter((u) => u.proposed && !u.return_note && !!u.parent_ok_at).length, 'warn', '待核对', '研究单元申请，待按联席会议纪要核对', '核对', '#/projects');
   count(data.uapps.filter((u) => u.mine && u.proposed && !!u.return_note).length, 'bad', '已退回', '研究单元申请已退回，待修改后重新提交', '查看', '#/projects');
   count(resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id).length, 'warn', '待批示', '资源申请属本人负责的研究单元，待批示', '批示', '#/resource');
   if (seesCards) {

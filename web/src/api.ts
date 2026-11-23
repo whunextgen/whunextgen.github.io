@@ -90,10 +90,11 @@ export interface TierPick { year: number; project_id: string; project_name: stri
 export interface ProjectTag { id: string; morningstar: boolean; proposed: boolean }
 // 课题的预算按研究单元分列的执行：project_id 为研究单元，或课题本身（记在课题名下的）
 export interface UnitExec { year: number; topic_id: string; project_id: string; n: number; used: string; actual: string }
-// 研究单元申请：先经联席会议通过，再在系统里申请，助理对照纪要核对后成立。veto_until 为三个工作日否决期的最后一天
+// 研究单元申请：先经联席会议通过，再在系统里申请，所挂课题的负责人同意后，助理对照纪要核对成立。veto_until 为三个工作日否决期的最后一天
 export interface UnitApply { id: string; code: string; name: string; parent_id: string; parent_code: string; parent_name: string; owner_id: string | null; owner_name: string | null;
   apply_note: string | null; meeting_on: string | null; minutes_on: string | null; applied_at: string; return_note: string | null; checked_by_name: string | null; checked_at: string | null;
-  proposed: boolean; veto_until: string | null; member_names: string | null; member_ids: string | null; mine: boolean }
+  proposed: boolean; veto_until: string | null; member_names: string | null; member_ids: string | null; mine: boolean;
+  parent_ok_at: string | null; parent_ok_by_name: string | null; parent_owner_name: string | null; can_ok: boolean }
 export interface FundProject { id: string; name: string; source: 'school' | 'national' | 'provincial' | 'enterprise' | 'other' | null; fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null;
   owner_id: string | null; owner_name: string | null; quota: string | null; period_start: string | null; period_end: string | null; template_id: string; template_name: string;
   end_rule: 'recall' | 'carry'; note: string | null; status: 'active' | 'closed'; granted: string; recalled: string; cards: number;
