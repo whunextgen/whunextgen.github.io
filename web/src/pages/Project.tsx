@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ObjHead, Stages, Track, execSegs } from '../tree';
 import { rpc, useViews, type ProjectTag, type UnitExec, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember } from '../api';
-import { ActionDialog, Badge, Empty, Loading, Tile, can, day, money, num, pct, today } from '../ui';
+import { ActionDialog, Badge, Empty, Loading, Scholar, Tile, can, day, money, num, pct, today } from '../ui';
 import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
 import { RequestTable } from './Requests';
@@ -217,7 +217,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
             <div className="scroll"><table>
               <thead><tr><th>成员</th><th>加入日期</th><th>加入人</th><th className="r">名下接口额度</th><th /></tr></thead>
               <tbody>{members.map((m) => (
-                <tr key={m.id}><td>{m.user_name}{m.user_id === me.id && <span className="sub2">本人</span>}</td><td>{day(m.joined_on)}</td><td>{m.added_by_name ?? '—'}</td>
+                <tr key={m.id}><td>{m.user_name}{m.user_id === me.id && <span className="sub2">本人</span>}<Scholar url={m.scholar_url} /></td><td>{day(m.joined_on)}</td><td>{m.added_by_name ?? '—'}</td>
                   <td className="r">{m.holding > 0 ? `${m.holding} 条` : '—'}</td>
                   <td className="r">{r.can_roster && <button className="ghost sm danger" onClick={() => setAct(removeAct(m))}>移出</button>}</td></tr>
               ))}</tbody>
