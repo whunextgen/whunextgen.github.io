@@ -6,13 +6,13 @@ interface NameOption { id: string; name: string; note: string | null; created_at
 
 // 中台征名：可以给已有的名字投票，也可以提新的名字。每人一票，截止前可以改投。不显示谁提的、谁投的。
 export function Naming() {
-  const { data, error, reload } = useViews<{ names: NameOption[] }>({ names: ['name_option'] });
+  const { data, error, reload } = useViews<{ names: NameOption[]; poll: { closes_at: string; open: boolean; total_votes: number }[] }>({ names: ['name_option'], poll: ['name_poll'] });
   const [adding, setAdding] = useState(false);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   if (!data) return <Loading error={error} />;
   const names = [...data.names].sort((a, b) => b.votes - a.votes || a.created_at.localeCompare(b.created_at));
-  const first = names[0], open = !!first?.open, total = first?.total_votes ?? 0, top = Math.max(1, ...names.map((n) => n.votes));
+  const first = data.poll[0], open = !!first?.open, total = first?.total_votes ?? 0, top = Math.max(1, ...names.map((n) => n.votes));
   const closes = first ? new Date(first.closes_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
   const vote = async (id: string | null) => {
     setBusy(true); setMsg('');
