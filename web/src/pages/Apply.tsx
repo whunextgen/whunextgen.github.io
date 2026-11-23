@@ -76,7 +76,7 @@ export function ApplyPage({ me }: { me: Me }) {
   );
 }
 
-// ---------- 研究单元申请：全年随时。先经联席会议通过，再在这里申请；所挂课题的负责人同意后，助理对照纪要核对成立 ----------
+// ---------- 研究单元申请：全年随时。在这里提交，所挂课题的负责人同意后，联席会议成员在线投票，赞成超过总人数一半的予以立项 ----------
 export function UnitApplyCard({ me, onChange }: { me: Me; onChange?: () => void }) {
   const { data, error, reload } = useViews<{ units: UnitApply[]; tags: ProjectTag[]; projects: Project[]; users: User[] }>({ units: ['unit_apply'], tags: ['project_tag'], projects: ['project'], users: ['users'] });
   const [act, setAct] = useState<Act | null>(null);
@@ -85,40 +85,43 @@ export function UnitApplyCard({ me, onChange }: { me: Me; onChange?: () => void 
   const waiting = new Set(data.tags.filter((t) => t.proposed).map((t) => t.id));
   const hosts = data.projects.filter((p) => p.layer !== 'paper' && p.kind !== 'public' && p.active && !waiting.has(p.id)).sort((a, b) => a.code.localeCompare(b.code));
   const unitRows = data.units.filter((u) => u.proposed || u.mine).sort((a, b) => Number(b.proposed) - Number(a.proposed) || b.applied_at.localeCompare(a.applied_at));
-  const vetoOver = (u: UnitApply) => !!u.veto_until && today() > day(u.veto_until);
   const unitAct = (u?: UnitApply): Act => ({
     title: u ? `修改研究单元申请：${u.name}` : '申请成立研究单元', label: u ? '重新提交' : '提交申请',
-    hint: `研究单元一律独立申请，挂在一个已立项的课题下面，中心公共开支之下不设。全年随时可以申请，不必等年度预算。按章程须先经联席会议通过；会议纪要发出满三个工作日、中心负责人未否决的，决议生效。此处按会议结果填写，提交后先由所挂课题的负责人同意（本人即该课题负责人的免），再由助理对照纪要核对后成立，申请人即为负责人。研究单元不参加评定，使用所挂课题的预算，不单独编预算。${!u && hosts.length === 0 ? '目前没有可挂靠的已立项课题。' : ''}`,
+    hint: `研究单元一律独立申请，挂在一个已立项的课题下面，中心公共开支之下不设。全年随时可以申请，不必等年度预算。提交后先由所挂课题的负责人同意（本人即该课题负责人的免），再由联席会议成员在线投票，赞成人数超过联席会议总人数一半的，予以立项，申请人即为负责人。研究单元不参加评定，使用所挂课题的预算，不单独编预算。${u ? '修改后重新提交的，已投的票作废，须经课题负责人再次同意后重新审核。' : hosts.length === 0 ? '目前没有可挂靠的已立项课题。' : ''}`,
     fields: [...(u ? [] : [{ name: 'parent', label: '所挂课题', options: hosts.map((p): [string, string] => [p.id, `${p.code} ${p.name}${p.owner_name ? `（负责人 ${p.owner_name}）` : ''}`]) } as Field]),
       { name: 'name', label: '研究单元名称', value: u?.name },
-      { name: 'meeting_on', label: '联席会议通过的日期', type: 'date', value: u?.meeting_on ? day(u.meeting_on) : '' }, { name: 'minutes_on', label: '会议纪要发出的日期', type: 'date', value: u?.minutes_on ? day(u.minutes_on) : '' },
       { name: 'note', label: '说明（研究内容，拟使用的经费和资源）', type: 'area', value: u?.apply_note ?? '' },
       { name: 'members', label: '拟加入的成员（选填，成立后可再调整）', type: 'multi', required: false, value: u?.member_ids ?? '',
         options: data.users.filter((x) => x.active && x.id !== me.id).sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((x): [string, string] => [x.id, x.name]) }],
-    run: (v) => rpc('propose_unit', { id: u?.id ?? null, parent: u?.parent_id ?? v.parent, name: v.name, meeting_on: v.meeting_on, minutes_on: v.minutes_on, note: v.note, members: v.members || null }) });
+    run: (v) => rpc('propose_unit', { id: u?.id ?? null, parent: u?.parent_id ?? v.parent, name: v.name, note: v.note, members: v.members || null }) });
   const btn = (label: string, a: Act, cls = 'sm ghost') => <button className={a.danger ? `${cls} danger` : cls} onClick={() => setAct(a)}>{label}</button>;
+  const voteAct = (u: UnitApply, yes: boolean): Act => ({ title: `${yes ? '赞成' : '反对'}成立研究单元：${u.name}`, label: yes ? '赞成' : '反对', danger: !yes, fields: [],
+    hint: `${u.owner_name ?? '申请人'}申请在「${u.parent_name}」之下成立该研究单元，课题负责人已同意。联席会议共 ${u.review_total} 人，赞成满 ${u.review_need} 票予以立项；反对票多到赞成已不可能超过一半的，即为未通过，退回申请人。审核有结果之前可以改投。页面只显示票数，不显示谁投了什么。`,
+    run: () => rpc('vote_unit', { unit: u.id, yes }) });
+  const tally = (u: UnitApply) => `赞成 ${u.yes_count}、反对 ${u.no_count}`;
   return (
     <section className="card">
-      <h3>研究单元申请 <span className="h3sub">全年随时 · {recorder ? '按联席会议纪要核对' : '本人提交的申请，以及本人所负责课题之下的申请'}</span></h3>
-      <p className="hint">研究单元一律独立申请，挂在一个已立项的课题下面，全年随时可以提，不必等年度预算。先经联席会议通过，再在此提交；会议纪要发出满三个工作日、中心负责人未否决的，经所挂课题的负责人同意，由助理对照纪要核对后成立。成立后申请人即为负责人。研究单元不参加评定，使用所挂课题的预算。</p>
+      <h3>研究单元申请 <span className="h3sub">全年随时 · {recorder || finance ? '全部申请' : '本人提交的申请，本人所负责课题之下的申请；联席会议成员另可看到审核中的申请'}</span></h3>
+      <p className="hint">研究单元一律独立申请，挂在一个已立项的课题下面，全年随时可以提，不必等年度预算。申请人在此提交，经所挂课题的负责人同意后，由联席会议成员（博士研究生和博士后）在线审核，采用简单投票，赞成人数超过联席会议总人数一半的，予以立项；审核结果由中台记录存档。成立后申请人即为负责人。研究单元不参加评定，使用所挂课题的预算。</p>
       {unitRows.length === 0 ? <Empty>暂无研究单元申请。</Empty> : (
         <div className="scroll"><table>
-          <thead><tr><th>研究单元</th><th>所挂课题</th><th>申请人</th><th>联席会议 · 纪要</th><th>情况</th><th /></tr></thead>
+          <thead><tr><th>研究单元</th><th>所挂课题</th><th>申请人</th><th>情况</th><th /></tr></thead>
           <tbody>{unitRows.map((u) => (
             <tr key={u.id}><td className="wrap">{u.proposed ? u.name : <a href={`#/project/${u.id}`}>{u.name}</a>}<span className="sub2">{u.code}</span>{u.apply_note && <div className="sub2" style={{ marginLeft: 0 }}>{u.apply_note}</div>}
                 {u.member_names && <div className="sub2" style={{ marginLeft: 0 }}>成员：{u.member_names}</div>}</td>
-              <td><a href={`#/project/${u.parent_id}`}>{u.parent_name}</a></td><td>{u.owner_name ?? '—'}</td>
-              <td>{day(u.meeting_on)} 通过<div className="sub2" style={{ marginLeft: 0 }}>{day(u.minutes_on)} 发出纪要</div></td>
-              <td className="wrap">{!u.proposed ? <><Badge tone="ok">已成立</Badge>{u.checked_by_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.checked_by_name} 核对</div>}</>
-                : u.return_note ? <><Badge tone="bad">已退回</Badge><div className="sub2" style={{ marginLeft: 0 }}>{u.return_note}</div></>
-                : !u.parent_ok_at ? <><Badge tone="warn">待课题负责人同意</Badge>{u.parent_owner_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.parent_owner_name}</div>}</>
-                : <>{vetoOver(u) ? <Badge tone="pri">待核对</Badge> : <Badge tone="warn">否决期至 {day(u.veto_until)}</Badge>}{u.parent_ok_by_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.parent_ok_by_name} 已同意</div>}</>}</td>
+              <td><a href={`#/project/${u.parent_id}`}>{u.parent_name}</a></td><td>{u.owner_name ?? '—'}<div className="sub2" style={{ marginLeft: 0 }}>{day(u.applied_at)} 提交</div></td>
+              <td className="wrap">{u.status === 'established' ? <><Badge tone="ok">已成立</Badge>{u.review_total != null ? <div className="sub2" style={{ marginLeft: 0 }}>联席会议{tally(u)}，共 {u.review_total} 人</div>
+                  : u.checked_by_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.checked_by_name} 核对</div>}</>
+                : u.status === 'returned' ? <><Badge tone="bad">已退回</Badge><div className="sub2" style={{ marginLeft: 0 }}>{u.return_note}</div></>
+                : u.status === 'consent' ? <><Badge tone="warn">待课题负责人同意</Badge>{u.parent_owner_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.parent_owner_name}</div>}</>
+                : <><Badge tone="pri">联席会议审核中</Badge><div className="sub2" style={{ marginLeft: 0 }}>{tally(u)}，满 {u.review_need} 票通过（共 {u.review_total} 人）</div>
+                  {u.can_vote && <div className="sub2" style={{ marginLeft: 0 }}>本人：{u.my_vote == null ? '尚未投票' : u.my_vote ? '赞成' : '反对'}</div>}</>}</td>
               <td className="r"><div className="acts">
-                {u.can_ok && u.proposed && !u.return_note && !u.parent_ok_at && btn('同意', { title: `同意成立研究单元：${u.name}`, label: '同意', fields: [],
-                  hint: `${u.owner_name ?? '申请人'}申请在「${u.parent_name}」之下成立该研究单元。成立后，研究单元名单里的人使用本课题的预算提交支出申请、申领资源。同意后由助理对照联席会议纪要核对成立。`, run: () => rpc('approve_unit', { unit: u.id }) }, 'sm')}
-                {recorder && u.proposed && !u.return_note && <button className="sm" disabled={!vetoOver(u) || !u.parent_ok_at} title={!u.parent_ok_at ? '所挂课题的负责人同意后方可确认成立' : vetoOver(u) ? undefined : '否决期届满后方可确认成立'} onClick={() => setAct({ title: `确认成立：${u.name}`, label: '确认成立', fields: [],
-                  hint: `请对照联席会议纪要核对：${day(u.meeting_on)} 的会议确已通过该研究单元，纪要于 ${day(u.minutes_on)} 发出，否决期已满且中心负责人未否决。确认后研究单元成立，挂在「${u.parent_name}」之下，${u.owner_name ?? '申请人'}为负责人。`, run: () => rpc('confirm_unit', { unit: u.id }) })}>确认成立</button>}
-                {(recorder || u.can_ok) && u.proposed && !u.return_note && btn('退回', { title: `退回申请：${u.name}`, label: '退回', danger: true, hint: '会议没有这一项、内容与纪要不符、已被中心负责人否决，或所挂课题的负责人不同意的，退回并写明原因。申请人可修改后重新提交。', fields: [{ name: 'note', label: '退回原因', type: 'area' }], run: (v) => rpc('return_unit', { unit: u.id, note: v.note }) })}
+                {u.can_ok && u.status === 'consent' && btn('同意', { title: `同意成立研究单元：${u.name}`, label: '同意', fields: [],
+                  hint: `${u.owner_name ?? '申请人'}申请在「${u.parent_name}」之下成立该研究单元。成立后，研究单元名单里的人使用本课题的预算提交支出申请、申领资源。同意后转入联席会议在线审核，赞成人数超过联席会议总人数一半的，予以立项。`, run: () => rpc('approve_unit', { unit: u.id }) }, 'sm')}
+                {u.can_vote && u.my_vote !== true && btn(u.my_vote === false ? '改投赞成' : '赞成', voteAct(u, true), 'sm')}
+                {u.can_vote && u.my_vote !== false && btn(u.my_vote === true ? '改投反对' : '反对', voteAct(u, false))}
+                {(recorder || u.can_ok) && u.proposed && !u.return_note && btn('退回', { title: `退回申请：${u.name}`, label: '退回', danger: true, hint: '所挂课题的负责人不同意，或申请内容有误的，在审核有结果之前可以退回并写明原因，本轮审核随之停止。申请人可修改后重新提交。', fields: [{ name: 'note', label: '退回原因', type: 'area' }], run: (v) => rpc('return_unit', { unit: u.id, note: v.note }) })}
                 {u.mine && u.proposed && btn('修改', unitAct(u))}
                 {(u.mine || finance) && u.proposed && btn('撤回', { title: `撤回申请：${u.name}`, label: '撤回', danger: true, fields: [], hint: '撤回后该申请删除。', run: () => rpc('withdraw_unit', { unit: u.id }) })}</div></td></tr>))}</tbody>
         </table></div>
