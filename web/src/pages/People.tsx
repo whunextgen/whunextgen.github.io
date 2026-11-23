@@ -26,7 +26,7 @@ export function People({ me }: { me: Me }) {
   const rows = all.filter((p) => p.status !== 'pending')
     .filter((p) => (show === 'all' ? true : show === 'left' ? p.status === 'left' : p.status !== 'left'))
     .filter((p) => !kind || (kind === 'none' ? !p.kind : p.kind === kind))
-    .sort((a, b) => (a.no ?? '~').localeCompare(b.no ?? '~', 'en', { numeric: true }) || a.name.localeCompare(b.name, 'zh'));
+    .sort((a, b) => (a.no ? 0 : 1) - (b.no ? 0 : 1) || (a.no ?? '').localeCompare(b.no ?? '', 'en', { numeric: true }) || a.name.localeCompare(b.name, 'zh'));
 
   const body = (id: string | null, v: Record<string, string>) => ({ id, no: v.no || null, name: v.name, kind: v.kind || null, status: v.status || 'active',
     joined: v.joined || null, left: v.left || null, edu: v.edu || null, school: v.school || null, direction: v.direction || null, mentor: v.mentor || null, note: v.note || null });
