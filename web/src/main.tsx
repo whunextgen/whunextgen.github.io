@@ -24,6 +24,7 @@ import { BudgetPage } from './pages/Budget';
 import { Projects } from './pages/Projects';
 import { ApplyPage } from './pages/Apply';
 import { Agent } from './pages/Agent';
+import { Naming } from './pages/Naming';
 import { Desk } from './pages/Desk';
 import { Review } from './pages/Review';
 import { Ask } from './pages/Ask';
@@ -125,7 +126,7 @@ function App() {
     { top: '财务', label: '年度预算', home: '', note: '总预算、档次、下达、决算', pages: keep(seesStaff && ['/plan', '总预算与档次'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算'], seesDesk && ['/desk', '预算参数']) },
     { top: '财务', label: '项目', home: seesCards ? '/s-fund' : '', note: '经费卡、采购、报销入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/procure', '采购'], seesCards && ['/school', '报销与入账'], seesPeople && ['/staff', '人员经费'], seesCards && ['/ledger', '明细账校准'], seesCards && ['/settle', '经费结清']) },
     { top: '财务', label: '资源', home: '/s-res', note: '调配、盘点', pages: keep(seesRes && ['/pool', '资源调配'], seesRes && ['/stock', '资产盘点']) },
-    { top: '', label: '系统', home: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesCards && ['/rules', '采购与报销要求'], seesLegacy && ['/history', '历史数据'], ['/agent', '智能体接入']) },
+    { top: '', label: '系统', home: '', note: '', pages: keep(seesAdmin && ['/admin', '权限管理'], seesCards && ['/rules', '采购与报销要求'], seesLegacy && ['/history', '历史数据'], ['/agent', '智能体接入'], ['/naming', '中台征名']) },
   ].filter((g) => g.pages.length > 0);
   // 不在导航里、从别的页面点进去的页面
   const side = keep(['/track', '在途事项'], ['/center', '中心总览'], ['/s-spend', '课题汇总'], ['/s-res', '资源汇总'], ...groups.filter((g) => g.home).map((g): Page => [g.home, `${g.label}汇总`]), !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
@@ -154,6 +155,7 @@ function App() {
     : current === '/projects' ? <Projects me={me} />
     : current === '/apply' ? <ApplyPage me={me} />
     : current === '/agent' ? <Agent me={me} />
+    : current === '/naming' ? <Naming />
     : current === '/desk' ? <Desk me={me} />
     : current === '/funds' ? <Funds me={me} />
     : current === '/center' ? <Home me={me} view="center" />

@@ -1997,5 +1997,25 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
 }
 }
 
+// 中台征名：每人一票，可改投；截止后不能再提、再投；不给出谁提的谁投的
+{ await as(U.mem2);
+  const opts = await q(`select id, name, votes, mine, open from api.name_option order by name`);
+  ok(opts.length === 4 && opts.every((o) => o.open && o.votes === 0), '征名开始时有四个候选');
+  await q(`select vote_name($1)`, [opts[0].id]); await q(`select vote_name($1)`, [opts[1].id]);
+  const v = await q(`select name, votes, mine from api.name_option order by name`);
+  ok(v[0].votes === 0 && v[1].votes === 1 && v[1].mine === true, '每人一票，改投后原来那票撤掉');
+  await raises('提名须写出处', /请填写出处或寓意/, `select propose_name('云中君', ' ')`);
+  await raises('重名的不能再提', /已有「灵均」/, `select propose_name('灵均', '重复')`);
+  const nid = (await one(`select propose_name('云中君', '《九歌》篇名') as v`)).v;
+  await q(`select propose_name('湘君', '《九歌》篇名')`); await q(`select propose_name('山鬼', '《九歌》篇名')`);
+  await raises('每人最多提三个', /每人最多提 3 个名字/, `select propose_name('国殇', '《九歌》篇名')`);
+  await as(U.mem); await q(`select vote_name($1)`, [nid]);
+  ok((await one(`select votes, mine from api.name_option where id = $1`, [nid])).votes === 1, '新提的名字可以投票');
+  ok(!Object.keys(await one(`select * from api.name_option limit 1`)).some((k) => /by|user/.test(k)), '视图不给出提名人和投票人');
+  await db.exec(`reset role`); await db.query(`update name_poll set closes_at = now() - interval '1 minute'`); await db.exec(`set role app_api`);
+  await raises('截止后不能投票', /征名已截止/, `select vote_name($1)`, [nid]);
+  await raises('截止后不能提名', /征名已截止/, `select propose_name('东君', '《九歌》篇名')`);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
