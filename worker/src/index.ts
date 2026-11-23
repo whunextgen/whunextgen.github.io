@@ -7,6 +7,7 @@ export interface Env {
   FEISHU_APP_ID: string;
   FEISHU_APP_SECRET: string;
   // 发通知用的应用（机器人）。不设时沿用登录应用
+  NOTICE_ORIGIN?: string;                     // 通知卡片里按钮跳转的中台地址；不设时用对成员公布的地址
   FEISHU_BOT_APP_ID?: string;
   FEISHU_BOT_APP_SECRET?: string;
   FEISHU_TENANT_KEY?: string;                 // 设了就只允许本租户
@@ -285,6 +286,55 @@ async function withUser<T>(env: Env, uid: string | null, fn: (sql: postgres.Tran
 }
 
 
+// ---------- 飞书通知卡片 ----------
+// 通知在数据库里是一句话。这里按句式给出标题、分项和跳转的页面，拼成卡片；认不出的句式整句放进正文。
+const NOTICE_RULES: [RegExp, string, string][] = [
+  [/研究单元申请待同意/, '研究单元申请待同意', '/projects'],
+  [/研究单元申请待核对|待助理对照联席会议纪要核对/, '研究单元申请待核对', '/projects'],
+  [/研究单元申请「」已退回/, '研究单元申请已退回', '/projects'],
+  [/研究单元「」已成立|新成立研究单元/, '研究单元已成立', '/projects'],
+  [/研究单元「」.*成员名单/, '研究单元成员名单', '/projects'],
+  [/双周表/, '双周表', '/biweekly'],
+  [/任务/, '任务', '/tasks'],
+  [/年度立项申请|延续申请/, '立项与延续申请', '/apply'],
+  [/评定/, '年度评定', '/plan'],
+  [/备用金/, '备用金', '/petty'],
+  [/支出申请|报销|垫付/, '支出申请', '/requests'],
+  [/人事确认|人员档案/, '人员档案', '/people'],
+  [/资源|额度/, '资源申领', '/resource'],
+  [/预算/, '年度预算', '/budget'],
+];
+const NOTICE_FIELDS: [RegExp, string[]][] = [
+  [/([^\s：]+) 申请在课题「(.+?)」之下成立「(.+?)」/, ['申请人', '所挂课题', '研究单元']],
+  [/([^\s：]+) 申请成立「(.+?)」，挂在课题「(.+?)」之下/, ['申请人', '研究单元', '所挂课题']],
+  [/研究单元「(.+?)」已成立，挂在课题「(.+?)」之下/, ['研究单元', '所挂课题']],
+  [/课题「(.+?)」之下新成立研究单元「(.+?)」/, ['所挂课题', '研究单元']],
+  [/联席会议 (\d{4}-\d{2}-\d{2}) 通过/, ['联席会议通过']],
+];
+export function noticeCard(body: { text?: string; by?: string | null; at?: string | null }, origin: string) {
+  const text = String(body.text ?? '').trim(), bare = text.replace(/「[^」]*」/g, '「」');
+  const rule = NOTICE_RULES.find(([re]) => re.test(bare));
+  const head = text.match(/^([^：「」，。]{2,16})：/);
+  const title = head ? head[1] : rule ? rule[1] : '通知';
+  const fields: [string, string][] = [];
+  let rest = head ? text.slice(head[0].length) : text;
+  for (const [re, names] of NOTICE_FIELDS) {
+    const m = text.match(re);
+    if (!m) continue;
+    names.forEach((n, i) => { if (!fields.some(([k]) => k === n)) fields.push([n, m[i + 1]]); });
+    rest = rest.replace(re, '');
+  }
+  if (fields.length) rest = rest.replace(/^[，。、\s]+/, '').replace(/[，、\s]*(课题负责人已同意)?[，、\s]*$/, (_, a) => (a ? a : '')).replace(/^，/, '');
+  const todo = /待同意|待核对|待审|待确认|待办|派了任务|请/.test(text);
+  const plain = (content: string) => ({ tag: 'plain_text', content });
+  const elements: unknown[] = [];
+  if (fields.length) elements.push({ tag: 'div', fields: fields.map(([k, v]) => ({ is_short: v.length <= 14, text: plain(`${k}：${v}`) })) });
+  if (rest) elements.push({ tag: 'div', text: plain(rest) });
+  elements.push({ tag: 'action', actions: [{ tag: 'button', type: todo ? 'primary' : 'default', text: plain(todo ? '前往办理' : '前往查看'), url: `${origin}/#${rule ? rule[2] : '/'}` }] });
+  elements.push({ tag: 'note', elements: [plain(['正则', body.by ? `经办：${body.by}` : '', body.at ?? ''].filter(Boolean).join(' · '))] });
+  return { title, card: { config: { wide_screen_mode: true }, header: { template: todo ? 'red' : 'grey', title: plain(title) }, elements } };
+}
+
 // ---------- 读视图、调函数：页面接口和 MCP 接口共用 ----------
 // run：以某人的身份执行一条带参数的语句。线上走 Hyperdrive；测试里换成内存数据库。
 export type Run = (uid: string | null, text: string, params: unknown[]) => Promise<any[]>;
@@ -524,12 +574,17 @@ export default {
     for (const m of batch) {
       if (!tok?.tenant_access_token) { results.push([String(m.msg_id), false, '无法获取应用凭证']); continue; }
       const body = typeof m.body === 'string' ? JSON.parse(m.body) : m.body;
-      const r = await feishu(`/im/v1/messages?receive_id_type=${String(m.target_id).startsWith('on_') ? 'union_id' : 'open_id'}`, {
+      const send = (msg_type: string, content: unknown) => feishu(`/im/v1/messages?receive_id_type=${String(m.target_id).startsWith('on_') ? 'union_id' : 'open_id'}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
-        body: JSON.stringify({ receive_id: m.target_id, msg_type: 'text', content: JSON.stringify({ text: `【正则】${body.text}` }) }),
+        body: JSON.stringify({ receive_id: m.target_id, msg_type, content: JSON.stringify(content) }),
       }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
-      results.push([String(m.msg_id), r?.code === 0, r?.code === 0 ? null : `飞书返回 ${r?.code}：${String(r?.msg ?? '').slice(0, 200)}`]);
+      // 先发卡片；卡片被拒的，退回发纯文字，通知不能因为版式丢掉
+      let r = await send('interactive', noticeCard(body, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev').card);
+      const why = (x: any) => `飞书返回 ${x?.code}：${String(x?.msg ?? '').slice(0, 200)}`;
+      let note: string | null = null;
+      if (r?.code !== 0) { note = `卡片未发出，已改发文字。${why(r)}`; r = await send('text', { text: `【正则】${body.text}` }); }
+      results.push([String(m.msg_id), r?.code === 0, r?.code === 0 ? note : why(r)]);
     }
     await withUser(env, null, async (sql) => {
       for (const [id, ok, err] of results) await sql`select public.outbox_done(${id}::bigint, ${ok}::boolean, ${err}::text)`;

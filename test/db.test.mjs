@@ -1890,6 +1890,10 @@ await raises('助理仍须等否决期届满', /三个工作日的否决期至 2
 await as(U.dir, '2032-06-15');
 await q(`select confirm_unit($1)`, [U3]);
 ok((await one(`select proposed, checked_by_name n from api.unit_apply where id = $1`, [U3])).proposed === false, '中心负责人在否决期内确认，研究单元即成立');
+await db.exec(`reset role`);
+const nb = (await one(`select payload from feishu_outbox where payload->>'text' like '研究单元「负责人当天确认的研究单元」已成立%' order by id desc limit 1`)).payload;
+ok(nb.by === '负责人' && /^\d\d-\d\d \d\d:\d\d$/.test(nb.at), '通知记下经办人和时间，供卡片落款', JSON.stringify(nb));
+await db.exec(`set role app_api`);
 await as(plain, '2032-06-15');
 ok((await q(`select 1 from api.unit_apply where id = $1`, [U2])).length === 0, '成立之前申请人可以撤回');
 await as(U.fin, '2032-06-15');
