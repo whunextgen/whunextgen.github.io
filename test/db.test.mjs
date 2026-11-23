@@ -1995,6 +1995,70 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   eq((await q(`select * from api_token_login($1)`, ['2'.repeat(64)])).length, 0, '持有人停用后换不到身份');
   await db.query(`update app_user set active = true where id = $1`, [plain]);
 }
+
+// 双周表：每个研究单元每两周登记一次，负责人和成员都可以登记；上一期结束后三日内可以补登；所有登录的人看得到登记和未登记情况
+{ const BW = `select save_biweekly_report($1, $2, $3, $4, $5, $6, $7, $8, $9) v`;
+  const F = { stage: 'abstract', question: '长任务评测能否区分规划错误与执行错误', done: '两组基线跑完，规划错误占六成', changed: '原以为瓶颈在执行，实际在规划', issues: null, division: '普通成员：基线；成员乙：错误分析', next: '补第三组基线，预期写出摘要' };
+  const bw = (u, ps, x = {}) => { const f = { ...F, ...x }; return db.query(BW, [u, ps, f.stage, f.question, f.done, f.changed, f.issues, f.division, f.next]).then((r) => r.rows[0].v); };
+  const st = async () => one(`select filled, prev_filled, prev_open, last_period::text lp, last_stage, missed, can_fill, period_start::text ps from api.biweekly_status where project_id = $1`, [U1]);
+  await db.exec(`reset role`); await q(`update project set checked_at = '2032-06-15 10:00+08' where id = $1`, [U1]); await db.exec(`set role app_api`);
+  await as(plain, '2032-06-16');
+  await raises('期次须为两周一期的起始日', /登记的期次有误/, BW, [U1, '2032-06-08', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
+  await raises('更早的期次不能登记', /仅可登记本期/, BW, [U1, '2032-05-24', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
+  await raises('课题本身不登记双周表', /双周表按研究单元登记/, BW, [TB, '2032-06-07', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
+  await raises('须选写作进度', /请选择写作进度/, BW, [U1, '2032-06-07', null, 'a', 'b', 'c', null, 'd', 'e']);
+  await raises('写作进度只有六档', /写作进度仅限想法、摘要、首图、核心结果表、完整初稿、投稿稿/, BW, [U1, '2032-06-07', 'poster', 'a', 'b', 'c', null, 'd', 'e']);
+  await raises('须写本轮回答的问题', /请填写本轮回答的问题/, BW, [U1, '2032-06-07', 'idea', ' ', 'b', 'c', null, 'd', 'e']);
+  await raises('须写本轮改变的判断', /请填写本轮改变的判断/, BW, [U1, '2032-06-07', 'idea', 'a', 'b', '', null, 'd', 'e']);
+  await raises('须写成员分工', /请填写成员分工/, BW, [U1, '2032-06-07', 'idea', 'a', 'b', 'c', null, null, 'e']);
+  await raises('须写下一轮安排', /请填写下一轮安排与预期/, BW, [U1, '2032-06-07', 'idea', 'a', 'b', 'c', null, 'd', ' ']);
+  await raises('问题不能太长', /不得超过 300 个字/, BW, [U1, '2032-06-07', 'idea', 'x'.repeat(301), 'b', 'c', null, 'd', 'e']);
+  let s = await st();
+  ok(s.filled === false && s.missed === 0 && s.prev_open === false && s.can_fill === true && s.ps === '2032-06-07', '成立所在的一期起须登记，此前的期次不算未登记', JSON.stringify(s));
+  await as(U.mem, '2032-06-16');
+  await raises('不在研究单元名单里的不能登记', /仅研究单元负责人和成员可登记双周表/, BW, [U1, '2032-06-07', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
+  // 待成立的研究单元直接写入，不经申请流程，免得随立项方式的改动而改动
+  await db.exec(`reset role`);
+  const U3 = await id(`insert into project (code, name, kind, owner_id, active, layer, parent_id, proposed, applied_at)
+    select 'BW-PENDING', '待成立的研究单元', kind, $1, true, 'paper', id, true, now() from project where id = $2`, [U.mem, TB]);
+  await db.exec(`set role app_api`);
+  await raises('研究单元须已成立', /尚未成立或已停用/, BW, [U3, '2032-06-07', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
+  await db.exec(`reset role`);
+  await q(`delete from project where id = $1`, [U3]);
+  await db.exec(`set role app_api`);
+  await as(U.mem2, '2032-06-16');
+  const R1 = await bw(U1, '2032-06-07');
+  await as(plain, '2032-06-16');
+  ok(await bw(U1, '2032-06-07', { stage: 'first_figure', issues: '第三组数据还没拿到' }) === R1, '同一研究单元同一期只有一份，负责人修改的是成员登记的那份');
+  const r = await one(`select stage, issues, submitted_by_name, updated_by_name, unit_name, topic_id, leader_name from api.biweekly_report where project_id = $1`, [U1]);
+  ok(r.stage === 'first_figure' && r.issues === '第三组数据还没拿到' && r.submitted_by_name === '成员乙' && r.updated_by_name === '普通成员' && r.topic_id === TB && r.leader_name === '普通成员', '修改后记下登记人和修改人', JSON.stringify(r));
+  s = await st();
+  ok(s.filled === true && s.last_stage === 'first_figure' && s.missed === 0, '本期已登记', JSON.stringify(s));
+  await as(plain, '2032-06-23');
+  s = await st();
+  ok(s.filled === false && s.prev_filled === true && s.prev_open === true && s.missed === 0, '进入下一期，上一期已登记的不算未登记', JSON.stringify(s));
+  await bw(U1, '2032-06-07', { stage: 'results_table' });
+  ok((await one(`select last_stage from api.biweekly_status where project_id = $1`, [U1])).last_stage === 'results_table', '上一期结束后三日内可以补改');
+  await as(plain, '2032-07-07');
+  s = await st();
+  ok(s.missed === 1 && s.prev_filled === false && s.prev_open === true, '上一期没登记即超过两周未登记，补登期内仍可补登', JSON.stringify(s));
+  await as(plain, '2032-07-08');
+  await raises('补登期过后不能再登记上一期', /仅可登记本期/, BW, [U1, '2032-06-21', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
+  await bw(U1, '2032-07-05', { stage: 'full_draft' });
+  s = await st();
+  ok(s.filled === true && s.missed === 1 && s.lp === '2032-07-05', '本期登记了，漏掉的上一期仍计入', JSON.stringify(s));
+  await as(plain, '2032-08-17');
+  s = await st();
+  ok(s.filled === false && s.missed === 2 && s.lp === '2032-07-05' && s.last_stage === 'full_draft', '从上一期往前数连续未登记的期数', JSON.stringify(s));
+  await as(U.mem, '2032-08-17');
+  const seen = await q(`select period_start::text ps, question from api.biweekly_report where project_id = $1 order by period_start`, [U1]);
+  ok(seen.length === 2 && seen[0].ps === '2032-06-07' && seen[0].question === F.question, '不在名单里的成员也看得到各研究单元的双周表', JSON.stringify(seen));
+  s = await st();
+  ok(s.can_fill === false && s.missed === 2, '不在名单里的成员看得到登记情况，但不能登记', JSON.stringify(s));
+  eq((await q(`select 1 from api.biweekly_status where project_id = $1`, [U3])).length, 0, '未成立的研究单元不列入');
+  await as(null);
+  eq((await q(`select 1 from api.biweekly_report`)).length + (await q(`select 1 from api.biweekly_status`)).length, 0, '未登录看不到双周表');
+}
 }
 
 // 中台征名：不预放候选，名字由成员提；每人一票，可改投；截止后不能再提、再投；不给出谁提的谁投的

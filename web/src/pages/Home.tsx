@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { useViews, type Resource, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task, type UnitApply } from '../api';
+import { useViews, type Resource, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task, type UnitApply, type BiweeklyStatus } from '../api';
 import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, cardGap, cardGranted, cardTotal, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Track, TreeNode, execSegs, type Seg } from '../tree';
 import { cardRisk, nodeState } from './Overview';
 import { KIND, STAGE_TEXT, STEP_OF } from './Budget';
 import { taskDue } from './Tasks';
-import { TokenMine } from '../token';
+import { TokenMine, addDays } from '../token';
 
 const wan = (x: number) => `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 ? 0 : 1)} 万`;
 const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
@@ -19,8 +19,8 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
     years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[]; tasks: Task[];
-    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[]; resources: Resource[]; uapps: UnitApply[] }>({
-    resources: ['resource'], uapps: ['unit_apply'],
+    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[]; resources: Resource[]; uapps: UnitApply[]; bws: BiweeklyStatus[] }>({
+    resources: ['resource'], uapps: ['unit_apply'], bws: ['biweekly_status'],
     school: ['card_school_subject'],
     reqs: ['request'], picks: ['card_pick'], cards: ['card'], nodes: ['node'], events: ['fund_event', { done: 'false' }],
     years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'], caps: ['cap_request'], shifts: ['budget_shift'], tasks: ['task', { status: 'open' }],
@@ -118,6 +118,12 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   if (can(me, 'budget.evaluate')) count(data.uapps.filter((u) => u.proposed && !u.return_note && !!u.parent_ok_at).length, 'warn', '待核对', '研究单元申请，待按联席会议纪要核对', '核对', '#/projects');
   count(data.uapps.filter((u) => u.mine && u.proposed && !!u.return_note).length, 'bad', '已退回', '研究单元申请已退回，待修改后重新提交', '查看', '#/projects');
   count(resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id).length, 'warn', '待批示', '资源申请属本人负责的研究单元，待批示', '批示', '#/resource');
+  // 双周表：本人所在的研究单元本期尚未登记，或上一期未登记而仍在补登期内
+  for (const s of data.bws.filter((x) => x.can_fill && (!x.filled || (x.prev_open && !x.prev_filled && x.missed > 0)))) {
+    const until = addDays(s.period_start, 2), late = s.missed > 1 || (s.missed === 1 && !s.prev_open);
+    todo.push({ tone: late ? 'bad' : 'warn', tag: '双周表', go: '登记', href: '#/biweekly',
+      text: `${s.unit_name}${s.filled ? '' : ` 本期（${day(s.period_start)} 至 ${day(s.period_end)}）的双周表尚未登记`}${s.missed === 1 && s.prev_open ? `${s.filled ? ' ' : '；'}上一期未登记，${until} 前可补登` : late ? `；已连续 ${s.missed} 期未登记，由联席会议优先过问` : ''}` });
+  }
   if (seesCards) {
     for (const c of active.filter((x) => num(x.avail) < 0))
       todo.push({ tone: 'bad', tag: '超支', text: `${c.name} ${c.year} 年经费卡可用为 ${money(c.avail)}`, go: '查看', href: `#/card/${c.card_id}` });
@@ -253,8 +259,8 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   const view: HomeView = !landing ? (asked === 'center' && !seesCards ? 'mine' : asked) : seesCards ? 'center' : data.projects.some((p) => p.active && p.owner_id === me.id) ? 'topic' : 'mine';
   type Todo = (typeof todo)[number];
   // 待办按去处归到各部分：课题（预算、上限、决算）、支出（申请、报销、备用金）、资源、项目（经费卡）
-  const secOf = (t: Todo): HomeView => /^#\/(budget|caps|review|requests|petty|plan)/.test(t.href) ? 'topic' : /^#\/(school|procure)/.test(t.href) ? 'fund' : /^#\/(pool|resource)/.test(t.href) ? 'res' : /^#\/(card|funds|settle|cards)/.test(t.href) ? 'fund' : 'mine';
-  const risks = todo.filter((t) => t.href.startsWith('#/card/'));
+  const secOf = (t: Todo): HomeView => /^#\/(budget|caps|review|requests|petty|plan|biweekly)/.test(t.href) ? 'topic' : /^#\/(school|procure)/.test(t.href) ? 'fund' : /^#\/(pool|resource)/.test(t.href) ? 'res' : /^#\/(card|funds|settle|cards)/.test(t.href) ? 'fund' : 'mine';
+  const risks = todo.filter((t) => t.href.startsWith('#/card/') || t.href === '#/biweekly');
   const todoTable = (rows: Todo[], none: string) => rows.length === 0 ? <Empty>{none}</Empty> : (
     <div className="scroll"><table className="wb-table">
       <thead><tr><th>类型</th><th>事项</th><th /></tr></thead>
@@ -472,6 +478,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   // ---------- 成员的首页「我的事项」和全部待办 ----------
   const myPetty = data.petty.filter((r) => r.requested_by === me.id && (r.status === 'pending' || r.status === 'approved'));
   const myRes = data.res.filter((r) => r.requested_by === me.id && ['pending', 'reviewed', 'approved'].includes(r.status));
+  const myBw = todo.filter((t) => t.href === '#/biweekly');
   const mineTable = mineOpen.length === 0 ? <Empty>暂无进行中的支出申请。{mine.length > 0 && <> <a href="#/requests/posted">查看已入账申请</a></>}</Empty> : (
     <div className="scroll"><table className="wb-table">
       <thead><tr><th>单据</th><th>所属</th><th className="r">金额</th><th>状态</th><th /></tr></thead>
@@ -486,7 +493,8 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
         {canUse ? <div className="wb-facts"><a className="btn" href="#/requests/new">提交支出申请</a><a className="btn ghost" href="#/resource">申领资源</a><a className="btn ghost" href="#/petty">申请备用金</a></div>
           : <div className="wb-facts"><span>本人尚不在已立项的课题或研究单元中，暂不能提交支出申请、申领资源和申请备用金。可请研究单元负责人将本人加入名单；成立研究单元须先经联席会议通过，通过后在「立项与延续申请」中提交申请。</span><a className="btn" href="#/plan">立项与延续申请</a></div>}
       </>)}
-      <section className="wb-sec">{head('00', '本期时间去向', '代币试行 · 每两周登记一次')}<TokenMine me={me} /></section>
+      <section className="wb-sec">{head('00', '本期登记', <>双周表与时间去向 · 每两周登记一次 · <a href="#/biweekly">双周表 →</a></>)}
+        {myBw.length > 0 && <div style={{ marginBottom: 14 }}>{todoTable(myBw, '')}</div>}<TokenMine me={me} /></section>
       <section className="wb-sec">{head('01', '本人的支出申请', <a href="#/requests">全部申请 →</a>)}{mineTable}</section>
       <section className="wb-sec">
         {head('02', '本人的备用金和资源申领')}

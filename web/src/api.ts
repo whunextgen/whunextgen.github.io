@@ -95,6 +95,13 @@ export interface UnitApply { id: string; code: string; name: string; parent_id: 
   apply_note: string | null; meeting_on: string | null; minutes_on: string | null; applied_at: string; return_note: string | null; checked_by_name: string | null; checked_at: string | null;
   proposed: boolean; veto_until: string | null; member_names: string | null; member_ids: string | null; mine: boolean;
   parent_ok_at: string | null; parent_ok_by_name: string | null; parent_owner_name: string | null; can_ok: boolean }
+// 双周表：每个研究单元每两周一份。missed 为从上一期往前连续未登记的期数，大于 0 即超过两周未登记
+export type BwStage = 'idea' | 'abstract' | 'first_figure' | 'results_table' | 'full_draft' | 'submitted';
+export interface BiweeklyReport { id: string; project_id: string; unit_code: string; unit_name: string; topic_id: string | null; topic_code: string | null; topic_name: string | null; leader_name: string | null;
+  period_start: string; period_end: string; stage: BwStage; question: string; done: string; changed_judgment: string; issues: string | null; division: string; next_plan: string;
+  submitted_by_name: string | null; submitted_at: string; updated_by_name: string | null; updated_at: string }
+export interface BiweeklyStatus { project_id: string; unit_code: string; unit_name: string; topic_id: string | null; topic_code: string | null; topic_name: string | null; leader_id: string | null; leader_name: string | null;
+  period_start: string; period_end: string; filled: boolean; prev_filled: boolean; prev_open: boolean; last_period: string | null; last_stage: BwStage | null; missed: number; can_fill: boolean }
 export interface FundProject { id: string; name: string; source: 'school' | 'national' | 'provincial' | 'enterprise' | 'other' | null; fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null;
   owner_id: string | null; owner_name: string | null; quota: string | null; period_start: string | null; period_end: string | null; template_id: string; template_name: string;
   end_rule: 'recall' | 'carry'; note: string | null; status: 'active' | 'closed'; granted: string; recalled: string; cards: number;
