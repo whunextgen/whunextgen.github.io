@@ -20,7 +20,7 @@ const LEVEL_HINT = ['', 'arXiv 预印本或公开的投稿页', '项目网页、
 const coin = (v: string | number | null | undefined) => (v == null ? '—' : num(v).toLocaleString('zh-CN', { maximumFractionDigits: 1 }));
 const pctOf = (v: string | number | null | undefined) => (v == null ? '—' : `${Math.round(num(v) * 100)}%`);
 export const levelBadge = (level: number) => level >= 4 ? <Badge tone="ok">已录用</Badge> : level >= 1 ? <Badge tone="ok">已解锁</Badge> : <Badge>锁定中</Badge>;
-const addDays = (d: string, n: number) => { const x = new Date(`${day(d)}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+export const addDays = (d: string, n: number) => { const x = new Date(`${day(d)}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
