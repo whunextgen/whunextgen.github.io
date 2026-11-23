@@ -53,7 +53,7 @@ function Login({ reason }: { reason?: string }) {
     <div className="login">
       <div className="login-in">
         <span className="eyebrow">CLAIN 中心</span>
-        <h1>科研财务中台</h1>
+        <h1>正则</h1>
         <p>按课题和研究单元编制年度预算，按当年经费卡执行，按学校入账决算。请使用中心飞书账号登录。</p>
         {reason && <div className="msg bad" role="alert">{reason}</div>}
         <a className="btn" href="/auth/feishu/login">飞书登录 →</a>
@@ -194,7 +194,7 @@ function App() {
   return (
     <div className={`shell${open ? ' nav-open' : ''}`}>
       <aside className="sb">
-        <a className="brand" href="#/"><i aria-hidden="true">财</i><span><b>科研财务中台</b><span>CLAIN 中心</span></span></a>
+        <a className="brand" href="#/"><i aria-hidden="true">正</i><span><b>正则</b><span>CLAIN 中台</span></span></a>
         <nav aria-label="导航">
           {groups.map((g, gi) => (
             <div className={`sg${g.top ? ' in' : ''}${g.home === current || g.pages.some(([to]) => to === current) ? ' cur' : ''}`} key={g.label}>
@@ -207,11 +207,11 @@ function App() {
         </nav>
         <div className="who">
           <span><b>{me.name}</b><span>{owns && ROLE[me.role] === '成员' ? '负责人' : ROLE[me.role]}</span></span>
-          <button className="ghost sm" onClick={() => setScholar(true)} title={me.scholar_url ?? '填写本人的谷歌学术主页'}>Scholar</button>
+          <button className="ghost sm" onClick={() => setScholar(true)} title={me.scholar_url ?? '填写本人的谷歌学术主页'}>学术主页</button>
           <button className="ghost sm" onClick={() => logout().finally(() => location.reload())}>退出</button>
         </div>
         {scholar && <ActionDialog title="谷歌学术主页" submitLabel="保存"
-          hint="填写本人 Google Scholar 个人主页的链接，课题列表和成员名单里随姓名显示。参与双选的博士须填写。留空即清除。"
+          hint="填写本人谷歌学术个人主页的链接，课题列表和成员名单里随姓名显示。参与双选的博士须填写。留空即清除。"
           fields={[{ name: 'url', label: '链接，形如 https://scholar.google.com/citations?user=…', value: me.scholar_url ?? '', required: false }]}
           onSubmit={(v) => rpc('set_scholar_url', { url: v.url }).then(() => setMe({ ...me, scholar_url: v.url.trim() || null }))}
           onClose={() => setScholar(false)} />}

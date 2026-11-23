@@ -522,7 +522,7 @@ export default {
       const r = await feishu(`/im/v1/messages?receive_id_type=${String(m.target_id).startsWith('on_') ? 'union_id' : 'open_id'}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
-        body: JSON.stringify({ receive_id: m.target_id, msg_type: 'text', content: JSON.stringify({ text: `【科研财务中台】${body.text}` }) }),
+        body: JSON.stringify({ receive_id: m.target_id, msg_type: 'text', content: JSON.stringify({ text: `【正则】${body.text}` }) }),
       }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
       results.push([String(m.msg_id), r?.code === 0, r?.code === 0 ? null : `飞书返回 ${r?.code}：${String(r?.msg ?? '').slice(0, 200)}`]);
     }

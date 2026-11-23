@@ -22,7 +22,7 @@ create table biweekly_report (
   updated_at timestamptz not null default now(),
   unique (project_id, period_start)
 );
-alter table biweekly_report enable row level security;
+select seal('biweekly_report');
 create trigger audit after insert or update or delete on biweekly_report for each row execute function trg_audit();
 
 -- 研究单元从哪一期起须登记：成立（核对确认，或直接建立）所在的那一期，最早 2026-11-16

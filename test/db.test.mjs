@@ -2062,7 +2062,9 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
 }
 
 // 中台征名：不预放候选，名字由成员提；每人一票，可改投；截止后不能再提、再投；不给出谁提的谁投的
-{ await as(U.mem2);
+{ // 截止时间是写死的日期，测试里先拨到将来，不依赖运行测试的那一天
+  await db.exec(`reset role`); await db.query(`update name_poll set closes_at = now() + interval '1 day'`); await db.exec(`set role app_api`);
+  await as(U.mem2);
   eq((await q(`select 1 from api.name_option`)).length, 0, '征名开始时没有候选');
   ok((await one(`select open from api.name_poll`)).open === true, '没有候选时也看得到征名进行中');
   await raises('提名须写出处', /请填写出处或寓意/, `select propose_name('云中君', ' ')`);
