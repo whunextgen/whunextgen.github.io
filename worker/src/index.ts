@@ -290,6 +290,7 @@ async function withUser<T>(env: Env, uid: string | null, fn: (sql: postgres.Tran
 // 通知在数据库里是一句话。这里按句式给出标题、分项和跳转的页面，拼成卡片；认不出的句式整句放进正文。
 const NOTICE_RULES: [RegExp, string, string][] = [
   [/研究单元申请待同意/, '研究单元申请待同意', '/projects'],
+  [/研究单元立项/, '研究单元立项提醒', '/projects'],
   [/研究单元申请待核对|待助理对照联席会议纪要核对/, '研究单元申请待核对', '/projects'],
   [/研究单元申请「」已退回/, '研究单元申请已退回', '/projects'],
   [/研究单元「」已成立|新成立研究单元/, '研究单元已成立', '/projects'],

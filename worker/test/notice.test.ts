@@ -22,4 +22,6 @@ c = parts('2032 年度评定完成：课题「课题一」定为「甲档」，�
 ok(c.title === '2032 年度评定完成' && c.btn.url.endsWith('/#/plan') && c.btn.text.content === '前往查看' && c.color === 'grey', '冒号前的短语作标题', JSON.stringify(c));
 c = parts('一句认不出的话');
 ok(c.title === '通知' && c.btn.url === O + '/#/' && c.text === '一句认不出的话', '认不出的句式整句放正文，按钮回首页', JSON.stringify(c));
+c = parts('研究单元立项提醒：你作为第一作者的项目「甲」还没有提交研究单元立项申请。\n请在 11 月 24 日 24:00 前完成', '乙');
+ok(c.title === '研究单元立项提醒' && c.btn.url.endsWith('/#/projects') && c.btn.text.content === '前往办理' && c.text!.includes('\n'), '立项提醒去课题管理页，正文保留换行', JSON.stringify(c));
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);
