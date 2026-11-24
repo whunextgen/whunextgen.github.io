@@ -11,10 +11,10 @@ for (const f of readdirSync(mig).sort()) await db.exec(readFileSync(path.join(mi
 // 登记日（0089）：下面大部分测试是按「期内随时可办」写的，考的是权限、否决期、字段校验这些，与哪一天办无关。
 // 这里先把两处判断换成替身（任何一天都算登记日、本期全程可登记），文件末尾换回真函数，专门测登记日。
 const REAL_GATES = `create or replace function is_register_day() returns boolean language sql stable security definer set search_path = public as $$ select app_today() = token_period(app_today()) $$;
-create or replace function biweekly_open(p_period date) returns boolean language sql stable security definer set search_path = public as $$
-  select p_period = token_period(app_today()) and (app_today() = p_period or (p_period = date '2026-11-23' and app_today() <= date '2026-11-24')) $$;`;
+create or replace function register_window(p_day date) returns boolean language sql immutable as $$
+  select p_day = token_period(p_day) or (token_period(p_day) = date '2026-11-23' and p_day <= date '2026-11-24') $$;`;
 await db.exec(`create or replace function is_register_day() returns boolean language sql stable security definer set search_path = public as $$ select true $$;
-create or replace function biweekly_open(p_period date) returns boolean language sql stable security definer set search_path = public as $$ select p_period = token_period(app_today()) $$;`);
+create or replace function register_window(p_day date) returns boolean language sql immutable as $$ select true $$;`);
 
 let pass = 0, fail = 0;
 const ok = (cond, name, extra = '') => { cond ? pass++ : (fail++, console.log('FAIL', name, extra)); };
@@ -2358,6 +2358,12 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir, N0);
   await q(`select confirm_unit($1)`, [A1]);
   ok((await one(`select proposed from project where id = $1`, [A1]).catch(() => null)) !== undefined, '登记日当天可以核对成立');
+  // 登记时段过后才成立的，从下一期起登记
+  await db.exec(`reset role`);
+  const from = async (ts) => { await q(`update project set checked_at = $2::timestamptz where id = $1`, [A1, ts]); return (await one(`select biweekly_from($1)::text v`, [A1])).v; };
+  ok((await from(`${N0} 10:00+08`)) === N0 && (await from(`${N1} 00:28+08`)) === (await day(28)) && (await from(`${await day(20)} 10:00+08`)) === (await day(28)), '登记日当天成立的从当期起登记；之后才成立的从下一期起');
+  ok((await from('2026-11-24 23:00+08')) === '2026-11-23' && (await from('2026-11-25 00:28+08')) === '2026-12-07', '第一期：11-24 之前成立的算当期，零点之后成立的算下一期');
+  await db.exec(`set role app_api`);
   // 飞书任务：登记日当天建，截止日是当天；登记了完成，过了当天没登记的撤掉
   const plan = (c = true) => q(`select act, project_id, period_start::text ps, target_id, summary, due::text due, task_guid from biweekly_task_plan($1)`, [c]);
   const mark = (pid, ps, act, okv, guid = null, err = null) => q(`select biweekly_task_mark($1, $2, $3, $4, $5, $6)`, [pid, ps, act, okv, guid, err]);
