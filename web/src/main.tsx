@@ -39,6 +39,8 @@ import '@fontsource/jetbrains-mono/latin-400.css';
 import '@fontsource/jetbrains-mono/latin-500.css';
 import './styles.css';
 
+declare const __APP_VERSION__: string;
+
 const useRoute = () => {
   const [hash, setHash] = useState(location.hash.slice(1) || '/');
   useEffect(() => {
@@ -237,6 +239,7 @@ function App() {
           <button className="ghost sm" onClick={() => setScholar(true)} title={me.scholar_url ?? '填写本人的谷歌学术主页'}>学术主页</button>
           <button className="ghost sm" onClick={() => logout().finally(() => location.reload())}>退出</button>
         </div>
+        <div className="ver">正则 v{__APP_VERSION__}</div>
         {scholar && <ActionDialog title="谷歌学术主页" submitLabel="保存"
           hint="填写本人谷歌学术个人主页的链接，课题列表和成员名单里随姓名显示。参与双选的博士须填写。留空即清除。"
           fields={[{ name: 'url', label: '链接，形如 https://scholar.google.com/citations?user=…', value: me.scholar_url ?? '', required: false }]}
