@@ -2255,6 +2255,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   eq(await cnt(), n0 + 1, '重复触发不重复入队');
   ok((await tick(12)) === 'last', '截止前一日发提醒');
   ok((await last()).startsWith(`双周表登记提醒：本期 ${span} 明日截止，尚有 `), '截止前一日只列未登记的', await last());
+  ok((await one(`select payload->'all' a from feishu_outbox where target = 'group' order by id desc limit 1`)).a === true && !('all' in g.payload) && (await one(`select count(*)::int n from feishu_outbox where target = 'group' and payload ? 'all'`)).n === 1, '只有截止前一日的提醒 @所有人');
   ok((await tick(17)) === 'final', '补登期过后发本期结果');
   const t3 = await last();
   ok(t3.startsWith(`双周表本期结果：${span} 一期的登记和补登已结束`) && t3.includes('\n连续两期及以上未登记\n· '), '本期结果标出连续未登记的', t3);

@@ -32,4 +32,6 @@ ok(c.title === '双周表登记情况' && c.btn.url.endsWith('/#/biweekly') && c
   ok(b2.url === 'https://example.test/wiki/x' && b2.text.content === '查看说明', '通知自带链接的，按钮去该链接', JSON.stringify(b2));
   const k2 = noticeCard({ text: '说明：已放到知识库', url: 'javascript:alert(1)', btn: '查看说明' }, O).card.elements as any[]; const b3 = k2.find((x) => x.tag === 'action').actions[0];
   ok(b3.url === O + '/#/' && b3.text.content === '前往查看', '不是 https 的链接不用', JSON.stringify(b3)); }
+{ const e1 = noticeCard({ text: '公告：一句话', all: true }, O).card.elements as any[], e2 = noticeCard({ text: '公告：一句话' }, O).card.elements as any[];
+  ok(e1[0].text?.tag === 'lark_md' && e1[0].text.content === '<at id=all></at>' && !e2.some((x) => x.text?.tag === 'lark_md'), '标了 @所有人 的卡片首行提到所有人，没标的不提', JSON.stringify(e1[0])); }
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);

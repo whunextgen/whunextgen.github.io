@@ -313,7 +313,7 @@ const NOTICE_FIELDS: [RegExp, string[]][] = [
   [/课题「(.+?)」之下新成立研究单元「(.+?)」/, ['所挂课题', '研究单元']],
   [/联席会议 (\d{4}-\d{2}-\d{2}) 通过/, ['联席会议通过']],
 ];
-export function noticeCard(body: { text?: string; by?: string | null; at?: string | null; url?: string | null; btn?: string | null }, origin: string) {
+export function noticeCard(body: { text?: string; by?: string | null; at?: string | null; url?: string | null; btn?: string | null; all?: boolean | null }, origin: string) {
   const own = typeof body.url === 'string' && /^https:\/\/[^\s]+$/.test(body.url) ? body.url : null;
   const text = String(body.text ?? '').trim(), bare = text.replace(/「[^」]*」/g, '「」');
   const rule = NOTICE_RULES.find(([re]) => re.test(bare));
@@ -331,6 +331,7 @@ export function noticeCard(body: { text?: string; by?: string | null; at?: strin
   const todo = /待同意|待核对|待审|待确认|待办|派了任务|请/.test(text);
   const plain = (content: string) => ({ tag: 'plain_text', content });
   const elements: unknown[] = [];
+  if (body.all === true) elements.push({ tag: 'div', text: { tag: 'lark_md', content: '<at id=all></at>' } });
   if (fields.length) elements.push({ tag: 'div', fields: fields.map(([k, v]) => ({ is_short: v.length <= 14, text: plain(`${k}：${v}`) })) });
   if (rest) elements.push({ tag: 'div', text: plain(rest) });
   elements.push({ tag: 'action', actions: [{ tag: 'button', type: todo ? 'primary' : 'default', text: plain(own && body.btn ? String(body.btn).slice(0, 12) : todo ? '前往办理' : '前往查看'), url: own ?? `${origin}/#${rule ? rule[2] : '/'}` }] });
@@ -590,7 +591,7 @@ export default {
       let r = await send('interactive', noticeCard(body, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev').card);
       const why = (x: any) => `飞书返回 ${x?.code}：${String(x?.msg ?? '').slice(0, 200)}`;
       let note: string | null = null;
-      if (r?.code !== 0) { note = `卡片未发出，已改发文字。${why(r)}`; r = await send('text', { text: `【正则】${body.text}` }); }
+      if (r?.code !== 0) { note = `卡片未发出，已改发文字。${why(r)}`; r = await send('text', { text: `${group && body.all === true ? '<at user_id="all">所有人</at> ' : ''}【正则】${body.text}` }); }
       results.push([String(m.msg_id), r?.code === 0, r?.code === 0 ? note : why(r)]);
     }
     await withUser(env, null, async (sql) => {
