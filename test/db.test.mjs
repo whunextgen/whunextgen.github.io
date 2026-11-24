@@ -2264,5 +2264,70 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('群发函数不对接口开放', /permission denied/, `select notify_group('x')`);
 }
 
+// ---------- ARR 担保名额 ----------
+{
+  await db.exec(`reset role`);
+  const un = await one(`select p.id, p.name, p.owner_id from project p where p.layer = 'paper' and p.active and not p.proposed and p.owner_id is not null and p.owner_id <> $1 and p.owner_id <> $2 order by p.code limit 1`, [U.mem2, U.fin]);
+  const un2 = await one(`select p.id from project p where p.layer = 'paper' and p.active and not p.proposed and p.owner_id = $1 and p.id <> $2 limit 1`, [un.owner_id, un.id]);
+  const out = (await one(`insert into app_user (name, role, feishu_open_id) values ('担保无关人', 'member', 'ou_arr_out') returning id`)).id;
+  await db.exec(`set role app_api`);
+  const D2 = '2033-05-01', own = un.owner_id;
+  await as(out, D2);
+  await raises('成员不能开启轮次', /需要权限/, `select open_arr_cycle('2033 年 5 月')`);
+  await raises('成员不能登记担保资格', /需要权限/, `select save_arr_sponsor($1, true, 2)`, [U.mem2]);
+  await as(own, D2);
+  await raises('没有轮次时不能申请', /尚未开启 ARR 轮次/, `select ask_arr($1, $2)`, [un.id, U.mem2]);
+  await as(U.fin, D2);
+  await q(`select open_arr_cycle('2033 年 5 月')`);
+  await raises('轮次不能重名', /已有名为/, `select open_arr_cycle('2033 年 5 月')`);
+  await raises('名额有上下限', /0 到 20 之间/, `select save_arr_sponsor($1, true, 21)`, [U.mem2]);
+  await q(`select save_arr_sponsor($1, true, 1, '合格')`, [U.mem2]);
+  await as(own, D2);
+  await raises('没有资格的人不能被请', /不具备 ARR 担保资格/, `select ask_arr($1, $2)`, [un.id, U.fin]);
+  const sp = await q(`select user_name, remaining from api.arr_sponsor`);
+  ok(sp.length === 1 && sp[0].remaining === 1, '研究单元负责人看得到担保人和余量', JSON.stringify(sp));
+  const c1 = await val(`select ask_arr($1, $2) v`, [un.id, U.mem2]);
+  await raises('一个研究单元一轮只请一位', /已有担保申请/, `select ask_arr($1, $2)`, [un.id, U.mem2]);
+  ok((await one(`select remaining from api.arr_sponsor`)).remaining === 0, '待答复的申请先占着名额');
+  await raises('不是担保人不能答复', /本人答复/, `select answer_arr($1, true)`, [c1]);
+  if (un2) await raises('名额用完不能再请', /名额已用完/, `select ask_arr($1, $2)`, [un2.id, U.mem2]);
+  await as(out, D2);
+  eq((await q(`select 1 from api.arr_sponsor`)).length, 0, '不是研究单元负责人、也不是担保人的成员看不到余量');
+  await raises('别人不能代负责人申请', /由研究单元的负责人申请/, `select ask_arr($1, $2)`, [un.id, U.mem2]);
+  await as(U.mem2, D2);
+  ok((await one(`select can_answer, status from api.arr_claim where id = $1`, [c1])).can_answer === true, '担保人看得到请自己的申请并可答复');
+  await raises('不同意须写原因', /写明原因/, `select answer_arr($1, false)`, [c1]);
+  await q(`select answer_arr($1, false, '本轮已有其他安排')`, [c1]);
+  ok((await one(`select remaining from api.arr_sponsor`)).remaining === 1, '不同意的，名额退回');
+  await raises('已答复的不能再答复', /已答复或已撤回/, `select answer_arr($1, true)`, [c1]);
+  await as(own, D2);
+  const c2 = await val(`select ask_arr($1, $2) v`, [un.id, U.mem2]);
+  await as(U.mem2, D2);
+  await q(`select answer_arr($1, true)`, [c2]);
+  await as(out, D2);
+  await raises('无关的人不能撤回', /由研究单元负责人撤回/, `select withdraw_arr($1)`, [c2]);
+  await as(own, D2);
+  ok((await one(`select status, can_withdraw from api.arr_claim where id = $1`, [c2])).status === 'agreed', '同意后研究单元页显示已有担保');
+  await q(`select withdraw_arr($1)`, [c2]);
+  await raises('已撤回的不必再撤', /已结束/, `select withdraw_arr($1)`, [c2]);
+  await as(U.mem2, D2);
+  ok((await one(`select remaining, used from api.arr_sponsor`)).remaining === 1, '撤回后名额退回');
+  // 新一轮：余量按名额重新起算
+  await as(own, D2); await q(`select ask_arr($1, $2)`, [un.id, U.mem2]);
+  await as(U.fin, D2); await q(`select open_arr_cycle('2033 年 7 月')`);
+  ok((await one(`select remaining from api.arr_sponsor where user_id = $1`, [U.mem2])).remaining === 1 && (await q(`select 1 from api.arr_cycle where current`)).length === 1, '开启新一轮后余量重新起算');
+  await q(`select save_arr_sponsor($1, false, 1)`, [U.mem2]);
+  await as(own, D2);
+  await raises('取消资格后不能被请', /不具备 ARR 担保资格/, `select ask_arr($1, $2)`, [un.id, U.mem2]);
+  // 请本人担保的直接生效
+  await as(U.fin, D2); await q(`select save_arr_sponsor($1, true, 1)`, [own]);
+  await as(own, D2);
+  const c3 = await val(`select ask_arr($1, $2) v`, [un.id, own]);
+  ok((await one(`select status from api.arr_claim where id = $1`, [c3])).status === 'agreed', '负责人本人有资格的，自己担保直接生效');
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from feishu_outbox where payload->>'text' like 'ARR 担保申请%'`)).n >= 4, '申请、答复、撤回都通知对方');
+  await db.exec(`set role app_api`);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

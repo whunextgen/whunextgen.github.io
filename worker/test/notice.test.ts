@@ -34,4 +34,6 @@ ok(c.title === '双周表登记情况' && c.btn.url.endsWith('/#/biweekly') && c
   ok(b3.url === O + '/#/' && b3.text.content === '前往查看', '不是 https 的链接不用', JSON.stringify(b3)); }
 { const e1 = noticeCard({ text: '公告：一句话', all: true }, O).card.elements as any[], e2 = noticeCard({ text: '公告：一句话' }, O).card.elements as any[];
   ok(e1[0].text?.tag === 'lark_md' && e1[0].text.content === '<at id=all></at>' && !e2.some((x) => x.text?.tag === 'lark_md'), '标了 @所有人 的卡片首行提到所有人，没标的不提', JSON.stringify(e1[0])); }
+c = parts('ARR 担保申请待答复：甲 申请由你为研究单元「单元一」在「2033 年 5 月」一轮的 ARR 投稿担保。请在该研究单元页面答复', '甲');
+ok(c.title === 'ARR 担保申请待答复' && c.btn.url === O + '/#/' && c.btn.text.content === '前往办理' && c.color === 'red', 'ARR 担保申请：标题取冒号前，按钮回首页待办', JSON.stringify(c));
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);

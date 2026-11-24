@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type Me, type Person, type User } from '../api';
+import { ArrAdmin } from '../arr';
 import { ActionDialog, Badge, Empty, Loading, PERSON, Tile, can, day, type Field } from '../ui';
 
 const KIND: Record<string, string> = { ...PERSON, external: '外部人员' };
@@ -111,6 +112,7 @@ export function People({ me }: { me: Me }) {
           </table></div>
         )}
       </section>
+      <ArrAdmin me={me} users={data.users} />
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.label} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
     </>
   );

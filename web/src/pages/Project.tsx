@@ -6,6 +6,7 @@ import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
 import { RequestTable } from './Requests';
 import { UnitToken } from '../token';
+import { UnitArr } from '../arr';
 import { KIND as RES_KIND, RES_REQ, qty } from './Resource';
 
 const q = (n: string | number | null | undefined, unit?: string | null) => (n == null ? '—' : `${num(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}${unit ? ` ${unit}` : ''}`);
@@ -209,6 +210,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
         </section>
 
         {isUnit && r.active && !data.tags.some((t) => t.id === r.id && t.proposed) && <UnitToken me={me} unit={r} />}
+        {isUnit && r.active && !data.tags.some((t) => t.id === r.id && t.proposed) && <UnitArr me={me} unit={r} />}
 
         <section className="card" id="sec-members">
           <h3>成员 <span className="h3sub">{members.length} 人</span></h3>
