@@ -347,9 +347,9 @@ export function taskCall(row: { act: string; target_id: string; summary: string;
   return null;
 }
 async function biweeklyTasks(env: Env) {
-  // 新任务只在白天建（北京时间 9 点到 21 点），完成和撤掉随时办
+  // 新任务不在后半夜建（北京时间 0 点到 7 点），完成和撤掉随时办
   const hour = (new Date().getUTCHours() + 8) % 24;
-  const rows = await withUser(env, null, (sql) => sql`select act, project_id, period_start::text as period_start, target_id, summary, due::text as due, task_guid from public.biweekly_task_plan(${hour >= 9 && hour < 21}::boolean)`);
+  const rows = await withUser(env, null, (sql) => sql`select act, project_id, period_start::text as period_start, target_id, summary, due::text as due, task_guid from public.biweekly_task_plan(${hour >= 7}::boolean)`);
   if (!rows.length) return;
   const tok = await feishu('/auth/v3/tenant_access_token/internal', { method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
     body: JSON.stringify({ app_id: env.FEISHU_BOT_APP_ID || env.FEISHU_APP_ID, app_secret: env.FEISHU_BOT_APP_SECRET || env.FEISHU_APP_SECRET }) }).catch(() => null);
