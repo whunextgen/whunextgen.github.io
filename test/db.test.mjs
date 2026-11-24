@@ -2093,6 +2093,43 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   eq((await q(`select 1 from api.biweekly_status where project_id = $1`, [U3])).length, 0, '未成立的研究单元不列入');
   await as(null);
   eq((await q(`select 1 from api.biweekly_report`)).length + (await q(`select 1 from api.biweekly_status`)).length, 0, '未登录看不到双周表');
+  // 双周表接飞书任务：未登记的建任务，登记后完成，补登期过了撤掉
+  const plan = (c = true) => q(`select act, project_id, period_start::text ps, target_id, summary, due::text due, task_guid from biweekly_task_plan($1)`, [c]);
+  const mark = (pid, ps, act, okv, guid = null, err = null) => q(`select biweekly_task_mark($1, $2, $3, $4, $5, $6)`, [pid, ps, act, okv, guid, err]);
+  await as(plain, '2032-08-24');
+  await raises('登录用户不能取任务计划', /当前角色/, `select * from biweekly_task_plan(true)`);
+  await as('', '2032-08-24');
+  eq((await plan(false)).length, 0, '夜里不建新任务');
+  let pl = await plan(), mine = pl.find((x) => x.project_id === U1);
+  ok(mine && mine.act === 'create' && mine.ps === '2032-08-23' && mine.due === '2032-09-05' && /^登记双周表：.+（08-23 至 09-05）$/.test(mine.summary) && /^o[un]_/.test(mine.target_id) && pl.every((x) => x.act === 'create'), '本期未登记的研究单元各建一条任务，截止日是本期最后一天', JSON.stringify(mine));
+  eq((await plan()).length, pl.length, '没回报之前再取还是这些，不会重复登记');
+  await mark(U1, '2032-08-23', 'create', false, null, '网络错误');
+  ok((await plan()).some((x) => x.project_id === U1 && x.act === 'create'), '建失败的下次再试');
+  await mark(U1, '2032-08-23', 'create', true, 'guid-1');
+  ok(!(await plan()).some((x) => x.project_id === U1), '建好之后不再出现');
+  const other = pl.find((x) => x.project_id !== U1);
+  if (other) { for (let i = 0; i < 5; i++) await mark(other.project_id, other.ps, 'create', false, null, '没有权限');
+    ok(!(await plan()).some((x) => x.project_id === other.project_id), '连续五次失败的不再重试'); }
+  await as(plain, '2032-08-24');
+  await bw(U1, '2032-08-23', { stage: 'submitted' });
+  await as('', '2032-08-24');
+  mine = (await plan(false)).find((x) => x.project_id === U1);
+  ok(mine && mine.act === 'done' && mine.task_guid === 'guid-1', '登记之后任务标为完成，夜里也办', JSON.stringify(mine));
+  await mark(U1, '2032-08-23', 'done', true);
+  ok(!(await plan()).some((x) => x.project_id === U1), '完成之后不再出现；已登记的也不再建');
+  await as('', '2032-09-06');
+  pl = await plan();
+  const nxt = pl.find((x) => x.project_id === U1);
+  ok(nxt && nxt.act === 'create' && nxt.ps === '2032-09-06', '进入下一期，重新建任务', JSON.stringify(nxt));
+  await mark(U1, '2032-09-06', 'create', true, 'guid-2');
+  await as('', '2032-09-22');
+  eq((await plan(false)).filter((x) => x.project_id === U1 && x.ps === '2032-09-06').length, 0, '补登期内任务留着');
+  await as('', '2032-09-23');
+  const dr = (await plan(false)).find((x) => x.project_id === U1 && x.ps === '2032-09-06');
+  ok(dr && dr.act === 'drop' && dr.task_guid === 'guid-2', '补登期过了仍未登记的，撤掉任务', JSON.stringify(dr));
+  await mark(U1, '2032-09-06', 'drop', true);
+  ok(!(await plan(false)).some((x) => x.project_id === U1 && x.ps === '2032-09-06'), '撤掉之后不再出现');
+  await as(null);
 }
 }
 

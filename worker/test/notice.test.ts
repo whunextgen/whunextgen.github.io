@@ -1,5 +1,5 @@
 // 通知卡片：句式 → 标题、分项、跳转页面
-import { noticeCard, inFeishu } from '../src/index.ts';
+import { noticeCard, inFeishu, taskCall } from '../src/index.ts';
 let bad = 0, n = 0; const ok = (c: unknown, name: string, extra = '') => { n++; if (!c) { bad++; console.log('FAIL', name, extra); } };
 const O = 'https://example.test';
 const parts = (text: string, by?: string, more: object = {}) => {
@@ -74,4 +74,26 @@ ok(parts('一句话', undefined, { kind: 'pass' }).kind === 'pass' && parts('一
   ok(!JSON.stringify(main({ ...body, group: true }, 'tok-1')).includes('callback') && !JSON.stringify(main({ ...body, act: { kind: 'other' } }, 'tok-1')).includes('callback'), '发到群里的、动作不认识的，都不放同意按钮');
   const d = noticeCard({ ...body, done: '你已同意 · 11-24 02:00' }, O), dm = (d.card.body.elements as any[])[1].columns[0].elements as any[];
   ok(d.view.kind === 'pass' && d.title === '研究单元申请已同意' && !JSON.stringify(dm).includes('callback') && dm.some((x) => x.tag === 'interactive_container' && x.background_style === 'zz-ok-bg' && x.elements[0].text.content === '你已同意 · 11-24 02:00') && dm.find((x) => x.tag === 'button')?.text.content === '查看', '办完后的卡片：标题改为已同意，绿框写明，按钮只剩查看', JSON.stringify(dm).slice(0, 300)); }
+{ const m = (b: any) => els(b).main, J = (x: unknown) => JSON.stringify(x);
+  const d1 = m({ text: '双周表登记情况：本期 11-23 至 12-06，应登记 4 个研究单元，已登记 1 个，未登记 3 个。\n已登记\n· 单元一（甲）\n未登记\n· 单元二（乙）\n· 单元三（丙）\n· **单元四**（丁）', group: true });
+  const nums = d1.find((x) => x.tag === 'column_set' && x.columns.length === 3), bar = d1.find((x) => x.tag === 'markdown'), folds = d1.filter((x) => x.tag === 'collapsible_panel');
+  ok(nums && nums.columns.map((c2: any) => c2.elements[1].text.content).join('/') === '4/1/3', '双周表通报：三个数并排', J(nums).slice(0, 200));
+  ok(bar && (bar.content.match(/━/g) ?? []).length === 20 && bar.content.includes('25%') && !bar.content.includes('单元'), '进度条按已登记的比例画，里面没有业务文字', bar?.content);
+  ok(folds.length === 2 && folds[0].header.title.content === '已登记（1）' && folds[1].header.title.content === '未登记（3）' && folds.every((x) => x.expanded === false) && folds[1].elements[0].text.tag === 'plain_text' && folds[1].elements[0].text.content.includes('**单元四**'), '名单按小标题折叠并标数量，名称按纯文本放', J(folds).slice(0, 300));
+  const d2 = m({ text: '双周表登记提醒：本期 11-23 至 12-06 明日截止，尚有 2 个研究单元未登记，请负责人或名单内成员尽快登记。\n未登记\n· 单元二（乙）\n· 单元三（丙）', group: true, all: true });
+  ok(d2.find((x) => x.tag === 'collapsible_panel')?.expanded === true && !d2.some((x) => x.tag === 'column_set' && x.columns.length === 3), '截止前的提醒：未登记名单展开，没有三个数时不画进度');
+  const r1 = m({ text: '正则更新说明：v9.9.9（2033-01-01）\n新增\n1. 甲\n2. 乙\n3. 丙\n调整\n4. 丁\n5. 戊\n说明\n6. 己', group: true, tag: 'v9.9.9' });
+  const shown = J(r1.filter((x) => x.tag !== 'collapsible_panel')), f1 = r1.find((x) => x.tag === 'collapsible_panel');
+  ok(shown.includes('1. 甲') && shown.includes('4. 丁') && !shown.includes('5. 戊') && f1?.header.title.content === '其余 2 条，点开查看' && f1.elements[0].text.content === '调整\n5. 戊\n说明\n6. 己', '更新说明：露出前四条，其余带着小标题折叠', J(f1));
+  const r2 = m({ text: '正则更新说明：v9.9.9\n新增\n1. 甲', group: true });
+  ok(!r2.some((x) => x.tag === 'collapsible_panel'), '条目少的更新说明不折叠');
+  const p1 = m({ text: '研究单元立项提醒：你的项目还没有提交。\n说明\n请尽快' });
+  ok(p1.some((x) => x.tag === 'collapsible_panel') === false, '发给个人的提醒里出现小标题字样时不拆成名单', J(p1).slice(0, 200)); }
+{ const base = { target_id: 'on_abc', summary: '登记双周表：单元一（08-23 至 09-05）', due: '2032-09-05', task_guid: null as string | null };
+  const c1 = taskCall({ ...base, act: 'create' }, O, 'app_demo') as any;
+  ok(c1.method === 'POST' && c1.path === '/task/v2/tasks?user_id_type=union_id' && c1.body.summary === base.summary && c1.body.due.is_all_day === true && c1.body.due.timestamp === String(Date.UTC(2032, 8, 5)) && c1.body.members[0].id === 'on_abc' && c1.body.members[0].role === 'assignee' && c1.body.origin.href.url.startsWith('https://applink.feishu.cn/'), '建任务：负责人为执行人，截止日为全天，带回中台的链接', JSON.stringify(c1));
+  ok((taskCall({ ...base, act: 'create', target_id: 'ou_abc' }, O) as any).path.endsWith('user_id_type=open_id'), '没有跨应用标识的按本应用标识建');
+  const c2 = taskCall({ ...base, act: 'done', task_guid: 'guid-0001' }, O, undefined, 1234) as any;
+  ok(c2.method === 'PATCH' && c2.path === '/task/v2/tasks/guid-0001' && c2.body.task.completed_at === '1234' && c2.body.update_fields[0] === 'completed_at', '登记后把任务标为完成');
+  ok((taskCall({ ...base, act: 'drop', task_guid: 'guid-0001' }, O) as any).method === 'DELETE' && taskCall({ ...base, act: 'drop' }, O) === null && taskCall({ ...base, act: 'done', task_guid: '../x' }, O) === null, '撤任务用删除；没有任务编号或编号不像编号的不调用'); }
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);

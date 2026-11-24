@@ -331,12 +331,49 @@ const NOTICE_FIELDS: [RegExp, string[]][] = [
 export const inFeishu = (u: string, origin: string, appId?: string) =>
   appId && (u === origin || u.startsWith(origin + '/'))
     ? `https://applink.feishu.cn/client/web_app/open?appId=${encodeURIComponent(appId)}&lk_target_url=${encodeURIComponent(u)}` : u;
+// 双周表的飞书任务：把数据库给出的一条计划变成对飞书任务接口的一次调用
+export function taskCall(row: { act: string; target_id: string; summary: string; due: string; task_guid: string | null }, origin: string, appId?: string, now = Date.now()) {
+  if (row.act === 'create') {
+    const [y, m, d] = String(row.due).slice(0, 10).split('-').map(Number);
+    return { method: 'POST', path: `/task/v2/tasks?user_id_type=${row.target_id.startsWith('on_') ? 'union_id' : 'open_id'}`, body: {
+      summary: row.summary, description: '登记后这条任务会自动完成。',
+      due: { timestamp: String(Date.UTC(y, m - 1, d)), is_all_day: true },
+      members: [{ id: row.target_id, type: 'user', role: 'assignee' }],
+      origin: { platform_i18n_name: { zh_cn: '正则' }, href: { url: inFeishu(`${origin}/#/biweekly`, origin, appId), title: '去登记双周表' } } } };
+  }
+  if (!row.task_guid || !/^[\w-]{8,80}$/.test(row.task_guid)) return null;
+  if (row.act === 'done') return { method: 'PATCH', path: `/task/v2/tasks/${row.task_guid}`, body: { task: { completed_at: String(now) }, update_fields: ['completed_at'] } };
+  if (row.act === 'drop') return { method: 'DELETE', path: `/task/v2/tasks/${row.task_guid}`, body: undefined };
+  return null;
+}
+async function biweeklyTasks(env: Env) {
+  // 新任务只在白天建（北京时间 9 点到 21 点），完成和撤掉随时办
+  const hour = (new Date().getUTCHours() + 8) % 24;
+  const rows = await withUser(env, null, (sql) => sql`select act, project_id, period_start::text as period_start, target_id, summary, due::text as due, task_guid from public.biweekly_task_plan(${hour >= 9 && hour < 21}::boolean)`);
+  if (!rows.length) return;
+  const tok = await feishu('/auth/v3/tenant_access_token/internal', { method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ app_id: env.FEISHU_BOT_APP_ID || env.FEISHU_APP_ID, app_secret: env.FEISHU_BOT_APP_SECRET || env.FEISHU_APP_SECRET }) }).catch(() => null);
+  const out: [string, string, string, boolean, string | null, string | null][] = [];
+  for (const r of rows as any[]) {
+    const call = tok?.tenant_access_token ? taskCall(r, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev', env.FEISHU_APP_ID) : null;
+    if (!call) { out.push([r.project_id, r.period_start, r.act, false, null, tok?.tenant_access_token ? '任务编号无效' : '无法获取应用凭证']); continue; }
+    const res = await feishu(call.path, { method: call.method, headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
+      body: call.body ? JSON.stringify(call.body) : undefined }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
+    // 撤任务时飞书说已经不存在的，也算办完
+    const fine = res?.code === 0 || (r.act !== 'create' && /not.?found|不存在|deleted/i.test(String(res?.msg ?? '')));
+    out.push([r.project_id, r.period_start, r.act, fine, r.act === 'create' ? (res?.data?.task?.guid ?? null) : null, fine ? null : `飞书返回 ${res?.code}：${String(res?.msg ?? '').slice(0, 200)}`]);
+  }
+  await withUser(env, null, async (sql) => {
+    for (const [pid, ps, act, okv, guid, err] of out) await sql`select public.biweekly_task_mark(${pid}::uuid, ${ps}::date, ${act}::text, ${okv && (act !== 'create' || !!guid)}::boolean, ${guid}::text, ${err ?? (okv ? null : '飞书没有返回任务编号')}::text)`;
+  });
+}
 // 卡片配色取自网页的色系，浅色和深色各一个值
 const rgba = (l: string, d: string) => ({ light_mode: `rgba(${l},1)`, dark_mode: `rgba(${d},1)` });
 const CARD_COLORS = {
   'zz-brand': rgba('188,68,43', '232,128,104'), 'zz-raise': rgba('243,243,240', '44,44,46'), 'zz-ink': rgba('22,23,26', '240,240,238'),
   'zz-mute': rgba('106,110,117', '160,164,170'), 'zz-ok': rgba('31,122,77', '110,200,150'), 'zz-bad': rgba('180,35,24', '240,120,110'), 'zz-bad-bg': rgba('253,243,242', '64,30,28'), 'zz-ok-bg': rgba('240,248,243', '28,52,40'),
   'zz-gold-bar': rgba('243,217,164', '110,80,20'), 'zz-gold-ink': rgba('74,48,0', '255,240,205'), 'zz-ok-bar': rgba('216,238,225', '30,70,50'), 'zz-bad-bar': rgba('250,222,219', '90,34,30'),
+  'zz-line': rgba('230,230,226', '70,70,72'), 'zz-track': rgba('200,200,194', '90,90,92'),
   'zz-ink-bar': rgba('22,23,26', '60,60,64'), 'zz-gold-tag': rgba('243,217,164', '243,217,164'), 'zz-on-dark': rgba('255,255,255', '255,255,255'), 'zz-on-dark-2': rgba('235,205,198', '235,205,198'), 'zz-on-ink-2': rgba('170,174,180', '190,194,200'),
 };
 // 六类通知：按收到的人要做什么分。顶栏底色、标题色、副行色、标签色、标签字、按钮样式、标志用白底的那张
@@ -389,6 +426,7 @@ export function noticeCard(body: NoticeBody, origin: string, appId?: string, mar
   const plain = (content: string, text_color: string, text_size = 'normal') => ({ tag: 'div', text: { tag: 'plain_text', content, text_color, text_size } });
   const col = (elements: unknown[], extra: object = {}) => ({ tag: 'column', width: 'weighted', weight: 1, vertical_align: 'top', elements, ...extra });
   const row = (columns: unknown[], extra: object = {}) => ({ tag: 'column_set', flex_mode: 'none', horizontal_spacing: '8px', columns, ...extra });
+  const col2 = (a: unknown, b: unknown) => row([col([a, b], { vertical_spacing: '2px' })]);
   const mark = k.white ? marks?.white : marks?.red;
   const bar = row([
     ...(mark ? [{ tag: 'column', width: 'auto', vertical_align: 'center', padding: '12px 0px 12px 16px', elements: [{ tag: 'img', img_key: mark, alt: { tag: 'plain_text', content: '正则' }, scale_type: 'crop_center', size: '32px 32px', corner_radius: '9px' }] }] : []),
@@ -403,7 +441,39 @@ export function noticeCard(body: NoticeBody, origin: string, appId?: string, mar
     const a = v.fields[i], b = v.fields[i + 1];
     if (b && a[1].length <= 14 && b[1].length <= 14) { main.push(row([kv(a), kv(b)])); i += 2; } else { main.push(row([kv(a)])); i += 1; }
   }
-  if (v.text) main.push(v.kind === 'back'
+  // 分段的长通知（双周表通报、更新说明）：小标题下面逐条列，长的折叠起来
+  const lines = (v.text ?? '').split('\n').map((x) => x.trim()).filter(Boolean);
+  const isHead = (x: string) => /^(已登记|未登记|连续两期及以上未登记|新增|调整|修复|说明)$/.test(x);
+  const cut = lines.findIndex(isHead);
+  const fold = (title: string, text: string, expanded = false) => ({ tag: 'collapsible_panel', expanded, border: { color: 'zz-line', corner_radius: '8px' }, vertical_spacing: '8px', padding: '8px 12px 8px 12px',
+    header: { title: { tag: 'plain_text', content: title }, vertical_align: 'center', icon: { tag: 'standard_icon', token: 'down-small-ccm_outlined', size: '16px 16px' }, icon_position: 'right', icon_expanded_angle: -180 }, elements: [plain(text, 'zz-ink')] });
+  if (v.text && cut >= 0 && (v.kind === 'post' || v.kind === 'remind')) {
+    const lead = lines.slice(0, cut).join('\n'), secs: { h: string; items: string[] }[] = [];
+    for (const x of lines.slice(cut)) { if (isHead(x)) secs.push({ h: x, items: [] }); else secs[secs.length - 1].items.push(x); }
+    const st = v.text.match(/应登记 (\d+) 个研究单元，已登记 (\d+) 个，未登记 (\d+) 个/);
+    if (st) {
+      // 双周表：三个数并排，一条进度
+      const [total, okN, noN] = [Number(st[1]), Number(st[2]), Number(st[3])], on = total > 0 ? Math.round((okN / total) * 20) : 0;
+      const num = (name: string, value: string, color: string) => col([plain(name, 'zz-mute', 'notation'), plain(value, color, 'heading')], { vertical_spacing: '2px' });
+      main.push(row([num('应登记', String(total), 'zz-ink'), num('已登记', String(okN), 'zz-brand'), num('未登记', String(noN), 'zz-ink')]));
+      main.push({ tag: 'markdown', content: `<font color='zz-brand'>${'━'.repeat(on)}</font><font color='zz-track'>${'━'.repeat(20 - on)}</font>  <font color='zz-mute'>${total > 0 ? Math.round((okN / total) * 100) : 0}%</font>` });
+    }
+    if (lead) main.push(plain(lead, st ? 'zz-mute' : 'zz-ink', st ? 'notation' : 'normal'));
+    if (secs.some((x) => /登记/.test(x.h))) {
+      // 名单一律折叠；截止前的提醒把未登记的展开
+      for (const x of secs) if (x.items.length) main.push(fold(`${x.h}（${x.items.length}）`, x.items.join('\n'), v.kind === 'remind' && x.h === '未登记'));
+    } else {
+      // 更新说明：先露出前四条，其余折叠
+      let room = 4; const more: string[] = [];
+      for (const x of secs) {
+        const show = x.items.slice(0, room), rest2 = x.items.slice(show.length); room -= show.length;
+        if (show.length) main.push(col2(plain(x.h, 'zz-mute', 'notation'), plain(show.join('\n'), 'zz-ink')));
+        if (rest2.length) more.push(x.h, ...rest2);
+      }
+      const n = more.filter((x) => !isHead(x)).length;
+      if (n) main.push(fold(`其余 ${n} 条，点开查看`, more.join('\n')));
+    }
+  } else if (v.text) main.push(v.kind === 'back'
     ? { tag: 'interactive_container', width: 'fill', height: 'auto', corner_radius: '10px', padding: '9px 14px 9px 14px', background_style: 'zz-bad-bg', has_border: true, border_color: 'zz-bad', behaviors: [], elements: [plain(v.text, 'zz-bad')] }
     : plain(v.text, 'zz-ink'));
   const button = (text: string, type: string, behaviors: unknown[], extra: object = {}) => ({ tag: 'button', text: { tag: 'plain_text', content: text }, type, size: 'medium', width: 'fill', behaviors, ...extra });
@@ -685,6 +755,7 @@ export default {
   async scheduled(_event: unknown, env: Env): Promise<void> {
     if (env.FEISHU_NOTIFY !== 'on') return;
     if ((new Date().getUTCHours() + 8) % 24 >= 10) await withUser(env, null, (sql) => sql`select public.group_digest_tick()`).catch((e) => console.error(e));
+    await biweeklyTasks(env).catch((e) => console.error('双周表任务', e));
     const batch = await withUser(env, null, (sql) => sql`select msg_id, target_id, body from public.outbox_take(20)`);
     if (!batch.length) return;
     const tok = await feishu('/auth/v3/tenant_access_token/internal', {
