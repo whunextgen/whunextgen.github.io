@@ -63,4 +63,15 @@ ok(parts('一句话', undefined, { kind: 'pass' }).kind === 'pass' && parts('一
   ok(full.schema === '2.0' && !full.header && full.body.padding === '0px 0px 0px 0px' && full.config.summary.content === '研究单元改名', '不用飞书自带标题栏，会话列表里的摘要是标题'); }
 { const e = els({ text: '研究单元申请「单元一」已退回：名称重复，请修改' }).main;
   ok(e.some((x) => x.tag === 'interactive_container' && x.background_style === 'zz-bad-bg'), '退回的原因单独框出', JSON.stringify(e).slice(0, 200)); }
+{ const body = { text: '研究单元申请待同意：甲 申请在课题「课题一」之下成立「单元一」，使用该课题的预算。请在「课题管理」中同意或退回', at: '11-24 01:00', act: { kind: 'unit_consent', unit: '00000000-0000-0000-0000-000000000001' } };
+  const main = (b: any, tok?: string) => (noticeCard(b, O, undefined, { red: 'img_r', white: 'img_w' }, tok).card.body.elements as any[])[1].columns[0].elements as any[];
+  const withTok = main(body, 'tok-1'), rowEl = withTok.find((x) => x.tag === 'column_set' && x.columns.length === 2 && x.columns[0].elements[0]?.tag === 'button');
+  const yes = rowEl?.columns[0].elements[0], no = rowEl?.columns[1].elements[0];
+  ok(yes?.text.content === '同意' && yes.behaviors[0].type === 'callback' && yes.behaviors[0].value.t === 'tok-1' && yes.confirm?.title.content && no?.text.content === '退回' && no.behaviors[0].type === 'open_url' && no.type === 'danger_text', '带动作和凭据的待办：同意是回调并要二次确认，退回去页面', JSON.stringify(rowEl).slice(0, 300));
+  ok(!withTok.some((x) => x.tag === 'button'), '有同意和退回时不再另放去页面的按钮');
+  const noTok = main(body);
+  ok(noTok.filter((x) => x.tag === 'button').length === 1 && !JSON.stringify(noTok).includes('callback'), '没有凭据时只有去页面的按钮');
+  ok(!JSON.stringify(main({ ...body, group: true }, 'tok-1')).includes('callback') && !JSON.stringify(main({ ...body, act: { kind: 'other' } }, 'tok-1')).includes('callback'), '发到群里的、动作不认识的，都不放同意按钮');
+  const d = noticeCard({ ...body, done: '你已同意 · 11-24 02:00' }, O), dm = (d.card.body.elements as any[])[1].columns[0].elements as any[];
+  ok(d.view.kind === 'pass' && d.title === '研究单元申请已同意' && !JSON.stringify(dm).includes('callback') && dm.some((x) => x.tag === 'interactive_container' && x.background_style === 'zz-ok-bg' && x.elements[0].text.content === '你已同意 · 11-24 02:00') && dm.find((x) => x.tag === 'button')?.text.content === '查看', '办完后的卡片：标题改为已同意，绿框写明，按钮只剩查看', JSON.stringify(dm).slice(0, 300)); }
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);

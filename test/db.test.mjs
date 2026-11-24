@@ -1837,6 +1837,18 @@ await raises('他人不能改申请', /仅申请人可修改申请/, pu, [U1, TB
 await raises('不是所挂课题的负责人不能同意', /仅所挂课题的负责人和副手可以同意/, `select approve_unit($1)`, [U1]);
 await as(U.lead, '2032-06-09');
 ok((await q(`select 1 from api.unit_apply where id = $1`, [U1])).length === 1, '所挂课题的负责人看得到这份申请');
+// 卡片上直接办理：待同意的通知带着动作，发送端能按编号取回
+{ await db.exec(`reset role`);
+  const row = await one(`select id, user_id, payload from feishu_outbox where payload->>'text' like '研究单元申请待同意：%成员申请的研究单元%' order by id desc limit 1`);
+  const plain = await one(`select id from feishu_outbox where not (payload ? 'act') and user_id is not null order by id desc limit 1`);
+  await db.exec(`set role app_api`);
+  ok(row && row.user_id === U.lead && row.payload.act?.kind === 'unit_consent' && row.payload.act.unit === U1, '待同意的通知带着要办的动作和研究单元', JSON.stringify(row?.payload));
+  await raises('登录用户取不到通知的动作', /当前角色/, `select * from outbox_act($1)`, [row.id]);
+  await as('', '2032-06-09');
+  const got = await one(`select * from outbox_act($1)`, [row.id]);
+  ok(got.user_id === U.lead && got.body.act.unit === U1 && /^o[un]_/.test(got.target_id), '发送端按编号取回这条通知发给谁、办什么', JSON.stringify(got));
+  ok((await q(`select * from outbox_act($1)`, [plain.id])).length === 0, '不带动作的通知取不到');
+  await as(U.lead, '2032-06-09'); }
 await raises('课题负责人不核对，核对由助理按会议结果办', /需要权限/, `select confirm_unit($1)`, [U1]);
 ua = await one(`select can_ok, parent_ok_at from api.unit_apply where id = $1`, [U1]);
 ok(ua.can_ok === true && ua.parent_ok_at === null, '提交后先待所挂课题的负责人同意');
