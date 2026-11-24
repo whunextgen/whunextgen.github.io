@@ -320,7 +320,11 @@ const NOTICE_FIELDS: [RegExp, string[]][] = [
   [/课题「(.+?)」之下新成立研究单元「(.+?)」/, ['所挂课题', '研究单元']],
   [/联席会议 (\d{4}-\d{2}-\d{2}) 通过/, ['联席会议通过']],
 ];
-export function noticeCard(body: { text?: string; by?: string | null; at?: string | null; url?: string | null; btn?: string | null; all?: boolean | null }, origin: string) {
+// 指向中台页面的链接改走飞书的应用链接，在飞书里打开网页应用并直达该页；其他链接（如知识库）不动。没有应用标识时保持原链接
+export const inFeishu = (u: string, origin: string, appId?: string) =>
+  appId && (u === origin || u.startsWith(origin + '/'))
+    ? `https://applink.feishu.cn/client/web_app/open?appId=${encodeURIComponent(appId)}&lk_target_url=${encodeURIComponent(u)}` : u;
+export function noticeCard(body: { text?: string; by?: string | null; at?: string | null; url?: string | null; btn?: string | null; all?: boolean | null }, origin: string, appId?: string) {
   const own = typeof body.url === 'string' && /^https:\/\/[^\s]+$/.test(body.url) ? body.url : null;
   const text = String(body.text ?? '').trim(), bare = text.replace(/「[^」]*」/g, '「」');
   const rule = NOTICE_RULES.find(([re]) => re.test(bare));
@@ -341,7 +345,7 @@ export function noticeCard(body: { text?: string; by?: string | null; at?: strin
   if (body.all === true) elements.push({ tag: 'div', text: { tag: 'lark_md', content: '<at id=all></at>' } });
   if (fields.length) elements.push({ tag: 'div', fields: fields.map(([k, v]) => ({ is_short: v.length <= 14, text: plain(`${k}：${v}`) })) });
   if (rest) elements.push({ tag: 'div', text: plain(rest) });
-  elements.push({ tag: 'action', actions: [{ tag: 'button', type: todo ? 'primary' : 'default', text: plain(own && body.btn ? String(body.btn).slice(0, 12) : todo ? '前往办理' : '前往查看'), url: own ?? `${origin}/#${rule ? rule[2] : '/'}` }] });
+  elements.push({ tag: 'action', actions: [{ tag: 'button', type: todo ? 'primary' : 'default', text: plain(own && body.btn ? String(body.btn).slice(0, 12) : todo ? '前往办理' : '前往查看'), url: inFeishu(own ?? `${origin}/#${rule ? rule[2] : '/'}`, origin, appId) }] });
   elements.push({ tag: 'note', elements: [plain(['正则', body.by ? `经办：${body.by}` : '', body.at ?? ''].filter(Boolean).join(' · '))] });
   return { title, card: { config: { wide_screen_mode: true }, header: { template: todo ? 'red' : 'grey', title: plain(title) }, elements } };
 }
@@ -601,7 +605,7 @@ export default {
         body: JSON.stringify({ receive_id: to, msg_type, content: JSON.stringify(content) }),
       }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
       // 先发卡片；卡片被拒的，退回发纯文字，通知不能因为版式丢掉
-      let r = await send('interactive', noticeCard(body, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev').card);
+      let r = await send('interactive', noticeCard(body, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev', env.FEISHU_APP_ID).card);
       const why = (x: any) => `飞书返回 ${x?.code}：${String(x?.msg ?? '').slice(0, 200)}`;
       let note: string | null = null;
       if (r?.code !== 0) { note = `卡片未发出，已改发文字。${why(r)}`; r = await send('text', { text: `${group && body.all === true ? '<at user_id="all">所有人</at> ' : ''}【正则】${body.text}` }); }

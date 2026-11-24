@@ -1,5 +1,5 @@
 // 通知卡片：句式 → 标题、分项、跳转页面
-import { noticeCard } from '../src/index.ts';
+import { noticeCard, inFeishu } from '../src/index.ts';
 let bad = 0, n = 0; const ok = (c: unknown, name: string, extra = '') => { n++; if (!c) { bad++; console.log('FAIL', name, extra); } };
 const O = 'https://example.test';
 const parts = (text: string, by?: string) => {
@@ -36,4 +36,11 @@ ok(c.title === '双周表登记情况' && c.btn.url.endsWith('/#/biweekly') && c
   ok(e1[0].text?.tag === 'lark_md' && e1[0].text.content === '<at id=all></at>' && !e2.some((x) => x.text?.tag === 'lark_md'), '标了 @所有人 的卡片首行提到所有人，没标的不提', JSON.stringify(e1[0])); }
 c = parts('研究单元改名：甲 把课题「课题一」之下的研究单元 P-01-01 由「旧名」改为「新名」', '甲');
 ok(c.title === '研究单元改名' && c.btn.url.endsWith('/#/projects') && c.color === 'grey', '改名通知去课题管理页', JSON.stringify(c));
+{ const btn = (b: any, id?: string) => (noticeCard(b, O, id).card.elements as any[]).find((x) => x.tag === 'action').actions[0].url as string;
+  const u = btn({ text: '支出申请待审批：甲 提交了一笔' }, 'app_demo');
+  ok(u.startsWith('https://applink.feishu.cn/client/web_app/open?appId=app_demo&lk_target_url=') && decodeURIComponent(u.split('lk_target_url=')[1]).startsWith(O + '/#/') && !u.split('lk_target_url=')[1].includes('#'), '中台页面走应用链接，目标地址整体转码', u);
+  ok(btn({ text: '说明：已放到知识库', url: 'https://feishu.test/wiki/x', btn: '查看说明' }, 'app_demo') === 'https://feishu.test/wiki/x', '站外链接不动');
+  ok(btn({ text: '说明：一句', url: O + '/', btn: '前往中台' }, 'app_demo').startsWith('https://applink.feishu.cn/'), '指定的中台链接也走应用链接');
+  ok(btn({ text: '支出申请待审批：甲 提交了一笔' }).startsWith(O + '/#/'), '没有应用标识时保持原链接');
+  ok(inFeishu(O + '.evil.test/x', O, 'app_demo') === O + '.evil.test/x', '前缀相同的别的域名不算中台'); }
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);
