@@ -96,4 +96,7 @@ ok(parts('一句话', undefined, { kind: 'pass' }).kind === 'pass' && parts('一
   const c2 = taskCall({ ...base, act: 'done', task_guid: 'guid-0001' }, O, undefined, 1234) as any;
   ok(c2.method === 'PATCH' && c2.path === '/task/v2/tasks/guid-0001' && c2.body.task.completed_at === '1234' && c2.body.update_fields[0] === 'completed_at', '登记后把任务标为完成');
   ok((taskCall({ ...base, act: 'drop', task_guid: 'guid-0001' }, O) as any).method === 'DELETE' && taskCall({ ...base, act: 'drop' }, O) === null && taskCall({ ...base, act: 'done', task_guid: '../x' }, O) === null, '撤任务用删除；没有任务编号或编号不像编号的不调用'); }
+{ const m = els({ text: '登记截止通报：本期应登记 4 个研究单元，已登记 1 个，未登记 3 个。\n第二句是规矩。\n第三句也是。\n未登记\n· 单元二（乙）', group: true }).main;
+  const ps = m.filter((x) => x.tag === 'div').map((x) => [x.text.content, x.text.text_size]);
+  ok(ps.some(([c2, z]) => c2.startsWith('本期应登记') && z === 'notation') && ps.some(([c2, z]) => c2 === '第二句是规矩。\n第三句也是。' && z === 'normal'), '带数字的通报：第一句小字，其余的话照常显示', JSON.stringify(ps)); }
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);

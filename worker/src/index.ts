@@ -458,7 +458,9 @@ export function noticeCard(body: NoticeBody, origin: string, appId?: string, mar
       main.push(row([num('应登记', String(total), 'zz-ink'), num('已登记', String(okN), 'zz-brand'), num('未登记', String(noN), 'zz-ink')]));
       main.push({ tag: 'markdown', content: `<font color='zz-brand'>${'━'.repeat(on)}</font><font color='zz-track'>${'━'.repeat(20 - on)}</font>  <font color='zz-mute'>${total > 0 ? Math.round((okN / total) * 100) : 0}%</font>` });
     }
-    if (lead) main.push(plain(lead, st ? 'zz-mute' : 'zz-ink', st ? 'notation' : 'normal'));
+    // 带数字的通报：第一句已经画成数字了，用小字带过；后面的话是要人看的，照常显示
+    if (lead && st) { const [first, ...more] = lines.slice(0, cut); main.push(plain(first, 'zz-mute', 'notation')); if (more.length) main.push(plain(more.join('\n'), 'zz-ink')); }
+    else if (lead) main.push(plain(lead, 'zz-ink'));
     if (secs.some((x) => /登记/.test(x.h))) {
       // 名单一律折叠；截止前的提醒把未登记的展开
       for (const x of secs) if (x.items.length) main.push(fold(`${x.h}（${x.items.length}）`, x.items.join('\n'), v.kind === 'remind' && x.h === '未登记'));
