@@ -8,6 +8,7 @@ export interface Env {
   FEISHU_APP_SECRET: string;
   // 发通知用的应用（机器人）。不设时沿用登录应用
   NOTICE_ORIGIN?: string;                     // 通知卡片里按钮跳转的中台地址；不设时用对成员公布的地址
+  NOTICE_CHAT_ID?: string;                    // 全员群。队列里对象为 group 的通知发到这个群；不设时这类通知发不出去，记为失败
   FEISHU_BOT_APP_ID?: string;
   FEISHU_BOT_APP_SECRET?: string;
   FEISHU_TENANT_KEY?: string;                 // 设了就只允许本租户
@@ -312,7 +313,8 @@ const NOTICE_FIELDS: [RegExp, string[]][] = [
   [/课题「(.+?)」之下新成立研究单元「(.+?)」/, ['所挂课题', '研究单元']],
   [/联席会议 (\d{4}-\d{2}-\d{2}) 通过/, ['联席会议通过']],
 ];
-export function noticeCard(body: { text?: string; by?: string | null; at?: string | null }, origin: string) {
+export function noticeCard(body: { text?: string; by?: string | null; at?: string | null; url?: string | null; btn?: string | null }, origin: string) {
+  const own = typeof body.url === 'string' && /^https:\/\/[^\s]+$/.test(body.url) ? body.url : null;
   const text = String(body.text ?? '').trim(), bare = text.replace(/「[^」]*」/g, '「」');
   const rule = NOTICE_RULES.find(([re]) => re.test(bare));
   const head = text.match(/^([^：「」，。]{2,16})：/);
@@ -331,7 +333,7 @@ export function noticeCard(body: { text?: string; by?: string | null; at?: strin
   const elements: unknown[] = [];
   if (fields.length) elements.push({ tag: 'div', fields: fields.map(([k, v]) => ({ is_short: v.length <= 14, text: plain(`${k}：${v}`) })) });
   if (rest) elements.push({ tag: 'div', text: plain(rest) });
-  elements.push({ tag: 'action', actions: [{ tag: 'button', type: todo ? 'primary' : 'default', text: plain(todo ? '前往办理' : '前往查看'), url: `${origin}/#${rule ? rule[2] : '/'}` }] });
+  elements.push({ tag: 'action', actions: [{ tag: 'button', type: todo ? 'primary' : 'default', text: plain(own && body.btn ? String(body.btn).slice(0, 12) : todo ? '前往办理' : '前往查看'), url: own ?? `${origin}/#${rule ? rule[2] : '/'}` }] });
   elements.push({ tag: 'note', elements: [plain(['正则', body.by ? `经办：${body.by}` : '', body.at ?? ''].filter(Boolean).join(' · '))] });
   return { title, card: { config: { wide_screen_mode: true }, header: { template: todo ? 'red' : 'grey', title: plain(title) }, elements } };
 }
@@ -563,9 +565,11 @@ export default {
     }
   },
 
-  // 定时把通知队列里的消息以应用身份发给本人。开关 FEISHU_NOTIFY 不是 on 时什么都不做，也不连数据库。
+  // 定时把通知队列里的消息以应用身份发出：发给本人，或发到全员群（对象为 group）。每天十点以后顺带看当天有没有该发的双周表汇总。
+  // 原说明：定时把通知队列里的消息以应用身份发给本人。开关 FEISHU_NOTIFY 不是 on 时什么都不做，也不连数据库。
   async scheduled(_event: unknown, env: Env): Promise<void> {
     if (env.FEISHU_NOTIFY !== 'on') return;
+    if ((new Date().getUTCHours() + 8) % 24 >= 10) await withUser(env, null, (sql) => sql`select public.group_digest_tick()`).catch((e) => console.error(e));
     const batch = await withUser(env, null, (sql) => sql`select msg_id, target_id, body from public.outbox_take(20)`);
     if (!batch.length) return;
     const tok = await feishu('/auth/v3/tenant_access_token/internal', {
@@ -575,10 +579,12 @@ export default {
     for (const m of batch) {
       if (!tok?.tenant_access_token) { results.push([String(m.msg_id), false, '无法获取应用凭证']); continue; }
       const body = typeof m.body === 'string' ? JSON.parse(m.body) : m.body;
-      const send = (msg_type: string, content: unknown) => feishu(`/im/v1/messages?receive_id_type=${String(m.target_id).startsWith('on_') ? 'union_id' : 'open_id'}`, {
+      const group = m.target_id === 'group', to = group ? env.NOTICE_CHAT_ID : String(m.target_id);
+      if (!to) { results.push([String(m.msg_id), false, '未配置全员群']); continue; }
+      const send = (msg_type: string, content: unknown) => feishu(`/im/v1/messages?receive_id_type=${group ? 'chat_id' : to.startsWith('on_') ? 'union_id' : 'open_id'}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
-        body: JSON.stringify({ receive_id: m.target_id, msg_type, content: JSON.stringify(content) }),
+        body: JSON.stringify({ receive_id: to, msg_type, content: JSON.stringify(content) }),
       }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
       // 先发卡片；卡片被拒的，退回发纯文字，通知不能因为版式丢掉
       let r = await send('interactive', noticeCard(body, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev').card);

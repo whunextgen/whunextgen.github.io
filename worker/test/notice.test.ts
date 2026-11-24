@@ -24,4 +24,12 @@ c = parts('一句认不出的话');
 ok(c.title === '通知' && c.btn.url === O + '/#/' && c.text === '一句认不出的话', '认不出的句式整句放正文，按钮回首页', JSON.stringify(c));
 c = parts('研究单元立项提醒：你作为第一作者的项目「甲」还没有提交研究单元立项申请。\n请在 11 月 24 日 24:00 前完成', '乙');
 ok(c.title === '研究单元立项提醒' && c.btn.url.endsWith('/#/projects') && c.btn.text.content === '前往办理' && c.text!.includes('\n'), '立项提醒去课题管理页，正文保留换行', JSON.stringify(c));
+c = parts('研究单元成立：研究单元「单元一」已成立，挂在课题「课题一」之下，负责人 甲', '乙');
+ok(c.title === '研究单元成立' && c.fields['研究单元'] === '单元一' && c.fields['所挂课题'] === '课题一' && c.text === '负责人 甲' && c.btn.url.endsWith('/#/projects') && c.color === 'grey', '群里的成立公告：分项和负责人', JSON.stringify(c));
+c = parts('双周表登记情况：本期 11-23 至 12-06，应登记 3 个研究单元，已登记 1 个，未登记 2 个。\n未登记\n· 单元一（甲）');
+ok(c.title === '双周表登记情况' && c.btn.url.endsWith('/#/biweekly') && c.text!.includes('\n· 单元一（甲）'), '双周表汇总去双周表页，名单分行', JSON.stringify(c));
+{ const k = noticeCard({ text: '说明：已放到知识库', url: 'https://example.test/wiki/x', btn: '查看说明' }, O).card.elements as any[]; const b2 = k.find((x) => x.tag === 'action').actions[0];
+  ok(b2.url === 'https://example.test/wiki/x' && b2.text.content === '查看说明', '通知自带链接的，按钮去该链接', JSON.stringify(b2));
+  const k2 = noticeCard({ text: '说明：已放到知识库', url: 'javascript:alert(1)', btn: '查看说明' }, O).card.elements as any[]; const b3 = k2.find((x) => x.tag === 'action').actions[0];
+  ok(b3.url === O + '/#/' && b3.text.content === '前往查看', '不是 https 的链接不用', JSON.stringify(b3)); }
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);

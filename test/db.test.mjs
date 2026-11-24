@@ -2209,5 +2209,34 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   eq((await q(`select 1 from api.person where name = '重复账号'`)).length, 0, '合并账号时并掉待确认的档案');
 }
 
+// ---------- 通知发到全员群：研究单元成立公告、双周表三次汇总 ----------
+{
+  await db.exec(`reset role`);
+  const g = await one(`select payload, user_id from feishu_outbox where target = 'group' and payload->>'text' like '研究单元成立：研究单元「负责人当天确认的研究单元」已成立，挂在课题「%' order by id desc limit 1`);
+  ok(g && g.user_id === null && g.payload.by === '负责人' && /负责人 \S+$/.test(g.payload.text), '研究单元成立时在群里公布，写明所挂课题和负责人', JSON.stringify(g));
+  const cur = (await one(`select token_period(date '2033-03-01')::text c`)).c;
+  const day = async (n) => (await one(`select ($1::date + $2::int)::text d`, [cur, n])).d;
+  const last = async () => (await one(`select payload->>'text' t from feishu_outbox where target = 'group' order by id desc limit 1`)).t;
+  const cnt = async () => (await one(`select count(*)::int n from feishu_outbox where target = 'group'`)).n;
+  const tick = async (n) => { await db.exec(`set role app_api`); await as(null, await day(n)); const r = (await one(`select group_digest_tick() k`)).k; await db.exec(`reset role`); return r; };
+  const n0 = await cnt();
+  ok((await tick(5)) === null, '不是汇总日不发');
+  eq(await cnt(), n0, '不是汇总日队列里不多出消息');
+  ok((await tick(7)) === 'mid', '本期第八天发期中汇总');
+  const span = (await one(`select to_char($1::date, 'MM-DD') || ' 至 ' || to_char($1::date + 13, 'MM-DD') s`, [cur])).s;
+  const t1 = await last();
+  ok(t1.startsWith(`双周表登记情况：本期 ${span}，应登记 `) && /未登记 \d+ 个。/.test(t1) && t1.includes('\n未登记\n· ') && t1.includes('之后三日内可以补登'), '期中汇总列出未登记的研究单元和负责人', t1);
+  ok((await tick(7)) === null, '同一期同一种汇总只发一次');
+  eq(await cnt(), n0 + 1, '重复触发不重复入队');
+  ok((await tick(12)) === 'last', '截止前一日发提醒');
+  ok((await last()).startsWith(`双周表登记提醒：本期 ${span} 明日截止，尚有 `), '截止前一日只列未登记的', await last());
+  ok((await tick(17)) === 'final', '补登期过后发本期结果');
+  const t3 = await last();
+  ok(t3.startsWith(`双周表本期结果：${span} 一期的登记和补登已结束`) && t3.includes('\n连续两期及以上未登记\n· '), '本期结果标出连续未登记的', t3);
+  await db.exec(`set role app_api`); await as(U.dir, await day(21));
+  await raises('登录的人不能触发汇总', /当前角色不能执行此操作/, `select group_digest_tick()`);
+  await raises('群发函数不对接口开放', /permission denied/, `select notify_group('x')`);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
