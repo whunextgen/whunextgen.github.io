@@ -102,7 +102,7 @@ export interface BiweeklyReport { id: string; project_id: string; unit_code: str
   period_start: string; period_end: string; stage: BwStage; question: string; done: string; changed_judgment: string; issues: string | null; division: string; next_plan: string;
   submitted_by_name: string | null; submitted_at: string; updated_by_name: string | null; updated_at: string }
 export interface BiweeklyStatus { project_id: string; unit_code: string; unit_name: string; topic_id: string | null; topic_code: string | null; topic_name: string | null; leader_id: string | null; leader_name: string | null;
-  period_start: string; period_end: string; filled: boolean; prev_filled: boolean; prev_open: boolean; last_period: string | null; last_stage: BwStage | null; missed: number; can_fill: boolean }
+  period_start: string; period_end: string; filled: boolean; prev_filled: boolean; prev_open: boolean; last_period: string | null; last_stage: BwStage | null; missed: number; can_fill: boolean; open: boolean; register_day: string }
 export interface FundProject { id: string; name: string; source: 'school' | 'national' | 'provincial' | 'enterprise' | 'other' | null; fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null;
   owner_id: string | null; owner_name: string | null; quota: string | null; period_start: string | null; period_end: string | null; template_id: string; template_name: string;
   end_rule: 'recall' | 'carry'; note: string | null; status: 'active' | 'closed'; granted: string; recalled: string; cards: number;

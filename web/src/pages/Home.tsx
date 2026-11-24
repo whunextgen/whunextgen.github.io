@@ -118,11 +118,11 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   if (can(me, 'budget.evaluate')) count(data.uapps.filter((u) => u.proposed && !u.return_note && !!u.parent_ok_at).length, 'warn', '待核对', '研究单元申请，待按联席会议纪要核对', '核对', '#/projects');
   count(data.uapps.filter((u) => u.mine && u.proposed && !!u.return_note).length, 'bad', '已退回', '研究单元申请已退回，待修改后重新提交', '查看', '#/projects');
   count(resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id).length, 'warn', '待批示', '资源申请属本人负责的研究单元，待批示', '批示', '#/resource');
-  // 双周表：本人所在的研究单元本期尚未登记，或上一期未登记而仍在补登期内
-  for (const s of data.bws.filter((x) => x.can_fill && (!x.filled || (x.prev_open && !x.prev_filled && x.missed > 0)))) {
-    const until = addDays(s.period_start, 2), late = s.missed > 1 || (s.missed === 1 && !s.prev_open);
-    todo.push({ tone: late ? 'bad' : 'warn', tag: '双周表', go: '登记', href: '#/biweekly',
-      text: `${s.unit_name}${s.filled ? '' : ` 本期（${day(s.period_start)} 至 ${day(s.period_end)}）的双周表尚未登记`}${s.missed === 1 && s.prev_open ? `${s.filled ? ' ' : '；'}上一期未登记，${until} 前可补登` : late ? `；已连续 ${s.missed} 期未登记，由联席会议优先过问` : ''}` });
+  // 双周表：只在登记日（每期第一天）登记。当天未登记的列为待办；过了当天未登记的提示逾期和下一个登记日
+  for (const s of data.bws.filter((x) => x.can_fill && !x.filled)) {
+    todo.push(s.open
+      ? { tone: 'warn', tag: '双周表', go: '登记', href: '#/biweekly', text: `今天是登记日：${s.unit_name} 的双周表请在今天 24:00 前登记，过期不补登` }
+      : { tone: 'bad', tag: '双周表', go: '查看', href: '#/biweekly', text: `${s.unit_name} 本期（${day(s.period_start)} 至 ${day(s.period_end)}）的双周表逾期未登记${s.missed >= 2 ? `，已连续 ${s.missed} 期，转为停滞，负责人须到联席会议说明` : '，由联席会议优先过问'}；下一个登记日 ${day(s.register_day)}` });
   }
   if (seesCards) {
     for (const c of active.filter((x) => num(x.avail) < 0))

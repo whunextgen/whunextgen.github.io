@@ -8,6 +8,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const db = new PGlite();
 const mig = path.join(root, 'supabase/migrations');
 for (const f of readdirSync(mig).sort()) await db.exec(readFileSync(path.join(mig, f), 'utf8'));
+// 登记日（0089）：下面大部分测试是按「期内随时可办」写的，考的是权限、否决期、字段校验这些，与哪一天办无关。
+// 这里先把两处判断换成替身（任何一天都算登记日、本期全程可登记），文件末尾换回真函数，专门测登记日。
+const REAL_GATES = `create or replace function is_register_day() returns boolean language sql stable security definer set search_path = public as $$ select app_today() = token_period(app_today()) $$;
+create or replace function biweekly_open(p_period date) returns boolean language sql stable security definer set search_path = public as $$
+  select p_period = token_period(app_today()) and (app_today() = p_period or (p_period = date '2026-11-23' and app_today() <= date '2026-11-24')) $$;`;
+await db.exec(`create or replace function is_register_day() returns boolean language sql stable security definer set search_path = public as $$ select true $$;
+create or replace function biweekly_open(p_period date) returns boolean language sql stable security definer set search_path = public as $$ select p_period = token_period(app_today()) $$;`);
 
 let pass = 0, fail = 0;
 const ok = (cond, name, extra = '') => { cond ? pass++ : (fail++, console.log('FAIL', name, extra)); };
@@ -2071,14 +2078,13 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok(s.filled === true && s.last_stage === 'first_figure' && s.missed === 0, '本期已登记', JSON.stringify(s));
   await as(plain, '2032-06-30');
   s = await st();
-  ok(s.filled === false && s.prev_filled === true && s.prev_open === true && s.missed === 0, '进入下一期，上一期已登记的不算未登记', JSON.stringify(s));
-  await bw(U1, '2032-06-14', { stage: 'results_table' });
-  ok((await one(`select last_stage from api.biweekly_status where project_id = $1`, [U1])).last_stage === 'results_table', '上一期结束后三日内可以补改');
+  ok(s.filled === false && s.prev_filled === true && s.prev_open === false && s.missed === 0, '进入下一期，上一期已登记的不算未登记', JSON.stringify(s));
+  await raises('上一期不能再补登或修改', /仅可登记本期/, BW, [U1, '2032-06-14', 'results_table', 'a', 'b', 'c', null, 'd', 'e']);
   await as(plain, '2032-07-14');
   s = await st();
-  ok(s.missed === 1 && s.prev_filled === false && s.prev_open === true, '上一期没登记即超过两周未登记，补登期内仍可补登', JSON.stringify(s));
+  ok(s.missed === 1 && s.prev_filled === false && s.prev_open === false, '上一期没登记即未登记一期，不能补登', JSON.stringify(s));
   await as(plain, '2032-07-15');
-  await raises('补登期过后不能再登记上一期', /仅可登记本期/, BW, [U1, '2032-06-28', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
+  await raises('不能再登记上一期', /仅可登记本期/, BW, [U1, '2032-06-28', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
   await bw(U1, '2032-07-12', { stage: 'full_draft' });
   s = await st();
   ok(s.filled === true && s.missed === 1 && s.lp === '2032-07-12', '本期登记了，漏掉的上一期仍计入', JSON.stringify(s));
@@ -2093,42 +2099,6 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   eq((await q(`select 1 from api.biweekly_status where project_id = $1`, [U3])).length, 0, '未成立的研究单元不列入');
   await as(null);
   eq((await q(`select 1 from api.biweekly_report`)).length + (await q(`select 1 from api.biweekly_status`)).length, 0, '未登录看不到双周表');
-  // 双周表接飞书任务：未登记的建任务，登记后完成，补登期过了撤掉
-  const plan = (c = true) => q(`select act, project_id, period_start::text ps, target_id, summary, due::text due, task_guid from biweekly_task_plan($1)`, [c]);
-  const mark = (pid, ps, act, okv, guid = null, err = null) => q(`select biweekly_task_mark($1, $2, $3, $4, $5, $6)`, [pid, ps, act, okv, guid, err]);
-  await as(plain, '2032-08-24');
-  await raises('登录用户不能取任务计划', /当前角色/, `select * from biweekly_task_plan(true)`);
-  await as('', '2032-08-24');
-  eq((await plan(false)).length, 0, '夜里不建新任务');
-  let pl = await plan(), mine = pl.find((x) => x.project_id === U1);
-  ok(mine && mine.act === 'create' && mine.ps === '2032-08-23' && mine.due === '2032-09-05' && /^登记双周表：.+（08-23 至 09-05）$/.test(mine.summary) && /^o[un]_/.test(mine.target_id) && pl.every((x) => x.act === 'create'), '本期未登记的研究单元各建一条任务，截止日是本期最后一天', JSON.stringify(mine));
-  eq((await plan()).length, pl.length, '没回报之前再取还是这些，不会重复登记');
-  await mark(U1, '2032-08-23', 'create', false, null, '网络错误');
-  ok((await plan()).some((x) => x.project_id === U1 && x.act === 'create'), '建失败的下次再试');
-  await mark(U1, '2032-08-23', 'create', true, 'guid-1');
-  ok(!(await plan()).some((x) => x.project_id === U1), '建好之后不再出现');
-  const other = pl.find((x) => x.project_id !== U1);
-  if (other) { for (let i = 0; i < 5; i++) await mark(other.project_id, other.ps, 'create', false, null, '没有权限');
-    ok(!(await plan()).some((x) => x.project_id === other.project_id), '连续五次失败的不再重试'); }
-  await as(plain, '2032-08-24');
-  await bw(U1, '2032-08-23', { stage: 'submitted' });
-  await as('', '2032-08-24');
-  mine = (await plan(false)).find((x) => x.project_id === U1);
-  ok(mine && mine.act === 'done' && mine.task_guid === 'guid-1', '登记之后任务标为完成，夜里也办', JSON.stringify(mine));
-  await mark(U1, '2032-08-23', 'done', true);
-  ok(!(await plan()).some((x) => x.project_id === U1), '完成之后不再出现；已登记的也不再建');
-  await as('', '2032-09-06');
-  pl = await plan();
-  const nxt = pl.find((x) => x.project_id === U1);
-  ok(nxt && nxt.act === 'create' && nxt.ps === '2032-09-06', '进入下一期，重新建任务', JSON.stringify(nxt));
-  await mark(U1, '2032-09-06', 'create', true, 'guid-2');
-  await as('', '2032-09-22');
-  eq((await plan(false)).filter((x) => x.project_id === U1 && x.ps === '2032-09-06').length, 0, '补登期内任务留着');
-  await as('', '2032-09-23');
-  const dr = (await plan(false)).find((x) => x.project_id === U1 && x.ps === '2032-09-06');
-  ok(dr && dr.act === 'drop' && dr.task_guid === 'guid-2', '补登期过了仍未登记的，撤掉任务', JSON.stringify(dr));
-  await mark(U1, '2032-09-06', 'drop', true);
-  ok(!(await plan(false)).some((x) => x.project_id === U1 && x.ps === '2032-09-06'), '撤掉之后不再出现');
   await as(null);
 }
 }
@@ -2294,20 +2264,21 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const cnt = async () => (await one(`select count(*)::int n from feishu_outbox where target = 'group'`)).n;
   const tick = async (n) => { await db.exec(`set role app_api`); await as(null, await day(n)); const r = (await one(`select group_digest_tick() k`)).k; await db.exec(`reset role`); return r; };
   const n0 = await cnt();
-  ok((await tick(5)) === null, '不是汇总日不发');
-  eq(await cnt(), n0, '不是汇总日队列里不多出消息');
-  ok((await tick(7)) === 'mid', '本期第八天发期中汇总');
-  const span = (await one(`select to_char($1::date, 'MM-DD') || ' 至 ' || to_char($1::date + 13, 'MM-DD') s`, [cur])).s;
+  ok((await tick(5)) === null && (await tick(7)) === null && (await tick(12)) === null, '不是通报日不发，原来的期中汇总和期末提醒取消');
+  eq(await cnt(), n0, '不是通报日队列里不多出消息');
+  ok((await tick(13)) === 'eve', '登记日前一天发提醒');
+  const nd = await day(14), span2 = (await one(`select to_char($1::date, 'MM-DD') || ' 至 ' || to_char($1::date + 13, 'MM-DD') s`, [nd])).s;
   const t1 = await last();
-  ok(t1.startsWith(`双周表登记情况：本期 ${span}，应登记 `) && /未登记 \d+ 个。/.test(t1) && t1.includes('\n未登记\n· ') && t1.includes('之后三日内可以补登'), '期中汇总列出未登记的研究单元和负责人', t1);
-  ok((await tick(7)) === null, '同一期同一种汇总只发一次');
+  ok(t1.startsWith(`登记日提醒：明天（${nd.slice(5)}）是 ${span2} 一期的登记日`) && t1.includes('当天 24:00 截止，不补登'), '前一日提醒写明哪天、只在当天办、不补登', t1);
+  ok((await one(`select payload->'all' a from feishu_outbox where target = 'group' order by id desc limit 1`)).a === true && !('all' in g.payload), '前一日的提醒 @所有人');
+  ok((await tick(13)) === null, '同一期同一种通报只发一次');
   eq(await cnt(), n0 + 1, '重复触发不重复入队');
-  ok((await tick(12)) === 'last', '截止前一日发提醒');
-  ok((await last()).startsWith(`双周表登记提醒：本期 ${span} 明日截止，尚有 `), '截止前一日只列未登记的', await last());
-  ok((await one(`select payload->'all' a from feishu_outbox where target = 'group' order by id desc limit 1`)).a === true && !('all' in g.payload) && (await one(`select count(*)::int n from feishu_outbox where target = 'group' and payload ? 'all'`)).n === 1, '只有截止前一日的提醒 @所有人');
-  ok((await tick(17)) === 'final', '补登期过后发本期结果');
+  ok((await tick(14)) === 'open', '登记日当天发通知');
+  ok((await last()).startsWith(`登记日：今天（${nd.slice(5)}）是 ${span2} 一期的登记日`), '登记日当天的通知', await last());
+  ok((await tick(15)) === 'final', '登记日次日发本期结果');
   const t3 = await last();
-  ok(t3.startsWith(`双周表本期结果：${span} 一期的登记和补登已结束`) && t3.includes('\n连续两期及以上未登记\n· '), '本期结果标出连续未登记的', t3);
+  ok(t3.startsWith(`双周表本期结果：${span2} 一期的登记已于 ${nd.slice(5)} 24:00 截止，应登记 `) && /已登记 \d+ 个，未登记 \d+ 个。/.test(t3) && t3.includes('\n未登记\n· ') && t3.includes('\n连续两期及以上未登记\n· ') && t3.includes('转为停滞'), '本期结果列出未登记的，标出连续未登记的并说明转为停滞', t3);
+  eq((await one(`select count(*)::int n from feishu_outbox where target = 'group' and payload ? 'all'`)).n, 1, '只有前一日的提醒 @所有人');
   await db.exec(`set role app_api`); await as(U.dir, await day(21));
   await raises('登录的人不能触发汇总', /当前角色不能执行此操作/, `select group_digest_tick()`);
   await raises('群发函数不对接口开放', /permission denied/, `select notify_group('x')`);
@@ -2338,6 +2309,88 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok(ns.rows.some((x) => x.t.startsWith('课题改名：') && x.user_id === U.dir), '课题改名通知中心负责人');
   await db.query(`update project set name = $2 where id = $1`, [un.id, un.name]); await db.query(`update project set name = $2 where id = $1`, [un.tid, un.tname]);
   await db.exec(`set role app_api`);
+}
+
+// ---------- 登记日：研究单元申请和双周表只在每期第一天办 ----------
+{
+  await db.exec(`reset role`); await db.exec(REAL_GATES);
+  const fx = await one(`select id, owner_id, parent_id from project where name = '成员申请的研究单元' and layer = 'paper' and active and not proposed`);
+  const U1 = fx.id, plain = fx.owner_id, TB = fx.parent_id, pu = `select propose_unit($1, $2, $3, $4, $5, $6, $7) v`;
+  await db.exec(`set role app_api`);
+  const D0 = (await one(`select token_period(date '2034-03-01')::text c`)).c;
+  const day = async (n) => (await one(`select ($1::date + $2::int)::text d`, [D0, n])).d;
+  const D1 = await day(1), N0 = await day(14), N1 = await day(15), mmdd = (x) => x.slice(5);
+  // 判断本身，含第一期切换时的例外
+  const open = async (today, period) => { await as(plain, today); return (await one(`select biweekly_open($1) v, is_register_day() r, next_register_day()::text n`, [period])); };
+  ok((await open(D0, D0)).v === true && (await open(D1, D0)).v === false && (await open(await day(13), D0)).v === false && (await open(D0, await day(-14))).v === false, '双周表只在本期第一天开放');
+  let o = await open(D1, D0);
+  ok(o.r === false && o.n === N0 && (await open(D0, D0)).r === true && (await open(D0, D0)).n === D0, '登记日是每期第一天；其余日子给出下一个登记日', JSON.stringify(o));
+  ok((await open('2026-11-23', '2026-11-23')).v === true && (await open('2026-11-24', '2026-11-23')).v === true && (await open('2026-11-25', '2026-11-23')).v === false, '第一期切换时放到 11-24，之后不放宽');
+  // 双周表
+  const BW = `select save_biweekly_report($1, $2, 'idea', 'a', 'b', 'c', null, 'd', 'e') v`;
+  const st = async () => one(`select filled, missed, open, register_day::text rd, prev_open from api.biweekly_status where project_id = $1`, [U1]);
+  await as(plain, D1);
+  await raises('登记日过了不能登记本期', new RegExp(`双周表只在每期第一天登记，本期的登记日已过，下一个登记日为 ${mmdd(N0)}`), BW, [U1, D0]);
+  const m0 = (await st());
+  ok(m0.filled === false && m0.open === false && m0.rd === N0 && m0.prev_open === false, '登记日过后：不开放，给出下一个登记日', JSON.stringify(m0));
+  await as(plain, D0);
+  const mOpen = await st();
+  ok(mOpen.open === true && mOpen.rd === D0 && mOpen.missed === m0.missed - 1, '登记日当天还没登记不算未登记；过了当天还没登记的，当期就计一期', JSON.stringify([mOpen, m0]));
+  await q(BW, [U1, D0]);
+  await q(BW, [U1, D0]);
+  ok((await st()).filled === true, '登记日当天可以登记，也可以修改');
+  await as(plain, D1);
+  await raises('登记日过后不能再改', /登记日已过/, BW, [U1, D0]);
+  ok((await st()).missed === mOpen.missed, '登记了的，过了登记日不计未登记');
+  // 研究单元申请：提交不限日子，同意、退回、核对只在登记日
+  await as(U.mem2, D1);
+  const A1 = await val(pu, [null, TB, '登记日之外提交的研究单元', D0, D0, '说明', null]);
+  ok(!!A1, '研究单元申请平时可以提交');
+  await as(U.lead, D1);
+  const gate = new RegExp(`研究单元申请只在每期第一天办理，下一个办理日为 ${mmdd(N0)}`);
+  await raises('不是登记日不能同意', gate, `select approve_unit($1)`, [A1]);
+  await raises('不是登记日不能退回', gate, `select return_unit($1, '原因')`, [A1]);
+  await as(U.dir, D1);
+  await raises('不是登记日不能核对', gate, `select confirm_unit($1)`, [A1]);
+  await as(U.lead, N0);
+  await q(`select approve_unit($1)`, [A1]);
+  ok((await one(`select parent_ok_at from api.unit_apply where id = $1`, [A1])).parent_ok_at != null, '登记日当天可以同意');
+  await as(U.dir, N0);
+  await q(`select confirm_unit($1)`, [A1]);
+  ok((await one(`select proposed from project where id = $1`, [A1]).catch(() => null)) !== undefined, '登记日当天可以核对成立');
+  // 飞书任务：登记日当天建，截止日是当天；登记了完成，过了当天没登记的撤掉
+  const plan = (c = true) => q(`select act, project_id, period_start::text ps, target_id, summary, due::text due, task_guid from biweekly_task_plan($1)`, [c]);
+  const mark = (pid, ps, act, okv, guid = null, err = null) => q(`select biweekly_task_mark($1, $2, $3, $4, $5, $6)`, [pid, ps, act, okv, guid, err]);
+  await as(plain, N0);
+  await raises('登录用户不能取任务计划', /当前角色/, `select * from biweekly_task_plan(true)`);
+  await as('', await day(20));
+  eq((await plan()).filter((x) => x.act === 'create').length, 0, '不是登记日不建任务');
+  await as('', N0);
+  eq((await plan(false)).filter((x) => x.act === 'create').length, 0, '后半夜不建新任务');
+  let pl = await plan(), mine = pl.find((x) => x.project_id === U1);
+  ok(mine && mine.act === 'create' && mine.ps === N0 && mine.due === N0 && mine.summary.endsWith(`（${mmdd(N0)} 登记日，当天 24:00 截止）`) && /^o[un]_/.test(mine.target_id), '登记日当天给未登记的研究单元建任务，截止日是当天', JSON.stringify(mine));
+  eq((await plan()).length, pl.length, '没回报之前再取还是这些，不会重复登记');
+  await mark(U1, N0, 'create', false, null, '网络错误');
+  ok((await plan()).some((x) => x.project_id === U1 && x.act === 'create'), '建失败的下次再试');
+  await mark(U1, N0, 'create', true, 'guid-1');
+  ok(!(await plan()).some((x) => x.project_id === U1), '建好之后不再出现');
+  const other = pl.find((x) => x.project_id !== U1);
+  if (other) { await mark(other.project_id, other.ps, 'create', true, 'guid-9');
+    await as('', N1);
+    const dr = (await plan(false)).find((x) => x.project_id === other.project_id);
+    ok(dr && dr.act === 'drop' && dr.task_guid === 'guid-9', '登记日过了仍未登记的，撤掉任务', JSON.stringify(dr));
+    await mark(other.project_id, other.ps, 'drop', true);
+    ok(!(await plan(false)).some((x) => x.project_id === other.project_id), '撤掉之后不再出现'); }
+  await as(plain, N0);
+  await q(BW, [U1, N0]);
+  await as('', N0);
+  mine = (await plan(false)).find((x) => x.project_id === U1);
+  ok(mine && mine.act === 'done' && mine.task_guid === 'guid-1', '登记之后任务标为完成', JSON.stringify(mine));
+  await mark(U1, N0, 'done', true);
+  await as('', N1);
+  ok(!(await plan()).some((x) => x.project_id === U1), '完成的任务过了登记日不会被撤，也不再建');
+  for (let i = 0; i < 5; i++) await mark(U1, N0, 'done', false, null, '没有权限');
+  await as(null);
 }
 
 console.log(`${pass} passed, ${fail} failed`);
