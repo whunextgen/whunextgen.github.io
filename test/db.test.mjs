@@ -509,10 +509,10 @@ await q(`select merge_user($1, $2)`, [dup, U.mem2]);
 const ua = await q(`select * from api.user_admin where id in ($1, $2)`, [dup, U.mem2]);
 ok(ua.find(u => u.id === dup).active === false && ua.find(u => u.id === U.mem2).email === 'dup@example.com' && ua.find(u => u.id === U.mem2).linked, '合并后旧账号停用，邮箱并到保留的账号');
 const xo = (await one(`select (login_feishu('ou_x_old', '跨应用')).id as id`)).id;
-const xn = (await one(`select (login_feishu('ou_x_new', '跨应用', null, 'on_x')).id as id`)).id;
-ok(xo !== xn, '旧账号没记 union_id 时，新应用登录另建了账号');
+const xn = (await one(`select (login_feishu('ou_x_new', '跨应用（改过名）', null, 'on_x')).id as id`)).id;
+ok(xo !== xn, '旧账号没记 union_id、飞书上又改了名的，新应用登录另建账号');
 await q(`select merge_user($1, $2)`, [xn, xo]);
-ok((await one(`select (login_feishu('ou_x_new', '跨应用', null, 'on_x')).id as id`)).id === xo, '只有一边有 union_id 的两个账号可以合并，之后登录认回保留的账号');
+ok((await one(`select (login_feishu('ou_x_new', '跨应用（改过名）', null, 'on_x')).id as id`)).id === xo, '只有一边有 union_id 的两个账号可以合并，之后登录认回保留的账号');
 const y1 = (await one(`select (login_feishu('ou_y1', '甲', null, 'on_y1')).id as id`)).id;
 const y2 = (await one(`select (login_feishu('ou_y2', '乙', null, 'on_y2')).id as id`)).id;
 await raises('两边都有 union_id 的账号不能合并', /两个飞书身份/, `select merge_user($1, $2)`, [y1, y2]);
@@ -2207,6 +2207,31 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir, D);
   await q(`select merge_user($1, $2)`, [m1.id, U.mem2]);
   eq((await q(`select 1 from api.person where name = '重复账号'`)).length, 0, '合并账号时并掉待确认的档案');
+  // 首次登录按姓名自动对上原有账号或档案
+  await db.exec(`reset role`);
+  const oldA = (await one(`insert into app_user (feishu_open_id, name, active) values ('ou_old_a', '旧账号甲', true) returning id`)).id;
+  await db.query(`insert into app_user (feishu_open_id, name, active) values ('ou_old_b1', '同名乙', true), ('ou_old_b2', '同名乙', true)`);
+  const oldC = (await one(`insert into app_user (feishu_open_id, name, active, role) values ('ou_old_c', '旧账号丙', true, 'finance') returning id`)).id;
+  const nq0 = (await one(`select count(*)::int n from feishu_outbox where payload->>'text' like '人员档案自动对应：%'`)).n;
+  await db.exec(`set role app_api`); await as(null, D);
+  const ca = await one(`select id, active, feishu_union_id u from login_feishu('ou_new_a', '旧账号甲', null, 'on_new_a')`);
+  ok(ca.id === oldA && ca.active === true && ca.u === 'on_new_a', '旧账号没有记 union_id 的，首次登录按姓名对到原账号，不另建', JSON.stringify(ca));
+  ok((await one(`select id from login_feishu('ou_new_a', '旧账号甲', null, 'on_new_a')`)).id === oldA, '对上之后再登录仍是原账号');
+  const cb = await one(`select id, active from login_feishu('ou_new_b', '同名乙', null, 'on_new_b')`);
+  ok(cb.active === false, '同名账号不止一个的不自动对，仍待人事确认');
+  const cc = await one(`select id, active from login_feishu('ou_new_c', '旧账号丙', null, 'on_new_c')`);
+  ok(cc.id !== oldC && cc.active === false, '有成员以外角色的账号不按姓名自动对');
+  await as(U.fin, D);
+  const pd = await val(save, rec(null, '只有档案丁', 'ri', 'active'));
+  await as(null, D);
+  const cd = await one(`select id, active, kind from login_feishu('ou_new_d', '只有档案丁', null, 'on_new_d')`);
+  await as(U.fin, D);
+  const pdn = await one(`select user_id, has_feishu from api.person where id = $1`, [pd]);
+  ok(cd.active === true && cd.kind === 'ri' && pdn.user_id === cd.id && pdn.has_feishu === true, '只有档案没有账号的，首次登录按姓名对到档案，账号启用', JSON.stringify([cd, pdn]));
+  eq((await q(`select 1 from api.person where name in ('旧账号甲', '只有档案丁') and status = 'pending'`)).length, 0, '自动对上的不留待确认档案');
+  await db.exec(`reset role`);
+  eq((await one(`select count(*)::int n from feishu_outbox where payload->>'text' like '人员档案自动对应：%'`)).n - nq0 > 0 ? 1 : 0, 1, '自动对上的通知人事核对');
+  await db.exec(`set role app_api`);
 }
 
 // ---------- 通知发到全员群：研究单元成立公告、双周表三次汇总 ----------
