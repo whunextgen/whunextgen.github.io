@@ -56,7 +56,24 @@ const Mark = () => (
   </svg>
 );
 
+// 登录后回到原来要打开的页面
+const loginHref = () => `/auth/feishu/login?to=${encodeURIComponent(location.hash.slice(1) || '/')}`;
+// 在飞书客户端里打开的，不停在登录页，直接走授权（飞书对本单位应用不再询问）。一分钟内试过一次就不再自动跳，避免来回跳转
+const autoLogin = () => {
+  if (!/Lark|Feishu/i.test(navigator.userAgent)) return false;
+  try {
+    if (sessionStorage.getItem('fp_out')) return false;
+    const last = Number(sessionStorage.getItem('fp_auto') ?? 0);
+    if (Date.now() - last < 60000) return false;
+    sessionStorage.setItem('fp_auto', String(Date.now()));
+  } catch { return false; }
+  return true;
+};
+
 function Login({ reason }: { reason?: string }) {
+  const [auto] = useState(() => !reason && autoLogin());
+  useEffect(() => { if (auto) location.replace(loginHref()); }, [auto]);
+  if (auto) return <p className="empty">正在登录…</p>;
   return (
     <div className="login">
       <div className="login-in">
@@ -64,7 +81,7 @@ function Login({ reason }: { reason?: string }) {
         <h1>正则</h1>
         <p>按课题和研究单元编制年度预算，按当年经费卡执行，按学校入账决算。请使用中心飞书账号登录。</p>
         {reason && <div className="msg bad" role="alert">{reason}</div>}
-        <a className="btn" href="/auth/feishu/login">飞书登录 →</a>
+        <a className="btn" href={loginHref()}>飞书登录 →</a>
       </div>
       <div className="login-word" aria-hidden="true">预算<i>与</i><br />决算</div>
     </div>

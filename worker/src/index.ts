@@ -232,6 +232,11 @@ export async function unseal(secret: string, owner: string, cipher: string) {
 }
 export const mask = (s: string) => (s.length >= 12 ? `${s.slice(0, 3)}…${s.slice(-4)}` : '已保存');
 
+// 会话有效期：30 天，每次打开页面顺延
+export const SESSION_TTL = 30 * 86400;
+// 登录后要回到的页面：只认站内路径，其余一律回首页
+export const safeTo = (s: string | null | undefined) => (s && /^\/[A-Za-z0-9_\-\/]{0,120}$/.test(s) ? s : '/');
+
 const cookies = (req: Request) =>
   Object.fromEntries((req.headers.get('cookie') ?? '').split(/;\s*/).filter(Boolean).map((c) => {
     const i = c.indexOf('=');
@@ -465,9 +470,10 @@ export default {
         to.searchParams.set('redirect_uri', redirectUri);
         to.searchParams.set('response_type', 'code');
         to.searchParams.set('state', state);
-        return new Response(null, { status: 302, headers: {
-          location: to.toString(),
-          'set-cookie': setCookie('fp_state', await sign(env.SESSION_SECRET, 'state', state, 600), 600) } });
+        const h = new Headers({ location: to.toString() });
+        h.append('set-cookie', setCookie('fp_state', await sign(env.SESSION_SECRET, 'state', state, 600), 600));
+        h.append('set-cookie', setCookie('fp_to', await sign(env.SESSION_SECRET, 'to', safeTo(url.searchParams.get('to')), 600), 600));
+        return new Response(null, { status: 302, headers: h });
       }
 
       if (url.pathname === '/auth/feishu/callback') {
@@ -487,8 +493,10 @@ export default {
           sql`select id, active from login_feishu(${u.open_id}, ${u.name ?? ''}, ${u.enterprise_email || u.email || null}, ${u.union_id ?? null})`);
         // 账号未启用：没有人员档案的新面孔待人事确认，或者已停用。不发会话，回到登录页说明
         if (!row.active) return new Response(null, { status: 302, headers: { location: `${appOrigin}/?wait=1`, 'set-cookie': setCookie('fp_state', '', 0) } });
-        const headers = new Headers({ location: appOrigin });
-        headers.append('set-cookie', setCookie('fp_session', await sign(env.SESSION_SECRET, 'uid', row.id, 7 * 86400), 7 * 86400));
+        const back = safeTo(await verify(env.SESSION_SECRET, 'to', jar.fp_to));
+        const headers = new Headers({ location: back === '/' ? appOrigin : `${appOrigin}/#${back}` });
+        headers.append('set-cookie', setCookie('fp_session', await sign(env.SESSION_SECRET, 'uid', row.id, SESSION_TTL), SESSION_TTL));
+        headers.append('set-cookie', setCookie('fp_to', '', 0));
         headers.append('set-cookie', setCookie('fp_state', '', 0));
         return new Response(null, { status: 302, headers });
       }
@@ -511,7 +519,10 @@ export default {
       if (view && req.method === 'GET') {
         if (!VIEWS.has(view)) return json({ error: 'not found' }, 404, cors);
         const filters = [...url.searchParams].filter(([k]) => /^[a-z_]+$/.test(k));
-        return json(await readView(pgRun(env), uid, view, filters), 200, cors);
+        const rows = await readView(pgRun(env), uid, view, filters);
+        // 页面每次打开都先读本人信息：读到了就把会话顺延
+        const renew = view === 'me' && Array.isArray(rows) && rows.length > 0;
+        return json(rows, 200, renew ? { ...cors, 'set-cookie': setCookie('fp_session', await sign(env.SESSION_SECRET, 'uid', uid, SESSION_TTL), SESSION_TTL) } : cors);
       }
 
       const fn = url.pathname.match(/^\/api\/rpc\/([a-z_]+)$/)?.[1];

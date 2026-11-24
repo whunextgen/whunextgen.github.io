@@ -32,7 +32,8 @@ export const apiMeta = (): Promise<ApiMeta> => send('/api/meta');
 // 访问令牌：明文由服务端生成，只在这一次返回
 export const createToken = (name: string, write: boolean, days: number): Promise<string> => post('/api/token/create', { name, write, days });
 
-export const logout = () => send('/auth/logout', { method: 'POST' });
+// 本人点了退出的，这个窗口里不再自动登录
+export const logout = () => { try { sessionStorage.setItem('fp_out', '1'); } catch { /* 存不了就算了 */ } return send('/auth/logout', { method: 'POST' }); };
 
 // 一次取多张视图；reload 用于写操作之后刷新
 export function useViews<T extends Record<string, unknown[]>>(spec: { [K in keyof T]: [string, Record<string, string>?] }, key = '') {
