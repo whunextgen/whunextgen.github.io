@@ -2399,5 +2399,43 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(null);
 }
 
+// ---------- 投稿与评审（0091）：挂在研究单元上，只有名单内成员、负责人、所挂课题负责人和中心负责人看得到 ----------
+{
+  await db.exec(`reset role`);
+  const u = await one(`select p.id, p.owner_id, (select owner_id from project where id = p.parent_id) as topic_owner from project p
+    where p.layer = 'paper' and p.active and not p.proposed and p.owner_id is not null and p.parent_id is not null
+      and (select owner_id from project where id = p.parent_id) is not null and (select owner_id from project where id = p.parent_id) <> p.owner_id limit 1`);
+  ok(!!u, '有一个负责人与课题负责人不同的研究单元可用');
+  const out = (await one(`insert into app_user (name, role, feishu_open_id) values ('评审外人', 'member', 'ou_review_out') returning id`)).id;
+  const mem = (await one(`insert into app_user (name, role, feishu_open_id) values ('评审成员', 'member', 'ou_review_mem') returning id`)).id;
+  await q(`insert into project_member (project_id, user_id, joined_on) values ($1, $2, '2026-11-01')`, [u.id, mem]);
+  const s0 = (await one(`insert into submission (project_id, venue, cycle, forum, number, title, status, ac_overall, ac_gist) values ($1, 'ACL ARR', '2026-08-01', 'f-old', 11, '旧稿', 'resubmitted', 3.5, '补充基线') returning id`, [u.id])).id;
+  const s1 = (await one(`insert into submission (project_id, venue, cycle, forum, number, title, prev_id) values ($1, 'ACL ARR', '2026-10-01', 'f-new', 22, '新稿', $2) returning id`, [u.id, s0])).id;
+  const r1 = (await one(`insert into submission_review (submission_id, reviewer, overall, soundness, excitement, confidence, weaknesses) values ($1, 'Reviewer_a', 2, 2.5, 2.5, 4, 'too small') returning id`, [s1])).id;
+  await q(`insert into submission_review (submission_id, reviewer, overall) values ($1, 'Reviewer_b', 3.5)`, [s1]);
+  const th = (await one(`insert into review_thread (project_id, axis, label) values ($1, 'ti', '数据规模小') returning id`, [u.id])).id;
+  await q(`insert into review_point (review_id, ord, axis, gist, quote, thread_id) values ($1, 0, 'ti', '数据太少', 'too small', $2), ($1, 1, 'li', '范围窄', null, null)`, [r1, th]);
+  await raises('四字之外的归类不收', /review_point_axis_check/, `insert into review_point (review_id, axis, gist) values ($1, 'qi', 'x')`, [r1]);
+  await raises('轮次须记当月一日', /submission_cycle_check/, `insert into submission (project_id, venue, cycle, forum, title) values ($1, 'ACL ARR', '2026-10-10', 'f-bad', 'x')`, [u.id]);
+  await raises('同一位审稿人在一轮里只有一份', /submission_review_submission_id_reviewer_key/, `insert into submission_review (submission_id, reviewer) values ($1, 'Reviewer_a')`, [s1]);
+  await db.exec(`set role app_api`);
+  const sees = async (uid) => { await as(uid, '2026-11-25');
+    return [(await q(`select 1 from api.submission where project_id = $1`, [u.id])).length, (await q(`select 1 from api.submission_review where project_id = $1`, [u.id])).length,
+      (await q(`select 1 from api.review_point where project_id = $1`, [u.id])).length, (await q(`select 1 from api.review_thread where project_id = $1`, [u.id])).length].join(','); };
+  const want = async (uid, v, name) => { const g = await sees(uid); ok(g === v, name, g); };
+  await want(u.owner_id, '2,2,2,1', '研究单元负责人看得到投稿、评审、质疑和追踪');
+  await want(mem, '2,2,2,1', '名单内成员看得到');
+  await want(u.topic_owner, '2,2,2,1', '所挂课题的负责人看得到');
+  await want(U.dir, '2,2,2,1', '中心负责人看得到');
+  await want(out, '0,0,0,0', '名单外的成员看不到');
+  await want(null, '0,0,0,0', '未登录看不到');
+  await as(u.owner_id, '2026-11-25');
+  const row = await one(`select mean_overall, prev_id, relation, status from api.submission where id = $1`, [s1]);
+  ok(Number(row.mean_overall) === 2.75 && row.prev_id === s0 && row.relation === 'self' && row.status === 'review', '投稿带审稿人均分，并指向上一轮', JSON.stringify(row));
+  await raises('页面一侧不能直接写评审', /permission denied/, `insert into submission_review (submission_id, reviewer) values ($1, 'Reviewer_z')`, [s1]);
+  await raises('页面一侧不能读底表', /permission denied/, `select 1 from submission`);
+  await as(null);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

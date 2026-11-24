@@ -227,3 +227,11 @@ export interface LineExec { id: string; year: number; project_id: string; catego
 export interface LinePick { id: string; project_id: string; project_code: string; project_name: string; category_id: string; category_name: string; purpose: string }
 export interface BudgetRevision { id: string; line_id: string; year: number; project_id: string; purpose: string; old_amount: string; new_amount: string; note: string | null; revised_by_name: string | null; revised_at: string }
 export interface BudgetReview { id: string; year: number; quarter: number; project_id: string; note: string | null; reviewed_by_name: string | null; reviewed_at: string }
+
+// 投稿与评审：挂在研究单元上，按可见范围过滤
+export interface Submission { id: string; project_id: string; relation: 'self' | 'prior'; venue: string; cycle: string; forum: string; number: number | null; title: string; submitted_on: string | null;
+  status: string; prev_id: string | null; ac_overall: string | null; ac_text: string | null; ac_revisions: string | null; ac_gist: string | null; mean_overall: string | null }
+export interface SubmissionReview { id: string; submission_id: string; project_id: string; reviewer: string; overall: string | null; soundness: string | null; excitement: string | null; confidence: string | null;
+  summary: string | null; strengths: string | null; weaknesses: string | null; comments: string | null }
+export interface ReviewPoint { id: string; review_id: string; submission_id: string; project_id: string; ord: number; axis: string; gist: string; quote: string | null; thread_id: string | null }
+export interface ReviewThread { id: string; project_id: string; relation: 'self' | 'prior'; axis: string; label: string; ord: number }
