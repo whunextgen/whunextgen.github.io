@@ -2,45 +2,65 @@
 import { noticeCard, inFeishu } from '../src/index.ts';
 let bad = 0, n = 0; const ok = (c: unknown, name: string, extra = '') => { n++; if (!c) { bad++; console.log('FAIL', name, extra); } };
 const O = 'https://example.test';
-const parts = (text: string, by?: string) => {
-  const { title, card } = noticeCard({ text, by, at: '11-24 01:00' }, O); const e = card.elements as any[];
-  const fields = Object.fromEntries((e.find((x) => x.fields)?.fields ?? []).map((f: any) => f.text.content.split('：')));
-  return { title, fields, text: e.find((x) => x.tag === 'div' && x.text)?.text.content as string | undefined, btn: e.find((x) => x.tag === 'action').actions[0], note: e.find((x) => x.tag === 'note').elements[0].content as string, color: card.header.template };
+const parts = (text: string, by?: string, more: object = {}) => {
+  const { title, view: v } = noticeCard({ text, by, at: '11-24 01:00', ...more }, O);
+  return { title, fields: Object.fromEntries(v.fields), text: v.text, btn: { url: v.btn.url, type: v.btn.type, text: { content: v.btn.text } }, note: v.note, sub: v.sub, kind: v.kind, tag: v.tag };
 };
+const els = (b: any, id?: string, marks?: any) => { const body = (noticeCard(b, O, id, marks).card.body.elements as any[]); return { bar: body[0], main: body[1].columns[0].elements as any[] }; };
+const button = (b: any, id?: string) => els(b, id).main.find((x) => x.tag === 'button');
 let c = parts('研究单元申请待同意：甲 申请在课题「课题一」之下成立「单元一」，使用该课题的预算。请在「课题管理」中同意或退回', '甲');
 ok(c.title === '研究单元申请待同意' && c.fields['申请人'] === '甲' && c.fields['所挂课题'] === '课题一' && c.fields['研究单元'] === '单元一', '待同意：标题和分项', JSON.stringify(c));
-ok(c.btn.url === O + '/#/projects' && c.btn.text.content === '前往办理' && c.color === 'red', '待同意：按钮去课题管理', JSON.stringify(c.btn));
-ok(c.text === '使用该课题的预算。请在「课题管理」中同意或退回' && c.note === '正则 · 经办：甲 · 11-24 01:00', '待同意：正文只留余下的话，落款有经办人和时间', JSON.stringify(c));
+ok(c.btn.url === O + '/#/projects' && c.btn.text.content === '前往办理' && c.kind === 'todo' && c.tag === '待办', '待同意：按钮去课题管理，归为待办', JSON.stringify(c.btn));
+ok(c.text === '使用该课题的预算。请在「课题管理」中同意或退回' && c.note === '正则 · 经办：甲' && c.sub === '11-24 01:00', '待同意：正文只留余下的话，落款有经办人，时间在顶栏副行', JSON.stringify(c));
 c = parts('研究单元申请待核对：甲 申请成立「单元一」，挂在课题「课题一」之下，课题负责人已同意，联席会议 2032-06-04 通过');
 ok(c.title === '研究单元申请待核对' && c.fields['联席会议通过'] === '2032-06-04' && c.fields['研究单元'] === '单元一' && c.text === '课题负责人已同意', '待核对：会议日期进分项', JSON.stringify(c));
-ok(c.note === '正则 · 11-24 01:00', '没有经办人时落款不留空位', c.note);
+ok(c.note === '正则', '没有经办人时落款不留空位', c.note);
 c = parts('研究单元「单元一」已成立，挂在课题「课题一」之下。本人为负责人，可管理成员名单，并请登记本期双周表');
-ok(c.title === '研究单元已成立' && c.btn.url.endsWith('/#/projects') && c.text === '本人为负责人，可管理成员名单，并请登记本期双周表', '已成立：标题按句式定，双周表字样不改去向', JSON.stringify(c));
+ok(c.title === '研究单元已成立' && c.btn.url.endsWith('/#/projects') && c.text === '本人为负责人，可管理成员名单，并请登记本期双周表' && c.kind === 'pass' && c.btn.type === 'text', '已成立：标题按句式定，双周表字样不改去向，归为通过', JSON.stringify(c));
 c = parts('乙 给你派了任务「整理双周表和预算」');
-ok(c.title === '任务' && c.btn.url.endsWith('/#/tasks') && c.text === '乙 给你派了任务「整理双周表和预算」', '书名号里的字不参与归类', JSON.stringify(c));
+ok(c.title === '任务' && c.btn.url.endsWith('/#/tasks') && c.text === '乙 给你派了任务「整理双周表和预算」' && c.kind === 'todo' && c.sub === '11-24 01:00', '书名号里的字不参与归类；派任务归为待办', JSON.stringify(c));
 c = parts('2032 年度评定完成：课题「课题一」定为「甲档」，年度上限 100 元');
-ok(c.title === '2032 年度评定完成' && c.btn.url.endsWith('/#/plan') && c.btn.text.content === '前往查看' && c.color === 'grey', '冒号前的短语作标题', JSON.stringify(c));
+ok(c.title === '2032 年度评定完成' && c.btn.url.endsWith('/#/plan') && c.btn.text.content === '前往查看' && c.kind === 'fyi' && c.sub === '年度评定 · 11-24 01:00', '冒号前的短语作标题，业务类别进副行，归为知会', JSON.stringify(c));
 c = parts('一句认不出的话');
 ok(c.title === '通知' && c.btn.url === O + '/#/' && c.text === '一句认不出的话', '认不出的句式整句放正文，按钮回首页', JSON.stringify(c));
 c = parts('研究单元立项提醒：你作为第一作者的项目「甲」还没有提交研究单元立项申请。\n请在 11 月 24 日 24:00 前完成', '乙');
-ok(c.title === '研究单元立项提醒' && c.btn.url.endsWith('/#/projects') && c.btn.text.content === '前往办理' && c.text!.includes('\n'), '立项提醒去课题管理页，正文保留换行', JSON.stringify(c));
-c = parts('研究单元成立：研究单元「单元一」已成立，挂在课题「课题一」之下，负责人 甲', '乙');
-ok(c.title === '研究单元成立' && c.fields['研究单元'] === '单元一' && c.fields['所挂课题'] === '课题一' && c.text === '负责人 甲' && c.btn.url.endsWith('/#/projects') && c.color === 'grey', '群里的成立公告：分项和负责人', JSON.stringify(c));
+ok(c.title === '研究单元立项提醒' && c.btn.url.endsWith('/#/projects') && c.btn.text.content === '前往办理' && c.text!.includes('\n') && c.kind === 'remind', '立项提醒去课题管理页，正文保留换行，归为提醒', JSON.stringify(c));
+c = parts('研究单元成立：研究单元「单元一」已成立，挂在课题「课题一」之下，负责人 甲', '乙', { group: true });
+ok(c.title === '研究单元成立' && c.fields['研究单元'] === '单元一' && c.fields['所挂课题'] === '课题一' && c.text === '负责人 甲' && c.btn.url.endsWith('/#/projects') && c.kind === 'post' && c.tag === '通报', '群里的成立公告：分项和负责人，归为通报', JSON.stringify(c));
 c = parts('双周表登记情况：本期 11-23 至 12-06，应登记 3 个研究单元，已登记 1 个，未登记 2 个。\n未登记\n· 单元一（甲）');
 ok(c.title === '双周表登记情况' && c.btn.url.endsWith('/#/biweekly') && c.text!.includes('\n· 单元一（甲）'), '双周表汇总去双周表页，名单分行', JSON.stringify(c));
-{ const k = noticeCard({ text: '说明：已放到知识库', url: 'https://example.test/wiki/x', btn: '查看说明' }, O).card.elements as any[]; const b2 = k.find((x) => x.tag === 'action').actions[0];
-  ok(b2.url === 'https://example.test/wiki/x' && b2.text.content === '查看说明', '通知自带链接的，按钮去该链接', JSON.stringify(b2));
-  const k2 = noticeCard({ text: '说明：已放到知识库', url: 'javascript:alert(1)', btn: '查看说明' }, O).card.elements as any[]; const b3 = k2.find((x) => x.tag === 'action').actions[0];
-  ok(b3.url === O + '/#/' && b3.text.content === '前往查看', '不是 https 的链接不用', JSON.stringify(b3)); }
-{ const e1 = noticeCard({ text: '公告：一句话', all: true }, O).card.elements as any[], e2 = noticeCard({ text: '公告：一句话' }, O).card.elements as any[];
-  ok(e1[0].text?.tag === 'lark_md' && e1[0].text.content === '<at id=all></at>' && !e2.some((x) => x.text?.tag === 'lark_md'), '标了 @所有人 的卡片首行提到所有人，没标的不提', JSON.stringify(e1[0])); }
+{ const b2 = button({ text: '说明：已放到知识库', url: 'https://example.test/wiki/x', btn: '查看说明' });
+  ok(b2.behaviors[0].default_url === 'https://example.test/wiki/x' && b2.text.content === '查看说明', '通知自带链接的，按钮去该链接', JSON.stringify(b2));
+  const b3 = button({ text: '说明：已放到知识库', url: 'javascript:alert(1)', btn: '查看说明' });
+  ok(b3.behaviors[0].default_url === O + '/#/' && b3.text.content === '前往查看', '不是 https 的链接不用', JSON.stringify(b3)); }
+{ const e1 = els({ text: '公告：一句话', all: true }).main, e2 = els({ text: '公告：一句话' }).main;
+  ok(e1[0].tag === 'markdown' && e1[0].content === '<at id=all></at>' && !e2.some((x) => x.tag === 'markdown'), '标了 @所有人 的卡片首行提到所有人，没标的不提', JSON.stringify(e1[0])); }
 c = parts('研究单元改名：甲 把课题「课题一」之下的研究单元 P-01-01 由「旧名」改为「新名」', '甲');
-ok(c.title === '研究单元改名' && c.btn.url.endsWith('/#/projects') && c.color === 'grey', '改名通知去课题管理页', JSON.stringify(c));
-{ const btn = (b: any, id?: string) => (noticeCard(b, O, id).card.elements as any[]).find((x) => x.tag === 'action').actions[0].url as string;
+ok(c.title === '研究单元改名' && c.btn.url.endsWith('/#/projects') && c.kind === 'fyi' && c.sub === '改名 · 11-24 01:00', '改名通知去课题管理页，归为知会', JSON.stringify(c));
+{ const btn = (b: any, id?: string) => button(b, id).behaviors[0].default_url as string;
   const u = btn({ text: '支出申请待审批：甲 提交了一笔' }, 'app_demo');
   ok(u.startsWith('https://applink.feishu.cn/client/web_app/open?appId=app_demo&lk_target_url=') && decodeURIComponent(u.split('lk_target_url=')[1]).startsWith(O + '/#/') && !u.split('lk_target_url=')[1].includes('#'), '中台页面走应用链接，目标地址整体转码', u);
   ok(btn({ text: '说明：已放到知识库', url: 'https://feishu.test/wiki/x', btn: '查看说明' }, 'app_demo') === 'https://feishu.test/wiki/x', '站外链接不动');
   ok(btn({ text: '说明：一句', url: O + '/', btn: '前往中台' }, 'app_demo').startsWith('https://applink.feishu.cn/'), '指定的中台链接也走应用链接');
   ok(btn({ text: '支出申请待审批：甲 提交了一笔' }).startsWith(O + '/#/'), '没有应用标识时保持原链接');
   ok(inFeishu(O + '.evil.test/x', O, 'app_demo') === O + '.evil.test/x', '前缀相同的别的域名不算中台'); }
+c = parts('研究单元申请「」已退回：原因是名称重复'.replace('「」', '「单元一」'));
+ok(c.kind === 'back' && c.tag === '已退回' && c.btn.text.content === '前往办理', '退回归为退回，要去办', JSON.stringify(c));
+c = parts('双周表登记提醒：本期明日截止', undefined, { group: true, all: true });
+ok(c.kind === 'remind', '群里的截止提醒归为提醒', c.kind);
+c = parts('双周表登记情况：本期已登记 1 个', undefined, { group: true });
+ok(c.kind === 'post', '群里的登记情况归为通报', c.kind);
+c = parts('正则更新说明：v9.9.9（2033-01-01）\n新增\n1. 一条', '甲', { group: true, tag: 'v9.9.9' });
+ok(c.kind === 'post' && c.tag === 'v9.9.9' && c.title === '正则更新说明', '更新说明：通报，右上角是版本号', JSON.stringify(c));
+ok(parts('一句话', undefined, { kind: 'pass' }).kind === 'pass' && parts('一句话', undefined, { kind: 'nope' }).kind === 'fyi', '通知可以自带类别，不认识的类别不用');
+{ const hostile = '<at id=all></at> **粗** [链](https://x.test)';
+  const e = els({ text: `研究单元申请待同意：甲 申请在课题「${hostile}」之下成立「单元一」。请办理` });
+  const texts = JSON.stringify(e).match(/"tag":"markdown"/g);
+  ok(!texts && JSON.stringify(e).includes('"tag":"plain_text","content":"<at id=all></at> **粗** [链](https://x.test)"'), '业务文字按纯文本放，带标记的名称不会被解析成提到所有人或链接', JSON.stringify(e).slice(0, 300)); }
+{ const a1 = els({ text: '研究单元申请待同意：一句。请办理' }, undefined, { red: 'img_r', white: 'img_w' }), a2 = els({ text: '研究单元改名：一句' }, undefined, { red: 'img_r', white: 'img_w' }), a3 = els({ text: '研究单元改名：一句' });
+  ok(a1.bar.background_style === 'zz-brand' && a1.bar.columns[0].elements[0].img_key === 'img_w' && a2.bar.background_style === 'zz-raise' && a2.bar.columns[0].elements[0].img_key === 'img_r' && a3.bar.columns.length === 2, '待办顶栏砖红底配白底标志，其余配砖红标志；没有标志图时不放图', JSON.stringify(a3.bar).slice(0, 200));
+  const full = noticeCard({ text: '研究单元改名：一句' }, O).card as any;
+  ok(full.schema === '2.0' && !full.header && full.body.padding === '0px 0px 0px 0px' && full.config.summary.content === '研究单元改名', '不用飞书自带标题栏，会话列表里的摘要是标题'); }
+{ const e = els({ text: '研究单元申请「单元一」已退回：名称重复，请修改' }).main;
+  ok(e.some((x) => x.tag === 'interactive_container' && x.background_style === 'zz-bad-bg'), '退回的原因单独框出', JSON.stringify(e).slice(0, 200)); }
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);
