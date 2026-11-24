@@ -34,4 +34,6 @@ ok(c.title === '双周表登记情况' && c.btn.url.endsWith('/#/biweekly') && c
   ok(b3.url === O + '/#/' && b3.text.content === '前往查看', '不是 https 的链接不用', JSON.stringify(b3)); }
 { const e1 = noticeCard({ text: '公告：一句话', all: true }, O).card.elements as any[], e2 = noticeCard({ text: '公告：一句话' }, O).card.elements as any[];
   ok(e1[0].text?.tag === 'lark_md' && e1[0].text.content === '<at id=all></at>' && !e2.some((x) => x.text?.tag === 'lark_md'), '标了 @所有人 的卡片首行提到所有人，没标的不提', JSON.stringify(e1[0])); }
+c = parts('研究单元改名：甲 把课题「课题一」之下的研究单元 P-01-01 由「旧名」改为「新名」', '甲');
+ok(c.title === '研究单元改名' && c.btn.url.endsWith('/#/projects') && c.color === 'grey', '改名通知去课题管理页', JSON.stringify(c));
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);

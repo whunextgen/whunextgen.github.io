@@ -100,6 +100,7 @@ export const RPC: Record<string, [string, string][]> = {
   save_person_record: [['id', 'uuid'], ['no', 'text'], ['name', 'text'], ['kind', 'text'], ['status', 'text'], ['joined', 'date'], ['left', 'date'],
     ['edu', 'text'], ['school', 'text'], ['direction', 'text'], ['mentor', 'text'], ['note', 'text']],
   link_person: [['person', 'uuid'], ['user', 'uuid']],
+  rename_project: [['id', 'uuid'], ['name', 'text']],
   approve_unit: [['unit', 'uuid']],
   confirm_unit: [['unit', 'uuid']],
   return_unit: [['unit', 'uuid'], ['note', 'text']],
@@ -290,6 +291,7 @@ async function withUser<T>(env: Env, uid: string | null, fn: (sql: postgres.Tran
 // ---------- 飞书通知卡片 ----------
 // 通知在数据库里是一句话。这里按句式给出标题、分项和跳转的页面，拼成卡片；认不出的句式整句放进正文。
 const NOTICE_RULES: [RegExp, string, string][] = [
+  [/^(研究单元|课题)改名/, '改名', '/projects'],
   [/研究单元申请待同意/, '研究单元申请待同意', '/projects'],
   [/研究单元立项/, '研究单元立项提醒', '/projects'],
   [/研究单元申请待核对|待助理对照联席会议纪要核对/, '研究单元申请待核对', '/projects'],

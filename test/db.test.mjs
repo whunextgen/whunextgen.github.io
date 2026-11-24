@@ -2264,5 +2264,32 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('群发函数不对接口开放', /permission denied/, `select notify_group('x')`);
 }
 
+// ---------- 负责人自己改名 ----------
+{
+  await db.exec(`reset role`);
+  const un = await one(`select p.id, p.name, p.code, p.owner_id, t.owner_id town, t.id tid, t.name tname from project p join project t on t.id = p.parent_id where p.layer = 'paper' and p.active and not p.proposed and p.owner_id is not null and t.owner_id is not null and t.owner_id <> p.owner_id and t.active and not t.proposed order by p.code limit 1`);
+  const out = (await one(`insert into app_user (name, role, feishu_open_id) values ('改名无关人', 'member', 'ou_rn_out') returning id`)).id;
+  const n0 = (await one(`select count(*)::int n from feishu_outbox where payload->>'text' like '%改名：%'`)).n;
+  await db.exec(`set role app_api`);
+  const D3 = '2033-06-01';
+  await as(out, D3);
+  await raises('不是负责人不能改名', /名称由负责人修改/, `select rename_project($1, '乱改')`, [un.id]);
+  await as(un.owner_id, D3);
+  await raises('名称不能为空', /请填写名称/, `select rename_project($1, '  ')`, [un.id]);
+  await raises('名称有长度上限', /不得超过 60 个字/, `select rename_project($1, $2)`, [un.id, '长'.repeat(61)]);
+  await q(`select rename_project($1, '改过的稿子名')`, [un.id]);
+  const after = await one(`select name, code, owner_id, parent_id from api.project where id = $1`, [un.id]);
+  ok(after.name === '改过的稿子名' && after.code === un.code && after.parent_id === un.tid, '研究单元负责人可以改名，编号和所挂课题不变', JSON.stringify(after));
+  await as(un.town, D3);
+  await q(`select rename_project($1, '改过的课题名')`, [un.tid]);
+  ok((await one(`select name from api.project where id = $1`, [un.tid])).name === '改过的课题名', '课题负责人可以改课题的名称');
+  await db.exec(`reset role`);
+  const ns = await db.query(`select payload->>'text' t, user_id from feishu_outbox where payload->>'text' like '%改名：%' order by id desc limit 6`);
+  ok(ns.rows.some((x) => x.t.startsWith('研究单元改名：') && x.user_id === un.town && x.t.includes(`由「${un.name}」改为「改过的稿子名」`)), '研究单元改名通知所挂课题的负责人', JSON.stringify(ns.rows.map((x) => x.t)));
+  ok(ns.rows.some((x) => x.t.startsWith('课题改名：') && x.user_id === U.dir), '课题改名通知中心负责人');
+  await db.query(`update project set name = $2 where id = $1`, [un.id, un.name]); await db.query(`update project set name = $2 where id = $1`, [un.tid, un.tname]);
+  await db.exec(`set role app_api`);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
