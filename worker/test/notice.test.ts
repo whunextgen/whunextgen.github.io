@@ -107,4 +107,10 @@ ok(parts('一句话', undefined, { kind: 'pass' }).kind === 'pass' && parts('一
   ok(at > 0 && m[at].img_key === 'img_x' && m[at + 1].text.content === '数据来源：某处' && m.slice(at + 2).some((x) => x.tag === 'button'), '带图的通报：图、图下说明、按钮依次排');
   ok(!main({ text: '分数画像：一句话', kind: 'post', group: true, img: 'AAAA', img_note: '数据来源：某处' }).some((x) => x.tag === 'img'), '图没传上去的卡片不带图');
 }
+c = parts('ARR 担保申请待答复：甲 申请由你为研究单元「单元一」在「2033 年 5 月」一轮的 ARR 投稿担保。请在该研究单元页面答复', '甲');
+ok(c.title === 'ARR 担保申请待答复' && c.btn.url === O + '/#/' && c.btn.text.content === '前往办理' && c.kind === 'todo', 'ARR 担保申请：标题取冒号前，按钮回首页待办，归为待办', JSON.stringify(c));
+c = parts('ARR 担保申请已同意：乙 同意为研究单元「单元一」在「2033 年 5 月」一轮的 ARR 投稿担保');
+ok(c.title === 'ARR 担保申请已同意' && c.kind === 'pass', 'ARR 担保已同意归为通过', JSON.stringify(c));
+c = parts('ARR 担保申请不同意：乙 不同意为研究单元「单元一」在「2033 年 5 月」一轮的 ARR 投稿担保，原因：时间冲突');
+ok(c.title === 'ARR 担保申请不同意' && c.kind === 'back', 'ARR 担保不同意归为退回', JSON.stringify(c));
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);

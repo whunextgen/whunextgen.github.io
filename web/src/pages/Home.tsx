@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { ArrClaim } from '../arr';
 import { useViews, type Resource, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task, type UnitApply, type BiweeklyStatus } from '../api';
 import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, cardGap, cardGranted, cardTotal, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Track, TreeNode, execSegs, type Seg } from '../tree';
@@ -20,8 +21,8 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
   const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
     years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[]; tasks: Task[];
-    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[]; resources: Resource[]; uapps: UnitApply[]; bws: BiweeklyStatus[] }>({
-    resources: ['resource'], uapps: ['unit_apply'], bws: ['biweekly_status'],
+    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[]; resources: Resource[]; uapps: UnitApply[]; bws: BiweeklyStatus[]; arrs: ArrClaim[] }>({
+    resources: ['resource'], uapps: ['unit_apply'], bws: ['biweekly_status'], arrs: ['arr_claim'],
     school: ['card_school_subject'],
     reqs: ['request'], picks: ['card_pick'], cards: ['card'], nodes: ['node'], events: ['fund_event', { done: 'false' }],
     years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'], caps: ['cap_request'], shifts: ['budget_shift'], tasks: ['task', { status: 'open' }],
@@ -117,6 +118,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   }
   count(data.uapps.filter((u) => u.can_ok && u.proposed && !u.return_note && !u.parent_ok_at).length, 'warn', '待同意', '研究单元申请挂在本人负责的课题之下，待同意', '办理', '#/projects');
   if (can(me, 'budget.evaluate')) count(data.uapps.filter((u) => u.proposed && !u.return_note && !!u.parent_ok_at).length, 'warn', '待核对', '研究单元申请，待按联席会议纪要核对', '核对', '#/projects');
+  for (const c of data.arrs.filter((x) => x.can_answer)) todo.push({ tone: 'warn', tag: 'ARR 担保', text: `${c.asked_by_name ?? ''} 请本人为研究单元「${c.unit_name}」在「${c.cycle}」一轮担保，待答复`, go: '答复', href: `#/project/${c.project_id}` });
   count(data.uapps.filter((u) => u.mine && u.proposed && !!u.return_note).length, 'bad', '已退回', '研究单元申请已退回，待修改后重新提交', '查看', '#/projects');
   count(resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id).length, 'warn', '待批示', '资源申请属本人负责的研究单元，待批示', '批示', '#/resource');
   // 双周表：只在登记日（每期第一天）登记。当天未登记的列为待办；过了当天未登记的提示逾期和下一个登记日

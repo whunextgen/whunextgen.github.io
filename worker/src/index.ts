@@ -32,6 +32,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
   'budget_plan', 'budget_source', 'budget_module', 'budget_tier', 'tier_pick', 'module_topic', 'unit_apply', 'unit_exec',
   'token_param', 'tier_token', 'token_me', 'time_log', 'unit_pool', 'unit_share', 'outcome',
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
+  'arr_cycle', 'arr_sponsor', 'arr_claim',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -110,6 +111,11 @@ export const RPC: Record<string, [string, string][]> = {
   save_person_record: [['id', 'uuid'], ['no', 'text'], ['name', 'text'], ['kind', 'text'], ['status', 'text'], ['joined', 'date'], ['left', 'date'],
     ['edu', 'text'], ['school', 'text'], ['direction', 'text'], ['mentor', 'text'], ['note', 'text']],
   link_person: [['person', 'uuid'], ['user', 'uuid']],
+  open_arr_cycle: [['name', 'text']],
+  save_arr_sponsor: [['user', 'uuid'], ['qualified', 'boolean'], ['quota', 'int'], ['note', 'text'], ['offline', 'int']],
+  ask_arr: [['project', 'uuid'], ['sponsor', 'uuid']],
+  answer_arr: [['id', 'uuid'], ['ok', 'boolean'], ['note', 'text']],
+  withdraw_arr: [['id', 'uuid']],
   rename_project: [['id', 'uuid'], ['name', 'text']],
   approve_unit: [['unit', 'uuid']],
   confirm_unit: [['unit', 'uuid']],
@@ -347,6 +353,7 @@ async function withUser<T>(env: Env, uid: string | null, fn: (sql: postgres.Tran
 // ---------- 飞书通知卡片 ----------
 // 通知在数据库里是一句话。这里按句式给出标题、分项和跳转的页面，拼成卡片；认不出的句式整句放进正文。
 const NOTICE_RULES: [RegExp, string, string][] = [
+  [/ARR 担保/, 'ARR 担保', '/'],
   [/^(研究单元|课题)改名/, '改名', '/projects'],
   [/研究单元申请待同意/, '研究单元申请待同意', '/projects'],
   [/研究单元立项/, '研究单元立项提醒', '/projects'],
