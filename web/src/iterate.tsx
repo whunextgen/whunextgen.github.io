@@ -29,8 +29,8 @@ const ids = (v: string) => v.split(',').filter(Boolean);
 const axisOf = (a: Axis) => AXES.find(([k]) => k === a)!;
 
 export function IteratePage({ me }: { me: Me }) {
-  const { data, error, reload } = useViews<{ seminars: Seminar[]; snaps: Snapshot[]; pitches: Pitch[]; queries: Query[]; projects: Project[]; tags: ProjectTag[]; members: ProjectMember[]; people: PeoplePick[]; events: AttendEvent[]; meetings: Meeting[] }>({
-    seminars: ['seminar'], snaps: ['snapshot'], pitches: ['snapshot_pitch'], queries: ['query'], projects: ['project'], tags: ['project_tag'], members: ['project_member'], people: ['people_pick'], events: ['attend_event'], meetings: ['meeting'] });
+  const { data, error, reload } = useViews<{ seminars: Seminar[]; snaps: Snapshot[]; pitches: Pitch[]; queries: Query[]; projects: Project[]; tags: ProjectTag[]; members: ProjectMember[]; people: PeoplePick[]; events: AttendEvent[]; meetings: Meeting[]; cal: { calendar_id: string | null; can_set: boolean }[] }>({
+    seminars: ['seminar'], snaps: ['snapshot'], pitches: ['snapshot_pitch'], queries: ['query'], projects: ['project'], tags: ['project_tag'], members: ['project_member'], people: ['people_pick'], events: ['attend_event'], meetings: ['meeting'], cal: ['center_calendar'] });
   const [act, setAct] = useState<Act | null>(null);
   const [axis, setAxis] = useState('');
   const [unit, setUnit] = useState('');
@@ -200,6 +200,8 @@ export function IteratePage({ me }: { me: Me }) {
             {canAttend.lecture && (data.meetings.some((x) => x.open && x.kind === 'lecture') ? <a className="btn sm" href={`#/live/${data.meetings.find((x) => x.open && x.kind === 'lecture')!.id}`}>进入讲座现场</a> : <OpenMeeting kind="lecture" label="开周日讲座签到" />)}
             {canAttend.council && (data.meetings.some((x) => x.open && x.kind === 'council') ? <a className="btn sm" href={`#/live/${data.meetings.find((x) => x.open && x.kind === 'council')!.id}`}>进入联席会议现场</a> : <OpenMeeting kind="council" label="开联席会议签到" />)}
             {(['lecture', 'seminar', 'council'] as const).filter((k) => canAttend[k]).map((k) => <button key={k} className="sm ghost" onClick={() => setAct(attendAct(k))}>补登{ATT[k]}出勤</button>)}
+            {data.cal[0]?.can_set && <button className="sm ghost" onClick={() => setAct({ title: '中心日历', label: '保存', hint: '飞书会议都加到中心日历上。开会时中台到中心日历里找同一时段、标题含研讨会名称（或「讲座」「联席」）的日程，把其中的飞书会议自动挂上。填中心日历的日历编号。',
+              fields: [{ name: 'id', label: '日历编号', required: false, value: data.cal[0]?.calendar_id ?? '' }], run: (v) => rpc('set_center_calendar', { id: v.id || null }) })}>中心日历{data.cal[0]?.calendar_id ? '（已设）' : '（未设）'}</button>}
           </div>
           {data.events.length > 0 && <div className="scroll"><table className="wb-table">
             <thead><tr><th>日期</th><th>会议</th><th className="r">出席</th><th className="r">请假</th><th className="r">缺席</th><th>登记人</th></tr></thead>

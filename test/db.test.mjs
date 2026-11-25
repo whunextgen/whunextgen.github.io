@@ -2991,6 +2991,30 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const ms = await one(`select m.present, m.minutes_link, s.sync_note from api.meeting m join api.meeting_sync s on s.id = m.id where m.id = $1`, [L2]);
   ok(ms.present === 1 && ms.minutes_link.includes('minutes') && ms.sync_note === '签到 1 人', '同步结果和妙记链接记在会上', JSON.stringify(ms));
   await q(`select end_meeting($1)`, [L2]);
+  // Zoom：按邮箱、姓名、认领的别名对上
+  await as(U.dir, D);
+  const Z = await val(`select open_meeting('lecture', null, 'Zoom 讲座') v`);
+  eq(await val(`select set_zoom_meeting($1, 'https://us02web.zoom.us/j/81234567890?pwd=abc') v`, [Z]), 81234567890, '粘贴 Zoom 链接取会议号');
+  await db.exec(`reset role`);
+  const nm2 = (await one(`select name from app_user where id = $1`, [U.mem2])).name;
+  await db.exec(`set role app_api`);
+  await as(null, D);
+  ok((await q(`select zoom_id from meeting_sync_todo()`)).some((x) => x.zoom_id === '81234567890'), '定时任务也同步 Zoom 的会');
+  eq(await val(`select meeting_sync_save($1, null, null, 'Zoom 3 人', array['', '', ''], array[$2, '路人甲', '路人甲']) v`, [Z, nm2]), 1, 'Zoom 参会人按姓名对上的自动签到');
+  await as(U.dir, D);
+  const un = await one(`select sync_unmatched from api.meeting_sync where id = $1`, [Z]);
+  ok(JSON.stringify(un.sync_unmatched) === JSON.stringify(['路人甲']), '对不上的姓名记下来，重名只记一次', JSON.stringify(un));
+  await q(`select claim_name($1, '路人甲', $2)`, [Z, U.mem]);
+  ok((await one(`select sync_unmatched from api.meeting_sync where id = $1`, [Z])).sync_unmatched.length === 0, '认领后从待认领里去掉，并签到');
+  await as(null, D);
+  await q(`select meeting_sync_save($1, null, null, '再同步', array[''], array['路人甲'])`, [Z]);
+  await as(U.dir, D);
+  ok(((await one(`select sync_unmatched from api.meeting_sync where id = $1`, [Z])).sync_unmatched ?? []).length === 0, '认领过的别名以后自动对上');
+  await as(U.mem, D);
+  await raises('只有中心负责人能填中心日历', /中心负责人/, `select set_center_calendar('x')`);
+  await as(U.dir, D);
+  await q(`select set_center_calendar('feishu.cn_abc123@group.calendar.feishu.cn')`);
+  await q(`select end_meeting($1)`, [Z]);
   await as(null);
 }
 
