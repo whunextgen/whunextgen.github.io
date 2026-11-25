@@ -5,6 +5,7 @@ import { MARK_PNG, MARK_WHITE_PNG } from './mark.ts';
 
 export interface Env {
   ZOOM_ACCOUNT_ID?: string; ZOOM_CLIENT_ID?: string; ZOOM_CLIENT_SECRET?: string;   // Zoom 服务端应用：读参会报告和云录制
+  GITHUB_ISSUE_TOKEN?: string; GITHUB_ISSUE_REPO?: string;   // 反馈转 GitHub issue：只需 issues 写权限的令牌，仓库写成 owner/name；没设的反馈先存在中台
   ANTHROPIC_API_KEY?: string;   // 录音补漏：从逐字稿里自动找出质疑。没有设的，用「资源」里登记的「录音补漏」API 资源；都没有的，由济民按需提取
   HYPERDRIVE: { connectionString: string };   // 以 app_api 角色连接 Supabase Postgres
   FEISHU_APP_ID: string;
@@ -36,7 +37,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
   'arr_cycle', 'arr_sponsor', 'arr_claim', 'path_tracker', 'path_person', 'rank_change',
   'seminar', 'snapshot', 'snapshot_pitch', 'query', 'person_attr', 'daily_mine', 'attend_event', 'assessment', 'merit', 'path_alert',
-  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order', 'meeting_transcript', 'council_motion', 'council_ballot', 'council_speech', 'council_info', 'council_rep', 'council_rep_pick', 'council_meeting', 'fixed_change', 'period_report', 'path_council', 'council_targets', 'council_people', 'recruit', 'recruit_interest', 'trial', 'trial_filing',
+  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order', 'meeting_transcript', 'council_motion', 'council_ballot', 'council_speech', 'council_info', 'council_rep', 'council_rep_pick', 'council_meeting', 'fixed_change', 'period_report', 'path_council', 'council_targets', 'council_people', 'recruit', 'recruit_interest', 'trial', 'trial_filing', 'feedback',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -152,6 +153,7 @@ export const RPC: Record<string, [string, string][]> = {
   withdraw_fixed_change: [['id', 'uuid']],
   execute_fixed_change: [['id', 'uuid']],
   submit_period_report: [['year', 'int'], ['quarter', 'int'], ['project', 'uuid'], ['review', 'text'], ['plan', 'text']],
+  submit_feedback: [['body', 'text'], ['page', 'text'], ['title', 'text']],
   close_inquiry: [['id', 'uuid'], ['note', 'text']],
   propose_project_end: [['project', 'uuid'], ['kind', 'text'], ['reason', 'text']],
   propose_removal: [['person', 'uuid'], ['reason', 'text']],
@@ -596,6 +598,31 @@ async function extractQueries(env: Env) {
   const mapped = items.filter((x) => Number.isInteger(x.pitch) && pitches[x.pitch - 1]).map((x) => ({ pitch: pitches[x.pitch - 1].id, speaker: x.speaker, axis: x.axis, body: x.body, quote: x.quote }));
   const note = `自动提取 ${items.length} 条（${res.model ?? cfg.model}，经 ${cfg.via}，输入 ${res.usage?.input_tokens ?? '?'}、输出 ${res.usage?.output_tokens ?? '?'} tokens）`;
   await withUser(env, null, (sql) => sql`select public.transcript_drafts_save(${row.event_id}::uuid, ${JSON.stringify(mapped)}::jsonb, ${note})`);
+}
+
+// ---------- 反馈转 GitHub issue ----------
+export function feedbackIssue(f: { seq: number; body: string; page: string | null; page_title: string | null; user_name: string; created_at: string | Date }, origin = 'https://clain-finance.pages.dev') {
+  const first = f.body.trim().split('\n')[0].slice(0, 50);
+  const at = new Date(new Date(f.created_at).getTime() + 8 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+  const page = f.page ? `${f.page_title ? `${f.page_title}（${origin}/${f.page.replace(/^\/+/, '')}）` : `${origin}/${f.page.replace(/^\/+/, '')}`}` : '未记录';
+  return { title: `[反馈 #${f.seq}] ${first}`, body: `**提交人**：${f.user_name}\n**时间**：${at}（北京时间）\n**页面**：${page}\n\n---\n\n${f.body.trim()}\n\n<sub>由正则的反馈按钮提交</sub>`, labels: ['反馈'] };
+}
+async function feedbackSync(env: Env) {
+  const todo = await withUser(env, null, (sql) => sql`select id, seq, body, page, page_title, user_name, created_at from public.feedback_todo()`).catch(() => []);
+  if (!todo.length) return;
+  for (const f of todo) {
+    let num: number | null = null; let url: string | null = null; let err: string | null = null;
+    if (!env.GITHUB_ISSUE_TOKEN || !env.GITHUB_ISSUE_REPO || !/^[\w.-]+\/[\w.-]+$/.test(env.GITHUB_ISSUE_REPO)) err = '未配置反馈转议题的仓库或令牌';
+    else {
+      const r = await fetch(`https://api.github.com/repos/${env.GITHUB_ISSUE_REPO}/issues`, {
+        method: 'POST', body: JSON.stringify(feedbackIssue(f as any)),
+        headers: { authorization: `Bearer ${env.GITHUB_ISSUE_TOKEN}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28', 'user-agent': 'zhengze-feedback', 'content-type': 'application/json' },
+      }).catch((e) => ({ ok: false, status: 0, json: async () => ({ message: String(e) }) }) as any);
+      const j = await r.json().catch(() => ({})) as any;
+      if (r.ok && j.number) { num = Number(j.number); url = String(j.html_url ?? ''); } else err = `GitHub 返回 ${r.status}：${String(j.message ?? '').slice(0, 120)}`;
+    }
+    await withUser(env, null, (sql) => sql`select public.feedback_issue_save(${f.id}::uuid, ${num}, ${url}, ${err})`).catch((e) => console.error('存反馈结果', e));
+  }
 }
 
 async function feishu(path: string, init: RequestInit) {
@@ -1150,6 +1177,7 @@ export default {
     await withUser(env, null, (sql) => sql`select public.unit_stall_tick()`).catch((e) => console.error('研究单元停滞', e));
     await withUser(env, null, (sql) => sql`select public.council_tick()`).catch((e) => console.error('联席会议表决与生效', e));
     await withUser(env, null, (sql) => sql`select public.trial_tick()`).catch((e) => console.error('试做期提醒', e));
+    await feedbackSync(env).catch((e) => console.error('反馈转议题', e));
     await meetingSync(env).catch((e) => console.error('飞书会议同步', e));
     // 录音补漏每天跑一次：北京时间凌晨 4 点那一轮
     const bj = new Date(Date.now() + 8 * 3600e3);
