@@ -532,3 +532,37 @@ create or replace view api.project_member as
          (select rank_label(pr.rank) from person pr where pr.user_id = m.user_id and pr.status in ('active','offroll') order by pr.updated_at desc nulls last limit 1) as rank_label
   from project_member m join app_user u on u.id = m.user_id
   where can_see_project(m.project_id) or m.user_id = app_uid();
+
+-- ---------- 七、集群：研究单元的 QOS 由名单内的人共用 ----------
+-- 集群一侧：Slurm 里 clain 一个账户，下面是各人的用户；每个研究单元一个 QOS（固定卡时，GrpTRESMins + NoDecay，不限卡数），
+-- 挂到名单内每个人（含负责人）的集群用户上，大家共用。中台给出：每个研究单元的 QOS 名、换得的卡时合计、应挂上的集群用户。
+-- 集群用户名由本人在中台登记，人事岗可以代为登记。
+alter table app_user add column slurm_user text unique check (slurm_user ~ '^[a-z_][a-z0-9_.-]{0,31}$');
+
+create function unit_qos(p_project uuid) returns text language sql stable security definer set search_path = public as $$
+  select 'clain_' || lower(regexp_replace(code, '[^A-Za-z0-9]+', '_', 'g')) from project where id = p_project
+$$;
+
+create function set_slurm_user(p_user uuid, p_name text) returns void language plpgsql security definer set search_path = public as $$
+declare n text := nullif(lower(btrim(coalesce(p_name, ''))), '');
+begin
+  if app_uid() is null then raise exception '请先登录' using errcode = '42501'; end if;
+  if p_user is distinct from app_uid() and not has_perm('people.manage') then raise exception '集群账号由本人或人事岗登记' using errcode = '42501'; end if;
+  if n is not null and n !~ '^[a-z_][a-z0-9_.-]{0,31}$' then raise exception '集群账号只能由小写字母、数字、下划线、点和短横组成，以字母或下划线开头，不超过 32 个字符'; end if;
+  update app_user set slurm_user = n where id = p_user;
+  if not found then raise exception '人员不存在'; end if;
+exception when unique_violation then raise exception '这个集群账号已由他人登记';
+end $$;
+select expose('set_slurm_user(uuid, text)');
+
+-- 集群读取：每个研究单元一行，QOS 名、累计换得的卡时、应挂上该 QOS 的集群用户（名单内的人和负责人；未登记集群账号的列出姓名以便补登）
+create view api.cluster_qos as
+  select p.id as project_id, p.code as project_code, p.name as project_name, unit_qos(p.id) as qos,
+         coalesce((select sum(hours) from compute_grant g where g.project_id = p.id), 0) as hours,
+         (select coalesce(jsonb_agg(jsonb_build_object('user_id', u.id, 'name', u.name, 'slurm_user', u.slurm_user, 'owner', u.id = p.owner_id) order by u.name), '[]')
+            from app_user u where u.active and (u.id = p.owner_id or exists (select 1 from project_member m where m.project_id = p.id and m.user_id = u.id and m.left_on is null))) as users
+  from project p where p.layer = 'paper' and p.active and not p.proposed and app_role() is not null;
+
+create view api.slurm_me as
+  select u.id as user_id, u.slurm_user from app_user u where u.id = app_uid();
+grant select on api.cluster_qos, api.slurm_me to app_api;

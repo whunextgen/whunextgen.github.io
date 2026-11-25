@@ -31,10 +31,10 @@ const md = (d: string) => d.slice(5).replace('-', '-');
 export function MyCard({ me, todoCount, todo, register, requests, petty, initiated }: {
   me: Me; todoCount: number; todo: ReactNode; register: ReactNode; requests: ReactNode; petty: ReactNode; initiated: number }) {
   const { data, error, reload } = useViews<{ people: PathPerson[]; tasks: PathTask[]; attrs: PersonAttr[]; td: TodayMine[]; daily: DailyRow[]; rec: PeriodRec[]; queries: Query[];
-    ch: Challenge[]; titles: TitleMine[]; praise: PraiseRow[]; coin: CoinMine[]; ledger: CoinRow[]; shares: UnitShare[]; pools: UnitPool[]; projects: Project[]; tags: ProjectTag[]; pick: PeoplePick[]; seminars: Seminar[] }>({
+    ch: Challenge[]; titles: TitleMine[]; praise: PraiseRow[]; coin: CoinMine[]; ledger: CoinRow[]; shares: UnitShare[]; pools: UnitPool[]; projects: Project[]; tags: ProjectTag[]; pick: PeoplePick[]; seminars: Seminar[]; slurm: { user_id: string; slurm_user: string | null }[] }>({
     people: ['path_person'], tasks: ['path_tracker'], attrs: ['person_attr'], td: ['today_mine'], daily: ['daily_mine'], rec: ['period_record'], queries: ['query'],
     ch: ['challenge_mine'], titles: ['title_mine'], praise: ['praise_mine'], coin: ['coin_mine'], ledger: ['coin_ledger'], shares: ['unit_share'], pools: ['unit_pool'],
-    projects: ['project'], tags: ['project_tag'], pick: ['people_pick'], seminars: ['seminar'] });
+    projects: ['project'], tags: ['project_tag'], pick: ['people_pick'], seminars: ['seminar'], slurm: ['slurm_me'] });
   const [act, setAct] = useState<Act | null>(null);
   const [tab, setTab] = useState('all');
   if (!data) return error ? <div className="msg bad" role="alert">{error.message}</div> : <p className="empty">加载中…</p>;
@@ -195,8 +195,10 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
         <section className="ir-t ir-third">
           <div className="ir-mono"><span>实际币</span><span>{coin?.salary != null ? `每期发放 ${n1(coin.salary)}` : '本身份的发放额度未定'}</span></div>
           <div className="ir-num">{n1(coin?.balance)}<i> 实际币</i></div>
-          <div className="ir-kv"><span>两个月内到期<b>{n1(coin?.expiring)}</b></span><span>最近到期日<b>{coin?.next_expiry ? day(coin.next_expiry) : '—'}</b></span><span>卡时标价<b>{price ? `${n1(price)} / 卡时` : '未定'}</b></span></div>
-          {num(coin?.balance) > 0 ? <div className="ir-acts"><button className="sm" onClick={() => setAct(investAct())}>投给研究单元</button></div> : null}
+          <div className="ir-kv"><span>两个月内到期<b>{n1(coin?.expiring)}</b></span><span>最近到期日<b>{coin?.next_expiry ? day(coin.next_expiry) : '—'}</b></span><span>卡时标价<b>{price ? `${n1(price)} / 卡时` : '未定'}</b></span><span>集群账号<b>{data.slurm[0]?.slurm_user ?? '未登记'}</b></span></div>
+          <div className="ir-acts">{num(coin?.balance) > 0 && <button className="sm" onClick={() => setAct(investAct())}>投给研究单元</button>}
+            <button className="sm ghost" onClick={() => setAct({ title: '登记集群账号', label: '保存', hint: '本人在 GPU 集群上的用户名。所在研究单元换得的卡时是一个 QOS，挂到名单内每个人的集群账号上共用；不登记就挂不上。',
+              fields: [{ name: 'name', label: '集群用户名', required: false, value: data.slurm[0]?.slurm_user ?? '' }], run: (v) => rpc('set_slurm_user', { user: me.id, name: v.name || null }) })}>{data.slurm[0]?.slurm_user ? '修改集群账号' : '登记集群账号'}</button></div>
           {data.ledger.length > 0 && <ul className="ir-sc">{[...data.ledger].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5).map((l) =>
             <li key={l.id}><span>{KIND[l.kind]}{l.project_name ? ` · ${l.project_name}` : ''}</span><em>{num(l.amount) > 0 ? '+' : ''}{n1(l.amount)}</em></li>)}</ul>}
           <p className="ir-hint">代币不是经费。实际币按期按身份发放，研究单元解锁后按份额铸造；只能投给研究单元，由研究单元换 GPU 卡时，以后也可以换别的资源。每笔有到期日，先扣先到期的。</p>
