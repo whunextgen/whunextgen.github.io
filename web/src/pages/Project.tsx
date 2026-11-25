@@ -148,9 +148,9 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
             <tbody>{draft.map((l) => <tr key={l.id}><td className="wrap">{l.purpose}<div className="sub2">{cat.get(l.category_id) ?? '—'}</div></td><td className="r">{money(best(l))}</td><td>{stageWord(l)}</td></tr>)}</tbody>
             <tfoot><tr><th scope="row">合计</th><td className="r">{money(own.budget)}</td><td /></tr></tfoot>
           </table></div>
-        ) : <Empty>{year} 年度本{un}自身暂无预算行。{r.mine && y.stage === 'declare' ? '请到预算编制页面填报。' : ''}</Empty>}
+        ) : <Empty>{year} 年度本{un}自身暂无预算行。{r.mine && y.stage === 'declare' ? (r.layer === 'paper' ? '研究单元使用所属课题的预算，由课题负责人在预算编制页面填报。' : '请到预算编制页面填报。') : ''}</Empty>}
         <div className="actions" style={{ justifyContent: 'flex-start' }}>
-          {y && <a className="btn ghost sm" href={`#/budget/${year}`}>{r.mine && y.stage === 'declare' ? '前往预算编制填报' : '在预算编制中查看'}</a>}
+          {y && <a className="btn ghost sm" href={`#/budget/${year}`}>{r.mine && r.layer !== 'paper' && y.stage === 'declare' ? '前往预算编制填报' : '在预算编制中查看'}</a>}
           {y && run && rows.length > 0 && <a className="btn ghost sm" href={`#/review/${year}`}>查看分期执行和复盘</a>}
         </div>
       </section>

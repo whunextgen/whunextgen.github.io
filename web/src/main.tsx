@@ -151,9 +151,9 @@ function App() {
   const groups = [
     { top: '', label: '', home: '', note: '', pages: keep(['/', '首页'], ['/tasks', '任务管理']) },
     // 课题：成员和负责人办的事——登记双周表、从预算行支出、领备用金、申领资源
-    { top: '', label: '课题', home: '/s-topic', note: '研究单元、双周表、支出申请、资源申领', pages: keep(['/projects', '课题管理'], ['/apply', '立项与延续申请'], ['/biweekly', '双周表'], !seesStaff && ['/plan', '年度档次'], canUse && ['/requests', '支出申请'], canUse && ['/petty', '备用金管理'], canUse && ['/resource', '资源申领'], ['/ask', '报销咨询']) },
+    { top: '', label: '课题', home: '/s-topic', note: '研究单元、双周表、预算编制、支出申请、资源申领', pages: keep(['/projects', '课题管理'], ['/apply', '立项与延续申请'], ['/biweekly', '双周表'], !seesStaff && ['/plan', '年度档次'], !seesStaff && ['/budget', '预算编制'], canUse && ['/requests', '支出申请'], canUse && ['/petty', '备用金管理'], canUse && ['/resource', '资源申领'], ['/ask', '报销咨询']) },
     // 财务：并列三组。年度预算是每年申报、核定、下达、决算这一轮；项目是学校这一侧的经费；资源是中心的接口额度和资产
-    { top: '财务', label: '年度预算', home: '', note: '总预算、档次、下达、决算', pages: keep(seesStaff && ['/plan', '总预算与档次'], ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算'], seesDesk && ['/desk', '预算参数']) },
+    { top: '财务', label: '年度预算', home: '', note: '总预算、档次、下达、决算', pages: keep(seesStaff && ['/plan', '总预算与档次'], seesStaff && ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算'], seesDesk && ['/desk', '预算参数']) },
     { top: '财务', label: '项目', home: seesCards ? '/s-fund' : '', note: '经费卡、采购、报销入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/procure', '采购'], seesCards && ['/school', '报销与入账'], seesPeople && ['/staff', '人员经费'], seesCards && ['/ledger', '明细账校准'], seesCards && ['/settle', '经费结清']) },
     { top: '财务', label: '资源', home: '/s-res', note: '调配、盘点', pages: keep(seesRes && ['/pool', '资源调配'], seesRes && ['/stock', '资产盘点']) },
     { top: '', label: '系统', home: '', note: '', pages: keep(seesPeople && ['/people', '人员档案'], seesAdmin && ['/admin', '权限管理'], seesCards && ['/rules', '采购与报销要求'], seesLegacy && ['/history', '历史数据'], ['/agent', '智能体接入'], ['/naming', '中台征名']) },

@@ -67,14 +67,15 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
     const b = new Map(data.budgets.filter((x) => x.year === y.year).map((x) => [x.project_id, x]));
     const href = `#/budget/${y.year}`;
     if (y.stage === 'declare') {
-      for (const p of data.projects.filter((x) => x.active && x.owner_id === me.id)) {
+      // 年度预算只编在课题上，研究单元不设预算行：只提醒课题负责人
+      for (const p of data.projects.filter((x) => x.active && x.layer !== 'paper' && x.owner_id === me.id)) {
         const st = b.get(p.id)?.status;
         if (st === 'returned') todo.push({ tone: 'bad', tag: '预算已退回', text: `${p.name} 的 ${y.year} 年度预算被财务岗退回：${b.get(p.id)!.return_note ?? ''}`, go: '修改', href });
         else if (st !== 'submitted') todo.push({ tone: 'warn', tag: '待申报', text: `${p.name} 的 ${y.year} 年度预算尚未提交，${day(y.due_date)} 截止`, go: '填报', href });
       }
       if (can(me, 'budget.compile') && !can(me, 'budget.approve')) {
-        const all = data.projects.filter((x) => x.active), done = all.filter((x) => b.get(x.id)?.status === 'submitted').length;
-        todo.push({ tone: day(y.due_date) <= now ? 'warn' : 'pri', tag: '年度预算', text: `${y.year} 年度预算申报 ${day(y.due_date)} 截止，${done} / ${all.length} 个研究单元已提交`, go: day(y.due_date) <= now ? '截止申报' : '查看进度', href });
+        const all = data.projects.filter((x) => x.active && x.layer !== 'paper'), done = all.filter((x) => b.get(x.id)?.status === 'submitted').length;
+        todo.push({ tone: day(y.due_date) <= now ? 'warn' : 'pri', tag: '年度预算', text: `${y.year} 年度预算申报 ${day(y.due_date)} 截止，${done} / ${all.length} 个课题（含公共开支）已提交`, go: day(y.due_date) <= now ? '截止申报' : '查看进度', href });
       }
     }
     const total = (k: 'applied' | 'fixed') => money(data.lines.filter((l) => l.year === y.year).reduce((s, l) => s + num(l[k]), 0));
