@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { rpc, useViews, type Me } from './api';
 import { ActionDialog, Badge, Empty, Loading, day, type Field } from './ui';
+import { GrowthSections } from './growth';
 
 // 成长主线：每人当前身份的主线任务清单（The Path of an Independent Researcher，草案第五十三版）。
 // 本人看自己的；有人员查看权限的人和中心负责人看全中心的，并在此确认任务、认定身份。
@@ -39,7 +40,7 @@ function Track({ p, tasks, onAct }: { p: PathPerson; tasks: PathTask[]; onAct?: 
     fields: [{ name: 'done_on', label: '完成日期', type: 'date', value: new Date().toISOString().slice(0, 10) },
       { name: 'note', label: '说明（选填，如会议日期、纪要或证明）', type: 'area', required: false }],
     run: (v) => rpc('confirm_path_task', { person: p.person_id, code: t.code, done_on: v.done_on, note: v.note || null }) });
-  const undoAct = (t: PathTask): Act => ({ title: `撤销确认：${t.title}`, label: '撤销', danger: true, hint: `撤销后这一条回到待完成。${p.person_name} 不会收到通知。`,
+  const undoAct = (t: PathTask): Act => ({ title: `撤销确认：${t.title}`, label: '撤销', danger: true, hint: `撤销后这一条回到待完成，并通知 ${p.person_name}。`,
     fields: [], run: () => rpc('undo_path_task', { person: p.person_id, code: t.code }) });
   if (p.rank === 'director') return <Empty>Director 是这条路的终点，没有更高一级的主线任务。</Empty>;
   const all = list.length > 0 && list.every((t) => t.status === 'done');
@@ -61,7 +62,7 @@ function Track({ p, tasks, onAct }: { p: PathPerson; tasks: PathTask[]; onAct?: 
               : t.status === 'open' && <button className="sm" onClick={() => onAct(confirmAct(t))}>确认完成</button>)}</td>}
           </tr>))}</tbody>
       </table></div>
-      <p className="hint" style={{ marginTop: 10 }}>{all ? `本级任务已全部完成，可以申请${NEXT[p.rank] ?? '考核'}；考核的办理入口随后在中台开通。`
+      <p className="hint" style={{ marginTop: 10 }}>{all ? `本级任务已全部完成，可以在下方「考核」一节申请${NEXT[p.rank] ?? '考核'}。`
         : `先完成本级的全部任务，再申请${NEXT[p.rank] ?? '考核'}。高一级身份同时拥有低一级的全部权限。`}</p>
     </>
   );
@@ -118,6 +119,8 @@ export function PathPage({ me, start }: { me: Me; start?: string }) {
           <History id={mine.person_id} />
         </>}
       </section>
+
+      <GrowthSections me={me} rank={mine?.rank ?? null} tasksDone={!!mine && mine.tasks > 0 && mine.done >= mine.tasks} />
 
       {seesAll && (
         <section className="wb-sec">

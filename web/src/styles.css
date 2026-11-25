@@ -539,3 +539,8 @@ h3.sec{display:flex;align-items:center;gap:10px;margin:22px 0 10px;font-size:14p
 .path-sel{margin-top:22px;padding-top:18px;border-top:1px dashed var(--line)}
 .path-hist{margin:12px 0 0;padding-left:18px;font-size:13px;color:var(--mute)}
 tr.sel td{background:var(--raise)}
+.path-attrs>div{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;margin:0 0 8px}
+.path-attrs .k{width:3em;font-size:12px;color:var(--mute)}
+.path-attrs .attr{display:inline-flex;align-items:baseline;gap:6px;min-width:110px;padding:6px 10px;border:1px solid var(--line);border-radius:4px;background:var(--paper);font-variant-numeric:tabular-nums}
+.path-attrs .attr b{font-weight:500;font-size:15px}
+.path-attrs .attr i{font-style:normal;font-size:11px;color:var(--mute)}
