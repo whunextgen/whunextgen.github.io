@@ -33,6 +33,7 @@ import { AssessmentPage, CoursesPage, QueryPage, SeminarPage, SnapshotPage } fro
 import { LivePage } from './live';
 import { CouncilPage, MotionPage } from './council';
 import { SelectPage } from './select';
+import { FeedbackButton } from './feedback';
 import { Desk } from './pages/Desk';
 import { Review } from './pages/Review';
 import { Ask } from './pages/Ask';
@@ -278,6 +279,7 @@ function App() {
           <span>{today()}</span>
         </header>
         <main key={route}><PageGuard key={route}>{page}</PageGuard></main>
+        <FeedbackButton me={me} title={title} />
         <footer className="ft"><span>项目 · 经费卡 · 课题 · 研究单元</span><span>决算数以学校正式入账为准</span></footer>
       </div>
     </div>

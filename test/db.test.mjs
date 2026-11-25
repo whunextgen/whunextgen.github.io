@@ -3552,5 +3552,26 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok((await val(`select trial_tick() v`)) >= 0, '试做提醒定时任务可以运行');
 }
 
+// ---------- 反馈：提交即记下提交人、时间和页面，定时转成 GitHub issue ----------
+{
+  await db.exec(`set role app_api`);
+  await as(U.mem);
+  await raises('反馈须有内容', /遇到的问题或建议/, `select submit_feedback('  ')`);
+  const FS = await val(`select submit_feedback('双选页的筛选点了没反应', '#/select', '双选') v`);
+  ok(FS > 0, '提交反馈得到编号');
+  await raises('登录用户不能取待转的反馈', /当前角色/, `select * from feedback_todo()`);
+  await as(U.lead);
+  ok((await q(`select 1 from api.feedback where seq = $1`, [FS])).length === 0, '别人的反馈看不到');
+  await as(null);
+  const ft = await q(`select id, seq, page, user_name from feedback_todo()`);
+  const mine = ft.find((x) => x.seq === FS);
+  ok(mine && mine.page === '#/select' && mine.user_name, '定时任务取到反馈、提交人和页面', JSON.stringify(mine));
+  await q(`select feedback_issue_save($1, null, null, '未配置')`, [mine.id]);
+  ok(!(await q(`select seq from feedback_todo()`)).some((x) => x.seq === FS), '失败的隔一会儿再试');
+  await q(`select feedback_issue_save($1, 12, 'https://github.com/example/repo/issues/12', null)`, [mine.id]);
+  await as(U.mem);
+  ok((await one(`select issue_number from api.feedback where seq = $1`, [FS])).issue_number === 12, '本人看得到转成的议题');
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
