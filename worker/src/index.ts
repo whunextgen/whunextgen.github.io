@@ -34,7 +34,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
   'arr_cycle', 'arr_sponsor', 'arr_claim', 'path_tracker', 'path_person', 'rank_change',
   'seminar', 'snapshot', 'snapshot_pitch', 'query', 'person_attr', 'daily_mine', 'attend_event', 'assessment', 'merit', 'path_alert',
-  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine',
+  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -152,6 +152,7 @@ export const RPC: Record<string, [string, string][]> = {
   report_makeup: [['event', 'uuid']],
   set_minutes: [['event', 'uuid'], ['link', 'text']],
   end_meeting: [['event', 'uuid']],
+  set_feishu_meeting: [['event', 'uuid'], ['link', 'text']],
   record_training: [['course', 'text'], ['on', 'date'], ['present', 'uuid[]'], ['leave', 'uuid[]']],
   save_personal_snapshot: [['topic', 'uuid'], ['title', 'text'], ['link', 'text'], ['note', 'text']],
   report_cluster_usage: [['project', 'uuid'], ['period', 'date'], ['hours', 'numeric']],
@@ -351,6 +352,41 @@ const json = (data: unknown, status = 200, headers: Record<string, string> = {})
 
 // 标志图在飞书里的图片标识，本进程内上传一次后记住
 const markKeys: { red?: string; white?: string } = {};
+// 飞书会议自动签到：按会议号查飞书会议，读参会的飞书用户和录制，交给数据库对上中台账号签到
+async function meetingSync(env: Env) {
+  const todo = await withUser(env, null, (sql) => sql`select event_id, feishu_no, from_ts, to_ts, has_minutes from public.meeting_sync_todo()`);
+  if (!todo.length) return;
+  const tok = await feishu('/auth/v3/tenant_access_token/internal', { method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ app_id: env.FEISHU_BOT_APP_ID || env.FEISHU_APP_ID, app_secret: env.FEISHU_BOT_APP_SECRET || env.FEISHU_APP_SECRET }) }).catch(() => null);
+  const auth = { authorization: `Bearer ${tok?.tenant_access_token ?? ''}` };
+  const why = (x: any, hint: string) => `飞书返回 ${x?.code ?? '无'}：${String(x?.msg ?? '').slice(0, 80)}${hint}`;
+  for (const t of todo) {
+    let note = ''; let minutes: string | null = null; const ids = new Set<string>();
+    if (!tok?.tenant_access_token) note = '取不到正则的应用凭证';
+    else {
+      const list = await feishu(`/vc/v1/meetings/list_by_no?meeting_no=${t.feishu_no}&start_time=${t.from_ts}&end_time=${t.to_ts}&page_size=20`, { headers: auth }).catch((e) => ({ code: -1, msg: String(e) }));
+      if (list?.code !== 0) note = why(list, '（正则可能尚未开通视频会议的读取权限 vc:meeting:readonly）');
+      else {
+        const briefs = (list.data?.meeting_briefs ?? []) as { id?: string }[];
+        if (!briefs.length) note = '飞书上还没有找到这个会议号在这段时间开过的会';
+        for (const b of briefs) {
+          if (!b.id) continue;
+          const g = await feishu(`/vc/v1/meetings/${b.id}?with_participants=true&user_id_type=union_id`, { headers: auth }).catch((e) => ({ code: -1, msg: String(e) }));
+          if (g?.code !== 0) { note = why(g, '（读参会名单失败）'); continue; }
+          for (const pt of (g.data?.meeting?.participants ?? []) as { id?: string; user_type?: number }[]) if (pt.id && pt.user_type === 1) ids.add(pt.id);
+          if (!t.has_minutes && !minutes && String(g.data?.meeting?.status) === '3') {
+            const r = await feishu(`/vc/v1/meetings/${b.id}/recording`, { headers: auth }).catch(() => null);
+            if (r?.code === 0 && r.data?.recording?.url) minutes = String(r.data.recording.url);
+            else if (r && r.code !== 124002) note = (note ? note + '；' : '') + why(r, '（读录制失败，确认会议开了录制、正则有 vc:record:readonly 权限）');
+          }
+        }
+        if (!note) note = `飞书会议 ${briefs.length} 场，参会的飞书用户 ${ids.size} 人${minutes ? '，已挂上录制' : ''}`;
+      }
+    }
+    await withUser(env, null, (sql) => sql`select public.meeting_sync_save(${t.event_id}::uuid, array(select jsonb_array_elements_text(${JSON.stringify([...ids])}::text::jsonb)), ${minutes}, ${note})`).catch((e) => console.error('会议同步', e));
+  }
+}
+
 async function feishu(path: string, init: RequestInit) {
   const r = await fetch('https://open.feishu.cn/open-apis' + path, init);
   return (await r.json()) as any;
@@ -901,6 +937,7 @@ export default {
     await withUser(env, null, (sql) => sql`select public.path_latch_tick()`).catch((e) => console.error('主线任务补记', e));
     await withUser(env, null, (sql) => sql`select public.coin_tick()`).catch((e) => console.error('实际币发放与到期', e));
     await withUser(env, null, (sql) => sql`select public.unit_stall_tick()`).catch((e) => console.error('研究单元停滞', e));
+    await meetingSync(env).catch((e) => console.error('飞书会议同步', e));
     const batch = await withUser(env, null, (sql) => sql`select msg_id, target_id, body from public.outbox_take(20)`);
     if (!batch.length) return;
     const tok = await feishu('/auth/v3/tenant_access_token/internal', {
