@@ -13,7 +13,7 @@ export function FeedbackButton({ me, title }: { me: Me; title: string }) {
   const page = location.hash || '#/';
   const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
   return <>
-    <button className="feedback-fab" onClick={() => setOpen(true)} aria-label="反馈问题或建议" title="有问题点这里反馈">反馈</button>
+    <button className="feedback-fab" onClick={() => setOpen(true)} aria-label="遇到问题？点这里反馈" title="有问题点这里反馈">遇到问题？</button>
     {done && <div className="feedback-toast" role="status">{done}</div>}
     {open && <ActionDialog title="反馈问题或建议" submitLabel="提交"
       hint={<>自动记下：提交人 {me.name} · {now} · 页面「{title}」（{page}）。提交后转成 GitHub 议题，转好后正则通知你。
