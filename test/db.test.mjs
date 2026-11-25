@@ -2866,6 +2866,71 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(null);
 }
 
+// ---------- 草案剩下的几条：身份权限、训练课程、本人主线草稿、停滞 ----------
+{
+  await db.exec(`reset role`);
+  const fx = await one(`select id, parent_id from project where name = '成员申请的研究单元' and layer = 'paper' and active and not proposed`);
+  const TB2 = fx.parent_id, UU = fx.id;
+  await q(`update person set rank = 'intern' where user_id = $1`, [U.mem]);
+  await db.exec(`set role app_api`);
+  const D = (await one(`select (token_period(date '2036-03-01') + 1)::text d`)).d;
+  // 身份权限
+  await as(U.mem, D);
+  await raises('Intern 不能提出研究单元', /Assistant 及以上/, `select propose_unit(null, $1, 'Intern 提的单元', $2::date - 3, $2::date - 1, '说明', null)`, [TB2, D]);
+  await raises('Intern 不能申请课题', /Researcher 及以上/, `select propose_project(2036, 'Intern 申请的课题', null, '理由')`);
+  // 训练课程：入门三项按出勤自动认定
+  await as(U.dir, D);
+  for (const c of ['T101', 'T102']) await q(`select record_training($1, $2, $3)`, [c, D, [U.mem]]);
+  await q(`select record_training('T103', $1, null, $2)`, [D, [U.mem]]);
+  await as(U.mem, D);
+  await raises('成员不能登记课程出勤', /人事岗登记/, `select record_training('T101', $1, $2)`, [D, [U.mem]]);
+  let tr = await one(`select status, progress from api.path_tracker where mine and code = 'ri-train'`);
+  ok(tr.status !== 'done' && /2 \/ 3/.test(tr.progress), '请假未补看的课程不算', JSON.stringify(tr));
+  await as(U.dir, D);
+  const ev = await val(`select id v from api.attend_event where kind = 'training' order by held_on desc, id limit 1`).catch(() => null);
+  await db.exec(`reset role`);
+  const evT3 = (await one(`select id from attend_event where course = 'T103' order by recorded_at desc limit 1`)).id;
+  await db.exec(`set role app_api`);
+  await as(U.dir, D);
+  await q(`select mark_made_up($1, $2)`, [evT3, U.mem]);
+  await as(U.mem, D);
+  tr = await one(`select status from api.path_tracker where mine and code = 'ri-train'`);
+  ok(tr.status === 'done', '三项入门训练都出勤或补看后，自动认定完成', JSON.stringify(tr));
+  ok((await q(`select code from api.course where mine_done`)).length === 3, '课程列表看得到本人完成了哪几门');
+  // 本人主线草稿：挂在课题下，交快照、上研讨会、接受质疑、结算
+  await raises('须挂在课题下', /挂在一个已立项的课题之下/, `select save_personal_snapshot($1, '综述', 'https://example.org/s1')`, [UU]);
+  const PS1 = await val(`select save_personal_snapshot($1, '综述', 'https://example.org/s1') v`, [TB2]);
+  await q(`select pitch_snapshot($1, array['cog'])`, [PS1]);
+  await as(U.mem2, D);
+  await raises('别人不能替本人提交主线草稿', /本人主线草稿的本人/, `select pitch_snapshot($1, array['med'])`, [PS1]);
+  await as(U.lead, D);
+  const PP1 = (await one(`select id from api.snapshot_pitch where snapshot_id = $1`, [PS1])).id;
+  await q(`select decide_pitch($1, true)`, [PP1]);
+  const PQ = await val(`select add_query($1, 'ju', '前人的工作没有梳理清楚', $2) v`, [PP1, U.mem2]);
+  await q(`select close_pitch($1)`, [PP1]);
+  await as(U.mem, D);
+  ok((await one(`select person_name, title from api.snapshot where id = $1`, [PS1])).title === '综述', '主线草稿的快照写明是哪一项成果');
+  await q(`select add_query_member($1, $2)`, [PQ, U.mem]);
+  const D2 = (await one(`select ($1::date + 14)::text d`, [D])).d;
+  await as(U.mem, D2);
+  const PS2 = await val(`select save_personal_snapshot($1, '综述', 'https://example.org/s2') v`, [TB2]);
+  ok((await one(`select seq from api.snapshot where id = $1`, [PS2])).seq === 2, '本人主线草稿单独编号');
+  await q(`select pitch_snapshot($1, array['cog'])`, [PS2]);
+  await as(U.lead, D2);
+  const PP2 = (await one(`select id from api.snapshot_pitch where snapshot_id = $1`, [PS2])).id;
+  await q(`select decide_pitch($1, true)`, [PP2]);
+  eq(await val(`select close_pitch($1) v`, [PP2]), 1, '本人主线草稿上的质疑下一期无人再提即结算');
+  await as(U.mem, D2);
+  ok((await one(`select status from api.query where id = $1`, [PQ])).status === 'resolved', '回应了本人主线草稿上的质疑');
+  // 停滞
+  await as(U.dir, D2);
+  const st = await q(`select status from api.unit_status`);
+  ok(st.length > 0 && st.every((x) => ['active', 'stalled', 'terminate'].includes(x.status)), '研究单元标出停滞状态', JSON.stringify(st.slice(0, 3)));
+  await as(null, D2);
+  ok((await val(`select unit_stall_tick() v`)) >= 0, '停滞的通知可以跑');
+  await as(null);
+}
+
 // ---------- GitHub 事件发到协助群 ----------
 {
   await as(U.mem2);

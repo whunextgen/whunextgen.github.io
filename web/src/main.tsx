@@ -29,6 +29,7 @@ import { Biweekly } from './pages/Biweekly';
 import { People } from './pages/People';
 import { PathPage } from './path';
 import { IteratePage } from './iterate';
+import { AssessmentPage, CoursesPage, QueryPage, SeminarPage, SnapshotPage } from './objects';
 import { Desk } from './pages/Desk';
 import { Review } from './pages/Review';
 import { Ask } from './pages/Ask';
@@ -151,9 +152,10 @@ function App() {
   // 每个部分的标题可以点，进入该部分的汇总页（home）
   // top：上一级目录。财务之下并列项目和资源两组
   const groups = [
-    { top: '', label: '', home: '', note: '', pages: keep(['/', '我的事项'], seesCards && ['/center', '中心总览'], ['/path', '成长主线'], ['/tasks', '任务管理']) },
+    // 研究者的进程：入口按人。我的事项、成长主线、快照与质疑、双周表、训练课程
+    { top: '', label: '', home: '', note: '', pages: keep(['/', '我的事项'], ['/path', '成长主线'], ['/iterate', '快照与质疑'], ['/biweekly', '双周表'], ['/courses', '训练课程'], ['/tasks', '任务管理'], seesCards && ['/center', '中心总览']) },
     // 课题：成员和负责人办的事——登记双周表、从预算行支出、领备用金、申领资源
-    { top: '', label: '课题', home: '/s-topic', note: '研究单元、双周表、快照与质疑、预算编制、支出申请、资源申领', pages: keep(['/projects', '课题管理'], ['/apply', '立项与延续申请'], ['/biweekly', '双周表'], ['/iterate', '快照与质疑'], !seesStaff && ['/plan', '年度档次'], !seesStaff && ['/budget', '预算编制'], canUse && ['/requests', '支出申请'], canUse && ['/petty', '备用金管理'], canUse && ['/resource', '资源申领'], ['/ask', '报销咨询']) },
+    { top: '', label: '课题', home: '/s-topic', note: '课题与研究单元、立项、预算编制、支出申请、资源申领', pages: keep(['/projects', '课题管理'], ['/apply', '立项与延续申请'], !seesStaff && ['/plan', '年度档次'], !seesStaff && ['/budget', '预算编制'], canUse && ['/requests', '支出申请'], canUse && ['/petty', '备用金管理'], canUse && ['/resource', '资源申领'], ['/ask', '报销咨询']) },
     // 财务：并列三组。年度预算是每年申报、核定、下达、决算这一轮；项目是学校这一侧的经费；资源是中心的接口额度和资产
     { top: '财务', label: '年度预算', home: '', note: '总预算、档次、下达、决算', pages: keep(seesStaff && ['/plan', '总预算与档次'], seesStaff && ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算'], seesDesk && ['/desk', '预算参数']) },
     { top: '财务', label: '项目', home: seesCards ? '/s-fund' : '', note: '经费卡、采购、报销入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/procure', '采购'], seesCards && ['/school', '报销与入账'], seesPeople && ['/staff', '人员经费'], seesCards && ['/ledger', '明细账校准'], seesCards && ['/settle', '经费结清']) },
@@ -168,14 +170,22 @@ function App() {
   const cardId = seesCards ? route.match(/^\/card\/([0-9a-f-]{36})$/)?.[1] : undefined;
   const fundId = seesCards ? route.match(/^\/fund\/([^/]+)$/)?.[1] : undefined;
   const proj = route.match(/^\/project\/([^/]+)(?:\/(\d{4}))?$/);
+  const snapId = route.match(/^\/snapshot\/([0-9a-f-]{36})$/)?.[1];
+  const queryId = route.match(/^\/query\/([0-9a-f-]{36})$/)?.[1];
+  const asmId = route.match(/^\/assessment\/([0-9a-f-]{36})$/)?.[1];
+  const semCode = route.match(/^\/seminar\/(cog|med|fin|hum)$/)?.[1];
   const [, seg0 = '', arg = ''] = route.split('/');
   // 采购并进学校侧进度，旧的 #/procure 链接照样能用
   const procure = seg0 === 'school' && arg === 'procure';
   const seg = seg0;
   const allowed = new Set([...groups.flatMap((g) => g.pages), ...side].map(([to]) => to));
-  const current = reqId ? '/requests' : resId ? '/s-res' : cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
+  const current = snapId || queryId || semCode ? '/iterate' : asmId ? '/path' : reqId ? '/requests' : resId ? '/s-res' : cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
   const group = groups.find((g) => g.home === current || g.pages.some(([to]) => to === current));
-  const page = reqId ? <RequestPage me={me} id={reqId} />
+  const page = snapId ? <SnapshotPage id={snapId} />
+    : queryId ? <QueryPage id={queryId} />
+    : asmId ? <AssessmentPage id={asmId} />
+    : semCode ? <SeminarPage code={semCode} />
+    : reqId ? <RequestPage me={me} id={reqId} />
     : resId ? <ResourceOne me={me} id={resId} />
     : cardId ? <CardPage me={me} id={cardId} />
     : fundId ? <Funds me={me} only={fundId} />
@@ -190,6 +200,7 @@ function App() {
     : current === '/people' ? <People me={me} />
     : current === '/path' ? <PathPage me={me} start={arg || undefined} />
     : current === '/iterate' ? <IteratePage me={me} />
+    : current === '/courses' ? <CoursesPage me={me} />
     : current === '/agent' ? <Agent me={me} />
     : current === '/naming' ? <Naming />
     : current === '/desk' ? <Desk me={me} />

@@ -124,20 +124,11 @@ export function TokenParams({ me }: { me: Me }) {
   const fold = (v: number) => `${['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'][Math.round(v * 10)] ?? v}折`;
   const nf = (name: string, label: string, v: number): Field => ({ name, label, type: 'number', value: String(v) });
   const rows: [string, string, string, Act][] = [
-    ['评定与成果的比例', `${pc(sp.eval ?? 1)} 按档次评定发，${pc(1 - (sp.eval ?? 1))} 留给成果`, '每年的资源容量先分两块。成果那一块在转入市场经济时期后按成果铸造；每年调整不宜超过 5 个点。',
-      { title: '评定与成果的比例', label: '保存', hint: '填按档次评定发的占比（%）。测算显示一次调整过大时机器闲置率会明显上升，建议每年不超过 5 个点。', fields: [nf('eval', '按档次评定发的占比（%）', Math.round((sp.eval ?? 1) * 100))],
-        run: (v) => set('split', { eval: Number(v.eval) / 100 }) }],
-    ['预备', pc(reserve), '年中新立的课题和突发需要从这里出。',
-      { title: '预备占资源容量的比例', label: '保存', fields: [nf('v', '预备（%）', Math.round(reserve * 100))], run: (v) => set('reserve', Number(v.v) / 100) }],
-    ['一级（公开发布）', `花掉的实际币等额解锁；时间按 ${lv.t1 ?? 0} 计`, '一级只是解锁。时间每两周都会再发，所以对时间打折，防止只为解锁而凑数。',
-      { title: '一级的系数', label: '保存', fields: [nf('r1', '对花掉的实际币', lv.r1 ?? 1), nf('t1', '对投入的时间', lv.t1 ?? 0.3)], run: (v) => set('levels', { ...lv, r1: Number(v.r1), t1: Number(v.t1) }) }],
+    ['一级（公开发布）铸造系数', `按名义币的 ${lv.r1 ?? 1} 倍乘挂牌铸造率`, '研究单元第一个外部成果核对通过时，按各人在池子里的名义币铸造实际币到个人。',
+      { title: '一级的铸造系数', label: '保存', fields: [nf('r1', '一级', lv.r1 ?? 1)], run: (v) => set('levels', { ...lv, r1: Number(v.r1) }) }],
     ['二、三、四级追加', `加 ${lv.l2 ?? 0} 倍、加 ${lv.l3 ?? 0} 倍、加 ${lv.l4 ?? 0} 倍`, '在一级之上逐级追加。四级（同行认可）是主要收益。',
       { title: '二、三、四级的追加倍数', label: '保存', fields: [nf('l2', '二级 · 完整发布', lv.l2 ?? 0), nf('l3', '三级 · 外部反响', lv.l3 ?? 0), nf('l4', '四级 · 同行认可', lv.l4 ?? 0)],
         run: (v) => set('levels', { ...lv, l2: Number(v.l2), l3: Number(v.l3), l4: Number(v.l4) }) }],
-    ['投稿与重投', `低一档去向${fold(rs.lower ?? 1)}，每多投一轮${fold(rs.decay ?? 1)}，最多 ${rs.rounds ?? 0} 轮，每轮追加投入不超过首轮池子的 ${pc(rs.extra ?? 0)}`,
-      '四级的铸造量按首轮池子定，重投不会把它做大；录用在计划去向之外的打折，清单之外的不算。',
-      { title: '投稿与重投', label: '保存', fields: [nf('lower', '低一档去向的折扣（0 到 1）', rs.lower ?? 0.4), nf('decay', '每多投一轮的折扣（0 到 1）', rs.decay ?? 0.8), nf('rounds', '最多投稿轮数', rs.rounds ?? 3), nf('extra', '每轮追加投入的上限（占首轮池子，0 到 1）', rs.extra ?? 0.3)],
-        run: (v) => set('resubmit', { lower: Number(v.lower), decay: Number(v.decay), rounds: Math.round(Number(v.rounds)), extra: Number(v.extra) }) }],
     ['挂牌铸造率', rate == null ? '未挂牌：暂不铸造' : `每 1 名义币铸 ${rate} 实际币`, '研究单元的成果核对通过后，按各人在池子里的名义币乘以这个数铸造；二、三、四级按上面的系数追加。',
       { title: '挂牌铸造率', label: '保存', hint: '留空表示暂不铸造。', fields: [{ name: 'v', label: '每 1 点铸多少实际币', type: 'number', required: false, value: rate == null ? '' : String(rate) }], run: (v) => set('rate', v.v ? Number(v.v) : null) }],
     ['各身份每期发放的实际币', RK.map(([k, n]) => `${n} ${sal[k] ?? '未定'}`).join('，'), '每两周按身份发到个人账户，各身份都有；个人只能投给研究单元。未定的不发。',
