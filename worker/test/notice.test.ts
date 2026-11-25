@@ -117,4 +117,10 @@ c = parts('主线任务已认定：「开题」已由 甲 确认完成（2033-01
 ok(c.title === '主线任务已认定' && c.btn.url.endsWith('/#/path') && c.kind === 'pass', '主线任务认定：去成长主线页，归为通过', JSON.stringify(c));
 c = parts('身份认定：你的身份已由 甲 认定为 Assistant（RA）（原为 Intern（RI））。依据：考核通过', '甲');
 ok(c.title === '身份认定' && c.btn.url.endsWith('/#/path'), '身份认定：去成长主线页', JSON.stringify(c));
+c = parts('快照待接收：研究单元「单元一」把第 2 次快照提交给「认知基础」主题研讨会，请决定是否接收讨论', '甲');
+ok(c.btn.url.endsWith('/#/iterate') && c.kind === 'todo', '快照待接收：去快照与质疑页，归为待办', JSON.stringify(c));
+c = parts('质疑已回应：研究单元「单元一」的质疑（理：为什么值得做）本期无人再提，记 8 名义币，进入研究单元的池子', '甲');
+ok(c.btn.url.endsWith('/#/iterate'), '质疑已回应：去快照与质疑页', JSON.stringify(c));
+c = parts('RA 考核未通过：结果不能核对。可在下一期重新申请', '甲');
+ok(c.btn.url.endsWith('/#/path') && c.kind === 'back', 'RA 考核未通过：去成长主线页，归为退回', JSON.stringify(c));
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);

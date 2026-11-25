@@ -1917,9 +1917,9 @@ await as(plain, '2032-06-15');
 ok((await q(`select 1 from api.unit_apply where id = $1`, [U2])).length === 0, '成立之前申请人可以撤回');
 await as(U.fin, '2032-06-22');
 ok((await q(`select text from api.outbox where user_id = $1`, [U.lead])).some(o => /之下新成立研究单元「成员申请的研究单元」/.test(o.text)), '成立后通知所挂课题的负责人');
-// 代币试行：名义币按人每两周发，登记时间去向，负责人确认后计入池子；成果按四级登记、助理核对
+// 代币：名义币改为回应质疑记入，原来按身份发、登记时间的办法停止；成果按四级登记、助理核对
 await as(plain, '2032-06-23');
-await raises('身份没登记不能登记时间', /本人身份尚未登记/, `select save_time_log(token_period('2032-06-23'), $1::jsonb)`, [JSON.stringify([{ project_id: U1, percent: 60 }])]);
+await raises('不再登记时间', /不再登记时间/, `select save_time_log(token_period('2032-06-23'), $1::jsonb)`, [JSON.stringify([{ project_id: U1, percent: 60 }])]);
 await as(U.fin, '2032-06-23');
 await q(`select set_user_kind($1, 'phd')`, [plain]); await q(`select set_user_kind($1, 'master')`, [U.mem2]);
 await as(plain, '2032-06-23');
@@ -1927,29 +1927,7 @@ const tm = await one(`select kind, nominal, period_start::text ps, period_end::t
 ok(tm.kind === 'phd' && Number(tm.nominal) === 80 && tm.ps === '2032-06-14' && tm.pe === '2032-06-27', '按身份得到本期的名义币，两周一期', JSON.stringify(tm));
 const tp = await one(`select token_period('2026-11-23')::text a, token_period('2026-12-06')::text b, token_period('2026-12-07')::text c`);
 ok(tp.a === '2026-11-23' && tp.b === '2026-11-23' && tp.c === '2026-12-07', '第一期自 2026-11-23 起，至 12-06', JSON.stringify(tp));
-const PS = tm.ps, tl = `select save_time_log($1, $2::jsonb) v`;
-await raises('时间只能登记在研究单元上', /时间只能登记在研究单元上/, tl, [PS, JSON.stringify([{ project_id: TB, percent: 50 }])]);
-await raises('不在名单里的研究单元不能登记', /本人不在研究单元/, tl, [PS, JSON.stringify([{ project_id: TU, percent: 50 }])]);
-await raises('比例不能超过 100', /比例须在 1 到 100 之间/, tl, [PS, JSON.stringify([{ project_id: U1, percent: 101 }])]);
-await raises('同一个研究单元只能填一行', /同一个研究单元只能填一行/, tl, [PS, JSON.stringify([{ project_id: U1, percent: 30 }, { project_id: U1, percent: 30 }])]);
-await raises('只能登记本期和刚结束的一期', /仅可登记本期/, tl, ['2032-05-17', JSON.stringify([{ project_id: U1, percent: 50 }])]);
-eq(await val(tl, [PS, JSON.stringify([{ project_id: U1, percent: 60 }])]), 1, '本人登记这一期的时间去向');
-eq(await val(tl, [PS, JSON.stringify([{ project_id: U1, percent: 70 }])]), 1, '确认前可以改');
-ok(Number((await one(`select coins from api.time_log where user_id = $1 and period_start = $2`, [plain, PS])).coins) === 56, '名义币按比例折算');
-ok(Number((await one(`select coins from api.unit_pool where project_id = $1`, [U1])).coins) === 0, '未确认的不计入池子');
-await as(U.mem2, '2032-06-23');
-await q(tl, [PS, JSON.stringify([{ project_id: U1, percent: 100 }])]);
-await raises('成员不能自己确认', /仅研究单元负责人和副手可确认/, `select confirm_time_logs($1, $2)`, [U1, PS]);
-eq((await q(`select * from api.time_log where project_id = $1`, [U1])).length, 2, '同一研究单元的成员互相看得到登记');
-await as(plain, '2032-06-23');
-eq(await val(`select confirm_time_logs($1, $2) v`, [U1, PS]), 2, '研究单元负责人一次确认本单元这一期的登记');
-await raises('确认后不得修改', /已由负责人确认，不得修改/, tl, [PS, JSON.stringify([{ project_id: U1, percent: 50 }])]);
-const up = await one(`select coins, people, pending, level from api.unit_pool where project_id = $1`, [U1]);
-ok(Number(up.coins) === 106 && up.people === 2 && up.pending === 0 && up.level === 0, '确认后计入池子：博士 70% 的 56 加硕士 100% 的 50', JSON.stringify(up));
-const sh = await q(`select user_name, coins, share from api.unit_share where project_id = $1 order by coins desc`, [U1]);
-ok(sh.length === 2 && Math.abs(Number(sh[0].share) - 56 / 106) < 1e-6, '份额按各人计入的名义币算', JSON.stringify(sh));
 await as(U.mem, '2032-06-23');
-eq((await q(`select * from api.unit_share where project_id = $1`, [U1])).length, 0, '不在这个研究单元里的成员看不到各人的份额');
 eq((await q(`select * from api.unit_pool where project_id = $1`, [U1])).length, 1, '池子的合计所有人都看得到');
 // 成果
 await as(U.mem2, '2032-06-23');
@@ -1993,7 +1971,7 @@ await q(`select set_token_param('levels', '{"r1": 1, "t1": 0.2, "l2": 0.3, "l3":
 await q(`select set_token_param('resubmit', '{"lower": 0.4, "decay": 0.8, "rounds": 3, "extra": 0.3}'::jsonb)`);
 ok(Number((await one(`select value from api.token_param where key = 'split'`)).value.eval) === 0.85, '中心负责人可以改参数');
 await as(plain, '2032-07-27');
-await raises('期满七日未确认的作废', /未确认的登记已作废/, `select confirm_time_logs($1, $2)`, [U1, PS]);
+await raises('不再确认时间登记', /不再登记时间/, `select confirm_time_logs($1, $2)`, [U1, '2032-06-14']);
 // 旧入口直接建的卡自动补上经费项目
 await db.exec(`reset role`);
 const legacyCard = await one(`select c.year, p.name from fund_card c join fund_project p on p.id = c.project_id where c.card_no = '4131-A'`);
@@ -2579,8 +2557,8 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const mp = await q(`select person_id, rank, tasks, done, mine from api.path_person`);
   ok(mp.length === 1 && mp[0].mine && mp[0].rank === 'intern' && mp[0].tasks === 8, '成员只看得到本人，加入即为 Intern，本级 8 条主线任务', JSON.stringify(mp));
   const tr = await q(`select code, status, verify_label, can_confirm from api.path_tracker order by seq`);
-  ok(tr.length === 8 && tr.every((t) => !t.can_confirm) && tr.find((t) => t.code === 'ri-three').status === 'waiting' && tr.find((t) => t.code === 'ri-sign').verify_label === '人事岗位',
-    '任务清单：写明认定方，快照类任务待中台开通，本人不能自己确认', JSON.stringify(tr));
+  ok(tr.length === 8 && tr.every((t) => !t.can_confirm) && tr.find((t) => t.code === 'ri-three').status === 'open' && tr.find((t) => t.code === 'ri-sign').verify_label === '人事岗位',
+    '任务清单：写明认定方，本人不能自己确认', JSON.stringify(tr));
   await raises('成员不能确认任务', /由人事岗位认定/, `select confirm_path_task($1, 'ri-sign')`, [P.mem]);
   await raises('成员不能认定身份', /由中心负责人认定/, `select set_rank($1, 'assistant', '考核通过')`, [P.mem]);
   await as(U.dir, D4);
@@ -2640,6 +2618,157 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`reset role`);
   ok((await one(`select count(*)::int n from feishu_outbox where target = (select coalesce(feishu_union_id, feishu_open_id) from app_user where id = $1) and payload->>'text' like '身份认定：%'`, [U.mem]).catch(() => ({ n: 1 }))).n >= 1, '认定身份通知本人');
   await db.exec(`set role app_api`);
+  await as(null);
+}
+
+// ---------- 迭代、质疑与积累 ----------
+{
+  await db.exec(`reset role`);
+  const fx = await one(`select id, owner_id, parent_id from project where name = '成员申请的研究单元' and layer = 'paper' and active and not proposed`);
+  const UU = fx.id, own = fx.owner_id;
+  for (const u of [own, U.lead, U.mem, U.mem2, U.fin]) if (!(await q(`select 1 from person where user_id = $1`, [u])).length) await q(`insert into person (name, user_id, status) select name, id, 'active' from app_user where id = $1`, [u]);
+  const PID = async (u) => (await one(`select id from person where user_id = $1`, [u])).id;
+  const [Pown, Plead, Pmem, Pmem2, Pfin] = [await PID(own), await PID(U.lead), await PID(U.mem), await PID(U.mem2), await PID(U.fin)];
+  ok((await val(`select is_on_project($1, $2) v`, [UU, U.mem2])) === true && (await val(`select is_on_project($1, $2) v`, [UU, U.mem])) === false, '前提：成员乙在名单里，成员甲不在');
+  await db.exec(`update person set rank = 'intern' where id = any($1)`.replace('$1', `array['${Pmem}','${Pmem2}']::uuid[]`));
+  await db.exec(`set role app_api`);
+  const P1 = (await one(`select token_period(date '2035-03-01')::text c`)).c;
+  const d = async (n) => (await one(`select ($1::date + $2::int)::text d`, [P1, n])).d;
+  const A1 = await d(2), A2 = await d(16), A3 = await d(30);
+  // 研讨会组织者
+  await as(U.dir, A1);
+  await q(`select set_rank($1, 'researcher', '测试：课题负责人')`, [Plead]).catch(() => null);
+  await raises('组织者由 Researcher 担任', /Researcher 担任/, `select set_seminar_organizer('med', $1)`, [U.mem]);
+  await q(`select set_seminar_organizer('cog', $1)`, [U.lead]);
+  await as(U.mem, A1);
+  await raises('成员不能指定组织者', /中心负责人指定/, `select set_seminar_organizer('fin', $1)`, [U.lead]);
+  ok((await q(`select code from api.seminar order by seq`)).map((r) => r.code).join() === 'cog,med,fin,hum', '四个主题研讨会');
+  // 快照
+  await raises('不在名单里的不能交快照', /负责人和名单里的人/, `select save_snapshot($1, 'https://example.org/d1')`, [UU]);
+  await as(own, A1);
+  await raises('有改动的人须在名单里', /须在研究单元的名单里/, `select save_snapshot($1, 'https://example.org/d1', null, $2)`, [UU, [own, U.mem]]);
+  await raises('快照须有链接', /链接/, `select save_snapshot($1, 'draft.pdf')`, [UU]);
+  const S1 = await val(`select save_snapshot($1, 'https://example.org/d1', '第一稿', $2) v`, [UU, [own, U.mem2]]);
+  eq(await val(`select pitch_snapshot($1, array['cog','med']) v`, [S1]), 2, '同一期可以交给几个研讨会');
+  const pitches = await q(`select id, seminar from api.snapshot_pitch where snapshot_id = $1`, [S1]);
+  const pc1 = pitches.find((x) => x.seminar === 'cog').id, pm1 = pitches.find((x) => x.seminar === 'med').id;
+  ok((await one(`select seq from api.snapshot where id = $1`, [S1])).seq === 1, '快照依次编号');
+  await as(U.lead, A1);
+  await raises('不是该研讨会的组织者不能接收', /组织者决定/, `select decide_pitch($1, true)`, [pm1]);
+  await q(`select decide_pitch($1, true)`, [pc1]);
+  await raises('质疑须指明哪一问', /理、据、体、用/, `select add_query($1, null, '缺一问')`, [pc1]);
+  const Q1 = await val(`select add_query($1, 'li', '为什么值得做', $2) v`, [pc1, U.mem]);
+  const Q2 = await val(`select add_query($1, 'ti', '方法写得不清楚') v`, [pc1]);
+  const Q3 = await val(`select add_query($1, 'yong', '记错了') v`, [pc1]);
+  await q(`select remove_query($1)`, [Q3]);
+  await raises('本期提出的不必再次提出', /不必再次提出/, `select add_query($1, null, '又来', null, $2)`, [pc1, Q1]);
+  eq(await val(`select close_pitch($1) v`, [pc1]), 0, '第一期没有可结算的质疑');
+  await raises('结束后不能再记', /尚未结束/, `select add_query($1, 'li', '会后补记')`, [pc1]);
+  // 小队
+  await as(U.mem, A1);
+  ok((await q(`select 1 from api.query where project_id = $1 and status = 'open'`, [UU])).length === 2, '未回应的质疑全中心公开');
+  await raises('本人不能自行入队', /负责人加人/, `select add_query_member($1, $2)`, [Q1, U.mem]);
+  await q(`select ask_join_query($1, '做过相关工作')`, [Q1]);
+  await as(own, A1);
+  await q(`select add_query_member($1, $2)`, [Q1, U.mem]);
+  await q(`select add_query_member($1, $2)`, [Q1, U.mem2]);
+  await raises('不能重复入队', /已在队里/, `select add_query_member($1, $2)`, [Q1, U.mem2]);
+  // 第二期：Q1 无人再提、队员已有分配资格，结算；Q2 被再次提出
+  const S2 = await val(`select save_snapshot($1, 'https://example.org/d2', null, $2) v`, [UU, [own, U.mem2]]).catch(() => null);
+  ok(S2 === null, '往期的快照不再改（本期是第一期之后才能交第二期）');
+  await as(own, A2);
+  const S2b = await val(`select save_snapshot($1, 'https://example.org/d2', null, $2) v`, [UU, [own, U.mem2]]);
+  await q(`select pitch_snapshot($1, array['cog'])`, [S2b]);
+  const pc2 = (await one(`select id from api.snapshot_pitch where snapshot_id = $1`, [S2b])).id;
+  ok((await one(`select seq from api.snapshot where id = $1`, [S2b])).seq === 2, '第二次快照');
+  await as(U.lead, A2);
+  await q(`select decide_pitch($1, true)`, [pc2]);
+  await q(`select add_query($1, null, '方法还是不清楚', $2, $3)`, [pc2, U.fin, Q2]);
+  eq(await val(`select close_pitch($1) v`, [pc2]), 1, '无人再提的一条结算');
+  await db.exec(`reset role`);
+  const ne = await q(`select user_id, coins::float c, axis from nominal_entry where query_id = $1 order by user_id`, [Q1]);
+  ok(ne.length === 2 && ne.every((x) => x.c === 8 && x.axis === 'li'), '每条 16 名义币，队员平分，记在所针对的一问上', JSON.stringify(ne));
+  const qs = await one(`select (select status from query where id = $1) a, (select status from query where id = $2) b`, [Q1, Q2]);
+  ok(qs.a === 'resolved' && qs.b === 'open', '再次提出的继续留着', JSON.stringify(qs));
+  await db.exec(`set role app_api`);
+  await as(U.mem, A2);
+  const pool = await one(`select coins::float c, people, pending from api.unit_pool where project_id = $1`, [UU]);
+  ok(pool.c === 16 && pool.people === 2 && pool.pending === 1, '名义池子按回应计入，未回应的仍挂着', JSON.stringify(pool));
+  const at = await one(`select a_li::float li, d_li from api.person_attr where user_id = $1`, [U.mem]);
+  ok(at.li === 8 && at.d_li === 2, '理加上回应所得；给别人的快照提质疑、回应别的研究单元的质疑，都记入利', JSON.stringify(at));
+  ok((await one(`select again from api.query where id = $1`, [Q2])).again === 1, '再次提出的挂在原来那一条下面');
+  // 新入队的自下一期起参与分配
+  await as(own, A2);
+  await q(`select add_query_member($1, $2)`, [Q2, U.mem2]);
+  await as(U.lead, A2);
+  // 出勤与日常任务
+  await as(U.dir, A2);
+  const ev = await val(`select record_attendance('lecture', null, $1, '周日讲座', $2, $3) v`, [A2, [U.mem2], [U.mem]]);
+  await as(U.mem2, A2);
+  await raises('成员不能登记出勤', /人事岗登记/, `select record_attendance('lecture', null, $1, '讲座', $2)`, [A2, [U.mem2]]);
+  const dm = await one(`select lecture_ok, change_ok, biweekly_ok, done from api.daily_mine where current`);
+  ok(dm.lecture_ok === true && dm.change_ok === true && dm.biweekly_ok === null && dm.done === true, '本期的日常任务：出勤和快照改动都有', JSON.stringify(dm));
+  await as(U.dir, A2);
+  ok((await one(`select lecture_ok from daily_check($1, $2::date)`, [U.mem, await d(14)])).lecture_ok === false, '请假未补看回放的不算出勤');
+  await q(`select mark_made_up($1, $2)`, [ev, U.mem]);
+  ok((await one(`select lecture_ok from daily_check($1, $2::date)`, [U.mem, await d(14)])).lecture_ok === true, '补看回放后计为出勤');
+  // RA 考核
+  await as(U.mem2, A2);
+  await raises('任务没做完不能申请', /未完成/, `select apply_assessment('ra')`);
+  await db.exec(`reset role`);
+  await q(`insert into path_done (person_id, task_code, done_on, note) select $1, code, '2035-01-01', '测试' from path_task where rank = 'intern' and verify <> 'auto' on conflict do nothing`, [Pmem2]);
+  await q(`insert into nominal_entry (project_id, user_id, query_id, period_start, axis, coins) select $1, $2, $3, d, 'li', 1 from unnest(array['2035-01-01','2035-01-15']::date[]) d on conflict do nothing`, [UU, U.mem2, Q1]).catch(() => null);
+  await q(`update path_task set ready = true`);
+  await db.exec(`set role app_api`);
+  await as(U.mem2, A2);
+  const left = await q(`select code from api.path_tracker where mine and status <> 'done'`);
+  if (left.length) { await db.exec(`reset role`); for (const t of left) await q(`insert into path_done (person_id, task_code, done_on, note) values ($1, $2, '2035-01-01', '测试') on conflict do nothing`, [Pmem2, t.code]); await db.exec(`set role app_api`); await as(U.mem2, A2); }
+  const AS = await val(`select apply_assessment('ra') v`);
+  await raises('同时只办一项', /已有一项考核/, `select apply_assessment('ra')`);
+  await as(U.mem, A2);
+  await raises('考核人由 Researcher 担任', /Researcher 担任/, `select join_examiner($1, true)`, [AS]);
+  await as(U.dir, A2);
+  await q(`select set_rank($1, 'researcher', '测试')`, [Pown]).catch(() => null);
+  await q(`select set_rank($1, 'researcher', '测试')`, [Pfin]).catch(() => null);
+  await as(own, A2);
+  await raises('所在研究单元的负责人不担任考核人', /负责人不担任考核人/, `select join_examiner($1, true)`, [AS]);
+  await as(U.lead, A2);
+  await raises('须确认没有私人关系', /私人关系/, `select join_examiner($1, false)`, [AS]);
+  await q(`select join_examiner($1, true)`, [AS]);
+  await raises('考核人齐了才布置', /两名考核人齐了/, `select set_small_task($1, '题', '内容')`, [AS]);
+  await as(U.fin, A2);
+  await q(`select join_examiner($1, true)`, [AS]);
+  await q(`select set_small_task($1, '复现一张表', '取研究单元里的一个真实问题，两周内独立完成')`, [AS]);
+  await as(U.lead, A2);
+  await q(`select judge_small_task($1, true, '结果可以核对')`, [AS]);
+  ok((await one(`select status from api.assessment where id = $1`, [AS])).status === 'examining', '一人通过还不算');
+  await as(U.fin, A2);
+  await q(`select judge_small_task($1, true)`, [AS]);
+  await as(U.mem2, A2);
+  const ar = await one(`select status, mentor_name from api.assessment where id = $1`, [AS]);
+  const rk = await one(`select rank from api.path_person where mine`);
+  ok(ar.status === 'passed' && rk.rank === 'assistant', '两名考核人一致通过即为 RA', JSON.stringify([ar, rk]));
+  await db.exec(`reset role`);
+  const mt = await val(`select first_mentor($1) v`, [U.mem2]);
+  const Pmt = await PID(mt);
+  ok((await one(`select done from path_auto($1, 'ra-mentor')`, [Pmt])).done === true && ar.mentor_name != null, '最早接收此人进入研究单元的负责人，「带其通过 RA 考核」自动完成');
+  await db.exec(`set role app_api`); await as(mt, A2);
+  ok((await one(`select d_yuan from api.person_attr where user_id = $1`, [mt])).d_yuan >= 1, '带的人通过考核记入元');
+  await db.exec(`reset role`);
+  // Researcher 考核：联席会议表决，中心负责人决定
+  const AR = (await one(`insert into assessment (person_id, kind, period_start, link) values ($1, 'researcher', $2, 'https://example.org/proposal') returning id`, [Pmem2, P1])).id;
+  await db.exec(`set role app_api`);
+  await as(U.mem, A2);
+  await raises('成员不能录入表决', /中心助理录入/, `select record_council_vote($1, true, $2)`, [AR, A2]);
+  await as(U.dir, A2);
+  await raises('须先经联席会议', /联席会议表决推荐/, `select decide_assessment($1, true)`, [AR]);
+  await q(`select record_council_vote($1, true, $2, '同意推荐')`, [AR, A2]);
+  await q(`select decide_assessment($1, true, '认可')`, [AR]);
+  await as(U.mem2, A2);
+  ok((await one(`select rank from api.path_person where mine`)).rank === 'researcher', '中心负责人认可后即为 Researcher');
+  // 须过问的情形
+  await as(U.dir, A3);
+  ok(Array.isArray(await q(`select * from api.path_alert`)), '须过问的情形可以列出');
   await as(null);
 }
 

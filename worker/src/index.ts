@@ -33,6 +33,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
   'token_param', 'tier_token', 'token_me', 'time_log', 'unit_pool', 'unit_share', 'outcome',
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
   'arr_cycle', 'arr_sponsor', 'arr_claim', 'path_tracker', 'path_person', 'rank_change',
+  'seminar', 'snapshot', 'snapshot_pitch', 'query', 'person_attr', 'daily_mine', 'attend_event', 'assessment', 'merit', 'path_alert',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -119,6 +120,26 @@ export const RPC: Record<string, [string, string][]> = {
   set_rank: [['person', 'uuid'], ['rank', 'text'], ['basis', 'text']],
   confirm_path_task: [['person', 'uuid'], ['code', 'text'], ['done_on', 'date'], ['note', 'text']],
   undo_path_task: [['person', 'uuid'], ['code', 'text']],
+  set_seminar_organizer: [['seminar', 'text'], ['user', 'uuid']],
+  save_snapshot: [['project', 'uuid'], ['link', 'text'], ['note', 'text'], ['authors', 'uuid[]']],
+  pitch_snapshot: [['snapshot', 'uuid'], ['seminars', 'text[]']],
+  decide_pitch: [['pitch', 'uuid'], ['accept', 'boolean'], ['note', 'text']],
+  add_query: [['pitch', 'uuid'], ['axis', 'text'], ['body', 'text'], ['raised_by', 'uuid'], ['parent', 'uuid']],
+  remove_query: [['query', 'uuid']],
+  add_query_member: [['query', 'uuid'], ['user', 'uuid']],
+  remove_query_member: [['query', 'uuid'], ['user', 'uuid']],
+  ask_join_query: [['query', 'uuid'], ['note', 'text']],
+  close_pitch: [['pitch', 'uuid']],
+  record_attendance: [['kind', 'text'], ['seminar', 'text'], ['on', 'date'], ['title', 'text'], ['present', 'uuid[]'], ['leave', 'uuid[]'], ['absent', 'uuid[]']],
+  mark_made_up: [['event', 'uuid'], ['user', 'uuid']],
+  apply_assessment: [['kind', 'text'], ['link', 'text'], ['note', 'text']],
+  withdraw_assessment: [['id', 'uuid']],
+  join_examiner: [['id', 'uuid'], ['no_conflict', 'boolean']],
+  set_small_task: [['id', 'uuid'], ['title', 'text'], ['detail', 'text']],
+  judge_small_task: [['id', 'uuid'], ['pass', 'boolean'], ['note', 'text']],
+  record_council_vote: [['id', 'uuid'], ['pass', 'boolean'], ['on', 'date'], ['note', 'text']],
+  decide_assessment: [['id', 'uuid'], ['pass', 'boolean'], ['note', 'text'], ['mentor', 'uuid']],
+  add_merit: [['user', 'uuid'], ['virtue', 'text'], ['what', 'text'], ['on', 'date']],
   rename_project: [['id', 'uuid'], ['name', 'text']],
   approve_unit: [['unit', 'uuid']],
   confirm_unit: [['unit', 'uuid']],
@@ -365,6 +386,19 @@ const NOTICE_RULES: [RegExp, string, string][] = [
   [/^身份认定/, '身份认定', '/path'],
   [/^主线任务已认定/, '成长主线', '/path'],
   [/^主线任务认定已撤销/, '成长主线', '/path'],
+  [/^研讨会组织者/, '研讨会组织者', '/iterate'],
+  [/^快照待接收/, '待接收的快照', '/iterate'],
+  [/^快照已接收/, '快照已接收', '/iterate'],
+  [/^快照未接收/, '快照未接收', '/iterate'],
+  [/^质疑小队/, '质疑小队', '/iterate'],
+  [/^入队申请/, '入队申请待办', '/iterate'],
+  [/^质疑已回应/, '质疑已回应', '/iterate'],
+  [/^研讨会讨论结束/, '研讨会讨论结束', '/iterate'],
+  [/^考核申请/, '考核申请待办理', '/path'],
+  [/^考核待决定/, '待决定的考核', '/path'],
+  [/^RA 考核：小任务已布置/, '待完成的 RA 小任务', '/path'],
+  [/考核未通过|认定未通过/, '考核未通过', '/path'],
+  [/^德行记入/, '德行记入', '/path'],
   [/^(研究单元|课题)改名/, '改名', '/projects'],
   [/研究单元申请待同意/, '研究单元申请待同意', '/projects'],
   [/研究单元立项/, '研究单元立项提醒', '/projects'],
@@ -472,7 +506,7 @@ export function noticeView(body: NoticeBody, origin: string, appId?: string) {
   // 归类先看标题，标题看不出的再看正文里有没有要办的字样
   const given = done ? 'pass' : body.kind && body.kind in KIND ? (body.kind as NoticeKind) : null;
   const kind: NoticeKind = given ?? (body.group === true ? (/提醒/.test(title) ? 'remind' : 'post')
-    : /退回|不同意|未通过/.test(title) ? 'back' : /^待|待(同意|核对|审|确认|办|答复)/.test(title) ? 'todo' : /提醒|截止|逾期/.test(title) ? 'remind'
+    : /退回|不同意|未通过/.test(title) ? 'back' : /^待|待(同意|核对|审|确认|办|答复|接收|决定)/.test(title) ? 'todo' : /提醒|截止|逾期/.test(title) ? 'remind'
     : /已成立|已同意|已通过|已批准|已认定/.test(title) ? 'pass' : /待同意|待核对|待审|待确认|待办|待答复|派了任务/.test(bare) ? 'todo' : 'fyi');
   const act = kind === 'todo' || kind === 'remind' || kind === 'back';
   const tag = typeof body.tag === 'string' && body.tag.trim() ? body.tag.trim().slice(0, 12) : KIND[kind].tag;
@@ -569,7 +603,11 @@ async function callRpc(run: Run, uid: string, fn: string, body: Record<string, u
   const spec = RPC[fn];
   const args = spec.map(([name, type]) => {
     const v = body[name];
-    return v === undefined || v === null || v === '' ? null : type === 'jsonb' ? JSON.stringify(v) : String(v);
+    if (v === undefined || v === null || v === '') return null;
+    if (type === 'jsonb') return JSON.stringify(v);
+    // 数组按 Postgres 的数组文本写：{"a","b"}
+    if (type.endsWith('[]')) return `{${(Array.isArray(v) ? v : String(v).split(',').filter(Boolean)).map((x) => `"${String(x).replace(/["\\]/g, '\\$&')}"`).join(',')}}`;
+    return String(v);
   });
   // 所有参数一律先按文本收、再转成目标类型。直接写 ::jsonb 或 ::boolean 时，驱动会按目标类型把已是文本的值再编码一次：
   // JSON 字符串被再编码成一个字符串；文本 'true' 被布尔编码器当成“不是 true”而写成 false

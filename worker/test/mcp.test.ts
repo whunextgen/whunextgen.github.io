@@ -49,7 +49,7 @@ ok(la.data.some((x: any) => x.action === 'save_time_log' && x.params.includes('i
 const deniedW = await tool(ro, 'call_action', { action: 'save_time_log', args: { period: '2026-11-16', items: [] } });
 ok(deniedW.isError && /只读/.test(deniedW.text), '只读令牌不能办理业务', deniedW.text);
 const biz = await tool(rw, 'call_action', { action: 'save_time_log', args: { period: '2026-11-16', items: [] } });
-ok(biz.isError && /身份尚未登记/.test(biz.text), '业务检查照常生效，原因原样返回', biz.text);
+ok(biz.isError && /不再登记时间/.test(biz.text), '业务检查照常生效，原因原样返回', biz.text);
 ok((await tool(rw, 'call_action', { action: 'no_such', args: {} })).isError, '不在清单里的操作调不了');
 const okCall = await tool(rw, 'call_action', { action: 'revoke_api_token', args: { id: '00000000-0000-0000-0000-000000000000' } });
 ok(okCall.isError && /令牌不存在/.test(okCall.text), '参数按类型传到函数', okCall.text);

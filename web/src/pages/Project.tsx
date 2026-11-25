@@ -6,6 +6,7 @@ import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
 import { RequestTable } from './Requests';
 import { UnitToken } from '../token';
+import { UnitIterate } from '../iterate';
 import { UnitArr } from '../arr';
 import { UnitReviews } from '../review';
 import { KIND as RES_KIND, RES_REQ, qty } from './Resource';
@@ -213,7 +214,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
           </div>
         </section>
 
-        {isUnit && r.active && !data.tags.some((t) => t.id === r.id && t.proposed) && <UnitToken me={me} unit={r} />}
+        {isUnit && r.active && !data.tags.some((t) => t.id === r.id && t.proposed) && <><UnitIterate unit={r} /><UnitToken me={me} unit={r} /></>}
         {isUnit && r.active && !data.tags.some((t) => t.id === r.id && t.proposed) && <UnitArr me={me} unit={r} />}
         {isUnit && <UnitReviews unit={r} me={me} />}
 
