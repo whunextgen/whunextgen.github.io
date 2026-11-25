@@ -234,4 +234,7 @@ export interface Submission { id: string; project_id: string; relation: 'self' |
 export interface SubmissionReview { id: string; submission_id: string; project_id: string; reviewer: string; overall: string | null; soundness: string | null; excitement: string | null; confidence: string | null;
   summary: string | null; strengths: string | null; weaknesses: string | null; comments: string | null }
 export interface ReviewPoint { id: string; review_id: string; submission_id: string; project_id: string; ord: number; axis: string; gist: string; quote: string | null; thread_id: string | null }
+export interface ReviewSummary { project_id: string; code: string; name: string; owner_name: string | null; relation: 'self' | 'prior'; venue: string; cycle: string; number: number | null; title: string; status: string
+  rounds: number; judged_rounds: number; judged_cycle: string | null; mean: string | null; reviewers: number | null; prev_mean: string | null; ac_overall: string | null
+  li: number | null; ju: number | null; ti: number | null; yong: number | null; threads_open: number; threads: number }
 export interface ReviewThread { id: string; project_id: string; relation: 'self' | 'prior'; axis: string; label: string; ord: number }

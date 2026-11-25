@@ -2432,6 +2432,12 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(u.owner_id, '2026-11-25');
   const row = await one(`select mean_overall, prev_id, relation, status from api.submission where id = $1`, [s1]);
   ok(Number(row.mean_overall) === 2.75 && row.prev_id === s0 && row.relation === 'self' && row.status === 'review', '投稿带审稿人均分，并指向上一轮', JSON.stringify(row));
+  // 汇总（0093）：每篇稿件一行，分数和质疑取最近一轮有评审的
+  const sm = await one(`select rounds, judged_rounds, mean, prev_mean, ac_overall, li, ju, ti, yong, threads, threads_open, status, number from api.review_summary where project_id = $1`, [u.id]);
+  ok(sm.rounds === 2 && sm.judged_rounds === 1 && Number(sm.mean) === 2.75 && sm.prev_mean == null && Number(sm.ac_overall) === 3.5 && sm.li === 1 && sm.ti === 1 && sm.ju === 0 && sm.yong === 0 && sm.threads === 1 && sm.threads_open === 1 && sm.number === 22, '汇总按稿件一行，取最近一轮有评审的', JSON.stringify(sm));
+  await as(null);
+  ok((await q(`select 1 from api.review_summary`)).length === 0, '未登录看不到汇总');
+  await as(u.owner_id, '2026-11-25');
   await raises('页面一侧不能直接写评审', /permission denied/, `insert into submission_review (submission_id, reviewer) values ($1, 'Reviewer_z')`, [s1]);
   await raises('页面一侧不能读底表', /permission denied/, `select 1 from submission`);
   await as(null);

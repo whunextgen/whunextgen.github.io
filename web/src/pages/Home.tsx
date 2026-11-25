@@ -6,6 +6,7 @@ import { cardRisk, nodeState } from './Overview';
 import { KIND, STAGE_TEXT, STEP_OF } from './Budget';
 import { taskDue } from './Tasks';
 import { TokenMine, addDays } from '../token';
+import { ReviewSummary } from '../review';
 
 const wan = (x: number) => `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 ? 0 : 1)} 万`;
 const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
@@ -434,6 +435,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
           ], '课题的资源')}
           <p className="hint">每个课题、研究单元名下的设备、接口额度和申领记录，在它自己的页面里。</p>
         </section>
+        <section className="wb-sec">{head('05', '投稿与评审', '各研究单元稿件的评分和质疑 · 点研究单元看逐轮评审')}<ReviewSummary /></section>
         {!(topicNodes.length > 0 || orphans.length > 0 || planYear) && <section className="wb-sec">{head('03', '课题')}<Empty>暂无课题。<a href="#/projects">前往课题管理</a></Empty></section>}
       </div>
     );

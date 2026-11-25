@@ -1,5 +1,5 @@
-import { useViews, type Project, type ReviewPoint, type ReviewThread, type Submission, type SubmissionReview } from './api';
-import { Tile } from './ui';
+import { useViews, type Project, type ReviewPoint, type ReviewSummary as Row, type ReviewThread, type Submission, type SubmissionReview } from './api';
+import { Badge, Empty, Tile } from './ui';
 
 // 文章四字：理（为什么要关注这个问题）、据（为什么别人没解决）、体（方法）、用（发现）
 const AXES = ['li', 'ju', 'ti', 'yong'] as const;
@@ -110,5 +110,34 @@ export function UnitReviews({ unit }: { unit: Project }) {
   return <>
     {self.length > 0 && <Chain title="投稿与评审" sub={note} subs={self} reviews={data.reviews} points={data.points} threads={data.threads.filter((t) => t.relation === 'self')} />}
     {prior.length > 0 && <Chain title="前作的评审" sub={`本研究单元以这篇稿件为基础；${note}`} subs={prior} reviews={data.reviews} points={data.points} threads={data.threads.filter((t) => t.relation === 'prior')} />}
+  </>;
+}
+
+// 课题汇总页的「投稿与评审」：每个研究单元的每篇稿件一行，分数和质疑取最近一轮有评审的
+export function ReviewSummary() {
+  const { data } = useViews<{ rows: Row[] }>({ rows: ['review_summary'] });
+  if (!data) return null;
+  const rows = [...data.rows].sort((a, b) => a.code.localeCompare(b.code) || b.relation.localeCompare(a.relation));
+  if (rows.length === 0) return <Empty>暂无投稿记录。</Empty>;
+  const units = new Set(rows.map((r) => r.project_id)).size, live = rows.filter((r) => r.status === 'review').length;
+  const open = rows.reduce((t, r) => t + r.threads_open, 0);
+  return <>
+    <p className="hint">{units} 个研究单元、{rows.length} 篇稿件，{live} 篇在审；追踪的质疑中有 {open} 条在最近一轮评审里仍被提出。分数为五分制，分数和质疑取最近一轮有评审的那一轮。评审是保密材料，仅中心成员可见，不得外传。</p>
+    <div className="rv-key">{AXES.map((a) => <span key={a}><Q a={a} />{AXIS[a][1]}</span>)}</div>
+    <div className="scroll"><table className="wb-table rv-sumt">
+      <thead><tr><th>研究单元</th><th>稿件</th><th>状态</th><th className="r">轮次</th><th className="r">均分</th><th className="r">AC</th>{AXES.map((a) => <th key={a} className="r"><Q a={a} /></th>)}<th className="r">仍被提出</th><th className="r">已回应</th></tr></thead>
+      <tbody>{rows.map((r) => { const d = r.mean != null && r.prev_mean != null ? Number(r.mean) - Number(r.prev_mean) : 0;
+        return <tr key={r.project_id + r.relation}>
+          <td><a href={`#/project/${r.project_id}`}>{r.name}</a><span className="sub2 blk">{r.code}{r.owner_name ? ` · ${r.owner_name}` : ''}</span></td>
+          <td className="wrap">{r.relation === 'prior' && <Badge>前作</Badge>} {r.title}<span className="sub2 blk">{r.venue} {r.cycle.slice(0, 7)}{r.number != null ? ` · #${r.number}` : ''}{r.judged_cycle && r.judged_cycle !== r.cycle ? ` · 评审取自 ${r.judged_cycle.slice(0, 7)}` : ''}</span></td>
+          <td>{STATUS[r.status] ?? r.status}</td>
+          <td className="r rv-mono">{r.rounds}</td>
+          <td className="r rv-mono">{n1(r.mean)}{d !== 0 && <small className={d < 0 ? 'rv-down' : 'rv-up'}> {d < 0 ? '↓' : '↑'}{n1(Math.abs(d).toFixed(2))}</small>}</td>
+          <td className="r rv-mono">{n1(r.ac_overall)}</td>
+          {AXES.map((a) => <td key={a} className="r rv-mono">{r[a] || '·'}</td>)}
+          <td className="r rv-mono">{r.threads_open ? <b className="rv-open">{r.threads_open}</b> : '·'}</td>
+          <td className="r rv-mono">{r.judged_rounds > 1 ? r.threads - r.threads_open || '·' : '—'}</td>
+        </tr>; })}</tbody>
+    </table></div>
   </>;
 }
