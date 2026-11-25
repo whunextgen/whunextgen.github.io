@@ -39,6 +39,7 @@ function Chain({ title, sub, subs, reviews, points, threads }: { title: string; 
   const pts = (s: Submission) => points.filter((p) => p.submission_id === s.id);
   const delta = cur.mean_overall != null && prev?.mean_overall != null ? Number(cur.mean_overall) - Number(prev.mean_overall) : null;
   const acRound = desc.find((s) => s.ac_overall != null);
+  const judged = asc.filter((s) => reviews.some((r) => r.submission_id === s.id));   // 有评审的轮次；未送审退回的一轮不算回应
   const tracked = threads.filter((t) => points.some((p) => p.thread_id === t.id)).sort((a, b) => a.ord - b.ord);
   return (
     <section className="card">
@@ -66,10 +67,10 @@ function Chain({ title, sub, subs, reviews, points, threads }: { title: string; 
 
       {tracked.length > 0 && <>
         <h4 className="rv-h">跨轮追踪的质疑</h4>
-        <p className="rv-hint">{asc.length > 1 ? `最新一轮没有人再提的，记为已回应。圆点依次是 ${asc.map((s) => s.cycle.slice(0, 7)).join('、')}。` : '同一轮里不止一位审稿人提到的问题。'}</p>
-        {tracked.map((t) => { const hit = asc.map((s) => pts(s).some((p) => p.thread_id === t.id)); const open = hit[hit.length - 1];
+        <p className="rv-hint">{judged.length > 1 ? `最新一轮评审没有人再提的，记为已回应。圆点依次是 ${judged.map((s) => s.cycle.slice(0, 7)).join('、')}。` : '同一轮里不止一位审稿人提到的问题。'}</p>
+        {tracked.map((t) => { const hit = judged.map((s) => pts(s).some((p) => p.thread_id === t.id)); const open = hit[hit.length - 1];
           return <div key={t.id} className="rv-tr"><span><Q a={t.axis} />{t.label}</span>
-            <span className="rv-trr">{hit.map((h, i) => <i key={i} className={h ? 'rv-td on' : 'rv-td'} />)}{asc.length > 1 && <b className={open ? 'rv-open' : 'rv-done'}>{open ? '本轮仍被提出' : '已回应'}</b>}</span></div>; })}
+            <span className="rv-trr">{hit.map((h, i) => <i key={i} className={h ? 'rv-td on' : 'rv-td'} />)}{judged.length > 1 && <b className={open ? 'rv-open' : 'rv-done'}>{open ? '本轮仍被提出' : '已回应'}</b>}</span></div>; })}
       </>}
 
       <h4 className="rv-h">逐轮评审</h4>
