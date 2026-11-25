@@ -3382,5 +3382,64 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`);
 }
 
+// ---------- 联席会议事项全部接入：考核、主线任务、预算调整、预算期预算 ----------
+{
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from assessment a where a.kind <> 'ra' and a.status = 'applied' and not exists (select 1 from motion m where m.ref_kind = 'assessment' and m.ref_id = a.id)`)).n === 0, '办理中的考核都有议题');
+  const am = await one(`select ballot, auto, status from motion where ref_kind = 'assessment' and auto order by created_at limit 1`);
+  ok(!am || (am.ballot === 'secret' && am.status !== 'proposed'), '考核议题不记名、免附议', JSON.stringify(am));
+  // 主线任务
+  const pp = await one(`select p.id, p.user_id from person p join app_user u on u.id = p.user_id where u.active and p.status = 'active' and not exists (select 1 from path_done d where d.person_id = p.id and d.task_code = 'ra-paper') limit 1`);
+  await db.exec(`set role app_api`);
+  await as(pp.user_id);
+  await raises('不经联席会议的任务不能提交', /不经联席会议审核/, `select request_path_council('ri-sign', 'https://x.org/a')`);
+  await raises('须附材料或说明', /材料链接或写明情况/, `select request_path_council('ra-paper')`);
+  const PM = await val(`select request_path_council('ra-paper', 'https://example.org/paper') v`);
+  ok((await one(`select task_code, status from api.path_council where motion_id = $1`, [PM])).status === 'seconded', '主线任务提交审核，列入议程');
+  await db.exec(`reset role`);
+  await q(`update motion set status = 'passed', decided_at = now(), veto_until = now() - interval '1 minute' where id = $1`, [PM]);
+  await db.exec(`set role app_api`);
+  await as(null); await q(`select council_tick()`);
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from path_done where person_id = $1 and task_code = 'ra-paper'`, [pp.id])).n === 1, '决议生效，主线任务认定完成');
+  // 预算调整与预算期预算：找一个已下达年度里有预算行的课题
+  const L = await one(`select l.id, l.year, l.project_id, l.fixed, l.used, coalesce(p.parent_id, p.id) topic, t.owner_id from v_line l join budget_year y on y.year = l.year join project p on p.id = l.project_id join project t on t.id = coalesce(p.parent_id, p.id)
+    where y.stage = 'issued' and t.kind <> 'public' and t.owner_id is not null and l.fixed > l.used order by l.fixed desc limit 1`);
+  if (L) {
+    await db.exec(`set role app_api`);
+    await as(L.owner_id);
+    await raises('核定数不能低于已用', /不能低于/, `select submit_fixed_change($1, $2, '调减')`, [L.id, Number(L.used) - 1]);
+    const FC = await val(`select submit_fixed_change($1, $2, '实验扩大') v`, [L.id, Number(L.fixed) - 1]);
+    await raises('同一行只办一份', /在办理中/, `select submit_fixed_change($1, $2, '再来')`, [L.id, Number(L.fixed) - 2]);
+    const fm = await one(`select motion_id, status from api.fixed_change where id = $1`, [FC]);
+    ok(fm.motion_id && fm.status === 'pending', '预算调整申请生成议题');
+    await as(U.dir);
+    await raises('决议生效前不能执行', /决议已生效/, `select execute_fixed_change($1)`, [FC]);
+    await db.exec(`reset role`);
+    await q(`update motion set status = 'passed', decided_at = now(), veto_until = now() - interval '1 minute' where id = $1`, [fm.motion_id]);
+    await db.exec(`set role app_api`);
+    await as(null); await q(`select council_tick()`);
+    await as(U.dir);
+    ok((await one(`select can_execute from api.council_motion where id = $1`, [fm.motion_id])).can_execute === true, '决议生效后中心负责人可以执行');
+    await q(`select execute_fixed_change($1)`, [FC]);
+    await db.exec(`reset role`);
+    ok(Number((await one(`select fixed from v_line where id = $1`, [L.id])).fixed) === Number(L.fixed) - 1 && (await one(`select status from fixed_change where id = $1`, [FC])).status === 'done', '按决议调整了核定数');
+    await db.exec(`set role app_api`);
+    await as(L.owner_id);
+    const PR = await val(`select submit_period_report($1, 2, $2, '上一期按计划执行', '本期做两组实验，用 2 万') v`, [L.year, L.topic]);
+    const pm = await one(`select motion_id, status from api.period_report where id = $1`, [PR]);
+    ok(pm.motion_id && pm.status === 'pending', '预算期预算生成议题');
+    await q(`select submit_period_report($1, 2, $2, '上一期按计划执行，改过', '本期做两组实验，用 2 万')`, [L.year, L.topic]);
+    ok((await one(`select body from api.council_motion where id = $1`, [pm.motion_id])).body.includes('改过'), '修改后议题正文跟着更新');
+    await db.exec(`reset role`);
+    await q(`update motion set status = 'passed', decided_at = now(), veto_until = now() - interval '1 minute' where id = $1`, [pm.motion_id]);
+    await db.exec(`set role app_api`);
+    await as(null); await q(`select council_tick()`);
+    await db.exec(`reset role`);
+    ok(/第 \d+ 号决议通过/.test((await one(`select note from budget_review where year = $1 and quarter = 2 and project_id = $2`, [L.year, L.topic])).note), '决议生效，记为这一期的复盘结论');
+  }
+  await db.exec(`set role app_api`);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

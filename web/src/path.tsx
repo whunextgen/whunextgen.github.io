@@ -33,7 +33,7 @@ function Ladder({ rank }: { rank: Rank }) {
 }
 
 // 一个人的任务清单
-function Track({ p, tasks, onAct }: { p: PathPerson; tasks: PathTask[]; onAct?: (a: Act) => void }) {
+function Track({ p, tasks, onAct, council, onAsk }: { p: PathPerson; tasks: PathTask[]; onAct?: (a: Act) => void; council?: { task_code: string; motion_id: string; status: string }[]; onAsk?: (a: Act) => void }) {
   const list = tasks.filter((t) => t.person_id === p.person_id).sort((a, b) => a.seq - b.seq);
   const confirmAct = (t: PathTask): Act => ({ title: `确认完成：${t.title}`, label: '确认',
     hint: `${p.person_name} · ${p.rank_label}。认定方：${t.verify_label}。确认后通知本人；确认错了可以撤销。`,
@@ -56,7 +56,12 @@ function Track({ p, tasks, onAct }: { p: PathPerson; tasks: PathTask[]; onAct?: 
             <td className="wrap"><Badge tone={ST[t.status][0]}>{ST[t.status][1]}</Badge>
               {t.status === 'done' && t.done_on && <span className="sub2">{day(t.done_on)}{t.confirmed_by_name ? ` · ${t.confirmed_by_name} 确认` : ''}{t.note ? ` · ${t.note}` : ''}</span>}
               {t.status !== 'done' && t.progress && <span className="sub2">{t.progress}</span>}
-              {t.status === 'waiting' && <span className="sub2">所需功能上线后由中台自动认定</span>}</td>
+              {t.status === 'waiting' && <span className="sub2">所需功能上线后由中台自动认定</span>}
+              {t.verify === 'council' && t.status !== 'done' && onAsk && (() => { const c = council?.find((x) => x.task_code === t.code && !['failed', 'vetoed', 'withdrawn'].includes(x.status));
+                return c ? <span className="sub2"><a href={`#/motion/${c.motion_id}`}>联席会议审核中 →</a></span>
+                  : <span className="sub2"><button className="sm ghost" onClick={() => onAsk({ title: `提交联席会议审核：${t.title}`, label: '提交',
+                    hint: '提交后正则把这一条列入联席会议议程（免附议），不记名表决；决议生效即认定完成。', fields: [{ name: 'link', label: '材料链接（稿子、文件等）', required: false }, { name: 'note', label: '说明', type: 'area', required: false }],
+                    run: (v) => rpc('request_path_council', { code: t.code, link: v.link || null, note: v.note || null }) })}>提交联席会议审核</button></span>; })()}</td>
             {onAct && <td className="r">{t.can_confirm && (t.status === 'done' && t.done_on
               ? <button className="ghost sm danger" onClick={() => onAct(undoAct(t))}>撤销</button>
               : t.status === 'open' && <button className="sm" onClick={() => onAct(confirmAct(t))}>确认完成</button>)}</td>}
@@ -84,8 +89,8 @@ export function PathMine() {
 
 // 成长主线页
 export function PathPage({ me, start }: { me: Me; start?: string }) {
-  const { data, error, reload } = useViews<{ people: PathPerson[]; tasks: PathTask[]; changes: RankChange[] }>({
-    people: ['path_person'], tasks: ['path_tracker'], changes: ['rank_change'] });
+  const { data, error, reload } = useViews<{ people: PathPerson[]; tasks: PathTask[]; changes: RankChange[]; council: { task_code: string; motion_id: string; status: string }[] }>({
+    people: ['path_person'], tasks: ['path_tracker'], changes: ['rank_change'], council: ['path_council'] });
   const [act, setAct] = useState<Act | null>(null);
   const [pick, setPick] = useState(start ?? '');
   const [rank, setRank] = useState('');
@@ -115,7 +120,7 @@ export function PathPage({ me, start }: { me: Me; start?: string }) {
         <h3>本人 {mine && <span className="h3sub">{mine.person_name} · {mine.rank_label}</span>}</h3>
         {!mine ? <Empty>本人的人员档案尚未对应中台账号，请联系人事岗。</Empty> : <>
           <Ladder rank={mine.rank} />
-          <Track p={mine} tasks={data.tasks} onAct={data.tasks.some((t) => t.mine && t.can_confirm) ? setAct : undefined} />
+          <Track p={mine} tasks={data.tasks} onAct={data.tasks.some((t) => t.mine && t.can_confirm) ? setAct : undefined} council={data.council} onAsk={setAct} />
           <History id={mine.person_id} />
         </>}
       </section>
