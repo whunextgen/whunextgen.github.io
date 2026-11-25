@@ -3,16 +3,15 @@ import { rpc, useViews, type Me, type PeoplePick } from './api';
 import { ActionDialog, Badge, Empty, Loading, day, type Field } from './ui';
 
 // 项目双选与试做期：成员找可以参与的研究、表达意向；负责人维护招募信息、加人并开试做期；指导人给反馈和期满结论
-interface Recruit { id: string; code: string; name: string; layer: 'big' | 'paper'; parent_id: string | null; parent_name: string | null; owner_name: string | null;
-  intro: string | null; tasks: string | null; needs: string | null; audience: string | null; status: 'open' | 'paused' | 'full' | 'unset'; contact_id: string | null; contact_name: string | null;
-  updated_at: string | null; members: number; can_manage: boolean; am_member: boolean; my_interest: boolean }
+interface Recruit { id: string; code: string; name: string; layer: 'big' | 'paper'; parent_id: string | null; parent_name: string | null; owner_id: string | null; owner_name: string | null; owner_scholar_url: string | null;
+  intro: string | null; snapshot: { id: string; seq: number; link: string; period_start: string } | null; open_queries: number; queries: { id: string; axis: string; body: string }[];
+  members: number; can_manage: boolean; am_member: boolean; my_interest: boolean }
 interface Interest { id: string; project_id: string; project_name: string; user_id: string; user_name: string; rank_label: string; note: string; link: string | null; status: string; created_at: string; mine: boolean }
 interface Trial { id: string; project_id: string; project_name: string; user_id: string; user_name: string; rank_label: string; mentor_id: string; mentor_name: string; start_on: string; end_on: string; extended: boolean;
   task_title: string; task_detail: string; task_due: string; status: 'running' | 'done'; mid_note: string | null; mid_link: string | null; mid_at: string | null; mid_feedback: string | null;
   final_note: string | null; final_link: string | null; final_at: string | null; conclusion: string | null; conclusion_label: string | null; conclusion_note: string | null; concluded_at: string | null;
   stage: 'running' | 'mid' | 'feedback' | 'final' | 'done'; mine: boolean; am_mentor: boolean; can_manage: boolean; can_appeal: boolean; appeal_motion_id: string | null }
 interface Act { title: string; hint?: ReactNode; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
-const RS: Record<Recruit['status'], [string, string]> = { open: ['ok', '正在接收'], paused: ['warn', '暂停'], full: ['', '已满'], unset: ['', '信息待补充'] };
 const STAGE: Record<Trial['stage'], string> = { running: '试做中', mid: '待阶段进展', feedback: '待指导人反馈', final: '待期满结论', done: '已办结' };
 const plus = (n: number) => new Date(Date.now() + n * 864e5 + 8 * 3600e3).toISOString().slice(0, 10);
 const STANDARD = '考察标准按身份：Intern 和硕士研究生看研究热情和投入（按时交付，讲清做了什么、遇到什么问题、下一步打算）；Assistant 另看研究能力（结果可以核对，说明回答了什么问题、改变了什么判断，过程符合科研规范）。均不以发表为标准，负责人和指导人不另设标准。';
@@ -21,25 +20,19 @@ export function SelectPage({ me }: { me: Me }) {
   const { data, error, reload } = useViews<{ rec: Recruit[]; ints: Interest[]; trials: Trial[]; people: PeoplePick[] }>(
     { rec: ['recruit'], ints: ['recruit_interest'], trials: ['trial'], people: ['people_pick'] });
   const [act, setAct] = useState<Act | null>(null);
-  const [only, setOnly] = useState(true);
+  const [only, setOnly] = useState(false);
   if (!data) return <Loading error={error} />;
   const people = [...data.people].sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((p): [string, string] => [p.id, p.name]);
   const topics = data.rec.filter((r) => r.layer === 'big').sort((a, b) => a.code.localeCompare(b.code));
   const unitsOf = (id: string) => data.rec.filter((r) => r.parent_id === id).sort((a, b) => a.code.localeCompare(b.code));
-  const shown = (r: Recruit) => !only || r.status === 'open' || unitsOf(r.id).some((u) => u.status === 'open');
+  const hasQ = (r: Recruit) => r.open_queries > 0;
+  const shown = (r: Recruit) => !only || hasQ(r) || unitsOf(r.id).some(hasQ);
   const mine = data.rec.filter((r) => r.can_manage).sort((a, b) => a.code.localeCompare(b.code));
   const myTrials = data.trials.filter((t) => t.mine);
   const mentoring = data.trials.filter((t) => t.am_mentor && t.status === 'running');
-  const interestAct = (r: Recruit): Act => ({ title: `表达意向：${r.name}`, label: '提交', hint: `提交后 ${r.contact_name ?? '负责人'} 会收到通知。也可以直接私聊联系，谈妥后由负责人在正则上把你加入成员名单。`,
+  const interestAct = (r: Recruit): Act => ({ title: `表达意向：${r.name}`, label: '提交', hint: `提交后负责人 ${r.owner_name ?? ''} 会收到通知。也可以直接私聊联系，谈妥后由负责人在正则上把你加入成员名单。`,
     fields: [{ name: 'note', label: '本人情况，对哪个方向感兴趣', type: 'area' }, { name: 'link', label: '研究兴趣、能力或作品的链接（选填）', required: false }],
     run: (v) => rpc('express_interest', { project: r.id, note: v.note, link: v.link || null }) });
-  const editAct = (r: Recruit): Act => ({ title: `招募信息：${r.name}`, label: '保存',
-    fields: [{ name: 'intro', label: '研究什么（一句话说明研究问题，可附介绍链接）', type: 'area', value: r.intro ?? '', required: false },
-      { name: 'tasks', label: '加入后做什么（一至三项近期可以参与的小任务和预期产出）', type: 'area', value: r.tasks ?? '', required: false },
-      { name: 'needs', label: '需要什么基础', value: r.needs ?? '', required: false }, { name: 'audience', label: '接收对象（例如 Intern、Assistant、硕士）', value: r.audience ?? '', required: false },
-      { name: 'status', label: '是否接收', options: [['open', '正在接收'], ['paused', '暂停'], ['full', '已满']], value: r.status === 'unset' ? 'open' : r.status },
-      { name: 'contact', label: '联系谁', options: people, value: r.contact_id ?? '' }],
-    run: (v) => rpc('save_project_recruit', { project: r.id, intro: v.intro || null, tasks: v.tasks || null, needs: v.needs || null, audience: v.audience || null, status: v.status, contact: v.contact || null }) });
   const trialAct = (r: Recruit, who?: string): Act => ({ title: `加入并开始试做：${r.name}`, label: '开始',
     hint: <>成员加入名单，同时开试做期（一个月，可延长一次）。适用于 Intern 和 Assistant；已在名单中的成员不重新试做。{STANDARD}</>,
     fields: [{ name: 'user', label: '成员', options: people, value: who ?? '' }, { name: 'mentor', label: '指导人（Researcher 及以上）', options: people, value: me.id },
@@ -70,34 +63,34 @@ export function SelectPage({ me }: { me: Me }) {
       </div></li>);
   const Card = ({ r }: { r: Recruit }) => (
     <div style={{ padding: '10px 0', borderTop: '1px solid var(--line)' }}>
-      <div><b>{r.layer === 'big' ? '课题' : '研究单元'}「{r.name}」</b> <span className="sub2">{r.code} · 负责人 {r.owner_name ?? '—'} · 成员 {r.members} 人</span> <Badge tone={RS[r.status][0]}>{RS[r.status][1]}</Badge></div>
-      {r.intro && <div style={{ marginTop: 4 }}>研究什么：{r.intro}</div>}
-      {r.tasks && <div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>加入后做什么：{r.tasks}</div>}
-      {(r.needs || r.audience) && <div className="sub2" style={{ marginLeft: 0 }}>{r.needs ? `需要：${r.needs}` : ''}{r.needs && r.audience ? ' · ' : ''}{r.audience ? `接收：${r.audience}` : ''}</div>}
-      <div className="ir-acts" style={{ alignItems: 'center' }}><span className="sub2" style={{ marginLeft: 0 }}>联系 {r.contact_name ?? '负责人'}</span>
-        {r.am_member ? <span className="sub2">已在名单里</span> : r.my_interest ? <span className="sub2">已表达意向</span> : r.status === 'open' && <button className="sm ghost" onClick={() => setAct(interestAct(r))}>表达意向</button>}</div>
+      <div><b>{r.layer === 'big' ? '课题' : '研究单元'}「{r.name}」</b> <span className="sub2">{r.code} · 负责人 {r.owner_name ?? '—'}{r.owner_scholar_url && <> <a href={r.owner_scholar_url} target="_blank" rel="noreferrer">学术主页</a></>} · 成员 {r.members} 人</span></div>
+      {r.intro && <div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{r.intro}</div>}
+      {r.snapshot && <div className="sub2" style={{ marginLeft: 0 }}>最新快照：<a href={r.snapshot.link} target="_blank" rel="noreferrer">第 {r.snapshot.seq} 次（{day(r.snapshot.period_start)} 起一期）</a></div>}
+      {r.queries.length > 0 && <div style={{ marginTop: 4 }}>还没回应的质疑 {r.open_queries} 条，回应它们可以加入质疑小队：
+        <ul className="path-hist" style={{ margin: '2px 0' }}>{r.queries.map((x) => <li key={x.id}><a href={`#/query/${x.id}`}>{x.axis}：{x.body}</a></li>)}</ul></div>}
+      <div className="ir-acts" style={{ alignItems: 'center' }}>
+        {r.am_member ? <span className="sub2" style={{ marginLeft: 0 }}>已在名单里</span> : r.my_interest ? <span className="sub2" style={{ marginLeft: 0 }}>已表达意向</span> : <button className="sm ghost" onClick={() => setAct(interestAct(r))}>表达意向</button>}</div>
     </div>);
   return (
     <div className="wb">
       <div className="top"><h2>双选</h2></div>
-      <p className="lede">中心已有的 Intern、Assistant 和硕士研究生选择参与的课题和研究单元。看招募信息、表达意向或直接私聊，谈妥后由负责人加入成员名单；新加入的可以开一个月的试做期，期满结论报联席会议备案。规则见联席会议议题《项目双选与试做期规则（草案）》。</p>
+      <p className="lede">中心已有的 Intern、Assistant 和硕士研究生选择参与的课题和研究单元。看课题和研究单元的介绍、快照和还没回应的质疑，表达意向或直接私聊负责人，谈妥后由负责人加入成员名单；新加入的可以开一个月的试做期，期满结论报联席会议备案。规则见联席会议议题《项目双选与试做期规则（草案）》。</p>
       {(myTrials.length > 0 || mentoring.length > 0) && <section className="wb-sec"><h3>我的试做</h3>
         <ul className="path-hist">{myTrials.map((t) => <TrialCard key={t.id} t={t} />)}{mentoring.filter((t) => !t.mine).map((t) => <TrialCard key={t.id} t={t} />)}</ul></section>}
       {mine.length > 0 && <section className="wb-sec"><h3>我负责的招募与成员 <span className="h3sub">{mine.length} 个课题或研究单元</span></h3>
         {mine.map((r) => { const ints = data.ints.filter((i) => i.project_id === r.id && i.status === 'open'); const trs = data.trials.filter((t) => t.project_id === r.id && !t.mine && !t.am_mentor); return (
           <div key={r.id} style={{ padding: '10px 0', borderTop: '1px solid var(--line)' }}>
-            <div><b>{r.name}</b> <span className="sub2">{r.code}</span> <Badge tone={RS[r.status][0]}>{RS[r.status][1]}</Badge>
-              <span className="ir-acts" style={{ display: 'inline-flex', marginLeft: 8 }}><button className="sm ghost" onClick={() => setAct(editAct(r))}>{r.status === 'unset' ? '填写招募信息' : '修改招募信息'}</button>
-                <button className="sm ghost" onClick={() => setAct(trialAct(r))}>加入并开始试做</button></span></div>
+            <div><b>{r.name}</b> <span className="sub2">{r.code} · 成员 {r.members} 人</span>
+              <span className="ir-acts" style={{ display: 'inline-flex', marginLeft: 8 }}><button className="sm ghost" onClick={() => setAct(trialAct(r))}>加入并开始试做</button></span></div>
             {ints.length > 0 && <ul className="path-hist">{ints.map((i) => <li key={i.id}>{i.user_name}（{i.rank_label}）：{i.note}{i.link && <> <a href={i.link} target="_blank" rel="noreferrer">资料</a></>} <span className="sub2">{day(i.created_at)}</span>
               <button className="sm ghost" style={{ marginLeft: 8 }} onClick={() => setAct(trialAct(r, i.user_id))}>加入并开始试做</button></li>)}</ul>}
             {trs.length > 0 && <ul className="path-hist">{trs.map((t) => <TrialCard key={t.id} t={t} />)}</ul>}
           </div>); })}
       </section>}
-      <section className="wb-sec"><h3>可以参与的研究 <span className="h3sub"><label><input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} /> 只看正在接收的</label></span></h3>
-        {topics.filter(shown).length === 0 ? <Empty>暂时没有正在接收的课题或研究单元。</Empty> : topics.filter(shown).map((tp) => (
+      <section className="wb-sec"><h3>可以参与的研究 <span className="h3sub">课题和研究单元的介绍取自立项时的说明，负责人不另填；<label><input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} /> 只看有待回应质疑的</label></span></h3>
+        {topics.filter(shown).length === 0 ? <Empty>没有符合条件的课题或研究单元。</Empty> : topics.filter(shown).map((tp) => (
           <div key={tp.id} style={{ marginBottom: 18 }}><Card r={tp} />
-            <div style={{ marginLeft: 20 }}>{unitsOf(tp.id).filter((u) => !only || u.status === 'open').map((u) => <Card key={u.id} r={u} />)}</div></div>))}
+            <div style={{ marginLeft: 20 }}>{unitsOf(tp.id).filter((u) => !only || hasQ(u)).map((u) => <Card key={u.id} r={u} />)}</div></div>))}
       </section>
       {data.ints.some((i) => i.mine && i.status === 'open') && <section className="wb-sec"><h3>我的意向</h3>
         <ul className="path-hist">{data.ints.filter((i) => i.mine && i.status === 'open').map((i) => <li key={i.id}>{i.project_name}：{i.note} <button className="sm ghost" onClick={() => rpc('withdraw_interest', { id: i.id }).then(reload)}>撤回</button></li>)}</ul></section>}

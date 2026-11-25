@@ -156,7 +156,6 @@ export const RPC: Record<string, [string, string][]> = {
   propose_project_end: [['project', 'uuid'], ['kind', 'text'], ['reason', 'text']],
   propose_removal: [['person', 'uuid'], ['reason', 'text']],
   decide_removal: [['id', 'uuid'], ['accept', 'boolean'], ['note', 'text']],
-  save_project_recruit: [['project', 'uuid'], ['intro', 'text'], ['tasks', 'text'], ['needs', 'text'], ['audience', 'text'], ['status', 'text'], ['contact', 'uuid']],
   express_interest: [['project', 'uuid'], ['note', 'text'], ['link', 'text']],
   withdraw_interest: [['id', 'uuid']],
   start_trial: [['project', 'uuid'], ['user', 'uuid'], ['mentor', 'uuid'], ['end', 'date'], ['task_title', 'text'], ['task_detail', 'text'], ['task_due', 'date'], ['no_conflict', 'boolean']],
