@@ -3514,11 +3514,9 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await q(`update person set rank = 'assistant' where user_id = $1`, [U.mem]);
   await q(`update person set rank = 'researcher' where user_id = $1`, [U.lead]);
   await db.exec(`set role app_api`);
-  await as(W.owner_id);
-  await q(`select save_project_recruit($1, '研究长程推理的评测', '整理基准、跑基线', '会 Python', 'Intern、Assistant、硕士', 'open', null)`, [W.id]);
   await as(U.mem);
-  ok((await one(`select status, intro, can_manage from api.recruit where id = $1`, [W.id])).intro === '研究长程推理的评测', '招募信息公开');
-  await raises('不是负责人不能改招募信息', /负责人或副手维护/, `select save_project_recruit($1, 'x', null, null, null, 'open', null)`, [W.id]);
+  const rc = await one(`select owner_id, open_queries, can_manage, am_member from api.recruit where id = $1`, [W.id]);
+  ok(rc && rc.owner_id === W.owner_id && rc.can_manage === false && rc.am_member === false, '课题和研究单元直接列出，联系负责人，不另填招募信息', JSON.stringify(rc));
   await q(`select express_interest($1, '做过推理评测，想参与基线', 'https://example.org/me')`, [W.id]);
   await raises('意向不重复', /已表达过意向/, `select express_interest($1, '再来一次')`, [W.id]);
   await as(W.owner_id);
