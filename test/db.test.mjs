@@ -3020,11 +3020,63 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await q(`select add_query($1, 'ti', '方法细节', $2)`, [PX, so[1].user_id]);
   const so2 = await q(`select user_id, seq, this_turn from api.speak_order where pitch_id = $1 order by seq`, [PX]);
   ok(so2.filter((x) => x.this_turn).length === 2 && so2.find((x) => x.user_id === so[1].user_id).this_turn === 'query', '点过名的记下，记入质疑的算提了', JSON.stringify(so2));
+  // 质疑卡：组织者开一轮写卡，到场的人每人写一张；组织者看谁交了
+  await as(U.mem, D);
+  await raises('成员不能开始写卡', /组织者开始或结束写卡/, `select set_card_round($1, true)`, [PX]);
+  await as(U.lead, D);
+  await q(`select set_card_round($1, true)`, [PX]);
+  await as(U.mem2, D);
+  const CARD = await val(`select submit_query_draft($1, 'li', '为什么现在做') v`, [PX]);
+  await as(U.lead, D);
+  const cr = await one(`select card_round, card_authors, pending_drafts from api.snapshot_pitch where id = $1`, [PX]);
+  ok(cr.card_round === true && cr.card_authors === 1 && cr.pending_drafts === 1, '写卡中：组织者看到交卡人数和待记入的卡', JSON.stringify(cr));
   await q(`select close_pitch($1)`, [PX]);
   await q(`select set_minutes($1, 'https://example.feishu.cn/minutes/x')`, [M]);
   const s2 = await val(`select end_meeting($1) v`, [M]);
   ok(s2.closed === 1, '研讨会现场：结束讨论的快照挂到这次会上', JSON.stringify(s2));
   ok((await one(`select minutes_link from api.meeting where id = $1`, [M])).minutes_link.includes('minutes'), '会议挂上纪要链接');
+  ok((await one(`select card_round from api.snapshot_pitch where id = $1`, [PX])).card_round === false, '结束讨论时一并收卡');
+  await raises('讨论结束后卡片不能再记入', /讨论已结束/, `select accept_query_draft($1, true)`, [CARD]);
+  // 录音补漏：散会后取逐字稿，提取的质疑作为草稿交组织者记入
+  await db.exec(`reset role`);
+  await q(`update attend_event set ended_at = now() - interval '10 minutes' where id = $1`, [M]);
+  const nmM = (await one(`select name from app_user where id = $1`, [U.mem2])).name;
+  const nmOwn = (await one(`select name from app_user where id = $1`, [own])).name;
+  await db.exec(`set role app_api`);
+  await as(null, D);
+  ok((await q(`select event_id from transcript_todo()`)).some((t) => t.event_id === M), '散会后取逐字稿');
+  await q(`select transcript_save($1, null, null, '妙记还没生成')`, [M]);
+  ok(!(await q(`select event_id from transcript_todo()`)).some((t) => t.event_id === M), '取不到的过一会儿再试');
+  await q(`select transcript_save($1, 'feishu', $2, '已取到')`, [M, `${nmM}：数据从哪里来？`]);
+  const ex = await q(`select event_id, pitches, attendees from transcript_extract_todo()`);
+  ok(ex.length === 1 && ex[0].pitches.some((x) => x.id === PX) && ex[0].attendees.includes(nmM), '待提取的逐字稿连同这场会的快照和到场的人', JSON.stringify(ex));
+  const items = [{ pitch: PX, axis: 'ju', body: '数据从哪里来', speaker: nmM, quote: '数据从哪里来？' },
+    { pitch: PX, axis: 'li', body: '汇报人自己说的', speaker: nmOwn }, { pitch: PX, axis: 'yong', body: '现场记入的质疑', speaker: '路人' },
+    { pitch: PX, axis: 'ti', body: '不在中台的人提的', speaker: '访客乙' }, { pitch: '00000000-0000-0000-0000-000000000000', axis: 'li', body: '对不上快照' }];
+  eq(await val(`select transcript_drafts_save($1, $2::jsonb, '提取 5 条') v`, [M, JSON.stringify(items)]), 2, '汇报人自己的话、已记入的、对不上快照的不收');
+  ok((await q(`select 1 from transcript_extract_todo()`)).length === 0, '提取过的不再提取');
+  await as(U.mem, D);
+  ok((await q(`select 1 from api.meeting_transcript where id = $1`, [M])).length === 0, '逐字稿只有组织者看');
+  await as(U.lead, D);
+  ok((await one(`select drafts, chars from api.meeting_transcript where id = $1`, [M])).drafts === 2, '组织者看到逐字稿和提取结果');
+  const tds = await q(`select id, author_id, speaker, quote from api.query_draft where event_id = $1 and source = 'transcript'`, [M]);
+  const dA = tds.find((d) => d.author_id === U.mem2), dB = tds.find((d) => d.author_id == null);
+  ok(dA && dB && dB.speaker === '访客乙' && dA.quote === '数据从哪里来？', '发言人按姓名对上账号，对不上的留姓名和原话', JSON.stringify(tds));
+  await q(`select accept_query_draft($1, true)`, [dA.id]);
+  await q(`select accept_query_draft($1, true, $2)`, [dB.id, U.fin]);
+  const late = await q(`select body, raised_by, status from query where pitch_id = $1 and body in ('数据从哪里来', '不在中台的人提的') order by body`, [PX]).catch(async () => { await db.exec(`reset role`); const r = await q(`select body, raised_by, status from query where pitch_id = $1 and body in ('数据从哪里来', '不在中台的人提的') order by body`, [PX]); await db.exec(`set role app_api`); return r; });
+  ok(late.length === 2 && late.every((x) => x.status === 'open') && late.some((x) => x.raised_by === U.mem2) && late.some((x) => x.raised_by === U.fin), '讨论结束后 7 天内录音补漏仍可记入，记为未回应，可指定提出的人', JSON.stringify(late));
+  await as(null, D);
+  await q(`select transcript_drafts_save($1, $2::jsonb, '补一条')`, [M, JSON.stringify([{ pitch: PX, axis: 'li', body: '过期的一条', speaker: '访客丙' }])]);
+  await db.exec(`reset role`);
+  await q(`update snapshot_pitch set closed_at = now() - interval '8 days' where id = $1`, [PX]);
+  const OLD = (await one(`select id from query_draft where body = '过期的一条'`)).id;
+  await db.exec(`set role app_api`);
+  await as(U.lead, D);
+  await raises('讨论结束超过 7 天不再补记', /7 天内/, `select accept_query_draft($1, true)`, [OLD]);
+  await db.exec(`reset role`);
+  await q(`update snapshot_pitch set closed_at = now() where id = $1`, [PX]);
+  await db.exec(`set role app_api`);
   // 飞书会议自动签到
   await as(U.dir, D);
   const L2 = await val(`select open_meeting('lecture') v`);

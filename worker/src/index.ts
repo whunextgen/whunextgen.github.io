@@ -5,6 +5,7 @@ import { MARK_PNG, MARK_WHITE_PNG } from './mark.ts';
 
 export interface Env {
   ZOOM_ACCOUNT_ID?: string; ZOOM_CLIENT_ID?: string; ZOOM_CLIENT_SECRET?: string;   // Zoom 服务端应用：读参会报告和云录制
+  ANTHROPIC_API_KEY?: string;   // 录音补漏：从逐字稿里自动找出质疑。没有设的，由济民按需提取
   HYPERDRIVE: { connectionString: string };   // 以 app_api 角色连接 Supabase Postgres
   FEISHU_APP_ID: string;
   FEISHU_APP_SECRET: string;
@@ -35,7 +36,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
   'arr_cycle', 'arr_sponsor', 'arr_claim', 'path_tracker', 'path_person', 'rank_change',
   'seminar', 'snapshot', 'snapshot_pitch', 'query', 'person_attr', 'daily_mine', 'attend_event', 'assessment', 'merit', 'path_alert',
-  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order',
+  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order', 'meeting_transcript',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -130,7 +131,8 @@ export const RPC: Record<string, [string, string][]> = {
   set_seminar_minutes: [['seminar', 'text'], ['oral', 'int'], ['poster', 'int']],
   set_seminar_targets: [['seminar', 'text'], ['oral', 'int'], ['poster', 'int']],
   submit_query_draft: [['pitch', 'uuid'], ['axis', 'text'], ['body', 'text'], ['parent', 'uuid']],
-  accept_query_draft: [['id', 'uuid'], ['accept', 'boolean']],
+  accept_query_draft: [['id', 'uuid'], ['accept', 'boolean'], ['raised_by', 'uuid']],
+  set_card_round: [['pitch', 'uuid'], ['open', 'boolean']],
   record_turn: [['pitch', 'uuid'], ['user', 'uuid'], ['result', 'text']],
   add_query: [['pitch', 'uuid'], ['axis', 'text'], ['body', 'text'], ['raised_by', 'uuid'], ['parent', 'uuid']],
   remove_query: [['query', 'uuid']],
@@ -452,6 +454,94 @@ async function meetingSync(env: Env) {
     }
     await withUser(env, null, (sql) => sql`select public.meeting_sync_save(${t.event_id}::uuid, array(select jsonb_array_elements_text(${JSON.stringify([...ids])}::text::jsonb)), ${minutes}, ${note})`).catch((e) => console.error('会议同步', e));
   }
+}
+
+// ---------- 录音补漏：散会后取逐字稿，找出会上提的质疑，作为草稿交组织者记入 ----------
+// Zoom 的逐字稿是 WebVTT，转成「[分:秒] 姓名：话」一行一句
+export function vttToText(vtt: string) {
+  const out: string[] = [];
+  let at = '';
+  for (const line of vtt.replace(/\r/g, '').split('\n')) {
+    const t = line.match(/^(\d{2}):(\d{2}):(\d{2})\.\d{3}\s+-->/);
+    if (t) { at = `${Number(t[1]) * 60 + Number(t[2])}:${t[3]}`; continue; }
+    if (!line.trim() || line === 'WEBVTT' || /^\d+$/.test(line.trim())) continue;
+    out.push(`[${at}] ${line.trim()}`);
+  }
+  return out.join('\n');
+}
+async function transcriptSync(env: Env) {
+  const todo = await withUser(env, null, (sql) => sql`select event_id, zoom_id, minutes_link from public.transcript_todo()`).catch(() => []);
+  let tok: string | null | undefined; let ztok: string | null | undefined;
+  for (const t of todo) {
+    let body: string | null = null; let note = ''; let source: 'feishu' | 'zoom' | null = null;
+    if (t.zoom_id) {
+      source = 'zoom';
+      if (ztok === undefined) ztok = await zoomToken(env);
+      if (!ztok) note = '未配置 Zoom 的服务端应用凭证';
+      else {
+        const rec = await fetch(`https://api.zoom.us/v2/meetings/${t.zoom_id}/recordings`, { headers: { authorization: `Bearer ${ztok}` } }).then((x) => x.json() as Promise<any>).catch(() => null);
+        const f = ((rec?.recording_files ?? []) as { file_type?: string; download_url?: string; status?: string }[]).find((x) => x.file_type === 'TRANSCRIPT' && x.download_url);
+        if (!f) note = rec?.recording_files ? 'Zoom 云录制还没有生成逐字稿（须在 Zoom 设置里开启音频转写）' : `Zoom 返回 ${rec?.code ?? '无'}：${String(rec?.message ?? '').slice(0, 80)}`;
+        else {
+          const r = await fetch(f.download_url!, { headers: { authorization: `Bearer ${ztok}` } }).catch(() => null);
+          if (r?.ok) body = vttToText(await r.text()); else note = `下载 Zoom 逐字稿失败 ${r?.status ?? ''}`;
+        }
+      }
+    } else {
+      source = 'feishu';
+      const mt = String(t.minutes_link ?? '').match(/\/minutes\/([0-9a-zA-Z]+)/)?.[1];
+      if (tok === undefined) {
+        const r = await feishu('/auth/v3/tenant_access_token/internal', { method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ app_id: env.FEISHU_BOT_APP_ID || env.FEISHU_APP_ID, app_secret: env.FEISHU_BOT_APP_SECRET || env.FEISHU_APP_SECRET }) }).catch(() => null);
+        tok = r?.tenant_access_token ? String(r.tenant_access_token) : null;
+      }
+      if (!mt) note = '纪要链接不是飞书妙记';
+      else if (!tok) note = '取不到正则的应用凭证';
+      else {
+        const r = await fetch(`https://open.feishu.cn/open-apis/minutes/v1/minutes/${mt}/transcript?need_speaker=true&need_timestamp=true&file_format=txt`, { headers: { authorization: `Bearer ${tok}` } }).catch(() => null);
+        const ct = r?.headers.get('content-type') ?? '';
+        if (r?.ok && !ct.includes('json')) body = await r.text();
+        else { const j = r ? await r.json().catch(() => null) as any : null; note = `飞书返回 ${j?.code ?? r?.status ?? '无'}：${String(j?.msg ?? '').slice(0, 80)}（妙记可能还在生成，或正则没有这份妙记的读取权限）`; }
+      }
+    }
+    if (body) note = `已取到逐字稿，${body.length} 字`;
+    await withUser(env, null, (sql) => sql`select public.transcript_save(${t.event_id}::uuid, ${source}, ${body}, ${note})`).catch((e) => console.error('存逐字稿', e));
+  }
+  if (env.ANTHROPIC_API_KEY) await extractQueries(env).catch((e) => console.error('提取质疑', e));
+}
+
+const AXIS_GUIDE = '理（li）：为什么读者要关注这个问题；据（ju）：为什么别人没有解决；体（ti）：为什么你能解决（方法、证据是否站得住）；用（yong）：为什么别人要关注你的解决和发现';
+async function extractQueries(env: Env) {
+  const [row] = await withUser(env, null, (sql) => sql`select event_id, seminar_name, held_on, body, pitches, attendees from public.transcript_extract_todo()`);
+  if (!row) return;
+  const pitches = row.pitches as { id: string; label: string; format: string | null; authors: string[] }[];
+  if (!pitches.length) { await withUser(env, null, (sql) => sql`select public.transcript_drafts_save(${row.event_id}::uuid, '[]'::jsonb, '这场会没有可对应的快照')`); return; }
+  const { default: Anthropic } = await import('@anthropic-ai/sdk');
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const list = pitches.map((p, i) => `${i + 1}. ${p.label}（${p.format === 'poster' ? '海报' : '口头报告'}；汇报人：${p.authors.join('、') || '未登记'}）`).join('\n');
+  const schema = { type: 'object', additionalProperties: false, required: ['items'], properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false,
+    required: ['pitch', 'speaker', 'axis', 'body', 'quote'], properties: {
+      pitch: { type: 'integer', description: '针对的是第几份报告（从 1 开始）' },
+      speaker: { type: 'string', description: '提出质疑的人，按逐字稿里的发言人姓名原样写' },
+      axis: { type: 'string', enum: ['li', 'ju', 'ti', 'yong'] },
+      body: { type: 'string', description: '质疑的内容，改写成一句完整、独立能看懂的问题，不超过 120 字' },
+      quote: { type: 'string', description: '逐字稿里对应的原话，不超过 150 字' } } } } } };
+  const res = await client.beta.messages.create({
+    model: 'claude-opus-5-5',
+    max_tokens: 16000,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    output_config: { effort: 'high', format: { type: 'json_schema', schema } },
+    system: `你在整理中心主题研讨会的录音逐字稿。研讨会上，每份报告讲完后与会者对它提质疑，质疑分四问：${AXIS_GUIDE}。\n你的任务：找出与会者对每份报告提出的质疑（问题、反对意见、要求补充的地方），每条记下是谁提的、针对哪份报告、属于哪一问。\n只收与会者向汇报人提出的质疑；汇报人自己的陈述和回答、主持人的串场、寒暄、技术问题都不收。同一个人对同一份报告反复说的同一点只记一条。拿不准针对哪份报告的，按发言时间对应当时正在讲的那份。没有找到就返回空数组。`,
+    messages: [{ role: 'user', content: `${row.held_on} ${row.seminar_name}主题研讨会。\n按讨论顺序，这场会的报告：\n${list}\n\n到场的人：${(row.attendees as string[]).join('、') || '未知'}\n\n逐字稿：\n${row.body}` }],
+  } as any) as any;
+  if (res.stop_reason === 'refusal') { await withUser(env, null, (sql) => sql`select public.transcript_drafts_save(${row.event_id}::uuid, '[]'::jsonb, '模型没有处理这份逐字稿')`); return; }
+  const text = (res.content as { type: string; text?: string }[]).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
+  let items: { pitch: number; speaker: string; axis: string; body: string; quote: string }[] = [];
+  try { items = JSON.parse(text).items ?? []; } catch { console.error('提取结果不是 JSON', res.stop_reason); return; }
+  const mapped = items.filter((x) => Number.isInteger(x.pitch) && pitches[x.pitch - 1]).map((x) => ({ pitch: pitches[x.pitch - 1].id, speaker: x.speaker, axis: x.axis, body: x.body, quote: x.quote }));
+  const note = `自动提取 ${items.length} 条（${res.model}，输入 ${res.usage?.input_tokens ?? '?'}、输出 ${res.usage?.output_tokens ?? '?'} tokens）`;
+  await withUser(env, null, (sql) => sql`select public.transcript_drafts_save(${row.event_id}::uuid, ${JSON.stringify(mapped)}::jsonb, ${note})`);
 }
 
 async function feishu(path: string, init: RequestInit) {
@@ -1005,6 +1095,7 @@ export default {
     await withUser(env, null, (sql) => sql`select public.coin_tick()`).catch((e) => console.error('实际币发放与到期', e));
     await withUser(env, null, (sql) => sql`select public.unit_stall_tick()`).catch((e) => console.error('研究单元停滞', e));
     await meetingSync(env).catch((e) => console.error('飞书会议同步', e));
+    await transcriptSync(env).catch((e) => console.error('录音补漏', e));
     const batch = await withUser(env, null, (sql) => sql`select msg_id, target_id, body from public.outbox_take(20)`);
     if (!batch.length) return;
     const tok = await feishu('/auth/v3/tenant_access_token/internal', {

@@ -12,7 +12,8 @@ export interface Snapshot { id: string; project_id: string; project_code: string
   link: string; note: string | null; submitted_by_name: string | null; submitted_at: string; authors: { id: string; name: string }[]; can_edit: boolean; person_id?: string | null; person_name?: string | null; title?: string | null }
 export interface Pitch { id: string; snapshot_id: string; project_id: string; project_code: string; project_name: string; seq: number; period_start: string; link: string;
   seminar: string; seminar_name: string; status: 'pending' | 'accepted' | 'declined' | 'closed'; note: string | null; decided_by_name: string | null; decided_at: string | null; closed_at: string | null;
-  can_run: boolean; new_queries: number; again_queries: number; resolved: number; format?: 'oral' | 'poster' | null; minutes?: number | null }
+  can_run: boolean; new_queries: number; again_queries: number; resolved: number; format?: 'oral' | 'poster' | null; minutes?: number | null;
+  card_round?: boolean; pending_drafts?: number; card_authors?: number }
 export interface Query { id: string; project_id: string; project_code: string; project_name: string; owner_id: string | null; owner_name: string | null; pitch_id: string; seminar: string; seminar_name: string;
   snapshot_seq: number; period_start: string; axis: Axis; axis_label: string; body: string; raised_by_name: string | null; parent_id: string | null; status: 'open' | 'resolved' | 'again';
   resolved_period: string | null; recorded_at: string; again: number; team: { id: string; name: string; from: string }[]; in_team: boolean; can_team: boolean; can_remove: boolean }
