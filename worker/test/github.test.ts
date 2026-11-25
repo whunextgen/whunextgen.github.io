@@ -22,6 +22,9 @@ ok(t?.text.startsWith('PR 审查意见：') && t.text.endsWith('……') && t.te
 ok(githubText('pull_request_review', { action: 'submitted', pull_request: pr(), review: { state: 'changes_requested', user: { login: 'dan' } } })?.text.startsWith('PR 要求修改'), '要求修改');
 ok(githubText('pull_request', { action: 'opened', pull_request: pr({ html_url: 'javascript:alert(1)' }) }) === null, '链接不是 GitHub 的不发');
 ok(githubText('push', { ref: 'refs/heads/finance-portal' }) === null, '其他事件不发');
+ok(t?.thread === 'pr:7' && githubText('pull_request', { action: 'closed', pull_request: pr({ merged: true }) })?.thread === 'pr:7', '同一个 PR 的通报在同一个话题', String(t?.thread));
+ok(githubText('pull_request', { action: 'opened', pull_request: pr({ number: 8 }) })?.thread === 'pr:8', '不同的 PR 各开一个话题');
+ok(githubText('pull_request', { action: 'opened', pull_request: pr({ number: '7; x' }) }) === null, 'PR 编号不对的不发');
 { const v = noticeCard({ text: githubText('pull_request', { action: 'opened', pull_request: pr() })!.text, url: 'https://github.com/example/repo/pull/7', btn: '查看 PR', kind: 'post', group: true }, 'https://example.test').view;
   ok(v.kind === 'post' && v.btn.url === 'https://github.com/example/repo/pull/7' && v.btn.text === '查看 PR', '卡片：通报，按钮去 PR', JSON.stringify(v.btn)); }
 
