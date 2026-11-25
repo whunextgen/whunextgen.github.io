@@ -1,6 +1,7 @@
 // API 层：飞书登录、会话、只读视图、业务函数。
 // 所有校验都在数据库函数里；这里只负责认出是谁，并把身份带进事务。
 import postgres from 'postgres';
+import { MARK_PNG, MARK_WHITE_PNG } from './mark.ts';
 
 export interface Env {
   HYPERDRIVE: { connectionString: string };   // 以 app_api 角色连接 Supabase Postgres
@@ -8,6 +9,8 @@ export interface Env {
   FEISHU_APP_SECRET: string;
   // 发通知用的应用（机器人）。不设时沿用登录应用
   NOTICE_ORIGIN?: string;                     // 通知卡片里按钮跳转的中台地址；不设时用对成员公布的地址
+  CARD_ACTIONS?: string;                      // 设为 1 时，能在卡片上办的通知带「同意」按钮；飞书后台配好回调地址之后再开
+  FEISHU_VERIFICATION_TOKEN?: string;         // 飞书回调的校验令牌；设了就核对，不设时只凭卡片上的办理凭据
   NOTICE_CHAT_ID?: string;                    // 全员群。队列里对象为 group 的通知发到这个群；不设时这类通知发不出去，记为失败
   FEISHU_BOT_APP_ID?: string;
   FEISHU_BOT_APP_SECRET?: string;
@@ -26,7 +29,8 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
   'project', 'budget_category', 'budget_year', 'project_budget', 'budget_line',
   'budget_plan', 'budget_source', 'budget_module', 'budget_tier', 'tier_pick', 'module_topic', 'unit_apply', 'unit_exec',
   'token_param', 'tier_token', 'token_me', 'time_log', 'unit_pool', 'unit_share', 'outcome',
-  'biweekly_report', 'biweekly_status', 'arr_cycle', 'arr_sponsor', 'arr_claim',
+  'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
+  'arr_cycle', 'arr_sponsor', 'arr_claim',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -35,6 +39,11 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
 export const RPC: Record<string, [string, string][]> = {
+  // 投稿与评审的自行填报
+  submission_save: [['id', 'uuid'], ['project_id', 'uuid'], ['relation', 'text'], ['venue', 'text'], ['cycle', 'text'], ['number', 'int'], ['title', 'text'], ['status', 'text'], ['link', 'text'], ['scale', 'numeric'], ['keep', 'text'], ['ac_overall', 'numeric'], ['ac_text', 'text']],
+  submission_delete: [['id', 'uuid']],
+  review_save: [['id', 'uuid'], ['submission_id', 'uuid'], ['reviewer', 'text'], ['overall', 'numeric'], ['soundness', 'numeric'], ['excitement', 'numeric'], ['confidence', 'numeric'], ['strengths', 'text'], ['weaknesses', 'text'], ['comments', 'text']],
+  review_delete: [['id', 'uuid']],
   submit_request: [['card_id', 'uuid'], ['subject_id', 'uuid'], ['expense_type_id', 'uuid'], ['title', 'text'], ['amount', 'numeric'], ['eta_date', 'date'], ['emergency', 'boolean'], ['path', 'text']],
   approve_request: [['id', 'uuid']],
   reject_request: [['id', 'uuid'], ['note', 'text']],
@@ -101,10 +110,11 @@ export const RPC: Record<string, [string, string][]> = {
     ['edu', 'text'], ['school', 'text'], ['direction', 'text'], ['mentor', 'text'], ['note', 'text']],
   link_person: [['person', 'uuid'], ['user', 'uuid']],
   open_arr_cycle: [['name', 'text']],
-  save_arr_sponsor: [['user', 'uuid'], ['qualified', 'boolean'], ['quota', 'int'], ['note', 'text']],
+  save_arr_sponsor: [['user', 'uuid'], ['qualified', 'boolean'], ['quota', 'int'], ['note', 'text'], ['offline', 'int']],
   ask_arr: [['project', 'uuid'], ['sponsor', 'uuid']],
   answer_arr: [['id', 'uuid'], ['ok', 'boolean'], ['note', 'text']],
   withdraw_arr: [['id', 'uuid']],
+  rename_project: [['id', 'uuid'], ['name', 'text']],
   approve_unit: [['unit', 'uuid']],
   confirm_unit: [['unit', 'uuid']],
   return_unit: [['unit', 'uuid'], ['note', 'text']],
@@ -236,6 +246,13 @@ export async function unseal(secret: string, owner: string, cipher: string) {
 }
 export const mask = (s: string) => (s.length >= 12 ? `${s.slice(0, 3)}…${s.slice(-4)}` : '已保存');
 
+// 卡片上的办理凭据：30 天内有效
+export const ACT_TTL = 30 * 86400;
+// 会话有效期：30 天，每次打开页面顺延
+export const SESSION_TTL = 30 * 86400;
+// 登录后要回到的页面：只认站内路径，其余一律回首页
+export const safeTo = (s: string | null | undefined) => (s && /^\/[A-Za-z0-9_\-\/]{0,120}$/.test(s) ? s : '/');
+
 const cookies = (req: Request) =>
   Object.fromEntries((req.headers.get('cookie') ?? '').split(/;\s*/).filter(Boolean).map((c) => {
     const i = c.indexOf('=');
@@ -247,6 +264,8 @@ const setCookie = (name: string, value: string, maxAge: number) =>
 const json = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...headers } });
 
+// 标志图在飞书里的图片标识，本进程内上传一次后记住
+const markKeys: { red?: string; white?: string } = {};
 async function feishu(path: string, init: RequestInit) {
   const r = await fetch('https://open.feishu.cn/open-apis' + path, init);
   return (await r.json()) as any;
@@ -296,6 +315,7 @@ async function withUser<T>(env: Env, uid: string | null, fn: (sql: postgres.Tran
 // 通知在数据库里是一句话。这里按句式给出标题、分项和跳转的页面，拼成卡片；认不出的句式整句放进正文。
 const NOTICE_RULES: [RegExp, string, string][] = [
   [/ARR 担保/, 'ARR 担保', '/'],
+  [/^(研究单元|课题)改名/, '改名', '/projects'],
   [/研究单元申请待同意/, '研究单元申请待同意', '/projects'],
   [/研究单元立项/, '研究单元立项提醒', '/projects'],
   [/研究单元申请待核对|待助理对照联席会议纪要核对/, '研究单元申请待核对', '/projects'],
@@ -319,12 +339,77 @@ const NOTICE_FIELDS: [RegExp, string[]][] = [
   [/课题「(.+?)」之下新成立研究单元「(.+?)」/, ['所挂课题', '研究单元']],
   [/联席会议 (\d{4}-\d{2}-\d{2}) 通过/, ['联席会议通过']],
 ];
-export function noticeCard(body: { text?: string; by?: string | null; at?: string | null; url?: string | null; btn?: string | null; all?: boolean | null }, origin: string) {
+// 指向中台页面的链接改走飞书的应用链接，在飞书里打开网页应用并直达该页；其他链接（如知识库）不动。没有应用标识时保持原链接
+export const inFeishu = (u: string, origin: string, appId?: string) =>
+  appId && (u === origin || u.startsWith(origin + '/'))
+    ? `https://applink.feishu.cn/client/web_app/open?appId=${encodeURIComponent(appId)}&lk_target_url=${encodeURIComponent(u)}` : u;
+// 双周表的飞书任务：把数据库给出的一条计划变成对飞书任务接口的一次调用
+export function taskCall(row: { act: string; target_id: string; summary: string; due: string; task_guid: string | null }, origin: string, appId?: string, now = Date.now()) {
+  if (row.act === 'create') {
+    const [y, m, d] = String(row.due).slice(0, 10).split('-').map(Number);
+    return { method: 'POST', path: `/task/v2/tasks?user_id_type=${row.target_id.startsWith('on_') ? 'union_id' : 'open_id'}`, body: {
+      summary: row.summary, description: '登记后这条任务会自动完成。',
+      due: { timestamp: String(Date.UTC(y, m - 1, d)), is_all_day: true },
+      members: [{ id: row.target_id, type: 'user', role: 'assignee' }],
+      origin: { platform_i18n_name: { zh_cn: '正则' }, href: { url: inFeishu(`${origin}/#/biweekly`, origin, appId), title: '去登记双周表' } } } };
+  }
+  if (!row.task_guid || !/^[\w-]{8,80}$/.test(row.task_guid)) return null;
+  if (row.act === 'done') return { method: 'PATCH', path: `/task/v2/tasks/${row.task_guid}`, body: { task: { completed_at: String(now) }, update_fields: ['completed_at'] } };
+  if (row.act === 'drop') return { method: 'DELETE', path: `/task/v2/tasks/${row.task_guid}`, body: undefined };
+  return null;
+}
+async function biweeklyTasks(env: Env) {
+  // 新任务不在后半夜建（北京时间 0 点到 7 点），完成和撤掉随时办
+  const hour = (new Date().getUTCHours() + 8) % 24;
+  const rows = await withUser(env, null, (sql) => sql`select act, project_id, period_start::text as period_start, target_id, summary, due::text as due, task_guid from public.biweekly_task_plan(${hour >= 7}::boolean)`);
+  if (!rows.length) return;
+  const tok = await feishu('/auth/v3/tenant_access_token/internal', { method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ app_id: env.FEISHU_BOT_APP_ID || env.FEISHU_APP_ID, app_secret: env.FEISHU_BOT_APP_SECRET || env.FEISHU_APP_SECRET }) }).catch(() => null);
+  const out: [string, string, string, boolean, string | null, string | null][] = [];
+  for (const r of rows as any[]) {
+    const call = tok?.tenant_access_token ? taskCall(r, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev', env.FEISHU_APP_ID) : null;
+    if (!call) { out.push([r.project_id, r.period_start, r.act, false, null, tok?.tenant_access_token ? '任务编号无效' : '无法获取应用凭证']); continue; }
+    const res = await feishu(call.path, { method: call.method, headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
+      body: call.body ? JSON.stringify(call.body) : undefined }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
+    // 撤任务时飞书说已经不存在的，也算办完
+    const fine = res?.code === 0 || (r.act !== 'create' && /not.?found|不存在|deleted/i.test(String(res?.msg ?? '')));
+    out.push([r.project_id, r.period_start, r.act, fine, r.act === 'create' ? (res?.data?.task?.guid ?? null) : null, fine ? null : `飞书返回 ${res?.code}：${String(res?.msg ?? '').slice(0, 200)}`]);
+  }
+  await withUser(env, null, async (sql) => {
+    for (const [pid, ps, act, okv, guid, err] of out) await sql`select public.biweekly_task_mark(${pid}::uuid, ${ps}::date, ${act}::text, ${okv && (act !== 'create' || !!guid)}::boolean, ${guid}::text, ${err ?? (okv ? null : '飞书没有返回任务编号')}::text)`;
+  });
+}
+// 卡片配色取自网页的色系，浅色和深色各一个值
+const rgba = (l: string, d: string) => ({ light_mode: `rgba(${l},1)`, dark_mode: `rgba(${d},1)` });
+const CARD_COLORS = {
+  'zz-brand': rgba('188,68,43', '232,128,104'), 'zz-raise': rgba('243,243,240', '44,44,46'), 'zz-ink': rgba('22,23,26', '240,240,238'),
+  'zz-mute': rgba('106,110,117', '160,164,170'), 'zz-ok': rgba('31,122,77', '110,200,150'), 'zz-bad': rgba('180,35,24', '240,120,110'), 'zz-bad-bg': rgba('253,243,242', '64,30,28'), 'zz-ok-bg': rgba('240,248,243', '28,52,40'),
+  'zz-gold-bar': rgba('243,217,164', '110,80,20'), 'zz-gold-ink': rgba('74,48,0', '255,240,205'), 'zz-ok-bar': rgba('216,238,225', '30,70,50'), 'zz-bad-bar': rgba('250,222,219', '90,34,30'),
+  'zz-line': rgba('230,230,226', '70,70,72'), 'zz-track': rgba('200,200,194', '90,90,92'),
+  'zz-ink-bar': rgba('22,23,26', '60,60,64'), 'zz-gold-tag': rgba('243,217,164', '243,217,164'), 'zz-on-dark': rgba('255,255,255', '255,255,255'), 'zz-on-dark-2': rgba('235,205,198', '235,205,198'), 'zz-on-ink-2': rgba('170,174,180', '190,194,200'),
+};
+// 六类通知：按收到的人要做什么分。顶栏底色、标题色、副行色、标签色、标签字、按钮样式、标志用白底的那张
+export type NoticeKind = 'todo' | 'remind' | 'back' | 'pass' | 'fyi' | 'post';
+const KIND: Record<NoticeKind, { bar: string; title: string; sub: string; tagColor: string; tag: string; btn: string; white?: boolean }> = {
+  todo: { bar: 'zz-brand', title: 'zz-on-dark', sub: 'zz-on-dark-2', tagColor: 'zz-on-dark', tag: '待办', btn: 'default', white: true },
+  remind: { bar: 'zz-gold-bar', title: 'zz-gold-ink', sub: 'zz-gold-ink', tagColor: 'zz-gold-ink', tag: '提醒', btn: 'default' },
+  back: { bar: 'zz-bad-bar', title: 'zz-bad', sub: 'zz-bad', tagColor: 'zz-bad', tag: '已退回', btn: 'default' },
+  pass: { bar: 'zz-ok-bar', title: 'zz-ok', sub: 'zz-ok', tagColor: 'zz-ok', tag: '已通过', btn: 'text' },
+  fyi: { bar: 'zz-raise', title: 'zz-ink', sub: 'zz-mute', tagColor: 'zz-mute', tag: '知会', btn: 'text' },
+  post: { bar: 'zz-ink-bar', title: 'zz-on-dark', sub: 'zz-on-ink-2', tagColor: 'zz-gold-tag', tag: '通报', btn: 'default' },
+};
+export type NoticeBody = { text?: string; by?: string | null; at?: string | null; url?: string | null; btn?: string | null; all?: boolean | null; group?: boolean | null; kind?: string | null; tag?: string | null;
+  act?: { kind?: string; unit?: string } | null;   // 能在卡片上直接办的动作
+  done?: string | null;                            // 已在卡片上办完：这句话替换掉按钮
+  img?: string | null; img_key?: string | null; img_note?: string | null };   // 通报带的图：img 是图的 base64（PNG），发出前换成 img_key；img_note 是图下的小字
+// 通知的内容：归类、标题、分项、正文、按钮。卡片和测试都从这里取
+export function noticeView(body: NoticeBody, origin: string, appId?: string) {
   const own = typeof body.url === 'string' && /^https:\/\/[^\s]+$/.test(body.url) ? body.url : null;
   const text = String(body.text ?? '').trim(), bare = text.replace(/「[^」]*」/g, '「」');
   const rule = NOTICE_RULES.find(([re]) => re.test(bare));
   const head = text.match(/^([^：「」，。]{2,16})：/);
-  const title = head ? head[1] : rule ? rule[1] : '通知';
+  const done = typeof body.done === 'string' && body.done.trim() ? body.done.trim().slice(0, 60) : null;
+  const title = (head ? head[1] : rule ? rule[1] : '通知').replace(done ? /待同意$/ : /$^/, '已同意');
   const fields: [string, string][] = [];
   let rest = head ? text.slice(head[0].length) : text;
   for (const [re, names] of NOTICE_FIELDS) {
@@ -334,15 +419,92 @@ export function noticeCard(body: { text?: string; by?: string | null; at?: strin
     rest = rest.replace(re, '');
   }
   if (fields.length) rest = rest.replace(/^[，。、\s]+/, '').replace(/[，、\s]*(课题负责人已同意)?[，、\s]*$/, (_, a) => (a ? a : '')).replace(/^，/, '');
-  const todo = /待同意|待核对|待审|待确认|待办|派了任务|请/.test(text);
-  const plain = (content: string) => ({ tag: 'plain_text', content });
-  const elements: unknown[] = [];
-  if (body.all === true) elements.push({ tag: 'div', text: { tag: 'lark_md', content: '<at id=all></at>' } });
-  if (fields.length) elements.push({ tag: 'div', fields: fields.map(([k, v]) => ({ is_short: v.length <= 14, text: plain(`${k}：${v}`) })) });
-  if (rest) elements.push({ tag: 'div', text: plain(rest) });
-  elements.push({ tag: 'action', actions: [{ tag: 'button', type: todo ? 'primary' : 'default', text: plain(own && body.btn ? String(body.btn).slice(0, 12) : todo ? '前往办理' : '前往查看'), url: own ?? `${origin}/#${rule ? rule[2] : '/'}` }] });
-  elements.push({ tag: 'note', elements: [plain(['正则', body.by ? `经办：${body.by}` : '', body.at ?? ''].filter(Boolean).join(' · '))] });
-  return { title, card: { config: { wide_screen_mode: true }, header: { template: todo ? 'red' : 'grey', title: plain(title) }, elements } };
+  // 归类先看标题，标题看不出的再看正文里有没有要办的字样
+  const given = done ? 'pass' : body.kind && body.kind in KIND ? (body.kind as NoticeKind) : null;
+  const kind: NoticeKind = given ?? (body.group === true ? (/提醒/.test(title) ? 'remind' : 'post')
+    : /退回|不同意|未通过/.test(title) ? 'back' : /^待|待(同意|核对|审|确认|办|答复)/.test(title) ? 'todo' : /提醒|截止|逾期/.test(title) ? 'remind'
+    : /已成立|已同意|已通过|已批准/.test(title) ? 'pass' : /待同意|待核对|待审|待确认|待办|待答复|派了任务/.test(bare) ? 'todo' : 'fyi');
+  const act = kind === 'todo' || kind === 'remind' || kind === 'back';
+  const tag = typeof body.tag === 'string' && body.tag.trim() ? body.tag.trim().slice(0, 12) : KIND[kind].tag;
+  const sub = [rule && rule[1] !== title ? rule[1] : '', body.at ?? ''].filter(Boolean).join(' · ') || '正则';
+  return { kind, title, tag, sub, fields, text: rest || undefined, all: body.all === true, done,
+    act: !done && kind === 'todo' && body.act?.kind === 'unit_consent' ? 'unit_consent' : null,
+    btn: { text: own && body.btn ? String(body.btn).slice(0, 12) : act ? '前往办理' : '前往查看', type: KIND[kind].btn, url: inFeishu(own ?? `${origin}/#${rule ? rule[2] : '/'}`, origin, appId) },
+    note: ['正则', body.by ? `经办：${body.by}` : ''].filter(Boolean).join(' · ') };
+}
+// 卡片：不用飞书自带的标题栏（只有固定颜色），顶上一条自定义底色的分栏当顶栏。来自业务的文字一律按纯文本放，不当作标记解析
+// actToken：这条通知的办理凭据。有它、且通知带着能办的动作时，卡片上放「同意」按钮；没有时只放去页面的按钮
+export function noticeCard(body: NoticeBody, origin: string, appId?: string, marks?: { red?: string; white?: string }, actToken?: string) {
+  const v = noticeView(body, origin, appId), k = KIND[v.kind];
+  const plain = (content: string, text_color: string, text_size = 'normal') => ({ tag: 'div', text: { tag: 'plain_text', content, text_color, text_size } });
+  const col = (elements: unknown[], extra: object = {}) => ({ tag: 'column', width: 'weighted', weight: 1, vertical_align: 'top', elements, ...extra });
+  const row = (columns: unknown[], extra: object = {}) => ({ tag: 'column_set', flex_mode: 'none', horizontal_spacing: '8px', columns, ...extra });
+  const col2 = (a: unknown, b: unknown) => row([col([a, b], { vertical_spacing: '2px' })]);
+  const mark = k.white ? marks?.white : marks?.red;
+  const bar = row([
+    ...(mark ? [{ tag: 'column', width: 'auto', vertical_align: 'center', padding: '12px 0px 12px 16px', elements: [{ tag: 'img', img_key: mark, alt: { tag: 'plain_text', content: '正则' }, scale_type: 'crop_center', size: '32px 32px', corner_radius: '9px' }] }] : []),
+    col([plain(v.title, k.title, 'heading'), plain(v.sub, k.sub, 'notation')], { vertical_align: 'center', vertical_spacing: '0px', padding: mark ? '12px 0px 12px 0px' : '12px 0px 12px 16px' }),
+    { tag: 'column', width: 'auto', vertical_align: 'center', padding: '12px 16px 12px 0px', elements: [plain(v.tag, k.tagColor, 'notation')] },
+  ], { background_style: k.bar, horizontal_spacing: '10px' });
+  const main: unknown[] = [];
+  if (v.all) main.push({ tag: 'markdown', content: '<at id=all></at>' });
+  const kv = ([name, value]: [string, string]) => col([plain(name, 'zz-mute', 'notation'), plain(value, 'zz-ink')], { vertical_spacing: '2px' });
+  // 分项两个一行；长的独占一行
+  for (let i = 0; i < v.fields.length;) {
+    const a = v.fields[i], b = v.fields[i + 1];
+    if (b && a[1].length <= 14 && b[1].length <= 14) { main.push(row([kv(a), kv(b)])); i += 2; } else { main.push(row([kv(a)])); i += 1; }
+  }
+  // 分段的长通知（双周表通报、更新说明）：小标题下面逐条列，长的折叠起来
+  const lines = (v.text ?? '').split('\n').map((x) => x.trim()).filter(Boolean);
+  const isHead = (x: string) => /^(已登记|未登记|连续两期及以上未登记|新增|调整|修复|说明)$/.test(x);
+  const cut = lines.findIndex(isHead);
+  const fold = (title: string, text: string, expanded = false) => ({ tag: 'collapsible_panel', expanded, border: { color: 'zz-line', corner_radius: '8px' }, vertical_spacing: '8px', padding: '8px 12px 8px 12px',
+    header: { title: { tag: 'plain_text', content: title }, vertical_align: 'center', icon: { tag: 'standard_icon', token: 'down-small-ccm_outlined', size: '16px 16px' }, icon_position: 'right', icon_expanded_angle: -180 }, elements: [plain(text, 'zz-ink')] });
+  if (v.text && cut >= 0 && (v.kind === 'post' || v.kind === 'remind')) {
+    const lead = lines.slice(0, cut).join('\n'), secs: { h: string; items: string[] }[] = [];
+    for (const x of lines.slice(cut)) { if (isHead(x)) secs.push({ h: x, items: [] }); else secs[secs.length - 1].items.push(x); }
+    const st = v.text.match(/应登记 (\d+) 个研究单元，已登记 (\d+) 个，未登记 (\d+) 个/);
+    if (st) {
+      // 双周表：三个数并排，一条进度
+      const [total, okN, noN] = [Number(st[1]), Number(st[2]), Number(st[3])], on = total > 0 ? Math.round((okN / total) * 20) : 0;
+      const num = (name: string, value: string, color: string) => col([plain(name, 'zz-mute', 'notation'), plain(value, color, 'heading')], { vertical_spacing: '2px' });
+      main.push(row([num('应登记', String(total), 'zz-ink'), num('已登记', String(okN), 'zz-brand'), num('未登记', String(noN), 'zz-ink')]));
+      main.push({ tag: 'markdown', content: `<font color='zz-brand'>${'━'.repeat(on)}</font><font color='zz-track'>${'━'.repeat(20 - on)}</font>  <font color='zz-mute'>${total > 0 ? Math.round((okN / total) * 100) : 0}%</font>` });
+    }
+    // 带数字的通报：第一句已经画成数字了，用小字带过；后面的话是要人看的，照常显示
+    if (lead && st) { const [first, ...more] = lines.slice(0, cut); main.push(plain(first, 'zz-mute', 'notation')); if (more.length) main.push(plain(more.join('\n'), 'zz-ink')); }
+    else if (lead) main.push(plain(lead, 'zz-ink'));
+    if (secs.some((x) => /登记/.test(x.h))) {
+      // 名单一律折叠；截止前的提醒把未登记的展开
+      for (const x of secs) if (x.items.length) main.push(fold(`${x.h}（${x.items.length}）`, x.items.join('\n'), v.kind === 'remind' && x.h === '未登记'));
+    } else {
+      // 更新说明：先露出前四条，其余折叠
+      let room = 4; const more: string[] = [];
+      for (const x of secs) {
+        const show = x.items.slice(0, room), rest2 = x.items.slice(show.length); room -= show.length;
+        if (show.length) main.push(col2(plain(x.h, 'zz-mute', 'notation'), plain(show.join('\n'), 'zz-ink')));
+        if (rest2.length) more.push(x.h, ...rest2);
+      }
+      const n = more.filter((x) => !isHead(x)).length;
+      if (n) main.push(fold(`其余 ${n} 条，点开查看`, more.join('\n')));
+    }
+  } else if (v.text) main.push(v.kind === 'back'
+    ? { tag: 'interactive_container', width: 'fill', height: 'auto', corner_radius: '10px', padding: '9px 14px 9px 14px', background_style: 'zz-bad-bg', has_border: true, border_color: 'zz-bad', behaviors: [], elements: [plain(v.text, 'zz-bad')] }
+    : plain(v.text, 'zz-ink'));
+  // 通报带的图：图在正文下面，图下一行小字说明（来源等）。图先由定时任务传到飞书换成 img_key
+  if (body.img_key) { main.push({ tag: 'img', img_key: body.img_key, alt: { tag: 'plain_text', content: body.img_note ?? '' }, scale_type: 'fit_horizontal', preview: true, corner_radius: '8px' });
+    if (body.img_note) main.push(plain(body.img_note, 'zz-mute', 'notation')); }
+  const button = (text: string, type: string, behaviors: unknown[], extra: object = {}) => ({ tag: 'button', text: { tag: 'plain_text', content: text }, type, size: 'medium', width: 'fill', behaviors, ...extra });
+  const open = [{ type: 'open_url', default_url: v.btn.url }];
+  if (v.done) main.push({ tag: 'interactive_container', width: 'fill', height: 'auto', corner_radius: '10px', padding: '9px 14px 9px 14px', background_style: 'zz-ok-bg', has_border: true, border_color: 'zz-ok', behaviors: [], elements: [plain(v.done, 'zz-ok')] });
+  if (v.act && actToken) main.push(row([
+    col([button('同意', 'default', [{ type: 'callback', value: { t: actToken, r: marks?.red ?? '', w: marks?.white ?? '' } }],
+      { confirm: { title: { tag: 'plain_text', content: '同意这份申请？' }, text: { tag: 'plain_text', content: '同意后转给助理对照联席会议纪要核对。' } } })]),
+    col([button('退回', 'danger_text', open)]) ]));
+  else main.push(button(v.done ? '查看' : v.btn.text, v.done ? 'text' : v.btn.type, open));
+  main.push(plain(v.note, 'zz-mute', 'notation'));
+  return { title: v.title, view: v, card: { schema: '2.0', config: { update_multi: true, style: { color: CARD_COLORS }, summary: { content: v.title } },
+    body: { padding: '0px 0px 0px 0px', vertical_spacing: '0px', elements: [bar, row([col(main, { padding: '14px 16px 14px 16px', vertical_spacing: '12px' })])] } } };
 }
 
 // ---------- 读视图、调函数：页面接口和 MCP 接口共用 ----------
@@ -469,9 +631,10 @@ export default {
         to.searchParams.set('redirect_uri', redirectUri);
         to.searchParams.set('response_type', 'code');
         to.searchParams.set('state', state);
-        return new Response(null, { status: 302, headers: {
-          location: to.toString(),
-          'set-cookie': setCookie('fp_state', await sign(env.SESSION_SECRET, 'state', state, 600), 600) } });
+        const h = new Headers({ location: to.toString() });
+        h.append('set-cookie', setCookie('fp_state', await sign(env.SESSION_SECRET, 'state', state, 600), 600));
+        h.append('set-cookie', setCookie('fp_to', await sign(env.SESSION_SECRET, 'to', safeTo(url.searchParams.get('to')), 600), 600));
+        return new Response(null, { status: 302, headers: h });
       }
 
       if (url.pathname === '/auth/feishu/callback') {
@@ -491,8 +654,10 @@ export default {
           sql`select id, active from login_feishu(${u.open_id}, ${u.name ?? ''}, ${u.enterprise_email || u.email || null}, ${u.union_id ?? null})`);
         // 账号未启用：没有人员档案的新面孔待人事确认，或者已停用。不发会话，回到登录页说明
         if (!row.active) return new Response(null, { status: 302, headers: { location: `${appOrigin}/?wait=1`, 'set-cookie': setCookie('fp_state', '', 0) } });
-        const headers = new Headers({ location: appOrigin });
-        headers.append('set-cookie', setCookie('fp_session', await sign(env.SESSION_SECRET, 'uid', row.id, 7 * 86400), 7 * 86400));
+        const back = safeTo(await verify(env.SESSION_SECRET, 'to', jar.fp_to));
+        const headers = new Headers({ location: back === '/' ? appOrigin : `${appOrigin}/#${back}` });
+        headers.append('set-cookie', setCookie('fp_session', await sign(env.SESSION_SECRET, 'uid', row.id, SESSION_TTL), SESSION_TTL));
+        headers.append('set-cookie', setCookie('fp_to', '', 0));
         headers.append('set-cookie', setCookie('fp_state', '', 0));
         return new Response(null, { status: 302, headers });
       }
@@ -506,6 +671,34 @@ export default {
         return json({ ok: r.role === 'app_api' && r.me === 0 });
       }
 
+      // ---------- 飞书卡片上的点击 ----------
+      // 凭据是发卡片时签的，绑定那一条通知；点的人必须就是那条通知的收件人（卡片被转发给别人，别人点了不算）
+      if (url.pathname === '/feishu/card' && req.method === 'POST') {
+        const b = (await req.json().catch(() => null)) as any;
+        if (!b) return json({ error: 'bad request' }, 400);
+        if (env.FEISHU_VERIFICATION_TOKEN && (b.token ?? b.header?.token) !== env.FEISHU_VERIFICATION_TOKEN) return json({ error: 'forbidden' }, 403);
+        if (b.type === 'url_verification') return json({ challenge: String(b.challenge ?? '') });
+        const toast = (type: string, content: string, card?: unknown) => json({ toast: { type, content }, ...(card ? { card: { type: 'raw', data: card } } : {}) });
+        const ev = b.event ?? {}, val = ev.action?.value ?? {};
+        if (b.header?.event_type !== 'card.action.trigger') return json({});
+        if (env.FEISHU_TENANT_KEY && ev.operator?.tenant_key !== env.FEISHU_TENANT_KEY) return toast('error', '仅限本单位飞书账号办理');
+        const msg = await verify(env.SESSION_SECRET, 'act', typeof val.t === 'string' ? val.t : undefined);
+        if (!msg || !/^\d+$/.test(msg)) return toast('error', '这张卡片已过期，请到正则里办理');
+        const [o] = await withUser(env, null, (sql) => sql`select user_id, target_id, body from public.outbox_act(${msg}::bigint)`);
+        const body = o ? (typeof o.body === 'string' ? JSON.parse(o.body) : o.body) : null;
+        if (!o || !body?.act) return toast('error', '找不到这条通知，请到正则里办理');
+        if (![ev.operator?.union_id, ev.operator?.open_id].filter(Boolean).includes(String(o.target_id))) return toast('error', '这张卡片不是发给你的，不能代办');
+        if (body.act.kind !== 'unit_consent' || !/^[0-9a-f-]{36}$/.test(String(body.act.unit ?? ''))) return toast('error', '这张卡片上的事项不能在这里办，请到正则里办理');
+        try {
+          await withUser(env, String(o.user_id), (sql) => sql`select public.approve_unit(${String(body.act.unit)}::uuid)`);
+        } catch (e: any) {
+          return toast('info', String(e?.message ?? '没有办成，请到正则里办理').slice(0, 80));
+        }
+        const at = new Date(Date.now() + 8 * 3600e3).toISOString().slice(5, 16).replace('T', ' ');
+        const key = (x: unknown) => (typeof x === 'string' && /^[\w-]{8,80}$/.test(x) ? x : undefined);
+        return toast('success', '已同意', noticeCard({ ...body, done: `你已同意 · ${at}` }, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev', env.FEISHU_APP_ID, { red: key(val.r), white: key(val.w) }).card);
+      }
+
       // ---------- API ----------
       if (!url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404);
       const uid = await verify(env.SESSION_SECRET, 'uid', jar.fp_session);
@@ -515,7 +708,10 @@ export default {
       if (view && req.method === 'GET') {
         if (!VIEWS.has(view)) return json({ error: 'not found' }, 404, cors);
         const filters = [...url.searchParams].filter(([k]) => /^[a-z_]+$/.test(k));
-        return json(await readView(pgRun(env), uid, view, filters), 200, cors);
+        const rows = await readView(pgRun(env), uid, view, filters);
+        // 页面每次打开都先读本人信息：读到了就把会话顺延
+        const renew = view === 'me' && Array.isArray(rows) && rows.length > 0;
+        return json(rows, 200, renew ? { ...cors, 'set-cookie': setCookie('fp_session', await sign(env.SESSION_SECRET, 'uid', uid, SESSION_TTL), SESSION_TTL) } : cors);
       }
 
       const fn = url.pathname.match(/^\/api\/rpc\/([a-z_]+)$/)?.[1];
@@ -577,12 +773,23 @@ export default {
   async scheduled(_event: unknown, env: Env): Promise<void> {
     if (env.FEISHU_NOTIFY !== 'on') return;
     if ((new Date().getUTCHours() + 8) % 24 >= 10) await withUser(env, null, (sql) => sql`select public.group_digest_tick()`).catch((e) => console.error(e));
+    await biweeklyTasks(env).catch((e) => console.error('双周表任务', e));
     const batch = await withUser(env, null, (sql) => sql`select msg_id, target_id, body from public.outbox_take(20)`);
     if (!batch.length) return;
     const tok = await feishu('/auth/v3/tenant_access_token/internal', {
       method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ app_id: env.FEISHU_BOT_APP_ID || env.FEISHU_APP_ID, app_secret: env.FEISHU_BOT_APP_SECRET || env.FEISHU_APP_SECRET }) }).catch(() => null);
     const results: [string, boolean, string | null][] = [];
+    let markNote: string | null = null;
+    if (tok?.tenant_access_token) {
+      for (const [k, png] of [['red', MARK_PNG], ['white', MARK_WHITE_PNG]] as const) {
+        if (markKeys[k]) continue;
+        const fd = new FormData(); fd.append('image_type', 'message');
+        fd.append('image', new Blob([Uint8Array.from(atob(png), (c) => c.charCodeAt(0))], { type: 'image/png' }), 'mark.png');
+        const up = await feishu('/im/v1/images', { method: 'POST', headers: { authorization: `Bearer ${tok.tenant_access_token}` }, body: fd }).catch(() => null);
+        if (up?.code === 0 && up.data?.image_key) markKeys[k] = String(up.data.image_key); else markNote = `标志图未传上去，卡片不带图。飞书返回 ${up?.code}：${String(up?.msg ?? '').slice(0, 120)}`;
+      }
+    }
     for (const m of batch) {
       if (!tok?.tenant_access_token) { results.push([String(m.msg_id), false, '无法获取应用凭证']); continue; }
       const body = typeof m.body === 'string' ? JSON.parse(m.body) : m.body;
@@ -594,9 +801,17 @@ export default {
         body: JSON.stringify({ receive_id: to, msg_type, content: JSON.stringify(content) }),
       }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
       // 先发卡片；卡片被拒的，退回发纯文字，通知不能因为版式丢掉
-      let r = await send('interactive', noticeCard(body, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev').card);
+      const actToken = env.CARD_ACTIONS === '1' && !group && body.act ? await sign(env.SESSION_SECRET, 'act', String(m.msg_id), ACT_TTL) : undefined;
+      // 带图的通报：先把图传上去；传不上去的照发文字，并记下原因
+      if (body.img && !body.img_key) {
+        const fd = new FormData(); fd.append('image_type', 'message');
+        fd.append('image', new Blob([Uint8Array.from(atob(String(body.img)), (c) => c.charCodeAt(0))], { type: 'image/png' }), 'post.png');
+        const up = await feishu('/im/v1/images', { method: 'POST', headers: { authorization: `Bearer ${tok.tenant_access_token}` }, body: fd }).catch(() => null);
+        if (up?.code === 0 && up.data?.image_key) body.img_key = String(up.data.image_key); else markNote = `通报的图未传上去，卡片不带图。飞书返回 ${up?.code}：${String(up?.msg ?? '').slice(0, 120)}`;
+      }
+      let r = await send('interactive', noticeCard({ ...body, group }, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev', env.FEISHU_APP_ID, markKeys, actToken).card);
       const why = (x: any) => `飞书返回 ${x?.code}：${String(x?.msg ?? '').slice(0, 200)}`;
-      let note: string | null = null;
+      let note: string | null = markNote;
       if (r?.code !== 0) { note = `卡片未发出，已改发文字。${why(r)}`; r = await send('text', { text: `${group && body.all === true ? '<at user_id="all">所有人</at> ' : ''}【正则】${body.text}` }); }
       results.push([String(m.msg_id), r?.code === 0, r?.code === 0 ? note : why(r)]);
     }

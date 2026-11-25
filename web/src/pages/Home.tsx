@@ -7,6 +7,7 @@ import { cardRisk, nodeState } from './Overview';
 import { KIND, STAGE_TEXT, STEP_OF } from './Budget';
 import { taskDue } from './Tasks';
 import { TokenMine, addDays } from '../token';
+import { ReviewSummary } from '../review';
 
 const wan = (x: number) => `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 ? 0 : 1)} 万`;
 const OPEN: ReqStatus[] = ['pending', 'committed', 'at_school', 'returned'];
@@ -120,11 +121,11 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   for (const c of data.arrs.filter((x) => x.can_answer)) todo.push({ tone: 'warn', tag: 'ARR 担保', text: `${c.asked_by_name ?? ''} 请本人为研究单元「${c.unit_name}」在「${c.cycle}」一轮担保，待答复`, go: '答复', href: `#/project/${c.project_id}` });
   count(data.uapps.filter((u) => u.mine && u.proposed && !!u.return_note).length, 'bad', '已退回', '研究单元申请已退回，待修改后重新提交', '查看', '#/projects');
   count(resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id).length, 'warn', '待批示', '资源申请属本人负责的研究单元，待批示', '批示', '#/resource');
-  // 双周表：本人所在的研究单元本期尚未登记，或上一期未登记而仍在补登期内
-  for (const s of data.bws.filter((x) => x.can_fill && (!x.filled || (x.prev_open && !x.prev_filled && x.missed > 0)))) {
-    const until = addDays(s.period_start, 2), late = s.missed > 1 || (s.missed === 1 && !s.prev_open);
-    todo.push({ tone: late ? 'bad' : 'warn', tag: '双周表', go: '登记', href: '#/biweekly',
-      text: `${s.unit_name}${s.filled ? '' : ` 本期（${day(s.period_start)} 至 ${day(s.period_end)}）的双周表尚未登记`}${s.missed === 1 && s.prev_open ? `${s.filled ? ' ' : '；'}上一期未登记，${until} 前可补登` : late ? `；已连续 ${s.missed} 期未登记，由联席会议优先过问` : ''}` });
+  // 双周表：只在登记日（每期第一天）登记。当天未登记的列为待办；过了当天未登记的提示逾期和下一个登记日
+  for (const s of data.bws.filter((x) => x.can_fill && !x.filled)) {
+    todo.push(s.open
+      ? { tone: 'warn', tag: '双周表', go: '登记', href: '#/biweekly', text: `今天是登记日：${s.unit_name} 的双周表请在今天 24:00 前登记，过期不补登` }
+      : { tone: 'bad', tag: '双周表', go: '查看', href: '#/biweekly', text: `${s.unit_name} 本期（${day(s.period_start)} 至 ${day(s.period_end)}）的双周表逾期未登记${s.missed >= 2 ? `，已连续 ${s.missed} 期，转为停滞，负责人须到联席会议说明` : '，由联席会议优先过问'}；下一个登记日 ${day(s.register_day)}` });
   }
   if (seesCards) {
     for (const c of active.filter((x) => num(x.avail) < 0))
@@ -436,6 +437,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
           ], '课题的资源')}
           <p className="hint">每个课题、研究单元名下的设备、接口额度和申领记录，在它自己的页面里。</p>
         </section>
+        <section className="wb-sec">{head('05', '投稿与评审', '各研究单元稿件的评分和质疑 · 点研究单元看逐轮评审')}<ReviewSummary /></section>
         {!(topicNodes.length > 0 || orphans.length > 0 || planYear) && <section className="wb-sec">{head('03', '课题')}<Empty>暂无课题。<a href="#/projects">前往课题管理</a></Empty></section>}
       </div>
     );

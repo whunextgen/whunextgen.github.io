@@ -1,4 +1,4 @@
-import { sign, verify, seal, unseal, mask } from '../src/index.ts';
+import { sign, verify, seal, unseal, mask, safeTo, SESSION_TTL } from '../src/index.ts';
 let bad = 0; const ok = (c: boolean, n: string) => { if (!c) { bad++; console.log('FAIL', n); } };
 const t = await sign('s3', 'uid', 'abc-123', 60);
 ok(await verify('s3', 'uid', t) === 'abc-123', 'round trip');
@@ -13,4 +13,8 @@ ok(await unseal('vault', 'allocation:1', c) === 'demo-value-0123456789', 'seal r
 ok(await unseal('vault', 'allocation:2', c).then(() => false, () => true), 'bound to owner');
 ok(await unseal('other', 'allocation:1', c).then(() => false, () => true), 'wrong vault key');
 ok(mask('demo-value-0123456789') === 'dem…6789' && mask('short') === '已保存', 'mask');
+ok(safeTo('/project/0b1c-2d') === '/project/0b1c-2d' && safeTo('/') === '/', '站内路径原样返回');
+ok(safeTo(null) === '/' && safeTo('') === '/' && safeTo('https://x.test/') === '/' && safeTo('project') === '/' && safeTo('/a?b=1') === '/' && safeTo('/a.b') === '/' && safeTo('/' + 'a'.repeat(200)) === '/', '其余一律回首页');
+ok(await verify('s3', 'to', await sign('s3', 'to', safeTo('/biweekly'), 600)) === '/biweekly', '回跳路径能过签名');
+ok(SESSION_TTL === 30 * 86400, '会话 30 天');
 console.log(bad ? `${bad} failed` : 'session: all passed'); process.exit(bad ? 1 : 0);

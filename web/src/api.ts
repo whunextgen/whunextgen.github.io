@@ -32,7 +32,8 @@ export const apiMeta = (): Promise<ApiMeta> => send('/api/meta');
 // 访问令牌：明文由服务端生成，只在这一次返回
 export const createToken = (name: string, write: boolean, days: number): Promise<string> => post('/api/token/create', { name, write, days });
 
-export const logout = () => send('/auth/logout', { method: 'POST' });
+// 本人点了退出的，这个窗口里不再自动登录
+export const logout = () => { try { sessionStorage.setItem('fp_out', '1'); } catch { /* 存不了就算了 */ } return send('/auth/logout', { method: 'POST' }); };
 
 // 一次取多张视图；reload 用于写操作之后刷新
 export function useViews<T extends Record<string, unknown[]>>(spec: { [K in keyof T]: [string, Record<string, string>?] }, key = '') {
@@ -101,7 +102,7 @@ export interface BiweeklyReport { id: string; project_id: string; unit_code: str
   period_start: string; period_end: string; stage: BwStage; question: string; done: string; changed_judgment: string; issues: string | null; division: string; next_plan: string;
   submitted_by_name: string | null; submitted_at: string; updated_by_name: string | null; updated_at: string }
 export interface BiweeklyStatus { project_id: string; unit_code: string; unit_name: string; topic_id: string | null; topic_code: string | null; topic_name: string | null; leader_id: string | null; leader_name: string | null;
-  period_start: string; period_end: string; filled: boolean; prev_filled: boolean; prev_open: boolean; last_period: string | null; last_stage: BwStage | null; missed: number; can_fill: boolean }
+  period_start: string; period_end: string; filled: boolean; prev_filled: boolean; prev_open: boolean; last_period: string | null; last_stage: BwStage | null; missed: number; can_fill: boolean; open: boolean; register_day: string }
 export interface FundProject { id: string; name: string; source: 'school' | 'national' | 'provincial' | 'enterprise' | 'other' | null; fund_kind: 'vertical' | 'fiscal' | 'horizontal' | null;
   owner_id: string | null; owner_name: string | null; quota: string | null; period_start: string | null; period_end: string | null; template_id: string; template_name: string;
   end_rule: 'recall' | 'carry'; note: string | null; status: 'active' | 'closed'; granted: string; recalled: string; cards: number;
@@ -226,3 +227,14 @@ export interface LineExec { id: string; year: number; project_id: string; catego
 export interface LinePick { id: string; project_id: string; project_code: string; project_name: string; category_id: string; category_name: string; purpose: string }
 export interface BudgetRevision { id: string; line_id: string; year: number; project_id: string; purpose: string; old_amount: string; new_amount: string; note: string | null; revised_by_name: string | null; revised_at: string }
 export interface BudgetReview { id: string; year: number; quarter: number; project_id: string; note: string | null; reviewed_by_name: string | null; reviewed_at: string }
+
+// 投稿与评审：挂在研究单元上，按可见范围过滤
+export interface Submission { id: string; project_id: string; relation: 'self' | 'prior'; venue: string; cycle: string; forum: string; number: number | null; title: string; submitted_on: string | null;
+  status: string; prev_id: string | null; ac_overall: string | null; ac_text: string | null; ac_revisions: string | null; ac_gist: string | null; mean_overall: string | null; keep_reviewers: boolean | null; keep_ac: boolean | null; scale: string; source: 'import' | 'manual'; can_edit: boolean }
+export interface SubmissionReview { id: string; submission_id: string; project_id: string; reviewer: string; overall: string | null; soundness: string | null; excitement: string | null; confidence: string | null;
+  summary: string | null; strengths: string | null; weaknesses: string | null; comments: string | null }
+export interface ReviewPoint { id: string; review_id: string; submission_id: string; project_id: string; ord: number; axis: string; gist: string; quote: string | null; thread_id: string | null }
+export interface ReviewSummary { project_id: string; code: string; name: string; owner_name: string | null; relation: 'self' | 'prior'; venue: string; cycle: string; number: number | null; title: string; status: string; scale: string
+  rounds: number; judged_rounds: number; judged_cycle: string | null; mean: string | null; reviewers: number | null; prev_mean: string | null; ac_overall: string | null
+  li: number | null; ju: number | null; ti: number | null; yong: number | null; threads_open: number; threads: number; keep_reviewers: boolean | null; keep_ac: boolean | null }
+export interface ReviewThread { id: string; project_id: string; relation: 'self' | 'prior'; axis: string; label: string; ord: number }

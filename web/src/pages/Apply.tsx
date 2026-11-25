@@ -76,7 +76,7 @@ export function ApplyPage({ me }: { me: Me }) {
   );
 }
 
-// ---------- 研究单元申请：全年随时。先经联席会议通过，再在这里申请；所挂课题的负责人同意后，助理对照纪要核对成立 ----------
+// ---------- 研究单元申请：随时提交，同意、退回、核对只在每期第一天（登记日）办。先经联席会议通过，再在这里申请；所挂课题的负责人同意后，助理对照纪要核对成立 ----------
 export function UnitApplyCard({ me, onChange }: { me: Me; onChange?: () => void }) {
   const { data, error, reload } = useViews<{ units: UnitApply[]; tags: ProjectTag[]; projects: Project[]; users: User[] }>({ units: ['unit_apply'], tags: ['project_tag'], projects: ['project'], users: ['users'] });
   const [act, setAct] = useState<Act | null>(null);
@@ -99,8 +99,8 @@ export function UnitApplyCard({ me, onChange }: { me: Me; onChange?: () => void 
   const btn = (label: string, a: Act, cls = 'sm ghost') => <button className={a.danger ? `${cls} danger` : cls} onClick={() => setAct(a)}>{label}</button>;
   return (
     <section className="card">
-      <h3>研究单元申请 <span className="h3sub">全年随时 · {recorder ? '按联席会议纪要核对' : '本人提交的申请，以及本人所负责课题之下的申请'}</span></h3>
-      <p className="hint">研究单元一律独立申请，挂在一个已立项的课题下面，全年随时可以提，不必等年度预算。先经联席会议通过，再在此提交；会议纪要发出满三个工作日、中心负责人未否决的，经所挂课题的负责人同意，由助理对照纪要核对后成立；中心负责人本人确认的，不必等否决期届满。成立后申请人即为负责人。研究单元不参加评定，使用所挂课题的预算。</p>
+      <h3>研究单元申请 <span className="h3sub">随时提交，每期第一天办理 · {recorder ? '按联席会议纪要核对' : '本人提交的申请，以及本人所负责课题之下的申请'}</span></h3>
+      <p className="hint">研究单元一律独立申请，挂在一个已立项的课题下面，随时可以提交，不必等年度预算；所挂课题负责人的同意、退回和助理的核对，只在每两周一期的第一天（登记日）办理，其余日子不办。先经联席会议通过，再在此提交；会议纪要发出满三个工作日、中心负责人未否决的，经所挂课题的负责人同意，由助理对照纪要核对后成立；中心负责人本人确认的，不必等否决期届满。成立后申请人即为负责人。研究单元不参加评定，使用所挂课题的预算。</p>
       {unitRows.length === 0 ? <Empty>暂无研究单元申请。</Empty> : (
         <div className="scroll"><table>
           <thead><tr><th>研究单元</th><th>所挂课题</th><th>申请人</th><th>联席会议 · 纪要</th><th>情况</th><th /></tr></thead>

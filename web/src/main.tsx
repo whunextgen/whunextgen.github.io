@@ -39,6 +39,8 @@ import '@fontsource/jetbrains-mono/latin-400.css';
 import '@fontsource/jetbrains-mono/latin-500.css';
 import './styles.css';
 
+declare const __APP_VERSION__: string;
+
 const useRoute = () => {
   const [hash, setHash] = useState(location.hash.slice(1) || '/');
   useEffect(() => {
@@ -56,7 +58,24 @@ const Mark = () => (
   </svg>
 );
 
+// 登录后回到原来要打开的页面
+const loginHref = () => `/auth/feishu/login?to=${encodeURIComponent(location.hash.slice(1) || '/')}`;
+// 在飞书客户端里打开的，不停在登录页，直接走授权（飞书对本单位应用不再询问）。一分钟内试过一次就不再自动跳，避免来回跳转
+const autoLogin = () => {
+  if (!/Lark|Feishu/i.test(navigator.userAgent)) return false;
+  try {
+    if (sessionStorage.getItem('fp_out')) return false;
+    const last = Number(sessionStorage.getItem('fp_auto') ?? 0);
+    if (Date.now() - last < 60000) return false;
+    sessionStorage.setItem('fp_auto', String(Date.now()));
+  } catch { return false; }
+  return true;
+};
+
 function Login({ reason }: { reason?: string }) {
+  const [auto] = useState(() => !reason && autoLogin());
+  useEffect(() => { if (auto) location.replace(loginHref()); }, [auto]);
+  if (auto) return <p className="empty">正在登录…</p>;
   return (
     <div className="login">
       <div className="login-in">
@@ -64,7 +83,7 @@ function Login({ reason }: { reason?: string }) {
         <h1>正则</h1>
         <p>按课题和研究单元编制年度预算，按当年经费卡执行，按学校入账决算。请使用中心飞书账号登录。</p>
         {reason && <div className="msg bad" role="alert">{reason}</div>}
-        <a className="btn" href="/auth/feishu/login">飞书登录 →</a>
+        <a className="btn" href={loginHref()}>飞书登录 →</a>
       </div>
       <div className="login-word" aria-hidden="true">预算<i>与</i><br />决算</div>
     </div>
@@ -220,6 +239,7 @@ function App() {
           <button className="ghost sm" onClick={() => setScholar(true)} title={me.scholar_url ?? '填写本人的谷歌学术主页'}>学术主页</button>
           <button className="ghost sm" onClick={() => logout().finally(() => location.reload())}>退出</button>
         </div>
+        <div className="ver">正则 v{__APP_VERSION__}</div>
         {scholar && <ActionDialog title="谷歌学术主页" submitLabel="保存"
           hint="填写本人谷歌学术个人主页的链接，课题列表和成员名单里随姓名显示。参与双选的博士须填写。留空即清除。"
           fields={[{ name: 'url', label: '链接，形如 https://scholar.google.com/citations?user=…', value: me.scholar_url ?? '', required: false }]}

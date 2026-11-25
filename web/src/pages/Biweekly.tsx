@@ -3,14 +3,14 @@ import { rpc, useViews, type BiweeklyReport, type BiweeklyStatus, type BwStage }
 import { Badge, Empty, Loading, day } from '../ui';
 import { addDays } from '../token';
 
-// 双周表：每个研究单元每两周登记一次。期次与名义币相同，两周一期；本期随时可改，上一期结束后三日内可以补登。
+// 双周表：每个研究单元每两周登记一次，只在每期第一天（登记日）登记，交上一期的结果和这一期的计划；过了当天不补登。期次与名义币相同。
 // 上半部分是本人所在研究单元的登记，下半部分按课题列出全部研究单元的登记情况，点研究单元看历次登记。
 export const BW_STAGE: [BwStage, string][] = [['idea', '想法'], ['abstract', '摘要'], ['first_figure', '首图'], ['results_table', '核心结果表'], ['full_draft', '完整初稿'], ['submitted', '投稿稿']];
 export const bwStage = (s: string | null | undefined) => BW_STAGE.find(([k]) => k === s)?.[1] ?? '—';
-// 连续未登记：上一期没登记即超过两周未登记；补登期内提示可以补登
+// 未登记的期数：一期未登记由联席会议优先过问；连续两期未登记转为停滞（培养路径第二十二条）
 export const bwMissed = (s: BiweeklyStatus) => s.missed <= 0 ? null
-  : s.missed === 1 && s.prev_open ? <Badge tone="warn">上期未登记，{addDays(s.period_start, 2)} 前可补登</Badge>
-  : <Badge tone="bad">超过两周未登记{s.missed > 1 ? ` · 连续 ${s.missed} 期` : ''}</Badge>;
+  : s.missed === 1 ? <Badge tone="warn">未登记 1 期</Badge>
+  : <Badge tone="bad">停滞 · 连续 {s.missed} 期未登记</Badge>;
 
 const FIELDS: { k: 'question' | 'done' | 'changed' | 'issues' | 'division' | 'next'; label: string; max: number; rows: number; opt?: boolean }[] = [
   { k: 'question', label: '本轮回答的问题（每轮只回答一个问题）', max: 300, rows: 3 },
@@ -86,28 +86,26 @@ export function Biweekly() {
   return (
     <>
       <div className="top"><h2>双周表</h2></div>
-      <p className="lede">每个研究单元每两周登记一次：写作进度、本轮回答的问题、已完成的工作与阶段结果、本轮改变的判断、遇到的问题、成员分工和下一轮安排。超过两周未登记的研究单元由联席会议优先过问；未登记双周表的研究单元不参加方向会汇报。
-        两周一期，与名义币的期次相同，本期随时可改，上一期结束后三日内可以补登。本期的时间去向在<a href="#/">首页「我的事项」</a>登记。</p>
+      <p className="lede">每个研究单元每两周登记一次：写作进度、本轮回答的问题、已完成的工作与阶段结果、本轮改变的判断、遇到的问题、成员分工和下一轮安排。双周表只在每期第一天（登记日）登记，交上一期的结果和这一期的计划，当天 24:00 截止，不补登。一期未登记的研究单元由联席会议优先过问，连续两期未登记的转为停滞；未登记双周表的研究单元不参加方向会汇报。
+        两周一期，与名义币的期次相同。本期的时间去向在<a href="#/">首页「我的事项」</a>登记。</p>
       <section className="card">
         <h3>我的研究单元 {cur && <span className="h3sub">本期 {cur} 至 {day(all[0].period_end)}</span>}</h3>
         {mine.length === 0 ? <Empty>本人尚不在任何已成立的研究单元里，暂无需登记的双周表。</Empty> : (
           <div className="stack">{mine.map((s) => {
-            const prev = addDays(s.period_start, -14), p = s.prev_open && pick[s.project_id] === prev ? prev : day(s.period_start);
+            const p = day(s.period_start);
             const here = of(s.project_id), now = here.find((r) => day(r.period_start) === p), last = here.find((r) => day(r.period_start) < p);
             return (
               <div key={s.project_id}>
                 <h4 className="subhd">{s.unit_name}<span className="sub2">{s.unit_code} · {s.topic_name ?? '—'} · 负责人 {s.leader_name ?? '—'}</span>{' '}
-                  {s.filled ? <Badge tone="ok">本期已登记</Badge> : <Badge tone="warn">本期未登记</Badge>} {bwMissed(s)}</h4>
-                {s.prev_open && <div className="tabs" style={{ marginBottom: 10 }}>
-                  <button type="button" className="sm" aria-pressed={p !== prev} onClick={() => setPick({ ...pick, [s.project_id]: '' })}>本期 {day(s.period_start)}</button>
-                  <button type="button" className="sm" aria-pressed={p === prev} onClick={() => setPick({ ...pick, [s.project_id]: prev })}>上一期 {prev}{s.prev_filled ? '' : '（未登记）'} · {addDays(s.period_start, 2)} 前可补登</button></div>}
-                <ReportForm key={`${s.project_id}-${p}`} unit={s} period={p} cur={now} last={last} onSaved={reload} />
+                  {s.filled ? <Badge tone="ok">本期已登记</Badge> : s.open ? <Badge tone="warn">今天是登记日，尚未登记</Badge> : <Badge tone="bad">本期逾期未登记</Badge>} {bwMissed(s)}</h4>
+                {s.open ? <ReportForm key={`${s.project_id}-${p}`} unit={s} period={p} cur={now} last={last} onSaved={reload} />
+                  : <p className="hint">{s.filled ? '本期已登记。' : '本期的登记日已过，不能补登。'}下一个登记日是 {day(s.register_day)}，届时登记这一期的结果和下一期的计划。{now ? '本期登记的内容在下方「全部研究单元」里点名称查看。' : ''}</p>}
               </div>); })}</div>
         )}
       </section>
       <section className="card">
-        <h3>全部研究单元 <span className="h3sub">{all.length} 个 · 本期已登记 {filled} 个{late > 0 ? ` · 超过两周未登记 ${late} 个` : ''}</span></h3>
-        <p className="hint">点研究单元名称查看历次登记。连续未登记的期数从上一期往前数，研究单元成立之前的期次不计。</p>
+        <h3>全部研究单元 <span className="h3sub">{all.length} 个 · 本期已登记 {filled} 个{late > 0 ? ` · 未登记 ${late} 个，其中停滞 ${all.filter((s) => s.missed >= 2).length} 个` : ''}</span></h3>
+        <p className="hint">点研究单元名称查看历次登记。登记日过了仍未登记的，当期即计为未登记一期；连续两期未登记的转为停滞。研究单元成立之前的期次不计。</p>
         {all.length === 0 ? <Empty>暂无已成立的研究单元。</Empty> : (
           <div className="stack">{topics.map(([tid, tname]) => (
             <div key={tid}>

@@ -8,6 +8,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const db = new PGlite();
 const mig = path.join(root, 'supabase/migrations');
 for (const f of readdirSync(mig).sort()) await db.exec(readFileSync(path.join(mig, f), 'utf8'));
+// 登记日（0089）：下面大部分测试是按「期内随时可办」写的，考的是权限、否决期、字段校验这些，与哪一天办无关。
+// 这里先把两处判断换成替身（任何一天都算登记日、本期全程可登记），文件末尾换回真函数，专门测登记日。
+const REAL_GATES = `create or replace function is_register_day() returns boolean language sql stable security definer set search_path = public as $$ select app_today() = token_period(app_today()) $$;
+create or replace function register_window(p_day date) returns boolean language sql immutable as $$
+  select p_day = token_period(p_day) or (token_period(p_day) = date '2026-11-23' and p_day <= date '2026-11-24') $$;`;
+await db.exec(`create or replace function is_register_day() returns boolean language sql stable security definer set search_path = public as $$ select true $$;
+create or replace function register_window(p_day date) returns boolean language sql immutable as $$ select true $$;`);
 
 let pass = 0, fail = 0;
 const ok = (cond, name, extra = '') => { cond ? pass++ : (fail++, console.log('FAIL', name, extra)); };
@@ -1837,6 +1844,18 @@ await raises('他人不能改申请', /仅申请人可修改申请/, pu, [U1, TB
 await raises('不是所挂课题的负责人不能同意', /仅所挂课题的负责人和副手可以同意/, `select approve_unit($1)`, [U1]);
 await as(U.lead, '2032-06-09');
 ok((await q(`select 1 from api.unit_apply where id = $1`, [U1])).length === 1, '所挂课题的负责人看得到这份申请');
+// 卡片上直接办理：待同意的通知带着动作，发送端能按编号取回
+{ await db.exec(`reset role`);
+  const row = await one(`select id, user_id, payload from feishu_outbox where payload->>'text' like '研究单元申请待同意：%成员申请的研究单元%' order by id desc limit 1`);
+  const plain = await one(`select id from feishu_outbox where not (payload ? 'act') and user_id is not null order by id desc limit 1`);
+  await db.exec(`set role app_api`);
+  ok(row && row.user_id === U.lead && row.payload.act?.kind === 'unit_consent' && row.payload.act.unit === U1, '待同意的通知带着要办的动作和研究单元', JSON.stringify(row?.payload));
+  await raises('登录用户取不到通知的动作', /当前角色/, `select * from outbox_act($1)`, [row.id]);
+  await as('', '2032-06-09');
+  const got = await one(`select * from outbox_act($1)`, [row.id]);
+  ok(got.user_id === U.lead && got.body.act.unit === U1 && /^o[un]_/.test(got.target_id), '发送端按编号取回这条通知发给谁、办什么', JSON.stringify(got));
+  ok((await q(`select * from outbox_act($1)`, [plain.id])).length === 0, '不带动作的通知取不到');
+  await as(U.lead, '2032-06-09'); }
 await raises('课题负责人不核对，核对由助理按会议结果办', /需要权限/, `select confirm_unit($1)`, [U1]);
 ua = await one(`select can_ok, parent_ok_at from api.unit_apply where id = $1`, [U1]);
 ok(ua.can_ok === true && ua.parent_ok_at === null, '提交后先待所挂课题的负责人同意');
@@ -2059,14 +2078,13 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok(s.filled === true && s.last_stage === 'first_figure' && s.missed === 0, '本期已登记', JSON.stringify(s));
   await as(plain, '2032-06-30');
   s = await st();
-  ok(s.filled === false && s.prev_filled === true && s.prev_open === true && s.missed === 0, '进入下一期，上一期已登记的不算未登记', JSON.stringify(s));
-  await bw(U1, '2032-06-14', { stage: 'results_table' });
-  ok((await one(`select last_stage from api.biweekly_status where project_id = $1`, [U1])).last_stage === 'results_table', '上一期结束后三日内可以补改');
+  ok(s.filled === false && s.prev_filled === true && s.prev_open === false && s.missed === 0, '进入下一期，上一期已登记的不算未登记', JSON.stringify(s));
+  await raises('上一期不能再补登或修改', /仅可登记本期/, BW, [U1, '2032-06-14', 'results_table', 'a', 'b', 'c', null, 'd', 'e']);
   await as(plain, '2032-07-14');
   s = await st();
-  ok(s.missed === 1 && s.prev_filled === false && s.prev_open === true, '上一期没登记即超过两周未登记，补登期内仍可补登', JSON.stringify(s));
+  ok(s.missed === 1 && s.prev_filled === false && s.prev_open === false, '上一期没登记即未登记一期，不能补登', JSON.stringify(s));
   await as(plain, '2032-07-15');
-  await raises('补登期过后不能再登记上一期', /仅可登记本期/, BW, [U1, '2032-06-28', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
+  await raises('不能再登记上一期', /仅可登记本期/, BW, [U1, '2032-06-28', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
   await bw(U1, '2032-07-12', { stage: 'full_draft' });
   s = await st();
   ok(s.filled === true && s.missed === 1 && s.lp === '2032-07-12', '本期登记了，漏掉的上一期仍计入', JSON.stringify(s));
@@ -2081,6 +2099,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   eq((await q(`select 1 from api.biweekly_status where project_id = $1`, [U3])).length, 0, '未成立的研究单元不列入');
   await as(null);
   eq((await q(`select 1 from api.biweekly_report`)).length + (await q(`select 1 from api.biweekly_status`)).length, 0, '未登录看不到双周表');
+  await as(null);
 }
 }
 
@@ -2245,20 +2264,21 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const cnt = async () => (await one(`select count(*)::int n from feishu_outbox where target = 'group'`)).n;
   const tick = async (n) => { await db.exec(`set role app_api`); await as(null, await day(n)); const r = (await one(`select group_digest_tick() k`)).k; await db.exec(`reset role`); return r; };
   const n0 = await cnt();
-  ok((await tick(5)) === null, '不是汇总日不发');
-  eq(await cnt(), n0, '不是汇总日队列里不多出消息');
-  ok((await tick(7)) === 'mid', '本期第八天发期中汇总');
-  const span = (await one(`select to_char($1::date, 'MM-DD') || ' 至 ' || to_char($1::date + 13, 'MM-DD') s`, [cur])).s;
+  ok((await tick(5)) === null && (await tick(7)) === null && (await tick(12)) === null, '不是通报日不发，原来的期中汇总和期末提醒取消');
+  eq(await cnt(), n0, '不是通报日队列里不多出消息');
+  ok((await tick(13)) === 'eve', '登记日前一天发提醒');
+  const nd = await day(14), span2 = (await one(`select to_char($1::date, 'MM-DD') || ' 至 ' || to_char($1::date + 13, 'MM-DD') s`, [nd])).s;
   const t1 = await last();
-  ok(t1.startsWith(`双周表登记情况：本期 ${span}，应登记 `) && /未登记 \d+ 个。/.test(t1) && t1.includes('\n未登记\n· ') && t1.includes('之后三日内可以补登'), '期中汇总列出未登记的研究单元和负责人', t1);
-  ok((await tick(7)) === null, '同一期同一种汇总只发一次');
+  ok(t1.startsWith(`登记日提醒：明天（${nd.slice(5)}）是 ${span2} 一期的登记日`) && t1.includes('当天 24:00 截止，不补登'), '前一日提醒写明哪天、只在当天办、不补登', t1);
+  ok((await one(`select payload->'all' a from feishu_outbox where target = 'group' order by id desc limit 1`)).a === true && !('all' in g.payload), '前一日的提醒 @所有人');
+  ok((await tick(13)) === null, '同一期同一种通报只发一次');
   eq(await cnt(), n0 + 1, '重复触发不重复入队');
-  ok((await tick(12)) === 'last', '截止前一日发提醒');
-  ok((await last()).startsWith(`双周表登记提醒：本期 ${span} 明日截止，尚有 `), '截止前一日只列未登记的', await last());
-  ok((await one(`select payload->'all' a from feishu_outbox where target = 'group' order by id desc limit 1`)).a === true && !('all' in g.payload) && (await one(`select count(*)::int n from feishu_outbox where target = 'group' and payload ? 'all'`)).n === 1, '只有截止前一日的提醒 @所有人');
-  ok((await tick(17)) === 'final', '补登期过后发本期结果');
+  ok((await tick(14)) === 'open', '登记日当天发通知');
+  ok((await last()).startsWith(`登记日：今天（${nd.slice(5)}）是 ${span2} 一期的登记日`), '登记日当天的通知', await last());
+  ok((await tick(15)) === 'final', '登记日次日发本期结果');
   const t3 = await last();
-  ok(t3.startsWith(`双周表本期结果：${span} 一期的登记和补登已结束`) && t3.includes('\n连续两期及以上未登记\n· '), '本期结果标出连续未登记的', t3);
+  ok(t3.startsWith(`双周表本期结果：${span2} 一期的登记已于 ${nd.slice(5)} 24:00 截止，应登记 `) && /已登记 \d+ 个，未登记 \d+ 个。/.test(t3) && t3.includes('\n未登记\n· ') && t3.includes('\n连续两期及以上未登记\n· ') && t3.includes('转为停滞'), '本期结果列出未登记的，标出连续未登记的并说明转为停滞', t3);
+  eq((await one(`select count(*)::int n from feishu_outbox where target = 'group' and payload ? 'all'`)).n, 1, '只有前一日的提醒 @所有人');
   await db.exec(`set role app_api`); await as(U.dir, await day(21));
   await raises('登录的人不能触发汇总', /当前角色不能执行此操作/, `select group_digest_tick()`);
   await raises('群发函数不对接口开放', /permission denied/, `select notify_group('x')`);
@@ -2282,10 +2302,12 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('轮次不能重名', /已有名为/, `select open_arr_cycle('2033 年 5 月')`);
   await raises('名额有上下限', /0 到 20 之间/, `select save_arr_sponsor($1, true, 21)`, [U.mem2]);
   await q(`select save_arr_sponsor($1, true, 1, '合格')`, [U.mem2]);
+  await q(`select save_arr_sponsor($1, false, 2, '不合格的备注')`, [out]);
+  ok((await q(`select note from api.arr_sponsor where note is not null`)).length === 2, '人事岗看得到备注和不合格人员');
   await as(own, D2);
   await raises('没有资格的人不能被请', /不具备 ARR 担保资格/, `select ask_arr($1, $2)`, [un.id, U.fin]);
-  const sp = await q(`select user_name, remaining from api.arr_sponsor`);
-  ok(sp.length === 1 && sp[0].remaining === 1, '研究单元负责人看得到担保人和余量', JSON.stringify(sp));
+  const sp = await q(`select user_name, remaining, note from api.arr_sponsor`);
+  ok(sp.length === 1 && sp[0].remaining === 1 && sp[0].note === null, '研究单元负责人只看得到合格的担保人和余量，看不到备注', JSON.stringify(sp));
   const c1 = await val(`select ask_arr($1, $2) v`, [un.id, U.mem2]);
   await raises('一个研究单元一轮只请一位', /已有担保申请/, `select ask_arr($1, $2)`, [un.id, U.mem2]);
   ok((await one(`select remaining from api.arr_sponsor`)).remaining === 0, '待答复的申请先占着名额');
@@ -2302,20 +2324,45 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('已答复的不能再答复', /已答复或已撤回/, `select answer_arr($1, true)`, [c1]);
   await as(own, D2);
   const c2 = await val(`select ask_arr($1, $2) v`, [un.id, U.mem2]);
+  // 待答复期间人事岗取消资格：担保人不能再同意
+  await as(U.fin, D2); await q(`select save_arr_sponsor($1, false, 1)`, [U.mem2]);
+  await as(U.mem2, D2);
+  await raises('资格取消后不能同意', /资格已取消/, `select answer_arr($1, true)`, [c2]);
+  // 待答复期间名额被线下占用：超出名额不能同意
+  await as(U.fin, D2); await q(`select save_arr_sponsor($1, true, 1, null, 1)`, [U.mem2]);
+  ok((await one(`select used, offline_used, remaining from api.arr_sponsor where user_id = $1`, [U.mem2])).used === 2, '本轮线下已占计入已占');
+  await as(U.mem2, D2);
+  await raises('名额超出后不能同意', /名额已用完/, `select answer_arr($1, true)`, [c2]);
+  await as(U.fin, D2); await q(`select save_arr_sponsor($1, true, 1, null, 0)`, [U.mem2]);
   await as(U.mem2, D2);
   await q(`select answer_arr($1, true)`, [c2]);
   await as(out, D2);
-  await raises('无关的人不能撤回', /由研究单元负责人撤回/, `select withdraw_arr($1)`, [c2]);
+  await raises('无关的人不能撤回', /担保人本人或人事岗撤回/, `select withdraw_arr($1)`, [c2]);
   await as(own, D2);
-  ok((await one(`select status, can_withdraw from api.arr_claim where id = $1`, [c2])).status === 'agreed', '同意后研究单元页显示已有担保');
+  const v2 = await one(`select status, can_withdraw from api.arr_claim where id = $1`, [c2]);
+  ok(v2.status === 'agreed' && v2.can_withdraw === false, '同意后研究单元页显示已有担保，负责人不能自行撤回', JSON.stringify(v2));
+  await raises('负责人不能撤回已同意的担保', /担保人本人或人事岗撤回/, `select withdraw_arr($1)`, [c2]);
+  await db.exec(`reset role`); const nOwn = (await one(`select count(*)::int n from feishu_outbox where user_id = $1 and payload->>'text' like 'ARR 担保申请已撤回%'`, [own])).n; await db.exec(`set role app_api`);
+  await as(U.fin, D2);
   await q(`select withdraw_arr($1)`, [c2]);
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from feishu_outbox where user_id = $1 and payload->>'text' like 'ARR 担保申请已撤回%'`, [own])).n === nOwn + 1, '人事岗撤回的，也通知研究单元负责人');
+  await db.exec(`set role app_api`);
   await raises('已撤回的不必再撤', /已结束/, `select withdraw_arr($1)`, [c2]);
   await as(U.mem2, D2);
   ok((await one(`select remaining, used from api.arr_sponsor`)).remaining === 1, '撤回后名额退回');
-  // 新一轮：余量按名额重新起算
-  await as(own, D2); await q(`select ask_arr($1, $2)`, [un.id, U.mem2]);
-  await as(U.fin, D2); await q(`select open_arr_cycle('2033 年 7 月')`);
-  ok((await one(`select remaining from api.arr_sponsor where user_id = $1`, [U.mem2])).remaining === 1 && (await q(`select 1 from api.arr_cycle where current`)).length === 1, '开启新一轮后余量重新起算');
+  // 新一轮：余量按名额重新起算，上一轮未答复的申请结束
+  await as(own, D2); const c4 = await val(`select ask_arr($1, $2) v`, [un.id, U.mem2]);
+  await as(U.fin, D2); await q(`select save_arr_sponsor($1, true, 1, null, 1)`, [U.mem2]); await q(`select open_arr_cycle('2033 年 7 月')`);
+  ok((await one(`select remaining, offline_used from api.arr_sponsor where user_id = $1`, [U.mem2])).remaining === 1 && (await q(`select 1 from api.arr_cycle where current`)).length === 1, '开启新一轮后余量重新起算，上一轮的线下已占不再计入');
+  ok((await one(`select status from api.arr_claim where id = $1`, [c4])).status === 'expired', '开启新一轮后上一轮未答复的申请结束');
+  await as(U.mem2, D2);
+  ok((await one(`select can_answer from api.arr_claim where id = $1`, [c4])).can_answer === false, '往轮的申请不再出现在待答复里');
+  await raises('往轮的申请不能答复', /已答复或已撤回|往轮/, `select answer_arr($1, true)`, [c4]);
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from feishu_outbox where payload->>'text' like 'ARR 担保申请已结束%'`)).n === 2, '申请结束通知申请人和担保人');
+  await db.exec(`set role app_api`);
+  await as(U.fin, D2);
   await q(`select save_arr_sponsor($1, false, 1)`, [U.mem2]);
   await as(own, D2);
   await raises('取消资格后不能被请', /不具备 ARR 担保资格/, `select ask_arr($1, $2)`, [un.id, U.mem2]);
@@ -2327,6 +2374,196 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`reset role`);
   ok((await one(`select count(*)::int n from feishu_outbox where payload->>'text' like 'ARR 担保申请%'`)).n >= 4, '申请、答复、撤回都通知对方');
   await db.exec(`set role app_api`);
+}
+
+// ---------- 负责人自己改名 ----------
+{
+  await db.exec(`reset role`);
+  const un = await one(`select p.id, p.name, p.code, p.owner_id, t.owner_id town, t.id tid, t.name tname from project p join project t on t.id = p.parent_id where p.layer = 'paper' and p.active and not p.proposed and p.owner_id is not null and t.owner_id is not null and t.owner_id <> p.owner_id and t.active and not t.proposed order by p.code limit 1`);
+  const out = (await one(`insert into app_user (name, role, feishu_open_id) values ('改名无关人', 'member', 'ou_rn_out') returning id`)).id;
+  const n0 = (await one(`select count(*)::int n from feishu_outbox where payload->>'text' like '%改名：%'`)).n;
+  await db.exec(`set role app_api`);
+  const D3 = '2033-06-01';
+  await as(out, D3);
+  await raises('不是负责人不能改名', /名称由负责人修改/, `select rename_project($1, '乱改')`, [un.id]);
+  await as(un.owner_id, D3);
+  await raises('名称不能为空', /请填写名称/, `select rename_project($1, '  ')`, [un.id]);
+  await raises('名称有长度上限', /不得超过 60 个字/, `select rename_project($1, $2)`, [un.id, '长'.repeat(61)]);
+  await q(`select rename_project($1, '改过的稿子名')`, [un.id]);
+  const after = await one(`select name, code, owner_id, parent_id from api.project where id = $1`, [un.id]);
+  ok(after.name === '改过的稿子名' && after.code === un.code && after.parent_id === un.tid, '研究单元负责人可以改名，编号和所挂课题不变', JSON.stringify(after));
+  await as(un.town, D3);
+  await q(`select rename_project($1, '改过的课题名')`, [un.tid]);
+  ok((await one(`select name from api.project where id = $1`, [un.tid])).name === '改过的课题名', '课题负责人可以改课题的名称');
+  await db.exec(`reset role`);
+  const ns = await db.query(`select payload->>'text' t, user_id from feishu_outbox where payload->>'text' like '%改名：%' order by id desc limit 6`);
+  ok(ns.rows.some((x) => x.t.startsWith('研究单元改名：') && x.user_id === un.town && x.t.includes(`由「${un.name}」改为「改过的稿子名」`)), '研究单元改名通知所挂课题的负责人', JSON.stringify(ns.rows.map((x) => x.t)));
+  ok(ns.rows.some((x) => x.t.startsWith('课题改名：') && x.user_id === U.dir), '课题改名通知中心负责人');
+  await db.query(`update project set name = $2 where id = $1`, [un.id, un.name]); await db.query(`update project set name = $2 where id = $1`, [un.tid, un.tname]);
+  await db.exec(`set role app_api`);
+}
+
+// ---------- 登记日：研究单元申请和双周表只在每期第一天办 ----------
+{
+  await db.exec(`reset role`); await db.exec(REAL_GATES);
+  const fx = await one(`select id, owner_id, parent_id from project where name = '成员申请的研究单元' and layer = 'paper' and active and not proposed`);
+  const U1 = fx.id, plain = fx.owner_id, TB = fx.parent_id, pu = `select propose_unit($1, $2, $3, $4, $5, $6, $7) v`;
+  await db.exec(`set role app_api`);
+  const D0 = (await one(`select token_period(date '2034-03-01')::text c`)).c;
+  const day = async (n) => (await one(`select ($1::date + $2::int)::text d`, [D0, n])).d;
+  const D1 = await day(1), N0 = await day(14), N1 = await day(15), mmdd = (x) => x.slice(5);
+  // 判断本身，含第一期切换时的例外
+  const open = async (today, period) => { await as(plain, today); return (await one(`select biweekly_open($1) v, is_register_day() r, next_register_day()::text n`, [period])); };
+  ok((await open(D0, D0)).v === true && (await open(D1, D0)).v === false && (await open(await day(13), D0)).v === false && (await open(D0, await day(-14))).v === false, '双周表只在本期第一天开放');
+  let o = await open(D1, D0);
+  ok(o.r === false && o.n === N0 && (await open(D0, D0)).r === true && (await open(D0, D0)).n === D0, '登记日是每期第一天；其余日子给出下一个登记日', JSON.stringify(o));
+  ok((await open('2026-11-23', '2026-11-23')).v === true && (await open('2026-11-24', '2026-11-23')).v === true && (await open('2026-11-25', '2026-11-23')).v === false, '第一期切换时放到 11-24，之后不放宽');
+  // 双周表
+  const BW = `select save_biweekly_report($1, $2, 'idea', 'a', 'b', 'c', null, 'd', 'e') v`;
+  const st = async () => one(`select filled, missed, open, register_day::text rd, prev_open from api.biweekly_status where project_id = $1`, [U1]);
+  await as(plain, D1);
+  await raises('登记日过了不能登记本期', new RegExp(`双周表只在每期第一天登记，本期的登记日已过，下一个登记日为 ${mmdd(N0)}`), BW, [U1, D0]);
+  const m0 = (await st());
+  ok(m0.filled === false && m0.open === false && m0.rd === N0 && m0.prev_open === false, '登记日过后：不开放，给出下一个登记日', JSON.stringify(m0));
+  await as(plain, D0);
+  const mOpen = await st();
+  ok(mOpen.open === true && mOpen.rd === D0 && mOpen.missed === m0.missed - 1, '登记日当天还没登记不算未登记；过了当天还没登记的，当期就计一期', JSON.stringify([mOpen, m0]));
+  await q(BW, [U1, D0]);
+  await q(BW, [U1, D0]);
+  ok((await st()).filled === true, '登记日当天可以登记，也可以修改');
+  await as(plain, D1);
+  await raises('登记日过后不能再改', /登记日已过/, BW, [U1, D0]);
+  ok((await st()).missed === mOpen.missed, '登记了的，过了登记日不计未登记');
+  // 研究单元申请：提交不限日子，同意、退回、核对只在登记日
+  await as(U.mem2, D1);
+  const A1 = await val(pu, [null, TB, '登记日之外提交的研究单元', D0, D0, '说明', null]);
+  ok(!!A1, '研究单元申请平时可以提交');
+  await as(U.lead, D1);
+  const gate = new RegExp(`研究单元申请只在每期第一天办理，下一个办理日为 ${mmdd(N0)}`);
+  await raises('不是登记日不能同意', gate, `select approve_unit($1)`, [A1]);
+  await raises('不是登记日不能退回', gate, `select return_unit($1, '原因')`, [A1]);
+  await as(U.dir, D1);
+  await raises('不是登记日不能核对', gate, `select confirm_unit($1)`, [A1]);
+  await as(U.lead, N0);
+  await q(`select approve_unit($1)`, [A1]);
+  ok((await one(`select parent_ok_at from api.unit_apply where id = $1`, [A1])).parent_ok_at != null, '登记日当天可以同意');
+  await as(U.dir, N0);
+  await q(`select confirm_unit($1)`, [A1]);
+  ok((await one(`select proposed from project where id = $1`, [A1]).catch(() => null)) !== undefined, '登记日当天可以核对成立');
+  // 登记时段过后才成立的，从下一期起登记
+  await db.exec(`reset role`);
+  const from = async (ts) => { await q(`update project set checked_at = $2::timestamptz where id = $1`, [A1, ts]); return (await one(`select biweekly_from($1)::text v`, [A1])).v; };
+  ok((await from(`${N0} 10:00+08`)) === N0 && (await from(`${N1} 00:28+08`)) === (await day(28)) && (await from(`${await day(20)} 10:00+08`)) === (await day(28)), '登记日当天成立的从当期起登记；之后才成立的从下一期起');
+  ok((await from('2026-11-24 23:00+08')) === '2026-11-23' && (await from('2026-11-25 00:28+08')) === '2026-12-07', '第一期：11-24 之前成立的算当期，零点之后成立的算下一期');
+  await db.exec(`set role app_api`);
+  // 飞书任务：登记日当天建，截止日是当天；登记了完成，过了当天没登记的撤掉
+  const plan = (c = true) => q(`select act, project_id, period_start::text ps, target_id, summary, due::text due, task_guid from biweekly_task_plan($1)`, [c]);
+  const mark = (pid, ps, act, okv, guid = null, err = null) => q(`select biweekly_task_mark($1, $2, $3, $4, $5, $6)`, [pid, ps, act, okv, guid, err]);
+  await as(plain, N0);
+  await raises('登录用户不能取任务计划', /当前角色/, `select * from biweekly_task_plan(true)`);
+  await as('', await day(20));
+  eq((await plan()).filter((x) => x.act === 'create').length, 0, '不是登记日不建任务');
+  await as('', N0);
+  eq((await plan(false)).filter((x) => x.act === 'create').length, 0, '后半夜不建新任务');
+  let pl = await plan(), mine = pl.find((x) => x.project_id === U1);
+  ok(mine && mine.act === 'create' && mine.ps === N0 && mine.due === N0 && mine.summary.endsWith(`（${mmdd(N0)} 登记日，当天 24:00 截止）`) && /^o[un]_/.test(mine.target_id), '登记日当天给未登记的研究单元建任务，截止日是当天', JSON.stringify(mine));
+  eq((await plan()).length, pl.length, '没回报之前再取还是这些，不会重复登记');
+  await mark(U1, N0, 'create', false, null, '网络错误');
+  ok((await plan()).some((x) => x.project_id === U1 && x.act === 'create'), '建失败的下次再试');
+  await mark(U1, N0, 'create', true, 'guid-1');
+  ok(!(await plan()).some((x) => x.project_id === U1), '建好之后不再出现');
+  const other = pl.find((x) => x.project_id !== U1);
+  if (other) { await mark(other.project_id, other.ps, 'create', true, 'guid-9');
+    await as('', N1);
+    const dr = (await plan(false)).find((x) => x.project_id === other.project_id);
+    ok(dr && dr.act === 'drop' && dr.task_guid === 'guid-9', '登记日过了仍未登记的，撤掉任务', JSON.stringify(dr));
+    await mark(other.project_id, other.ps, 'drop', true);
+    ok(!(await plan(false)).some((x) => x.project_id === other.project_id), '撤掉之后不再出现'); }
+  await as(plain, N0);
+  await q(BW, [U1, N0]);
+  await as('', N0);
+  mine = (await plan(false)).find((x) => x.project_id === U1);
+  ok(mine && mine.act === 'done' && mine.task_guid === 'guid-1', '登记之后任务标为完成', JSON.stringify(mine));
+  await mark(U1, N0, 'done', true);
+  await as('', N1);
+  ok(!(await plan()).some((x) => x.project_id === U1), '完成的任务过了登记日不会被撤，也不再建');
+  for (let i = 0; i < 5; i++) await mark(U1, N0, 'done', false, null, '没有权限');
+  await as(null);
+}
+
+// ---------- 投稿与评审（0091、0092）：挂在研究单元上，登录的中心成员都看得到，未登录看不到 ----------
+{
+  await db.exec(`reset role`);
+  const u = await one(`select p.id, p.owner_id, (select owner_id from project where id = p.parent_id) as topic_owner from project p
+    where p.layer = 'paper' and p.active and not p.proposed and p.owner_id is not null and p.parent_id is not null
+      and (select owner_id from project where id = p.parent_id) is not null and (select owner_id from project where id = p.parent_id) <> p.owner_id limit 1`);
+  ok(!!u, '有一个负责人与课题负责人不同的研究单元可用');
+  const out = (await one(`insert into app_user (name, role, feishu_open_id) values ('评审外人', 'member', 'ou_review_out') returning id`)).id;
+  const mem = (await one(`insert into app_user (name, role, feishu_open_id) values ('评审成员', 'member', 'ou_review_mem') returning id`)).id;
+  await q(`insert into project_member (project_id, user_id, joined_on) values ($1, $2, '2026-11-01')`, [u.id, mem]);
+  const s0 = (await one(`insert into submission (project_id, venue, cycle, forum, number, title, status, ac_overall, ac_gist) values ($1, 'ACL ARR', '2026-08-01', 'f-old', 11, '旧稿', 'resubmitted', 3.5, '补充基线') returning id`, [u.id])).id;
+  const s1 = (await one(`insert into submission (project_id, venue, cycle, forum, number, title, prev_id) values ($1, 'ACL ARR', '2026-10-01', 'f-new', 22, '新稿', $2) returning id`, [u.id, s0])).id;
+  await q(`update submission set keep_reviewers = false, keep_ac = true where id = $1`, [s1]);
+  const r1 = (await one(`insert into submission_review (submission_id, reviewer, overall, soundness, excitement, confidence, weaknesses) values ($1, 'Reviewer_a', 2, 2.5, 2.5, 4, 'too small') returning id`, [s1])).id;
+  await q(`insert into submission_review (submission_id, reviewer, overall) values ($1, 'Reviewer_b', 3.5)`, [s1]);
+  const th = (await one(`insert into review_thread (project_id, axis, label) values ($1, 'ti', '数据规模小') returning id`, [u.id])).id;
+  await q(`insert into review_point (review_id, ord, axis, gist, quote, thread_id) values ($1, 0, 'ti', '数据太少', 'too small', $2), ($1, 1, 'li', '范围窄', null, null)`, [r1, th]);
+  await raises('四字之外的归类不收', /review_point_axis_check/, `insert into review_point (review_id, axis, gist) values ($1, 'qi', 'x')`, [r1]);
+  await raises('轮次须记当月一日', /submission_cycle_check/, `insert into submission (project_id, venue, cycle, forum, title) values ($1, 'ACL ARR', '2026-10-10', 'f-bad', 'x')`, [u.id]);
+  await raises('同一位审稿人在一轮里只有一份', /submission_review_submission_id_reviewer_key/, `insert into submission_review (submission_id, reviewer) values ($1, 'Reviewer_a')`, [s1]);
+  await db.exec(`set role app_api`);
+  const sees = async (uid) => { await as(uid, '2026-11-25');
+    return [(await q(`select 1 from api.submission where project_id = $1`, [u.id])).length, (await q(`select 1 from api.submission_review where project_id = $1`, [u.id])).length,
+      (await q(`select 1 from api.review_point where project_id = $1`, [u.id])).length, (await q(`select 1 from api.review_thread where project_id = $1`, [u.id])).length].join(','); };
+  const want = async (uid, v, name) => { const g = await sees(uid); ok(g === v, name, g); };
+  await want(u.owner_id, '2,2,2,1', '研究单元负责人看得到投稿、评审、质疑和追踪');
+  await want(mem, '2,2,2,1', '名单内成员看得到');
+  await want(u.topic_owner, '2,2,2,1', '所挂课题的负责人看得到');
+  await want(U.dir, '2,2,2,1', '中心负责人看得到');
+  await want(out, '2,2,2,1', '名单外的成员也看得到（0092）');
+  await want(null, '0,0,0,0', '未登录看不到');
+  await as(u.owner_id, '2026-11-25');
+  const row = await one(`select mean_overall, prev_id, relation, status, keep_reviewers, keep_ac from api.submission where id = $1`, [s1]);
+  ok(Number(row.mean_overall) === 2.75 && row.prev_id === s0 && row.relation === 'self' && row.status === 'review' && row.keep_reviewers === false && row.keep_ac === true, '投稿带审稿人均分和换审稿人的申请，并指向上一轮', JSON.stringify(row));
+  // 汇总（0093）：每篇稿件一行，分数和质疑取最近一轮有评审的
+  const sm = await one(`select rounds, judged_rounds, mean, prev_mean, ac_overall, li, ju, ti, yong, threads, threads_open, status, number, keep_reviewers from api.review_summary where project_id = $1`, [u.id]);
+  ok(sm.rounds === 2 && sm.judged_rounds === 1 && Number(sm.mean) === 2.75 && sm.prev_mean == null && Number(sm.ac_overall) === 3.5 && sm.li === 1 && sm.ti === 1 && sm.ju === 0 && sm.yong === 0 && sm.threads === 1 && sm.threads_open === 1 && sm.number === 22 && sm.keep_reviewers === false, '汇总按稿件一行，取最近一轮有评审的', JSON.stringify(sm));
+  await as(null);
+  ok((await q(`select 1 from api.review_summary`)).length === 0, '未登录看不到汇总');
+  await as(u.owner_id, '2026-11-25');
+  // 自行填报（0095）：名单内成员、负责人、中心负责人可以填；按会议分开
+  const call = (sql, a) => one(`select ${sql} as r`, a).then((x) => x.r);
+  await as(out, '2026-11-25');
+  await raises('名单外的成员不能填报', /可以填报/, `select submission_save(null, $1, 'self', 'ICLR', '2026-09', 77, '另投', 'review', null, 10, null, null, null)`, [u.id]);
+  await as(mem, '2026-11-25');
+  const m1 = await call(`submission_save(null, $1, 'self', 'ICLR', '2026-09', 77, '另投', 'review', 'https://openreview.net/forum?id=abcDEF1234', 10, null, null, null)`, [u.id]);
+  await raises('同一个帖子不能登记两次', /已经登记过/, `select submission_save(null, $1, 'self', 'ICLR', '2026-10', 78, '另投二', 'review', 'abcDEF1234', 10, null, null, null)`, [u.id]);
+  await raises('轮次要有年月', /年月/, `select submission_save(null, $1, 'self', 'ICLR', '九月', 78, '另投二', 'review', null, 10, null, null, null)`, [u.id]);
+  const rv1 = await call(`review_save(null, $1, 'R1', 6, null, null, 4, null, '实验不足', null)`, [m1]);
+  await call(`review_save(null, $1, 'R2', 8, null, null, 3, null, null, null)`, [m1]);
+  await raises('分数不能超过分制', /0 到 10 之间/, `select review_save(null, $1, 'R3', 11, null, null, null, null, null, null)`, [m1]);
+  await raises('同一位审稿人一轮只登记一份', /已经登记过/, `select review_save(null, $1, 'R1', 5, null, null, null, null, null, null)`, [m1]);
+  await call(`review_save($1, null, 'R1', 5, null, null, 4, null, '实验不足', null)`, [rv1]);
+  const m2 = await call(`submission_save(null, $1, 'self', 'ICLR', '2027-01', 12, '另投', 'review', null, 10, 'new', null, null)`, [u.id]);
+  const mrow = await one(`select forum, scale, source, can_edit, prev_id, keep_reviewers, mean_overall from api.submission where id = $1`, [m2]);
+  ok(mrow.forum == null && Number(mrow.scale) === 10 && mrow.source === 'manual' && mrow.can_edit === true && mrow.prev_id === m1 && mrow.keep_reviewers === false, '自行填报的投稿记分制、来源，并接到同一会议的上一轮', JSON.stringify(mrow));
+  ok(Number((await one(`select mean_overall from api.submission where id = $1`, [m1])).mean_overall) === 6.5, '改过的评审按新分数算均分');
+  const sums = await q(`select venue, rounds, judged_rounds, mean, scale, status from api.review_summary where project_id = $1 order by venue`, [u.id]);
+  ok(sums.length === 2 && sums[0].venue === 'ACL ARR' && sums[1].venue === 'ICLR' && sums[1].rounds === 2 && sums[1].judged_rounds === 1 && Number(sums[1].mean) === 6.5 && Number(sums[1].scale) === 10 && sums[0].rounds === 2, '汇总按会议各一行', JSON.stringify(sums));
+  await raises('导入的评审不能在页面上改', /导入的评审/, `select review_save($1, null, 'Reviewer_a', 3, null, null, null, null, null, null)`, [r1]);
+  await raises('导入的投稿不能在页面上删', /不能在页面上删除/, `select submission_delete($1)`, [s1]);
+  await call(`submission_save($1, null, null, 'x', '2026-10', null, 'x', 'accepted', null, null, null, 4, '同意录用')`, [s1]);
+  const imp = await one(`select status, title, venue, ac_overall, ac_text from api.submission where id = $1`, [s1]);
+  ok(imp.status === 'accepted' && imp.title === '新稿' && imp.venue === 'ACL ARR' && Number(imp.ac_overall) === 4 && imp.ac_text === '同意录用', '导入的投稿只改状态和 AC 意见', JSON.stringify(imp));
+  await call(`submission_save($1, null, null, 'x', '2026-10', null, 'x', 'review', null, null, null, null, null)`, [s1]);
+  await call(`review_delete($1)`, [rv1]);
+  await call(`submission_delete($1)`, [m1]);
+  ok((await one(`select prev_id from api.submission where id = $1`, [m2])).prev_id == null && (await q(`select 1 from api.submission_review where submission_id = $1`, [m1])).length === 0, '删掉一轮，评审跟着删，下一轮不再指向它');
+  await call(`submission_delete($1)`, [m2]);
+  await as(u.owner_id, '2026-11-25');
+  await raises('页面一侧不能直接写评审', /permission denied/, `insert into submission_review (submission_id, reviewer) values ($1, 'Reviewer_z')`, [s1]);
+  await raises('页面一侧不能读底表', /permission denied/, `select 1 from submission`);
+  await as(null);
 }
 
 console.log(`${pass} passed, ${fail} failed`);
