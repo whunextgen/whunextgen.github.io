@@ -15,7 +15,7 @@ interface Info { term: string; electorate: number; am_voter: boolean; am_rep: bo
 interface Speech { id: string; motion_id: string; round: number; user_id: string; user_name: string; side: 'pro' | 'con' | 'neutral'; requested_at: string; spoke_at: string | null; mine: boolean; spoken: number }
 interface Act { title: string; hint?: ReactNode; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
-export const CAT: Record<string, string> = { research: '研究方向与项目', unit: '研究单元与课题', budget: '预算', assessment: '考核推荐', personnel: '人员推荐', removal: '建议退组', rules: '议事规则', other: '其他事务', procedure: '程序' };
+export const CAT: Record<string, string> = { research: '研究方向与项目', unit: '研究单元', topic: '课题立项与延续', budget: '预算', assessment: '考核推荐', personnel: '人员推荐', removal: '建议退组', rules: '议事规则', other: '其他事务', procedure: '程序' };
 const TYPE: Record<Motion['mtype'], string> = { main: '议题', amend: '修正案', reconsider: '复议', procedural: '程序动议' };
 const ST: Record<Motion['status'], [string, string]> = { proposed: ['warn', '待附议'], seconded: ['', '待表决'], voting: ['warn', '表决中'], passed: ['ok', '通过，否决期内'],
   failed: ['bad', '未通过'], vetoed: ['bad', '被否决'], effective: ['ok', '已生效'], withdrawn: ['', '已撤回'] };
@@ -27,7 +27,7 @@ const rule = (m: Motion) => `${m.threshold === 'two_thirds' ? '三分之二' : '
 
 const motionFields = (people: PeoplePick[]): Field[] => [
   { name: 'title', label: '题目（不超过 80 字）' },
-  { name: 'category', label: '类别', options: Object.entries(CAT).filter(([k]) => k !== 'procedure' && k !== 'assessment') },
+  { name: 'category', label: '类别', options: Object.entries(CAT).filter(([k]) => !['procedure', 'assessment', 'unit', 'topic'].includes(k)) },
   { name: 'body', label: '提案（一页以内：问题、与个人研究愿景及中心核心问题的关系、首个最小实验、所需算力与合作者、预算、计划投稿去向；不涉及的可略）', type: 'area' },
   { name: 'link', label: '附件链接（选填）', required: false },
   { name: 'subjects', label: '涉及的人（本人或其合作者，不参加投票）', type: 'multi', required: false, options: [...people].sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((p): [string, string] => [p.id, p.name]), value: '' },
@@ -52,13 +52,13 @@ export function CouncilPage(_: { me: Me }) {
   return (
     <div className="wb">
       <div className="top"><h2>联席会议</h2>{canPropose && <button onClick={() => setAct({ title: '提交提案', label: '提交', fields: motionFields(data.people),
-        hint: '提案须经另一名有表决权的成员附议才列入议程；表决前三天提交。涉及人员的事项不记名表决；建议退组、修订议事规则须三分之二同意。', run: (v) => submit(v).then((id) => { location.hash = `#/motion/${id}`; }) })}>提交提案</button>}</div>
+        hint: '研究单元申请、课题立项与延续、考核推荐在各自的申请里提交，由正则自动列入议程。其他事项在这里提案，须经另一名有表决权的成员附议才列入议程；表决前三天提交。涉及人员的事项不记名表决；建议退组、修订议事规则须三分之二同意。', run: (v) => submit(v).then((id) => { location.hash = `#/motion/${id}`; }) })}>提交提案</button>}</div>
       <p className="lede">有表决权的成员 {info?.electorate ?? '—'} 人（Researcher、Rising Star、PI）· {info?.term}学期代表 {info?.rep_name ?? '尚未推选'}（列席，有发言权）· Director 不参加，决议通过后三个工作日内可以否决。会上表决在会议现场页进行。</p>
       {groups.map(([name, rows]) => rows.length > 0 && <section className="wb-sec" key={name}>
         <h3>{name} <span className="h3sub">{rows.length} 份</span></h3>
         <div className="scroll"><table className="wb-table"><thead><tr><th>议题</th><th>类别</th><th>提案人</th><th>规则</th><th>状态</th></tr></thead>
           <tbody>{rows.map((m) => <tr key={m.id}><td><a href={`#/motion/${m.id}`}>{label(m)} {m.title}</a>{m.open_amendments > 0 && <span className="sub2">修正案 {m.open_amendments} 份待表决</span>}</td>
-            <td>{CAT[m.category]}</td><td>{m.proposer_name}{m.seconder_name && <span className="sub2">附议 {m.seconder_name}</span>}</td><td className="sub2">{rule(m)}</td>
+            <td>{CAT[m.category]}</td><td>{m.proposer_name}{m.seconder_name ? <span className="sub2">附议 {m.seconder_name}</span> : (m as Motion & { auto?: boolean }).auto ? <span className="sub2">申请自动列入</span> : null}</td><td className="sub2">{rule(m)}</td>
             <td><Badge tone={ST[m.status][0]}>{ST[m.status][1]}</Badge>{m.status === 'voting' && m.online && <span className="sub2">会外表决，{t(m.vote_until)} 截止</span>}
               {m.status === 'passed' && <span className="sub2">{t(m.veto_until)} 前未否决即生效</span>}</td></tr>)}</tbody></table></div>
       </section>)}
