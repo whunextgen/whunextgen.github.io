@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { rpc, useViews, type Me, type PeoplePick } from './api';
 import { ActionDialog, Badge, Empty, Loading, day, type Field } from './ui';
 import { AXES, type Pitch, type Query, type Seminar } from './iterate';
+import { CouncilLive } from './council';
 
 // 会议现场：组织者开会时共享这一页。研讨会逐份过快照、当场记入质疑、结束讨论并结算；讲座和联席会议只签到。散会出纪要。
 export interface Meeting { id: string; kind: 'lecture' | 'seminar' | 'council' | 'training' | 'other'; seminar: string | null; seminar_name: string | null; held_on: string; title: string | null;
@@ -148,6 +149,8 @@ export function LivePage({ id }: { id: string; me: Me }) {
             </>}
           </section>
         </>}
+
+        {m.kind === 'council' && <CouncilLive meetingId={m.id} open={m.open} canRun={m.can_run} />}
 
         <section className="ir-t ir-half">
           <div className="ir-mono"><span>签到名单</span><span>{m.present + m.leave} 人</span></div>
