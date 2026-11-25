@@ -6,12 +6,13 @@ import { OpenMeeting, type Meeting } from './live';
 // 快照与质疑：《The Path of an Independent Researcher》草案第五十三版第五、六节。
 // 研究单元每期交一次快照，提交给主题研讨会；组织者接收、在会上记入质疑、结束讨论；
 // 未回应的质疑全中心公开，负责人组队；下一期无人再提的即为已回应，按 16 名义币由队员平分，进入研究单元的池子。
-export interface Seminar { code: string; name: string; seq: number; organizer_id: string | null; organizer_name: string | null; mine: boolean; can_set: boolean }
+export interface Seminar { code: string; name: string; seq: number; organizer_id: string | null; organizer_name: string | null; mine: boolean; can_set: boolean;
+  organizers?: { id: string; name: string }[]; oral_minutes?: number; poster_minutes?: number; oral_target?: number; poster_target?: number }
 export interface Snapshot { id: string; project_id: string; project_code: string; project_name: string; owner_id: string | null; owner_name: string | null; period_start: string; seq: number;
   link: string; note: string | null; submitted_by_name: string | null; submitted_at: string; authors: { id: string; name: string }[]; can_edit: boolean; person_id?: string | null; person_name?: string | null; title?: string | null }
 export interface Pitch { id: string; snapshot_id: string; project_id: string; project_code: string; project_name: string; seq: number; period_start: string; link: string;
   seminar: string; seminar_name: string; status: 'pending' | 'accepted' | 'declined' | 'closed'; note: string | null; decided_by_name: string | null; decided_at: string | null; closed_at: string | null;
-  can_run: boolean; new_queries: number; again_queries: number; resolved: number }
+  can_run: boolean; new_queries: number; again_queries: number; resolved: number; format?: 'oral' | 'poster' | null; minutes?: number | null }
 export interface Query { id: string; project_id: string; project_code: string; project_name: string; owner_id: string | null; owner_name: string | null; pitch_id: string; seminar: string; seminar_name: string;
   snapshot_seq: number; period_start: string; axis: Axis; axis_label: string; body: string; raised_by_name: string | null; parent_id: string | null; status: 'open' | 'resolved' | 'again';
   resolved_period: string | null; recorded_at: string; again: number; team: { id: string; name: string; from: string }[]; in_team: boolean; can_team: boolean; can_remove: boolean }
@@ -21,7 +22,7 @@ type Axis = 'li' | 'ju' | 'ti' | 'yong';
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
 export const AXES: [Axis, string, string][] = [['li', '理', '为什么读者要关注这个问题'], ['ju', '据', '为什么别人没有解决'], ['ti', '体', '为什么你能解决'], ['yong', '用', '为什么别人要关注你的解决和发现']];
-const PITCH: Record<Pitch['status'], [string, string]> = { pending: ['warn', '待接收'], accepted: ['ok', '接收讨论'], declined: ['', '未接收'], closed: ['', '讨论结束'] };
+const PITCH: Record<Pitch['status'], [string, string]> = { pending: ['warn', '投稿待定'], accepted: ['ok', '已接收'], declined: ['', '未接收'], closed: ['', '讨论结束'] };
 const ATT: Record<AttendEvent['kind'], string> = { lecture: '周日讲座', seminar: '主题研讨会', council: '联席会议' };
 // 两周一期，自 2026-11-23 起
 const periodOf = (d: string) => { const b = Date.parse('2026-11-23T00:00:00Z'), x = Date.parse(`${d}T00:00:00Z`); return new Date(b + Math.floor((x - b) / 864e5 / 14) * 14 * 864e5).toISOString().slice(0, 10); };
@@ -134,8 +135,12 @@ export function IteratePage({ me }: { me: Me }) {
               ? <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><a className="btn sm" href={`#/live/${om.id}`}>进入现场 · 签到 {om.present}</a></div>
               : s.mine && <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><OpenMeeting kind="seminar" seminar={s.code} label="开会" /></div>; })()}
             {s.can_set && <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><button className="ghost sm" onClick={() => setAct({ title: `指定组织者：${s.name}`, label: '保存',
-              hint: '组织者由 Researcher 担任，负责接收提交、安排讨论、主持会议并记入质疑，记入其「亨」。', fields: [{ name: 'user', label: '组织者', options: people, required: false, value: s.organizer_id ?? '' }],
-              run: (v) => rpc('set_seminar_organizer', { seminar: s.code, user: v.user || null }) })}>指定组织者</button></div>}
+              hint: '每个研讨会至少两位组织者，由 Researcher 及以上担任，一起接收投稿、决定口头报告或海报、开会并记入质疑，记入各自的「亨」。', fields: [{ name: 'users', label: '组织者（至少两位）', type: 'multi', options: people, value: (s.organizers ?? []).map((o) => o.id).join(',') }],
+              run: (v) => rpc('set_seminar_organizers', { seminar: s.code, users: ids(v.users) }) })}>指定组织者</button></div>}
+            {s.mine && <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><button className="ghost sm" onClick={() => setAct({ title: `形式与目标：${s.name}`, label: '保存',
+              hint: '口头报告和海报的讨论时长，以及每份希望收获的质疑条数。', fields: [{ name: 'om', label: '口头报告（分钟）', type: 'number', value: String(s.oral_minutes ?? 10) }, { name: 'pm', label: '海报（分钟）', type: 'number', value: String(s.poster_minutes ?? 5) },
+                { name: 'ot', label: '口头报告的质疑目标（条）', type: 'number', value: String(s.oral_target ?? 3) }, { name: 'pt', label: '海报的质疑目标（条）', type: 'number', value: String(s.poster_target ?? 1) }],
+              run: async (v) => { await rpc('set_seminar_minutes', { seminar: s.code, oral: Math.round(Number(v.om)), poster: Math.round(Number(v.pm)) }); await rpc('set_seminar_targets', { seminar: s.code, oral: Math.round(Number(v.ot)), poster: Math.round(Number(v.pt)) }); } })}>形式与目标</button></div>}
           </div>); })}</div>
         {cur.length === 0 ? <Empty>本期还没有快照提交给研讨会。</Empty> : (
           <div className="scroll" style={{ marginTop: 12 }}><table className="wb-table">
@@ -144,11 +149,12 @@ export function IteratePage({ me }: { me: Me }) {
               <tr key={x.id}>
                 <td><a href={`#/seminar/${x.seminar}`}>{x.seminar_name}</a></td><td>{(x as Pitch & { person_name?: string | null; title?: string | null }).person_name ? `${(x as Pitch & { person_name?: string | null }).person_name} · ${(x as Pitch & { title?: string | null }).title ?? '主线草稿'}` : x.project_name}<span className="sub2">{x.project_code}</span></td>
                 <td><a href={`#/snapshot/${x.snapshot_id}`}>第 {x.seq} 次</a></td>
-                <td className="wrap"><Badge tone={PITCH[x.status][0]}>{PITCH[x.status][1]}</Badge>{x.note && <span className="sub2">{x.note}</span>}
+                <td className="wrap"><Badge tone={PITCH[x.status][0]}>{PITCH[x.status][1]}</Badge>{x.format && <span className="sub2">{x.format === 'oral' ? '口头报告' : '海报'} · {x.minutes} 分钟</span>}{x.note && <span className="sub2">{x.note}</span>}
                   {x.status === 'closed' && <span className="sub2">已回应 {x.resolved} 条</span>}</td>
                 <td className="r">{x.new_queries}{x.again_queries > 0 && <span className="sub2">再次提出 {x.again_queries}</span>}</td>
                 <td className="r">{x.can_run && <div className="acts">
-                  {x.status === 'pending' && <><button className="sm" onClick={() => setAct({ title: `接收讨论：${x.project_name}`, label: '接收', fields: [], run: () => rpc('decide_pitch', { pitch: x.id, accept: true, note: null }) })}>接收</button>
+                  {x.status === 'pending' && <><button className="sm" onClick={() => rpc('decide_pitch', { pitch: x.id, accept: true, note: null, format: 'oral' }).then(reload)}>口头报告</button>
+                    <button className="sm" onClick={() => rpc('decide_pitch', { pitch: x.id, accept: true, note: null, format: 'poster' }).then(reload)}>海报</button>
                     <button className="ghost sm" onClick={() => setAct({ title: `不接收：${x.project_name}`, label: '不接收', hint: '未接收的，当期不展示，可在下一期重新提交。', fields: [{ name: 'note', label: '说明（选填）', required: false }], run: (v) => rpc('decide_pitch', { pitch: x.id, accept: false, note: v.note || null }) })}>不接收</button></>}
                   {x.status === 'accepted' && <><button className="sm" onClick={() => setAct(queryAct(x))}>记入质疑</button>
                     <button className="ghost sm" onClick={() => setAct({ title: `再次提出：${x.project_name}`, label: '下一步', hint: '选出被再次提出的那一条。', fields: [{ name: 'q', label: '原来那一条', options: open.filter((q) => q.project_id === x.project_id && q.period_start < x.period_start).map((q): [string, string] => [q.id, `${q.axis_label}：${q.body.slice(0, 40)}`]) }],
