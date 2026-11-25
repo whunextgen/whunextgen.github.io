@@ -2991,6 +2991,18 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const PX = (await one(`select id from api.snapshot_pitch where snapshot_id = $1`, [S1])).id;
   await q(`select decide_pitch($1, true)`, [PX]);
   await q(`select add_query($1, 'yong', '现场记入的质疑')`, [PX]);
+  // 轮流发言：签到出席的人（作者除外）排顺序，点名后记下
+  await as(U.lead, D);
+  const code2 = (await one(`select code from api.meeting where id = $1`, [M])).code;
+  await as(U.mem2, D); await q(`select check_in($1)`, [code2]);
+  await as(U.mem, D); await q(`select check_in($1)`, [code2]);
+  await as(U.lead, D);
+  const so = await q(`select user_id, seq, this_turn from api.speak_order where pitch_id = $1 order by seq`, [PX]);
+  ok(so.length >= 2 && !so.some((x) => x.user_id === own), '发言顺序是签到出席的人，汇报人除外', JSON.stringify(so));
+  await q(`select record_turn($1, $2, 'pass')`, [PX, so[0].user_id]);
+  await q(`select add_query($1, 'ti', '方法细节', $2)`, [PX, so[1].user_id]);
+  const so2 = await q(`select user_id, seq, this_turn from api.speak_order where pitch_id = $1 order by seq`, [PX]);
+  ok(so2.filter((x) => x.this_turn).length === 2 && so2.find((x) => x.user_id === so[1].user_id).this_turn === 'query', '点过名的记下，记入质疑的算提了', JSON.stringify(so2));
   await q(`select close_pitch($1)`, [PX]);
   await q(`select set_minutes($1, 'https://example.feishu.cn/minutes/x')`, [M]);
   const s2 = await val(`select end_meeting($1) v`, [M]);

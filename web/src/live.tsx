@@ -13,11 +13,9 @@ interface Draft { id: string; pitch_id: string; axis: string; axis_label: string
 export const meetingName = (m: Meeting) => m.kind === 'seminar' ? `${m.seminar_name ?? ''}主题研讨会` : m.title ?? KIND[m.kind];
 
 export function LivePage({ id }: { id: string; me: Me }) {
-  const { data, error, reload } = useViews<{ m: Meeting[]; pitches: Pitch[]; queries: Query[]; people: PeoplePick[]; sync: { id: string; feishu_no: string | null; zoom_id: string | null; sync_note: string | null; synced_at: string | null; sync_unmatched: string[] | null }[]; drafts: Draft[]; seminars: Seminar[] }>({ m: ['meeting', { id }], pitches: ['snapshot_pitch'], queries: ['query'], people: ['people_pick'], sync: ['meeting_sync', { id }], drafts: ['query_draft'], seminars: ['seminar'] }, id);
+  const { data, error, reload } = useViews<{ m: Meeting[]; pitches: Pitch[]; queries: Query[]; people: PeoplePick[]; sync: { id: string; feishu_no: string | null; zoom_id: string | null; sync_note: string | null; synced_at: string | null; sync_unmatched: string[] | null }[]; drafts: Draft[]; seminars: Seminar[]; order: { pitch_id: string; user_id: string; user_name: string; this_turn: 'query' | 'pass' | null; recent_turns: number; seq: number }[] }>({ m: ['meeting', { id }], pitches: ['snapshot_pitch'], queries: ['query'], people: ['people_pick'], sync: ['meeting_sync', { id }], drafts: ['query_draft'], seminars: ['seminar'], order: ['speak_order'] }, id);
   const [mine, setMine] = useState('');
-  const [startAt, setStartAt] = useState<{ id: string; t: number } | null>(null);
-  const [, tick] = useState(0);
-  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(t); }, []);
+
   const [act, setAct] = useState<Act | null>(null);
   const [cur, setCur] = useState('');
   const [body, setBody] = useState('');
@@ -52,8 +50,8 @@ export function LivePage({ id }: { id: string; me: Me }) {
   const target = item?.format === 'poster' ? sem?.poster_target ?? 1 : sem?.oral_target ?? 3;
   const got = here.length;
   const drafts = item ? data.drafts.filter((d) => d.pitch_id === item.id && d.status === 'pending') : [];
-  const left = startAt && item && startAt.id === item.id ? Math.max(0, (item.minutes ?? 10) * 60 - Math.floor((Date.now() - startAt.t) / 1000)) : null;
-  const mmss = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+  const order = item ? data.order.filter((o) => o.pitch_id === item.id).sort((a, b) => a.seq - b.seq) : [];
+  const nextUp = order.find((o) => !o.this_turn);
   const submitDraft = async (axis: string) => {
     if (!item || !mine.trim()) { setMsg('先写下质疑'); return; }
     setBusy(true); setMsg('');
@@ -90,12 +88,19 @@ export function LivePage({ id }: { id: string; me: Me }) {
               <div className="ir-mono"><span>正在讨论 · {item.format === 'oral' ? '口头报告' : item.format === 'poster' ? '海报' : '投稿待定'}{item.minutes ? ` · ${item.minutes} 分钟` : ''}</span><a href={item.link} target="_blank" rel="noreferrer">打开草稿 →</a></div>
               {item.status === 'accepted' && <div className="ir-conv" style={{ marginTop: 0, marginBottom: 12 }}>
                 <div><small>收获质疑</small><b style={{ color: got >= target ? 'var(--i-ink)' : 'var(--i-red)' }}>{got}</b><em>/ 目标 {target} 条</em></div><i />
-                <div><small>剩余时间</small><b>{left == null ? mmss((item.minutes ?? 10) * 60) : mmss(left)}</b>{live && <em><button className="ghost sm" onClick={() => setStartAt({ id: item.id, t: Date.now() })}>{left == null ? '开始计时' : '重新计时'}</button></em>}</div><i />
+                <div><small>轮流发言</small><b>{order.filter((o) => o.this_turn).length}</b><em>/ 到场 {order.length} 人</em></div><i />
                 <div><small>待记入</small><b>{drafts.length}</b><em>条与会者提的</em></div></div>}
               <h2 style={{ font: '700 28px/1.3 var(--i-serif)', margin: '0 0 6px' }}>{pp?.person_name ? `${pp.person_name} · ${pp.title}` : item.project_name} · 第 {item.seq} 次快照</h2>
               {item.status === 'pending' && live && <div className="ir-acts"><button className="sm" onClick={() => rpc('decide_pitch', { pitch: item.id, accept: true, note: null, format: 'oral' }).then(reload)}>接收为口头报告</button>
                 <button className="sm" onClick={() => rpc('decide_pitch', { pitch: item.id, accept: true, note: null, format: 'poster' }).then(reload)}>接收为海报</button>
                 <button className="ghost sm" onClick={() => rpc('decide_pitch', { pitch: item.id, accept: false, note: null, format: null }).then(reload)}>不接收</button></div>}
+              {live && item.status === 'accepted' && order.length > 0 && <>
+                <h3 style={{ margin: '14px 0 6px', fontSize: 14 }}>轮流发言 <span className="h3sub">按签到名单逐个点名，本场没轮到的、平时发言少的在前；汇报人不在名单里</span></h3>
+                {nextUp ? <div className="ir-acts" style={{ alignItems: 'center' }}><b style={{ font: '700 20px/1.3 var(--i-serif)' }}>请 {nextUp.user_name} 发言</b>
+                  <button className="sm" onClick={() => setWho(nextUp.user_id)}>提了质疑，记在其名下</button>
+                  <button className="ghost sm" onClick={() => rpc('record_turn', { pitch: item.id, user: nextUp.user_id, result: 'pass' }).then(reload)}>没有质疑，下一位</button></div>
+                  : <p className="ir-hint">到场的人都已轮到。</p>}
+                <p className="ir-hint">{order.map((o) => `${o.user_name}${o.this_turn === 'query' ? '（提了）' : o.this_turn === 'pass' ? '（跳过）' : ''}`).join('、')}</p></>}
               {item.status === 'accepted' && m.open && <>
                 <h3 style={{ margin: '14px 0 6px', fontSize: 14 }}>我来提质疑 <span className="h3sub">与会者都可以提，组织者记入后计在提出人名下（记入「利」）</span></h3>
                 <textarea rows={2} value={mine} onChange={(e) => setMine(e.target.value)} placeholder="针对这份快照的问题或质疑" style={{ width: '100%' }} aria-label="我的质疑" />
