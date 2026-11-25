@@ -5,7 +5,7 @@ import { MARK_PNG, MARK_WHITE_PNG } from './mark.ts';
 
 export interface Env {
   ZOOM_ACCOUNT_ID?: string; ZOOM_CLIENT_ID?: string; ZOOM_CLIENT_SECRET?: string;   // Zoom 服务端应用：读参会报告和云录制
-  ANTHROPIC_API_KEY?: string;   // 录音补漏：从逐字稿里自动找出质疑。没有设的，由济民按需提取
+  ANTHROPIC_API_KEY?: string;   // 录音补漏：从逐字稿里自动找出质疑。没有设的，用「资源」里登记的「录音补漏」API 资源；都没有的，由济民按需提取
   HYPERDRIVE: { connectionString: string };   // 以 app_api 角色连接 Supabase Postgres
   FEISHU_APP_ID: string;
   FEISHU_APP_SECRET: string;
@@ -457,6 +457,21 @@ async function meetingSync(env: Env) {
 }
 
 // ---------- 录音补漏：散会后取逐字稿，找出会上提的质疑，作为草稿交组织者记入 ----------
+// 提取用的模型：Worker 设了 ANTHROPIC_API_KEY 的直连 Anthropic；否则用「资源」里登记的「录音补漏」API 资源（例如 GreatRouter 这类中转），
+// 接口地址写在资源的备注里，模型取资源的「模型」，密钥按资源加密保存、在这里解密取用
+export function llmBase(note: string | null, ref: string | null) {
+  const u = `${note ?? ''} ${ref ?? ''}`.match(/https?:\/\/[^\s，。；、）)]+/)?.[0];
+  return u ? u.replace(/\/+$/, '').replace(/\/v1(\/messages)?$/, '') : null;
+}
+async function llmConfig(env: Env): Promise<{ apiKey: string; baseURL?: string; model: string; direct: boolean; via: string } | null> {
+  if (env.ANTHROPIC_API_KEY) return { apiKey: env.ANTHROPIC_API_KEY, model: 'claude-opus-5-5', direct: true, via: 'Anthropic' };
+  if (!env.VAULT_KEY) return null;
+  const [r] = await withUser(env, null, (sql) => sql`select id, provider, model, ref, note, cipher from public.transcript_llm()`).catch(() => []);
+  if (!r) return null;
+  const apiKey = await unseal(env.VAULT_KEY, `resource:${r.id}`, String(r.cipher));
+  const baseURL = llmBase(r.note, r.ref) ?? undefined;
+  return { apiKey, baseURL, model: String(r.model || 'claude-opus-5-5'), direct: !baseURL || /api\.anthropic\.com/.test(baseURL), via: String(r.provider || baseURL || 'Anthropic') };
+}
 // Zoom 的逐字稿是 WebVTT，转成「[分:秒] 姓名：话」一行一句
 export function vttToText(vtt: string) {
   const out: string[] = [];
@@ -507,7 +522,7 @@ async function transcriptSync(env: Env) {
     if (body) note = `已取到逐字稿，${body.length} 字`;
     await withUser(env, null, (sql) => sql`select public.transcript_save(${t.event_id}::uuid, ${source}, ${body}, ${note})`).catch((e) => console.error('存逐字稿', e));
   }
-  if (env.ANTHROPIC_API_KEY) await extractQueries(env).catch((e) => console.error('提取质疑', e));
+  await extractQueries(env).catch((e) => console.error('提取质疑', e));
 }
 
 const AXIS_GUIDE = '理（li）：为什么读者要关注这个问题；据（ju）：为什么别人没有解决；体（ti）：为什么你能解决（方法、证据是否站得住）；用（yong）：为什么别人要关注你的解决和发现';
@@ -516,8 +531,10 @@ async function extractQueries(env: Env) {
   if (!row) return;
   const pitches = row.pitches as { id: string; label: string; format: string | null; authors: string[] }[];
   if (!pitches.length) { await withUser(env, null, (sql) => sql`select public.transcript_drafts_save(${row.event_id}::uuid, '[]'::jsonb, '这场会没有可对应的快照')`); return; }
+  const cfg = await llmConfig(env);
+  if (!cfg) return;   // 没有可用的模型：等济民按需提取
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = new Anthropic({ apiKey: cfg.apiKey, ...(cfg.baseURL ? { baseURL: cfg.baseURL } : {}) });
   const list = pitches.map((p, i) => `${i + 1}. ${p.label}（${p.format === 'poster' ? '海报' : '口头报告'}；汇报人：${p.authors.join('、') || '未登记'}）`).join('\n');
   const schema = { type: 'object', additionalProperties: false, required: ['items'], properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false,
     required: ['pitch', 'speaker', 'axis', 'body', 'quote'], properties: {
@@ -526,21 +543,28 @@ async function extractQueries(env: Env) {
       axis: { type: 'string', enum: ['li', 'ju', 'ti', 'yong'] },
       body: { type: 'string', description: '质疑的内容，改写成一句完整、独立能看懂的问题，不超过 120 字' },
       quote: { type: 'string', description: '逐字稿里对应的原话，不超过 150 字' } } } } } };
-  const res = await client.beta.messages.create({
-    model: 'claude-opus-5-5',
+  const base = {
+    model: cfg.model,
     max_tokens: 16000,
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    output_config: { effort: 'high', format: { type: 'json_schema', schema } },
     system: `你在整理中心主题研讨会的录音逐字稿。研讨会上，每份报告讲完后与会者对它提质疑，质疑分四问：${AXIS_GUIDE}。\n你的任务：找出与会者对每份报告提出的质疑（问题、反对意见、要求补充的地方），每条记下是谁提的、针对哪份报告、属于哪一问。\n只收与会者向汇报人提出的质疑；汇报人自己的陈述和回答、主持人的串场、寒暄、技术问题都不收。同一个人对同一份报告反复说的同一点只记一条。拿不准针对哪份报告的，按发言时间对应当时正在讲的那份。没有找到就返回空数组。`,
     messages: [{ role: 'user', content: `${row.held_on} ${row.seminar_name}主题研讨会。\n按讨论顺序，这场会的报告：\n${list}\n\n到场的人：${(row.attendees as string[]).join('、') || '未知'}\n\n逐字稿：\n${row.body}` }],
-  } as any) as any;
+  };
+  // 直连 Anthropic：结构化输出，开服务端 refusal fallback；经中转的：先试结构化输出，不支持的退回到按提示输出 JSON
+  let res: any;
+  if (cfg.direct) res = await client.beta.messages.create({ ...base, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default', output_config: { effort: 'high', format: { type: 'json_schema', schema } } } as any);
+  else {
+    try { res = await client.messages.create({ ...base, output_config: { format: { type: 'json_schema', schema } } } as any); }
+    catch (e) {
+      if (!(e instanceof Anthropic.BadRequestError)) throw e;
+      res = await client.messages.create({ ...base, system: `${base.system}\n只输出一个 JSON 对象，不要任何其他文字，格式为 {"items":[{"pitch":报告序号,"speaker":"姓名","axis":"li|ju|ti|yong","body":"质疑","quote":"原话"}]}。` } as any);
+    }
+  }
   if (res.stop_reason === 'refusal') { await withUser(env, null, (sql) => sql`select public.transcript_drafts_save(${row.event_id}::uuid, '[]'::jsonb, '模型没有处理这份逐字稿')`); return; }
   const text = (res.content as { type: string; text?: string }[]).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
   let items: { pitch: number; speaker: string; axis: string; body: string; quote: string }[] = [];
-  try { items = JSON.parse(text).items ?? []; } catch { console.error('提取结果不是 JSON', res.stop_reason); return; }
+  try { items = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)).items ?? []; } catch { console.error('提取结果不是 JSON', res.stop_reason); return; }
   const mapped = items.filter((x) => Number.isInteger(x.pitch) && pitches[x.pitch - 1]).map((x) => ({ pitch: pitches[x.pitch - 1].id, speaker: x.speaker, axis: x.axis, body: x.body, quote: x.quote }));
-  const note = `自动提取 ${items.length} 条（${res.model}，输入 ${res.usage?.input_tokens ?? '?'}、输出 ${res.usage?.output_tokens ?? '?'} tokens）`;
+  const note = `自动提取 ${items.length} 条（${res.model ?? cfg.model}，经 ${cfg.via}，输入 ${res.usage?.input_tokens ?? '?'}、输出 ${res.usage?.output_tokens ?? '?'} tokens）`;
   await withUser(env, null, (sql) => sql`select public.transcript_drafts_save(${row.event_id}::uuid, ${JSON.stringify(mapped)}::jsonb, ${note})`);
 }
 
@@ -1095,7 +1119,9 @@ export default {
     await withUser(env, null, (sql) => sql`select public.coin_tick()`).catch((e) => console.error('实际币发放与到期', e));
     await withUser(env, null, (sql) => sql`select public.unit_stall_tick()`).catch((e) => console.error('研究单元停滞', e));
     await meetingSync(env).catch((e) => console.error('飞书会议同步', e));
-    await transcriptSync(env).catch((e) => console.error('录音补漏', e));
+    // 录音补漏每天跑一次：北京时间凌晨 4 点那一轮
+    const bj = new Date(Date.now() + 8 * 3600e3);
+    if (bj.getUTCHours() === 4 && bj.getUTCMinutes() < 5) await transcriptSync(env).catch((e) => console.error('录音补漏', e));
     const batch = await withUser(env, null, (sql) => sql`select msg_id, target_id, body from public.outbox_take(20)`);
     if (!batch.length) return;
     const tok = await feishu('/auth/v3/tenant_access_token/internal', {
