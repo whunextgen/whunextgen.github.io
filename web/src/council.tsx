@@ -72,6 +72,7 @@ export function CouncilPage(_: { me: Me }) {
               {m.status === 'passed' && <span className="sub2">{t(m.veto_until)} 前未否决即生效</span>}</td></tr>)}</tbody></table></div>
       </section>)}
       {mains.length === 0 && <Empty>还没有议题。</Empty>}
+      <Filings />
       <section className="wb-sec"><h3>{info?.term}学期代表 <span className="h3sub">Assistant 和 Intern 推选一名，列席联席会议，有发言权、无表决权；得票最多者当选，可以改票</span></h3>
         <p>{data.rep.length ? [...data.rep].sort((a, b) => b.votes - a.votes).map((r) => `${r.name} ${r.votes} 票`).join('，') : '还没有人投票。'}</p>
         {info?.can_rep_vote && <div className="ir-acts"><button className="sm ghost" onClick={() => setAct({ title: '推选代表', label: '投票', fields: [{ name: 'c', label: '代表', options: data.pick.map((p): [string, string] => [p.id, p.name]), value: info.my_rep_vote ?? '' }],
@@ -219,4 +220,15 @@ function InquiryClose({ id, onDone }: { id: string; onDone: () => void }) {
   return <><h3 style={{ margin: '14px 0 6px', fontSize: 14 }}>过问 <span className="h3sub">负责人说明情况和恢复计划，不表决；主持人记下结果</span></h3>
     <textarea rows={3} value={n} onChange={(e) => setN(e.target.value)} placeholder="负责人的说明、恢复计划、会上意见" style={{ width: '100%' }} aria-label="过问结果" />
     <div className="ir-acts"><button className="sm" onClick={() => rpc('close_inquiry', { id, note: n }).then(onDone).catch((e) => setErr((e as Error).message))}>记下过问结果</button>{err && <span className="sub2" style={{ color: 'var(--bad)' }}>{err}</span>}</div></>;
+}
+
+// 报联席会议备案：项目双选的试做期结论
+function Filings() {
+  const { data } = useViews<{ f: { id: string; project_name: string; user_name: string; rank_label: string; mentor_name: string; start_on: string; end_on: string; conclusion_label: string; conclusion: string; conclusion_note: string | null; concluded_at: string }[] }>({ f: ['trial_filing'] });
+  if (!data || data.f.length === 0) return null;
+  const rows = [...data.f].sort((a, b) => b.concluded_at.localeCompare(a.concluded_at));
+  return <section className="wb-sec"><h3>试做期结论备案 <span className="h3sub">项目双选的期满结论，指导人给出，报联席会议备案；结束参与的本人可以申诉</span></h3>
+    <div className="scroll"><table className="wb-table"><thead><tr><th>成员</th><th>课题或研究单元</th><th>指导人</th><th>试做期</th><th>结论</th></tr></thead>
+      <tbody>{rows.map((r) => <tr key={r.id}><td>{r.user_name}<span className="sub2">{r.rank_label}</span></td><td>{r.project_name}</td><td>{r.mentor_name}</td><td className="sub2">{day(r.start_on)} 至 {day(r.end_on)}</td>
+        <td><Badge tone={r.conclusion === 'end' ? 'bad' : r.conclusion === 'continue' ? 'ok' : 'warn'}>{r.conclusion_label}</Badge>{r.conclusion_note && <span className="sub2">{r.conclusion_note}</span>}</td></tr>)}</tbody></table></div></section>;
 }

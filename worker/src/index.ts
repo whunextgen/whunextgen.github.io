@@ -36,7 +36,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
   'arr_cycle', 'arr_sponsor', 'arr_claim', 'path_tracker', 'path_person', 'rank_change',
   'seminar', 'snapshot', 'snapshot_pitch', 'query', 'person_attr', 'daily_mine', 'attend_event', 'assessment', 'merit', 'path_alert',
-  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order', 'meeting_transcript', 'council_motion', 'council_ballot', 'council_speech', 'council_info', 'council_rep', 'council_rep_pick', 'council_meeting', 'fixed_change', 'period_report', 'path_council', 'council_targets', 'council_people',
+  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order', 'meeting_transcript', 'council_motion', 'council_ballot', 'council_speech', 'council_info', 'council_rep', 'council_rep_pick', 'council_meeting', 'fixed_change', 'period_report', 'path_council', 'council_targets', 'council_people', 'recruit', 'recruit_interest', 'trial', 'trial_filing',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -156,6 +156,14 @@ export const RPC: Record<string, [string, string][]> = {
   propose_project_end: [['project', 'uuid'], ['kind', 'text'], ['reason', 'text']],
   propose_removal: [['person', 'uuid'], ['reason', 'text']],
   decide_removal: [['id', 'uuid'], ['accept', 'boolean'], ['note', 'text']],
+  save_project_recruit: [['project', 'uuid'], ['intro', 'text'], ['tasks', 'text'], ['needs', 'text'], ['audience', 'text'], ['status', 'text'], ['contact', 'uuid']],
+  express_interest: [['project', 'uuid'], ['note', 'text'], ['link', 'text']],
+  withdraw_interest: [['id', 'uuid']],
+  start_trial: [['project', 'uuid'], ['user', 'uuid'], ['mentor', 'uuid'], ['end', 'date'], ['task_title', 'text'], ['task_detail', 'text'], ['task_due', 'date'], ['no_conflict', 'boolean']],
+  submit_trial: [['id', 'uuid'], ['stage', 'text'], ['note', 'text'], ['link', 'text']],
+  trial_feedback: [['id', 'uuid'], ['note', 'text']],
+  conclude_trial: [['id', 'uuid'], ['conclusion', 'text'], ['note', 'text'], ['new_end', 'date'], ['new_task', 'text']],
+  appeal_trial: [['id', 'uuid'], ['reason', 'text']],
   record_turn: [['pitch', 'uuid'], ['user', 'uuid'], ['result', 'text']],
   add_query: [['pitch', 'uuid'], ['axis', 'text'], ['body', 'text'], ['raised_by', 'uuid'], ['parent', 'uuid']],
   remove_query: [['query', 'uuid']],
@@ -1142,6 +1150,7 @@ export default {
     await withUser(env, null, (sql) => sql`select public.coin_tick()`).catch((e) => console.error('实际币发放与到期', e));
     await withUser(env, null, (sql) => sql`select public.unit_stall_tick()`).catch((e) => console.error('研究单元停滞', e));
     await withUser(env, null, (sql) => sql`select public.council_tick()`).catch((e) => console.error('联席会议表决与生效', e));
+    await withUser(env, null, (sql) => sql`select public.trial_tick()`).catch((e) => console.error('试做期提醒', e));
     await meetingSync(env).catch((e) => console.error('飞书会议同步', e));
     // 录音补漏每天跑一次：北京时间凌晨 4 点那一轮
     const bj = new Date(Date.now() + 8 * 3600e3);
