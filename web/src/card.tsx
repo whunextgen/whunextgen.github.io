@@ -125,7 +125,7 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
           <div className="ir-big">{left}<small>天</small></div>
           <dl><div><dt>待办</dt><dd>{todoCount} 项</dd></div><div><dt>主线</dt><dd>{p?.rank === 'director' ? '—' : `${doneN} / ${tasks.length}`}</dd></div></dl>
         </section>
-        <section className="ir-t ir-full" style={{ paddingTop: 14, paddingBottom: 14 }}><div className="ir-mono" style={{ margin: 0 }}><span>签到、请假、补看回放 · 周日讲座、主题研讨会、联席会议、训练课程都在这里</span></div><SignIn onDone={reload} /></section>
+        <section className="ir-t ir-full" style={{ paddingTop: 14, paddingBottom: 14 }}><div className="ir-mono" style={{ margin: 0 }}><span>签到、请假、补看回放、自建会议 · 周日讲座、主题研讨会、联席会议、训练课程都在这里</span></div><SignIn onDone={reload} /></section>
         <nav className="ir-nav">{[['ir-today', '当日'], ['ir-attr', '属性'], ['ir-todo', '待办'], ['ir-reg', '本期登记'], ['ir-tasks', '任务列表'], ['ir-req', '本人的支出申请'], ['ir-petty', '本人的备用金和资源申领'], ['ir-share', '份额']]
           .map(([id, n]) => <a key={id} href={`#/`} onClick={(e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); }}>{n}</a>)}</nav>
 

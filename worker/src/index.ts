@@ -379,12 +379,17 @@ async function meetingSync(env: Env) {
       if (hit?.calendar_id) calId = String(hit.calendar_id); else console.error('中心日历按名称没有搜到', sr?.code, sr?.msg);
     }
     const ev = await feishu(`/calendar/v4/calendars/${encodeURIComponent(calId)}/events?start_time=${Math.min(...cal.map((c: any) => Number(c.from_ts)))}&end_time=${Math.max(...cal.map((c: any) => Number(c.to_ts)))}&page_size=100`, { headers: auth }).catch(() => null);
-    const items = (ev?.code === 0 ? ev.data?.items ?? [] : []) as { summary?: string; start_time?: { timestamp?: string }; vchat?: { meeting_url?: string } }[];
+    const items = (ev?.code === 0 ? ev.data?.items ?? [] : []) as { summary?: string; description?: string; location?: { name?: string; address?: string }; start_time?: { timestamp?: string }; vchat?: { meeting_url?: string; vc_type?: string } }[];
+    // 日程里的 Zoom 链接：会议链接、地点、描述里都可能写着
+    const zoomOf = (i: (typeof items)[number]) => `${i.vchat?.meeting_url ?? ''} ${i.location?.name ?? ''} ${i.location?.address ?? ''} ${i.description ?? ''}`.match(/zoom\.(?:us|com\.cn)\/j\/(\d{9,12})/)?.[1];
     for (const c of cal) {
-      const key = c.kind === 'seminar' ? String(c.seminar_name ?? '') : c.kind === 'lecture' ? '讲座' : '联席';
-      const hit = items.find((i) => i.vchat?.meeting_url && Number(i.start_time?.timestamp ?? 0) >= Number(c.from_ts) && Number(i.start_time?.timestamp ?? 0) <= Number(c.to_ts)
-        && ((c.title && String(i.summary ?? '').includes(String(c.title))) || (key && String(i.summary ?? '').includes(key))));
-      const no = hit?.vchat?.meeting_url?.replace(/[^0-9]/g, '').slice(-9);
+      const key = c.kind === 'seminar' ? String(c.seminar_name ?? '') : c.kind === 'lecture' ? '讲座' : c.kind === 'council' ? '联席' : '';
+      const hit = items.find((i) => Number(i.start_time?.timestamp ?? 0) >= Number(c.from_ts) && Number(i.start_time?.timestamp ?? 0) <= Number(c.to_ts)
+        && ((c.title && String(i.summary ?? '').includes(String(c.title))) || (key && String(i.summary ?? '').includes(key))) && (i.vchat?.meeting_url || zoomOf(i)));
+      if (!hit) continue;
+      const zid = zoomOf(hit);
+      if (zid) { await withUser(env, null, (sql) => sql`select public.calendar_link_zoom(${c.event_id}::uuid, ${zid})`).catch(() => null); continue; }
+      const no = /feishu|larksuite/.test(hit.vchat?.meeting_url ?? '') ? hit.vchat!.meeting_url!.replace(/[^0-9]/g, '').slice(-9) : '';
       if (no) await withUser(env, null, (sql) => sql`select public.calendar_link(${c.event_id}::uuid, ${no})`).catch(() => null);
     }
   }

@@ -4,11 +4,11 @@ import { ActionDialog, Badge, Empty, Loading, day, type Field } from './ui';
 import { AXES, type Pitch, type Query } from './iterate';
 
 // 会议现场：组织者开会时共享这一页。研讨会逐份过快照、当场记入质疑、结束讨论并结算；讲座和联席会议只签到。散会出纪要。
-export interface Meeting { id: string; kind: 'lecture' | 'seminar' | 'council' | 'training'; seminar: string | null; seminar_name: string | null; held_on: string; title: string | null;
+export interface Meeting { id: string; kind: 'lecture' | 'seminar' | 'council' | 'training' | 'other'; seminar: string | null; seminar_name: string | null; held_on: string; title: string | null;
   host_name: string | null; started_at: string | null; ended_at: string | null; open: boolean; code: string | null; code_until: string | null; minutes_link: string | null; can_run: boolean;
   present: number; leave: number; absent: number; my_status: 'present' | 'leave' | 'absent' | null; my_made_up: boolean | null; roll: { name: string; status: string; made_up: boolean }[] | null }
 interface Act { title: string; hint?: ReactNode; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
-const KIND: Record<Meeting['kind'], string> = { lecture: '周日讲座', seminar: '主题研讨会', council: '联席会议', training: '训练课程' };
+const KIND: Record<Meeting['kind'], string> = { lecture: '周日讲座', seminar: '主题研讨会', council: '联席会议', training: '训练课程', other: '自建会议' };
 export const meetingName = (m: Meeting) => m.kind === 'seminar' ? `${m.seminar_name ?? ''}主题研讨会` : m.title ?? KIND[m.kind];
 
 export function LivePage({ id }: { id: string; me: Me }) {
@@ -137,6 +137,8 @@ export function SignIn({ onDone }: { onDone?: () => void }) {
         run: (v) => rpc('ask_leave', { kind: v.kind, on: v.on, seminar: null, note: v.note || null }) })}>请假</button>
       {toMakeUp.map((m) => <button key={m.id} className="sm ghost" onClick={() => setAct({ title: `登记补看：${meetingName(m)}（${day(m.held_on)}）`, label: '已看完回放', fields: [],
         hint: m.minutes_link ? <>回放：<a href={m.minutes_link} target="_blank" rel="noreferrer">打开</a></> : '会议还没有挂回放链接。', run: () => rpc('report_makeup', { event: m.id }) })}>补看 {day(m.held_on).slice(5)} {meetingName(m)}</button>)}
+      <button className="sm ghost" onClick={() => setAct({ title: '自建会议', label: '开会', hint: '自己组织的会也可以在正则上开：有签到码，可以挂飞书或 Zoom 会议自动签到，散会后挂纪要。自建会议只作记录，不计入日常任务。',
+        fields: [{ name: 'title', label: '题目' }], run: async (v) => { const id = await rpc('open_meeting', { kind: 'other', seminar: null, title: v.title }); location.hash = `#/live/${id}`; } })}>自建会议</button>
       {open.map((m) => <a key={m.id} className="sm" href={`#/live/${m.id}`}>正在开：{meetingName(m)} →</a>)}
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.label} onSubmit={(v) => act.run(v).then(() => { reload(); onDone?.(); })} onClose={() => setAct(null)} />}
     </div>

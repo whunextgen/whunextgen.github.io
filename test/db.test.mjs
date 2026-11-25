@@ -3014,6 +3014,25 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('只有中心负责人能填中心日历', /中心负责人/, `select set_center_calendar('x')`);
   await as(U.dir, D);
   await q(`select set_center_calendar('feishu.cn_abc123@group.calendar.feishu.cn')`);
+  // 自建会议：成员自己开会，由开会的人办理；不计入日常任务
+  await as(U.mem, D);
+  await raises('自建会议须写题目', /写明题目/, `select open_meeting('other')`);
+  const OM = await val(`select open_meeting('other', null, '读书会') v`);
+  ok((await one(`select can_run, code from api.meeting where id = $1`, [OM])).code !== null, '自建会议的人看得到签到码，可以办理');
+  await q(`select set_zoom_meeting($1, '81234567891')`, [OM]);
+  await as(U.mem2, D);
+  await raises('别人不能办理自建会议', /开会的人/, `select end_meeting($1)`, [OM]);
+  ok((await one(`select code from api.meeting where id = $1`, [OM])).code === null, '别人看不到签到码');
+  await as(U.mem, D);
+  await q(`select end_meeting($1)`, [OM]);
+  // 日历上的 Zoom
+  await as(U.dir, D);
+  const Z2 = await val(`select open_meeting('council', null, '日历上的会') v`);
+  await as(null, D);
+  await q(`select calendar_link_zoom($1, '81234567892')`, [Z2]);
+  await as(U.dir, D);
+  ok((await one(`select zoom_id from api.meeting_sync where id = $1`, [Z2])).zoom_id === '81234567892', '从日历找到 Zoom 会议挂上');
+  await q(`select end_meeting($1)`, [Z2]);
   await q(`select end_meeting($1)`, [Z]);
   await as(null);
 }
