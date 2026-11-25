@@ -4,6 +4,7 @@ import postgres from 'postgres';
 import { MARK_PNG, MARK_WHITE_PNG } from './mark.ts';
 
 export interface Env {
+  ZOOM_ACCOUNT_ID?: string; ZOOM_CLIENT_ID?: string; ZOOM_CLIENT_SECRET?: string;   // Zoom 服务端应用：读参会报告和云录制
   HYPERDRIVE: { connectionString: string };   // 以 app_api 角色连接 Supabase Postgres
   FEISHU_APP_ID: string;
   FEISHU_APP_SECRET: string;
@@ -34,7 +35,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
   'arr_cycle', 'arr_sponsor', 'arr_claim', 'path_tracker', 'path_person', 'rank_change',
   'seminar', 'snapshot', 'snapshot_pitch', 'query', 'person_attr', 'daily_mine', 'attend_event', 'assessment', 'merit', 'path_alert',
-  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync',
+  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -153,6 +154,9 @@ export const RPC: Record<string, [string, string][]> = {
   set_minutes: [['event', 'uuid'], ['link', 'text']],
   end_meeting: [['event', 'uuid']],
   set_feishu_meeting: [['event', 'uuid'], ['link', 'text']],
+  set_zoom_meeting: [['event', 'uuid'], ['link', 'text']],
+  claim_name: [['event', 'uuid'], ['name', 'text'], ['user', 'uuid']],
+  set_center_calendar: [['id', 'text']],
   record_training: [['course', 'text'], ['on', 'date'], ['present', 'uuid[]'], ['leave', 'uuid[]']],
   save_personal_snapshot: [['topic', 'uuid'], ['title', 'text'], ['link', 'text'], ['note', 'text']],
   report_cluster_usage: [['project', 'uuid'], ['period', 'date'], ['hours', 'numeric']],
@@ -353,14 +357,59 @@ const json = (data: unknown, status = 200, headers: Record<string, string> = {})
 // 标志图在飞书里的图片标识，本进程内上传一次后记住
 const markKeys: { red?: string; white?: string } = {};
 // 飞书会议自动签到：按会议号查飞书会议，读参会的飞书用户和录制，交给数据库对上中台账号签到
+async function zoomToken(env: Env) {
+  if (!env.ZOOM_ACCOUNT_ID || !env.ZOOM_CLIENT_ID || !env.ZOOM_CLIENT_SECRET) return null;
+  const r = await fetch(`https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${encodeURIComponent(env.ZOOM_ACCOUNT_ID)}`, {
+    method: 'POST', headers: { authorization: `Basic ${btoa(`${env.ZOOM_CLIENT_ID}:${env.ZOOM_CLIENT_SECRET}`)}` } }).then((x) => x.json() as Promise<any>).catch(() => null);
+  return r?.access_token ? String(r.access_token) : null;
+}
 async function meetingSync(env: Env) {
-  const todo = await withUser(env, null, (sql) => sql`select event_id, feishu_no, from_ts, to_ts, has_minutes from public.meeting_sync_todo()`);
-  if (!todo.length) return;
   const tok = await feishu('/auth/v3/tenant_access_token/internal', { method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
     body: JSON.stringify({ app_id: env.FEISHU_BOT_APP_ID || env.FEISHU_APP_ID, app_secret: env.FEISHU_BOT_APP_SECRET || env.FEISHU_APP_SECRET }) }).catch(() => null);
   const auth = { authorization: `Bearer ${tok?.tenant_access_token ?? ''}` };
+  // 中心日历：开着、没挂会议号的会，到日历里找同一时段、标题对得上的飞书会议
+  const cal = await withUser(env, null, (sql) => sql`select event_id, kind, seminar_name, title, from_ts, to_ts, calendar_id from public.calendar_todo()`).catch(() => []);
+  if (cal.length && tok?.tenant_access_token) {
+    const c0 = cal[0];
+    const ev = await feishu(`/calendar/v4/calendars/${encodeURIComponent(String(c0.calendar_id))}/events?start_time=${Math.min(...cal.map((c: any) => Number(c.from_ts)))}&end_time=${Math.max(...cal.map((c: any) => Number(c.to_ts)))}&page_size=100`, { headers: auth }).catch(() => null);
+    const items = (ev?.code === 0 ? ev.data?.items ?? [] : []) as { summary?: string; start_time?: { timestamp?: string }; vchat?: { meeting_url?: string } }[];
+    for (const c of cal) {
+      const key = c.kind === 'seminar' ? String(c.seminar_name ?? '') : c.kind === 'lecture' ? '讲座' : '联席';
+      const hit = items.find((i) => i.vchat?.meeting_url && Number(i.start_time?.timestamp ?? 0) >= Number(c.from_ts) && Number(i.start_time?.timestamp ?? 0) <= Number(c.to_ts)
+        && ((c.title && String(i.summary ?? '').includes(String(c.title))) || (key && String(i.summary ?? '').includes(key))));
+      const no = hit?.vchat?.meeting_url?.replace(/[^0-9]/g, '').slice(-9);
+      if (no) await withUser(env, null, (sql) => sql`select public.calendar_link(${c.event_id}::uuid, ${no})`).catch(() => null);
+    }
+  }
+  const todo = await withUser(env, null, (sql) => sql`select event_id, feishu_no, zoom_id, from_ts, to_ts, has_minutes, ended from public.meeting_sync_todo()`);
+  if (!todo.length) return;
   const why = (x: any, hint: string) => `飞书返回 ${x?.code ?? '无'}：${String(x?.msg ?? '').slice(0, 80)}${hint}`;
+  let ztok: string | null | undefined;
   for (const t of todo) {
+    if (t.zoom_id) {
+      // Zoom：散会后读参会报告；按邮箱、姓名对上
+      let note = ''; let minutes: string | null = null; const names: string[] = []; const emails: string[] = [];
+      if (ztok === undefined) ztok = await zoomToken(env);
+      if (!ztok) note = '未配置 Zoom 的服务端应用凭证，或凭证不对';
+      else if (!t.ended) note = '散会后读 Zoom 的参会报告';
+      else {
+        let next = '';
+        for (let i = 0; i < 10; i++) {
+          const r = await fetch(`https://api.zoom.us/v2/report/meetings/${t.zoom_id}/participants?page_size=300${next ? `&next_page_token=${encodeURIComponent(next)}` : ''}`, { headers: { authorization: `Bearer ${ztok}` } }).then((x) => x.json() as Promise<any>).catch(() => null);
+          if (!r || !Array.isArray(r.participants)) { note = `Zoom 返回 ${r?.code ?? '无'}：${String(r?.message ?? '').slice(0, 80)}（确认应用有 report:read:admin 权限、账号为付费版）`; break; }
+          for (const pt of r.participants as { name?: string; user_email?: string }[]) { names.push(String(pt.name ?? '')); emails.push(String(pt.user_email ?? '')); }
+          next = String(r.next_page_token ?? ''); if (!next) break;
+        }
+        if (!t.has_minutes) {
+          const rec = await fetch(`https://api.zoom.us/v2/meetings/${t.zoom_id}/recordings`, { headers: { authorization: `Bearer ${ztok}` } }).then((x) => x.json() as Promise<any>).catch(() => null);
+          if (rec?.share_url) minutes = String(rec.share_url);
+        }
+        if (!note) note = `Zoom 参会 ${new Set(names).size} 人${minutes ? '，已挂上云录制' : ''}`;
+      }
+      await withUser(env, null, (sql) => sql`select public.meeting_sync_save(${t.event_id}::uuid, null, ${minutes}, ${note},
+        array(select jsonb_array_elements_text(${JSON.stringify(emails)}::text::jsonb)), array(select jsonb_array_elements_text(${JSON.stringify(names)}::text::jsonb)))`).catch((e) => console.error('Zoom 同步', e));
+      continue;
+    }
     let note = ''; let minutes: string | null = null; const ids = new Set<string>();
     if (!tok?.tenant_access_token) note = '取不到正则的应用凭证';
     else {
