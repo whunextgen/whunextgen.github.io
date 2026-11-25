@@ -2474,5 +2474,19 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(null);
 }
 
+// ---------- GitHub 事件发到协助群 ----------
+{
+  await as(U.mem2);
+  await raises('登录用户不能直接入队 GitHub 事件', /当前角色/, `select github_notice('d-1', 'PR 待审：#1 示例')`);
+  await as(null);
+  ok((await val(`select github_notice('d-1', 'PR 待审：#1 示例', 'https://github.com/example/repo/pull/1', '查看 PR') v`)) === true, 'GitHub 事件入队');
+  ok((await val(`select github_notice('d-1', 'PR 待审：#1 示例') v`)) === false, '同一次投递重发的不再入队');
+  await raises('内容为空的不入队', /内容为空/, `select github_notice('d-2', '  ')`);
+  await db.exec(`reset role`);
+  const rows = await q(`select target, payload from feishu_outbox where payload->>'text' like 'PR 待审：#1%'`);
+  ok(rows.length === 1 && rows[0].target === 'assist' && rows[0].payload.kind === 'post' && rows[0].payload.btn === '查看 PR', '对象为协助群，按通报发', JSON.stringify(rows));
+  await db.exec(`set role app_api`);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

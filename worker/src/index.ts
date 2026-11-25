@@ -19,6 +19,8 @@ export interface Env {
   APP_ORIGIN?: string;                        // 前端地址；不设时前端与接口同源（页面由本 Worker 的静态资源提供）
   VAULT_KEY?: string;                         // 加密密钥与账号用的口令；丢了，库里存的密钥就解不开
   FEISHU_NOTIFY?: string;                     // 设为 on 才真正发飞书通知；不设时消息只在数据库里排队，过 24 小时作废
+  ASSIST_CHAT_ID?: string;                    // 协助群。队列里对象为 assist 的通知（GitHub 事件）发到这个群
+  GITHUB_WEBHOOK_SECRET?: string;             // GitHub webhook 的签名密钥；不设时不收 GitHub 事件
 }
 
 export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_pick', 'fund_project', 'card_school_subject', 'card_subject_map', 'card_income', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
@@ -202,6 +204,43 @@ async function hmac(secret: string, msg: string) {
   const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return b64u(await crypto.subtle.sign('HMAC', key, enc.encode(msg)));
 }
+// ---------- GitHub 事件 ----------
+// 只发中台分支上的 PR：开出（草稿转为待审也算）、重新打开、提交审查、合并或关闭。其余事件不发
+export const GITHUB_BASE = 'finance-portal';
+export function githubText(event: string, p: any): { text: string; url: string; btn: string } | null {
+  const pr = p?.pull_request;
+  if (!pr || pr.base?.ref !== GITHUB_BASE) return null;
+  const head = `#${pr.number} ${String(pr.title ?? '').slice(0, 120)}`, url = String(pr.html_url ?? '');
+  if (!/^https:\/\/github\.com\//.test(url)) return null;
+  const who = (u: any) => String(u?.login ?? '—');
+  const line = `提交人 ${who(pr.user)} · 分支 ${pr.head?.ref ?? '—'} → ${GITHUB_BASE}`;
+  if (event === 'pull_request') {
+    const a = p.action;
+    if ((a === 'opened' && !pr.draft) || a === 'ready_for_review') return { text: `PR 待审：${head}\n${line}`, url, btn: '查看 PR' };
+    if (a === 'reopened') return { text: `PR 重新打开：${head}\n${line}`, url, btn: '查看 PR' };
+    if (a === 'closed') return pr.merged
+      ? { text: `PR 已合并：${head}\n合并人 ${who(pr.merged_by)} · ${line}`, url, btn: '查看 PR' }
+      : { text: `PR 已关闭：${head}\n关闭人 ${who(p.sender)} · ${line}`, url, btn: '查看 PR' };
+    return null;
+  }
+  if (event === 'pull_request_review' && p.action === 'submitted') {
+    const r = p.review ?? {}, st = String(r.state ?? '').toLowerCase();
+    const t = st === 'approved' ? 'PR 审查通过' : st === 'changes_requested' ? 'PR 要求修改' : st === 'commented' ? 'PR 审查意见' : null;
+    if (!t) return null;
+    const body = String(r.body ?? '').replace(/\r/g, '').trim();
+    const brief = body ? `\n${body.length > 300 ? body.slice(0, 300) + '……' : body}` : '';
+    const link = /^https:\/\/github\.com\//.test(String(r.html_url ?? '')) ? String(r.html_url) : url;
+    return { text: `${t}：${head}\n审查人 ${who(r.user)} · ${line}${brief}`, url: link, btn: '查看审查' };
+  }
+  return null;
+}
+export async function githubSigned(secret: string, raw: string, sig: string | null) {
+  if (!sig?.startsWith('sha256=')) return false;
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const hex = [...new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(raw)))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return same(hex, sig.slice(7).toLowerCase());
+}
+
 function same(a: string, b: string) {
   if (a.length !== b.length) return false;
   let d = 0;
@@ -658,6 +697,20 @@ export default {
       if (url.pathname === '/auth/logout' && req.method === 'POST')
         return json({ ok: true }, 200, { ...cors, 'set-cookie': setCookie('fp_session', '', 0) });
 
+      // ---------- GitHub 事件：校验签名后入队，由定时任务发到协助群 ----------
+      if (url.pathname === '/github/webhook' && req.method === 'POST') {
+        if (!env.GITHUB_WEBHOOK_SECRET) return json({ error: '未配置' }, 404);
+        const raw = await req.text();
+        if (raw.length > 2_000_000 || !(await githubSigned(env.GITHUB_WEBHOOK_SECRET, raw, req.headers.get('x-hub-signature-256')))) return json({ error: '签名不对' }, 401);
+        const event = req.headers.get('x-github-event') ?? '', delivery = (req.headers.get('x-github-delivery') ?? '').slice(0, 80);
+        if (event === 'ping') return json({ ok: true });
+        let p: unknown; try { p = JSON.parse(raw); } catch { return json({ error: '格式不对' }, 400); }
+        const n = githubText(event, p);
+        if (!n || !delivery) return json({ ok: true, skipped: true });
+        const [r] = await withUser(env, null, (sql) => sql`select public.github_notice(${delivery}, ${n.text}, ${n.url}, ${n.btn}) as queued`);
+        return json({ ok: true, queued: r.queued });
+      }
+
       // 连通性检查：只确认接口层连得上数据库，不返回任何数据
       if (url.pathname === '/health') {
         const [r] = await withUser(env, null, (sql) => sql`select current_user as role, (select count(*) from api.me)::int as me`);
@@ -786,8 +839,9 @@ export default {
     for (const m of batch) {
       if (!tok?.tenant_access_token) { results.push([String(m.msg_id), false, '无法获取应用凭证']); continue; }
       const body = typeof m.body === 'string' ? JSON.parse(m.body) : m.body;
-      const group = m.target_id === 'group', to = group ? env.NOTICE_CHAT_ID : String(m.target_id);
-      if (!to) { results.push([String(m.msg_id), false, '未配置全员群']); continue; }
+      const group = m.target_id === 'group' || m.target_id === 'assist';
+      const to = m.target_id === 'group' ? env.NOTICE_CHAT_ID : m.target_id === 'assist' ? env.ASSIST_CHAT_ID : String(m.target_id);
+      if (!to) { results.push([String(m.msg_id), false, m.target_id === 'assist' ? '未配置协助群' : '未配置全员群']); continue; }
       const send = (msg_type: string, content: unknown) => feishu(`/im/v1/messages?receive_id_type=${group ? 'chat_id' : to.startsWith('on_') ? 'union_id' : 'open_id'}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
