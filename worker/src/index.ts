@@ -364,6 +364,7 @@ const NOTICE_RULES: [RegExp, string, string][] = [
   [/ARR 担保/, 'ARR 担保', '/'],
   [/^身份认定/, '身份认定', '/path'],
   [/^主线任务已认定/, '成长主线', '/path'],
+  [/^主线任务认定已撤销/, '成长主线', '/path'],
   [/^(研究单元|课题)改名/, '改名', '/projects'],
   [/研究单元申请待同意/, '研究单元申请待同意', '/projects'],
   [/研究单元立项/, '研究单元立项提醒', '/projects'],
@@ -837,6 +838,7 @@ export default {
     if (env.FEISHU_NOTIFY !== 'on') return;
     if ((new Date().getUTCHours() + 8) % 24 >= 10) await withUser(env, null, (sql) => sql`select public.group_digest_tick()`).catch((e) => console.error(e));
     await biweeklyTasks(env).catch((e) => console.error('双周表任务', e));
+    await withUser(env, null, (sql) => sql`select public.path_latch_tick()`).catch((e) => console.error('主线任务补记', e));
     const batch = await withUser(env, null, (sql) => sql`select msg_id, target_id, body from public.outbox_take(20)`);
     if (!batch.length) return;
     const tok = await feishu('/auth/v3/tenant_access_token/internal', {

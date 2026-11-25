@@ -2595,6 +2595,11 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok((await one(`select done from api.path_person`)).done >= 1, '概况里完成数随之增加');
   await as(U.dir, D4);
   await q(`select undo_path_task($1, 'ri-sign')`, [P.mem]);
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from feishu_outbox where payload->>'text' like '主线任务认定已撤销：%'`)).n >= 1, '撤销认定通知本人');
+  ok((await val(`select has_function_privilege('app_api', 'path_latch(uuid)', 'execute') v`)) === false, '补记函数不对外开放');
+  await db.exec(`set role app_api`);
+  await as(U.dir, D4);
   await raises('撤销未确认的', /尚未确认/, `select undo_path_task($1, 'ri-sign')`, [P.mem]);
   // 自动任务：研究单元负责人进入研究单元、提出研究单元
   await db.exec(`reset role`);
@@ -2603,6 +2608,21 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`);
   await as(U.dir, D4);
   ok((await one(`select status from api.path_tracker where person_id = $1 and code = 'ri-unit'`, [po])).status === 'done', '负责研究单元的人，「进入一个研究单元」自动完成');
+  await raises('自动任务不能撤销', /不能撤销/, `select undo_path_task($1, 'ri-unit')`, [po]);
+  // 换负责人前先记下：原负责人已完成的自动任务不倒退
+  await db.exec(`reset role`);
+  const uid = (await one(`select id from project where layer = 'paper' and not proposed and owner_id = $1 order by code limit 1`, [unitOwnedBy])).id;
+  const others = (await one(`select count(*)::int n from project where layer = 'paper' and not proposed and active and owner_id = $1 and id <> $2`, [unitOwnedBy, uid])).n;
+  await q(`update project set owner_id = $2 where id = $1`, [uid, U.mem2]);
+  const latched = await q(`select task_code, note, confirmed_by from path_done where person_id = $1 and task_code in ('ri-unit', 'ra-unit') order by task_code`, [po]);
+  ok(latched.length === 2 && latched.every((x) => x.note === '中台自动' && x.confirmed_by === null), '换负责人前，原负责人的自动任务记下，确认人为空', JSON.stringify(latched) + ' 其余单元 ' + others);
+  await q(`update project set owner_id = $2 where id = $1`, [uid, unitOwnedBy]);
+  await db.exec(`set role app_api`);
+  await as(U.mem2);
+  await raises('登录用户不能跑补记', /当前角色/, `select path_latch_tick()`);
+  await as(null);
+  ok((await val(`select path_latch_tick() v`)) >= 0, '定时补记可以跑');
+  await as(U.dir, D4);
   // 认定身份
   await raises('依据必填', /写明认定的依据/, `select set_rank($1, 'assistant', ' ')`, [P.mem]);
   await raises('身份只有六种', /六种之内/, `select set_rank($1, 'master', '误填')`, [P.mem]);

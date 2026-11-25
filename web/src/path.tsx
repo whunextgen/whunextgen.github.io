@@ -96,7 +96,7 @@ export function PathPage({ me, start }: { me: Me; start?: string }) {
   const rows = others.filter((p) => !rank || p.rank === rank).sort((a, b) => RANKS.findIndex(([k]) => k === b.rank) - RANKS.findIndex(([k]) => k === a.rank)
     || (a.no ? 0 : 1) - (b.no ? 0 : 1) || (a.no ?? '').localeCompare(b.no ?? '', 'en', { numeric: true }) || a.person_name.localeCompare(b.person_name, 'zh'));
   const rankAct = (p: PathPerson): Act => ({ title: `认定身份：${p.person_name}`, label: '认定',
-    hint: `当前为 ${p.rank_label}。身份靠完成任务并通过考核取得，由中心负责人认定；升降都记一条，写明依据，并通知本人。`,
+    hint: `当前为 ${p.rank_label}${p.rank !== 'director' ? `，本级主线任务已完成 ${p.done} / ${p.tasks}` : ''}${p.rank !== 'director' && p.done < p.tasks ? '，尚未全部完成' : ''}。身份靠完成任务并通过考核取得，由中心负责人认定；升降都记一条，写明依据，并通知本人。`,
     fields: [{ name: 'rank', label: '身份', options: RANKS.filter(([k]) => k !== p.rank).map(([k, en, ab]) => [k, ab ? `${en}（${ab}）` : en]) },
       { name: 'basis', label: '依据', type: 'area', value: '' }],
     run: (v) => rpc('set_rank', { person: p.person_id, rank: v.rank, basis: v.basis }) });

@@ -2,8 +2,10 @@
 -- 身份六种：Intern（RI）、Assistant（RA）、Researcher、Rising Star、PI、Director，记在人员档案上，不看学籍。
 --   档案上原有的「类别」（教师、博士、硕士、研究助理等）是学籍和名册口径，与身份分开，不改。
 --   加入即为 Intern。身份变动由中心负责人认定，每次变动都留记录：从哪一级到哪一级、依据、认定人。
+--   上线时按各人手里的课题和研究单元给出初始身份（见文末），之后由中心负责人逐个调整。
 -- 主线任务：每种身份一份任务清单，取自草案第三节，按草案版次登记在 path_task 里，草案再改只改这张表。
---   每条任务写明由谁认定：中台自动的，由中台按记录判定；其余由对应岗位在中台确认，留下确认人和日期。
+--   每条任务写明由谁认定：中台自动的，由中台按记录判定，第一次判定完成即记下，此后以这条记录为准，
+--   负责人变更、退出名单不使已完成的倒退；其余由对应岗位在中台确认，留下确认人和日期。
 --   需要快照、质疑、考核等功能的自动任务，在那些功能上线之前显示为「待中台开通」，不能手工确认。
 -- 每人都有自己的任务清单：本人看得到自己的，有人员查看权限的人和中心负责人看得到全中心的。
 
@@ -87,11 +89,12 @@ create function path_verify_label(p_verify text) returns text language sql immut
     when 'degree' then '学位或出站证明' when 'appoint' then '聘任或立项文件' when 'director' then '现任 Director' end
 $$;
 
--- 谁能确认这一类任务：人事和培训、会议纪要由人事岗；财务由记账岗；其余由中心负责人。中心负责人都能确认
+-- 谁能确认这一类任务：人事和培训、会议纪要由人事岗；财务由记账岗；联席会议的结果由录入评定的中心助理；其余由中心负责人。中心负责人都能确认
 create function path_can_confirm(p_verify text) returns boolean language sql stable security definer set search_path = public as $$
   select app_role() = 'director'
       or (p_verify in ('hr','training','meeting','seminar') and has_perm('people.manage'))
       or (p_verify = 'finance' and has_perm('ledger.post'))
+      or (p_verify = 'council' and has_perm('budget.evaluate'))
 $$;
 
 -- 中台自动的任务：是否完成，以及进度说明
@@ -106,7 +109,9 @@ begin
   elsif p_code = 'ra-unit' then
     return query select exists (select 1 from project p where p.owner_id = u and p.layer = 'paper' and not p.proposed), null::text;
   elsif p_code = 'ra-biweekly' then
-    select count(distinct r.period_start)::int into n from biweekly_report r join project p on p.id = r.project_id where p.owner_id = u;
+    -- 按登记人计，只计研究单元的双周表：研究单元换了负责人，已登记的期数不转给新负责人
+    select count(distinct r.period_start)::int into n from biweekly_report r join project p on p.id = r.project_id
+      where p.layer = 'paper' and r.submitted_by = u;
     return query select n >= 6, format('已登记 %s 期，共需 6 期', least(n, 6));
   else
     return query select false, null::text;
@@ -160,14 +165,63 @@ end $$;
 
 -- 撤销确认：确认错了的，由有权确认的人撤销
 create function undo_path_task(p_person uuid, p_code text) returns void language plpgsql security definer set search_path = public as $$
-declare t path_task;
+declare t path_task; pr person;
 begin
   select * into t from path_task where code = p_code;
   if not found then raise exception '任务不存在'; end if;
+  if t.verify = 'auto' then raise exception '这一条由中台按记录自动认定，不能撤销'; end if;
   if not path_can_confirm(t.verify) then raise exception '这一条由%认定', path_verify_label(t.verify) using errcode = '42501'; end if;
+  select * into pr from person where id = p_person;
   delete from path_done where person_id = p_person and task_code = p_code;
   if not found then raise exception '这一条尚未确认'; end if;
+  if pr.user_id is not null and pr.user_id is distinct from app_uid() then
+    perform notify_user(pr.user_id, format('主线任务认定已撤销：「%s」的完成认定已由 %s 撤销', t.title, (select name from app_user where id = app_uid())));
+  end if;
 end $$;
+
+-- 中台自动的任务第一次判定完成即记下（确认人为空，说明「中台自动」）。负责人变更、退出名单、加入名单、
+-- 登记双周表时先记一次，变更前的完成不因变更而倒退；每次定时任务也补记一遍
+create function path_latch(p_user uuid default null) returns int language plpgsql security definer set search_path = public as $$
+declare k int;
+begin
+  insert into path_done (person_id, task_code, done_on, note, confirmed_by)
+  select pr.id, t.code, app_today(), '中台自动', null
+  from person pr cross join path_task t
+  cross join lateral path_auto(pr.id, t.code) a
+  where t.verify = 'auto' and t.ready and pr.user_id is not null and (p_user is null or pr.user_id = p_user) and a.done
+  on conflict do nothing;
+  get diagnostics k = row_count;
+  return k;
+end $$;
+create function path_latch_tick() returns int language plpgsql security definer set search_path = public as $$
+begin
+  if app_uid() is not null then raise exception '当前角色不能执行此操作' using errcode = '42501'; end if;
+  return path_latch(null);
+end $$;
+-- 变更前先记：before 触发，按变更前的记录判定
+create function trg_path_latch_before() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_table_name = 'project' then perform path_latch(old.owner_id);
+  else perform path_latch(old.user_id); end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end $$;
+create function trg_path_latch_after() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_table_name = 'project' then
+    if new.owner_id is not null then perform path_latch(new.owner_id); end if;
+  elsif tg_table_name = 'project_member' then perform path_latch(new.user_id);
+  else perform path_latch(new.submitted_by); end if;
+  return null;
+end $$;
+create trigger path_latch_before before update of owner_id, active, proposed, layer on project for each row
+  when (old.owner_id is not null) execute function trg_path_latch_before();
+create trigger path_latch_after after insert or update of owner_id, active, proposed, layer on project for each row execute function trg_path_latch_after();
+create trigger path_latch_before before update of left_on or delete on project_member for each row execute function trg_path_latch_before();
+create trigger path_latch_after after insert or update on project_member for each row execute function trg_path_latch_after();
+create trigger path_latch_after after insert on biweekly_report for each row execute function trg_path_latch_after();
+
+revoke execute on function path_latch(uuid) from public;
+select expose('path_latch_tick()');
 
 select expose('set_rank(uuid, text, text)', 'confirm_path_task(uuid, text, date, text)', 'undo_path_task(uuid, text)');
 
@@ -203,3 +257,20 @@ create view api.rank_change as
   where path_can_see(c.person_id);
 
 grant select on api.path_tracker, api.path_person, api.rank_change to app_api;
+
+-- ---------- 上线时的初始身份 ----------
+-- 按上线时手里的课题和研究单元：负责已立项课题的（不含中心公共开支）记为 Researcher；负责已成立研究单元的记为 Assistant（RA）；
+-- 其余为 Intern（RI）。Rising Star、PI、Director 不按名单推断，由中心负责人认定。每人的初始认定记一条，认定人为空
+with r as (
+  select pr.id,
+         case when exists (select 1 from project p where p.owner_id = pr.user_id and p.layer <> 'paper' and p.kind <> 'public' and p.active and not p.proposed) then 'researcher'
+              when exists (select 1 from project p where p.owner_id = pr.user_id and p.layer = 'paper' and p.active and not p.proposed) then 'assistant' end as rank
+  from person pr where pr.user_id is not null
+), u as (
+  update person pr set rank = r.rank from r where r.id = pr.id and r.rank is not null returning pr.id, r.rank
+)
+insert into rank_change (person_id, from_rank, to_rank, basis, decided_by)
+select id, 'intern', rank, '上线时按负责的课题或研究单元初始认定', null from u;
+
+-- 上线时已满足的自动任务记下
+select path_latch(null);
