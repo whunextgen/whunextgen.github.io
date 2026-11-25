@@ -3039,14 +3039,14 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('讨论结束后卡片不能再记入', /讨论已结束/, `select accept_query_draft($1, true)`, [CARD]);
   // 录音补漏：散会后取逐字稿，提取的质疑作为草稿交组织者记入
   await db.exec(`reset role`);
-  await q(`update attend_event set ended_at = now() - interval '10 minutes' where id = $1`, [M]);
+  await q(`update attend_event set ended_at = now() - interval '2 hours' where id = $1`, [M]);
   const nmM = (await one(`select name from app_user where id = $1`, [U.mem2])).name;
   const nmOwn = (await one(`select name from app_user where id = $1`, [own])).name;
   await db.exec(`set role app_api`);
   await as(null, D);
   ok((await q(`select event_id from transcript_todo()`)).some((t) => t.event_id === M), '散会后取逐字稿');
   await q(`select transcript_save($1, null, null, '妙记还没生成')`, [M]);
-  ok(!(await q(`select event_id from transcript_todo()`)).some((t) => t.event_id === M), '取不到的过一会儿再试');
+  ok(!(await q(`select event_id from transcript_todo()`)).some((t) => t.event_id === M), '取不到的第二天再试');
   await q(`select transcript_save($1, 'feishu', $2, '已取到')`, [M, `${nmM}：数据从哪里来？`]);
   const ex = await q(`select event_id, pitches, attendees from transcript_extract_todo()`);
   ok(ex.length === 1 && ex[0].pitches.some((x) => x.id === PX) && ex[0].attendees.includes(nmM), '待提取的逐字稿连同这场会的快照和到场的人', JSON.stringify(ex));
@@ -3055,6 +3055,19 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
     { pitch: PX, axis: 'ti', body: '不在中台的人提的', speaker: '访客乙' }, { pitch: '00000000-0000-0000-0000-000000000000', axis: 'li', body: '对不上快照' }];
   eq(await val(`select transcript_drafts_save($1, $2::jsonb, '提取 5 条') v`, [M, JSON.stringify(items)]), 2, '汇报人自己的话、已记入的、对不上快照的不收');
   ok((await q(`select 1 from transcript_extract_todo()`)).length === 0, '提取过的不再提取');
+  ok((await q(`select id from transcript_llm()`)).length === 0, '没有登记「录音补漏」资源时不自动提取');
+  await db.exec(`reset role`);
+  const RL = (await one(`insert into resource (kind, name, note, model, provider) values ('api', '录音补漏', '接口地址 https://r.example.com', 'claude-opus-5-5', 'GreatRouter') returning id`)).id;
+  await q(`insert into secret (owner_kind, owner_id, cipher) values ('resource', $1, 'v1.abc.def')`, [RL]);
+  await db.exec(`set role app_api`);
+  await as(null, D);
+  const llm = await q(`select id, provider, model, note, cipher from transcript_llm()`);
+  ok(llm.length === 1 && llm[0].provider === 'GreatRouter' && llm[0].cipher === 'v1.abc.def', '定时任务取「录音补漏」资源的配置和密文', JSON.stringify(llm.map((x) => x.provider)));
+  await as(U.lead, D);
+  await raises('成员不能取', /当前角色不能执行/, `select * from transcript_llm()`);
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from secret_access where owner_id = $1 and user_id is null`, [RL])).n === 1, '定时任务取用密钥也留记录');
+  await db.exec(`set role app_api`);
   await as(U.mem, D);
   ok((await q(`select 1 from api.meeting_transcript where id = $1`, [M])).length === 0, '逐字稿只有组织者看');
   await as(U.lead, D);
