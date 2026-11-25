@@ -125,14 +125,15 @@ export function ReviewSummary() {
     <p className="hint">{units} 个研究单元、{rows.length} 篇稿件，{live} 篇在审；追踪的质疑中有 {open} 条在最近一轮评审里仍被提出。分数为五分制，分数和质疑取最近一轮有评审的那一轮。评审是保密材料，仅中心成员可见，不得外传。</p>
     <div className="rv-key">{AXES.map((a) => <span key={a}><Q a={a} />{AXIS[a][1]}</span>)}</div>
     <div className="scroll"><table className="wb-table rv-sumt">
-      <thead><tr><th>研究单元</th><th>稿件</th><th>状态</th><th className="r">轮次</th><th className="r">均分</th><th className="r">AC</th>{AXES.map((a) => <th key={a} className="r"><Q a={a} /></th>)}<th className="r">仍被提出</th><th className="r">已回应</th></tr></thead>
+      <thead><tr><th>研究单元</th><th>稿件</th><th>状态</th><th className="r">轮次</th><th className="r">本轮均分</th><th className="r">上一轮均分</th><th className="r">AC</th>{AXES.map((a) => <th key={a} className="r"><Q a={a} /></th>)}<th className="r">仍被提出</th><th className="r">已回应</th></tr></thead>
       <tbody>{rows.map((r) => { const d = r.mean != null && r.prev_mean != null ? Number(r.mean) - Number(r.prev_mean) : 0;
         return <tr key={r.project_id + r.relation}>
           <td><a href={`#/project/${r.project_id}`}>{r.name}</a><span className="sub2 blk">{r.code}{r.owner_name ? ` · ${r.owner_name}` : ''}</span></td>
           <td className="wrap">{r.relation === 'prior' && <Badge>前作</Badge>} {r.title}<span className="sub2 blk">{r.venue} {r.cycle.slice(0, 7)}{r.number != null ? ` · #${r.number}` : ''}{r.judged_cycle && r.judged_cycle !== r.cycle ? ` · 评审取自 ${r.judged_cycle.slice(0, 7)}` : ''}</span></td>
           <td>{STATUS[r.status] ?? r.status}</td>
           <td className="r rv-mono">{r.rounds}</td>
-          <td className="r rv-mono">{n1(r.mean)}{d !== 0 && <small className={d < 0 ? 'rv-down' : 'rv-up'}> {d < 0 ? '↓' : '↑'}{n1(Math.abs(d).toFixed(2))}</small>}</td>
+          <td className="r rv-mono">{n1(r.mean)}{d !== 0 ? <small className={d < 0 ? 'rv-down' : 'rv-up'}> {d < 0 ? '↓' : '↑'}{n1(Math.abs(d).toFixed(2))}</small> : r.judged_rounds > 1 && <small className="sub2"> 持平</small>}</td>
+          <td className="r rv-mono">{r.judged_rounds > 1 ? n1(r.prev_mean) : <span className="sub2">首轮</span>}</td>
           <td className="r rv-mono">{n1(r.ac_overall)}</td>
           {AXES.map((a) => <td key={a} className="r rv-mono">{r[a] || '·'}</td>)}
           <td className="r rv-mono">{r.threads_open ? <b className="rv-open">{r.threads_open}</b> : '·'}</td>
