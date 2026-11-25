@@ -12,7 +12,7 @@ const KIND: Record<Meeting['kind'], string> = { lecture: '周日讲座', seminar
 export const meetingName = (m: Meeting) => m.kind === 'seminar' ? `${m.seminar_name ?? ''}主题研讨会` : m.title ?? KIND[m.kind];
 
 export function LivePage({ id }: { id: string; me: Me }) {
-  const { data, error, reload } = useViews<{ m: Meeting[]; pitches: Pitch[]; queries: Query[]; people: PeoplePick[] }>({ m: ['meeting', { id }], pitches: ['snapshot_pitch'], queries: ['query'], people: ['people_pick'] }, id);
+  const { data, error, reload } = useViews<{ m: Meeting[]; pitches: Pitch[]; queries: Query[]; people: PeoplePick[]; sync: { id: string; feishu_no: string | null; sync_note: string | null; synced_at: string | null }[] }>({ m: ['meeting', { id }], pitches: ['snapshot_pitch'], queries: ['query'], people: ['people_pick'], sync: ['meeting_sync', { id }] }, id);
   const [act, setAct] = useState<Act | null>(null);
   const [cur, setCur] = useState('');
   const [body, setBody] = useState('');
@@ -102,7 +102,11 @@ export function LivePage({ id }: { id: string; me: Me }) {
           <div className="ir-mono"><span>纪要</span><span>{m.open ? '开会中' : '已散会'}</span></div>
           {m.minutes_link ? <p><a className="btn sm ghost" href={m.minutes_link} target="_blank" rel="noreferrer">飞书妙记或录屏</a></p> : <p className="ir-hint">会后挂上飞书妙记或录屏的链接，请假的据此补看。</p>}
           {m.kind === 'seminar' && !m.open && <p className="ir-hint">本次讨论 {agenda.filter((x) => x.status === 'closed').length} 份快照，新记质疑 {agenda.reduce((t, x) => t + x.new_queries, 0)} 条，再次提出 {agenda.reduce((t, x) => t + x.again_queries, 0)} 条，结算 {agenda.reduce((t, x) => t + x.resolved, 0)} 条。</p>}
+          {m.can_run && (() => { const sy = data.sync[0]; return <p className="ir-hint">
+            飞书会议：{sy?.feishu_no ? `${sy.feishu_no.slice(0, 3)} ${sy.feishu_no.slice(3, 6)} ${sy.feishu_no.slice(6)}` : '未填'}。填了会议号的，中台每 5 分钟读一次飞书会议的参会名单，线上参会的自动签到；会后读到录制即挂上链接。
+            {sy?.synced_at && <><br />上次同步 {new Date(sy.synced_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })}：{sy.sync_note}</>}</p>; })()}
           {m.can_run && <div className="ir-acts">
+            <button className="sm ghost" onClick={() => setAct({ title: '填飞书会议', label: '保存', hint: '粘贴飞书会议链接或 9 位会议号。会议请开录制。', fields: [{ name: 'link', label: '飞书会议链接或会议号', required: false, value: data.sync[0]?.feishu_no ?? '' }], run: (v) => rpc('set_feishu_meeting', { event: m.id, link: v.link || null }) })}>{data.sync[0]?.feishu_no ? '改飞书会议' : '填飞书会议'}</button>
             <button className="sm ghost" onClick={() => setAct({ title: '挂纪要链接', label: '保存', fields: [{ name: 'link', label: '飞书妙记或录屏的链接', required: false, value: m.minutes_link ?? '' }], run: (v) => rpc('set_minutes', { event: m.id, link: v.link || null }) })}>挂纪要链接</button>
             {m.open && <button className="sm" onClick={() => setAct({ title: `散会：${meetingName(m)}`, label: '散会', danger: true,
               hint: `签到码随即作废。事先请假的记为请假${m.kind === 'lecture' ? '；在岗人员没有签到也没有请假的，记为缺席' : ''}。${agenda.some((x) => x.status === 'accepted') ? '还有快照没有结束讨论，散会后仍可结束。' : ''}`, fields: [], run: () => rpc('end_meeting', { event: m.id }) })}>散会</button>}

@@ -2974,6 +2974,23 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const s2 = await val(`select end_meeting($1) v`, [M]);
   ok(s2.closed === 1, '研讨会现场：结束讨论的快照挂到这次会上', JSON.stringify(s2));
   ok((await one(`select minutes_link from api.meeting where id = $1`, [M])).minutes_link.includes('minutes'), '会议挂上纪要链接');
+  // 飞书会议自动签到
+  await as(U.dir, D);
+  const L2 = await val(`select open_meeting('lecture') v`);
+  await raises('会议号是 9 位', /9 位数字/, `select set_feishu_meeting($1, '12345')`, [L2]);
+  eq(await val(`select set_feishu_meeting($1, 'https://vc.feishu.cn/j/987654321') v`, [L2]), 987654321, '粘贴会议链接取末尾 9 位');
+  await as(null, D);
+  const todo = await q(`select event_id from meeting_sync_todo()`);
+  ok(todo.some((t) => t.event_id === L2), '定时任务找到要同步的会');
+  await db.exec(`reset role`);
+  const uid = (await one(`select coalesce(feishu_union_id, feishu_open_id) v from app_user where id = $1`, [U.mem2])).v;
+  await db.exec(`set role app_api`);
+  await as(null, D);
+  eq(await val(`select meeting_sync_save($1, $2, 'https://meetings.feishu.cn/minutes/x', '签到 1 人') v`, [L2, [uid]]), 1, '参会名单对上中台账号的自动签到');
+  await as(U.dir, D);
+  const ms = await one(`select m.present, m.minutes_link, s.sync_note from api.meeting m join api.meeting_sync s on s.id = m.id where m.id = $1`, [L2]);
+  ok(ms.present === 1 && ms.minutes_link.includes('minutes') && ms.sync_note === '签到 1 人', '同步结果和妙记链接记在会上', JSON.stringify(ms));
+  await q(`select end_meeting($1)`, [L2]);
   await as(null);
 }
 
