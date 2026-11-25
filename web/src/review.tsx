@@ -7,6 +7,8 @@ const AXIS: Record<string, [string, string]> = { li: ['理', '为什么要关注
 const STATUS: Record<string, string> = { review: '在审', resubmitted: '已重投', desk_reject: '未送审退回', withdrawn: '已撤稿', accepted: '已录用', rejected: '未录用' };
 const n1 = (v: string | number | null | undefined) => (v == null ? '—' : String(Number(v)));
 const round = (s: Submission) => `${s.venue} ${s.cycle.slice(0, 7)}`;
+// 重投时作者申请的是沿用上一轮的审稿人，还是换一组；首次投稿没有这一项
+const Keep = ({ v, who = '审稿人' }: { v: boolean | null; who?: string }) => (v == null ? null : <span className={`rv-keep ${v ? 'same' : 'new'}`}>{v ? `沿用原${who}` : `更换${who}`}</span>);
 const Q = ({ a }: { a: string }) => <span className={`rv-q rv-${a}`}>{AXIS[a]?.[0] ?? a}</span>;
 const Text = ({ k, v }: { k: string; v: string | null }) => (v ? <><div className="rv-sec">{k}</div><p className="rv-full">{v}</p></> : null);
 
@@ -76,7 +78,7 @@ function Chain({ title, sub, subs, reviews, points, threads }: { title: string; 
       <h4 className="rv-h">逐轮评审</h4>
       {desc.map((s, i) => (
         <details key={s.id} className="rv-round" open={i === 0}>
-          <summary><span><b>{round(s)}</b> <small>{s.number != null ? `#${s.number} · ` : ''}{STATUS[s.status] ?? s.status}{i === 0 ? ' · 本轮' : ''}</small></span>
+          <summary><span><b>{round(s)}</b> <small>{s.number != null ? `#${s.number} · ` : ''}{STATUS[s.status] ?? s.status}{i === 0 ? ' · 本轮' : ''}</small> <Keep v={s.keep_reviewers} /> <Keep v={s.keep_ac} who=" AC" /></span>
             <span className="rv-mono rv-sum">{of(s).map((r) => n1(r.overall)).join(' / ') || '无评审'} · AC {s.ac_overall == null ? '未出' : n1(s.ac_overall)}</span></summary>
           <div className="rv-title">{s.title} <a href={`https://openreview.net/forum?id=${encodeURIComponent(s.forum)}`} target="_blank" rel="noreferrer">在 OpenReview 查看</a></div>
           {(s.ac_overall != null || s.ac_text) && <div className="rv-rev rv-acbox">
@@ -93,7 +95,7 @@ function Chain({ title, sub, subs, reviews, points, threads }: { title: string; 
             </div>); })}
         </details>
       ))}
-      <p className="rv-foot">分数为五分制。质疑的归类和中文概括在导入时做出，灰字是原文出处。</p>
+      <p className="rv-foot">「沿用原审稿人」「更换审稿人」是重投时在投稿表里提出的申请，沿用以对方有空为前提；每轮审稿人的代号都会重编，实际是否同一人从评审里看不出。分数为五分制。质疑的归类和中文概括在导入时做出，灰字是原文出处。</p>
     </section>
   );
 }
@@ -122,10 +124,10 @@ export function ReviewSummary() {
   const units = new Set(rows.map((r) => r.project_id)).size, live = rows.filter((r) => r.status === 'review').length;
   const open = rows.reduce((t, r) => t + r.threads_open, 0);
   return <>
-    <p className="hint">{units} 个研究单元、{rows.length} 篇稿件，{live} 篇在审；追踪的质疑中有 {open} 条在最近一轮评审里仍被提出。分数为五分制，分数和质疑取最近一轮有评审的那一轮。评审是保密材料，仅中心成员可见，不得外传。</p>
+    <p className="hint">{units} 个研究单元、{rows.length} 篇稿件，{live} 篇在审；追踪的质疑中有 {open} 条在最近一轮评审里仍被提出。分数为五分制，分数和质疑取最近一轮有评审的那一轮。「审稿人」一列是重投时提出的申请：沿用上一轮的，还是换一组。评审是保密材料，仅中心成员可见，不得外传。</p>
     <div className="rv-key">{AXES.map((a) => <span key={a}><Q a={a} />{AXIS[a][1]}</span>)}</div>
     <div className="scroll"><table className="wb-table rv-sumt">
-      <thead><tr><th>研究单元</th><th>稿件</th><th>状态</th><th className="r">轮次</th><th className="r">本轮均分</th><th className="r">上一轮均分</th><th className="r">AC</th>{AXES.map((a) => <th key={a} className="r"><Q a={a} /></th>)}<th className="r">仍被提出</th><th className="r">已回应</th></tr></thead>
+      <thead><tr><th>研究单元</th><th>稿件</th><th>状态</th><th className="r">轮次</th><th className="r">本轮均分</th><th className="r">上一轮均分</th><th>审稿人</th><th className="r">AC</th>{AXES.map((a) => <th key={a} className="r"><Q a={a} /></th>)}<th className="r">仍被提出</th><th className="r">已回应</th></tr></thead>
       <tbody>{rows.map((r) => { const d = r.mean != null && r.prev_mean != null ? Number(r.mean) - Number(r.prev_mean) : 0;
         return <tr key={r.project_id + r.relation}>
           <td><a href={`#/project/${r.project_id}`}>{r.name}</a><span className="sub2 blk">{r.code}{r.owner_name ? ` · ${r.owner_name}` : ''}</span></td>
@@ -134,6 +136,7 @@ export function ReviewSummary() {
           <td className="r rv-mono">{r.rounds}</td>
           <td className="r rv-mono">{n1(r.mean)}{d !== 0 ? <small className={d < 0 ? 'rv-down' : 'rv-up'}> {d < 0 ? '↓' : '↑'}{n1(Math.abs(d).toFixed(2))}</small> : r.judged_rounds > 1 && <small className="sub2"> 持平</small>}</td>
           <td className="r rv-mono">{r.judged_rounds > 1 ? n1(r.prev_mean) : <span className="sub2">首轮</span>}</td>
+          <td>{r.keep_reviewers == null ? <span className="sub2">{r.judged_rounds > 1 ? '未注明' : '首轮'}</span> : <Keep v={r.keep_reviewers} />}</td>
           <td className="r rv-mono">{n1(r.ac_overall)}</td>
           {AXES.map((a) => <td key={a} className="r rv-mono">{r[a] || '·'}</td>)}
           <td className="r rv-mono">{r.threads_open ? <b className="rv-open">{r.threads_open}</b> : '·'}</td>

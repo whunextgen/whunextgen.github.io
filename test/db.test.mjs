@@ -2411,6 +2411,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await q(`insert into project_member (project_id, user_id, joined_on) values ($1, $2, '2026-11-01')`, [u.id, mem]);
   const s0 = (await one(`insert into submission (project_id, venue, cycle, forum, number, title, status, ac_overall, ac_gist) values ($1, 'ACL ARR', '2026-08-01', 'f-old', 11, '旧稿', 'resubmitted', 3.5, '补充基线') returning id`, [u.id])).id;
   const s1 = (await one(`insert into submission (project_id, venue, cycle, forum, number, title, prev_id) values ($1, 'ACL ARR', '2026-10-01', 'f-new', 22, '新稿', $2) returning id`, [u.id, s0])).id;
+  await q(`update submission set keep_reviewers = false, keep_ac = true where id = $1`, [s1]);
   const r1 = (await one(`insert into submission_review (submission_id, reviewer, overall, soundness, excitement, confidence, weaknesses) values ($1, 'Reviewer_a', 2, 2.5, 2.5, 4, 'too small') returning id`, [s1])).id;
   await q(`insert into submission_review (submission_id, reviewer, overall) values ($1, 'Reviewer_b', 3.5)`, [s1]);
   const th = (await one(`insert into review_thread (project_id, axis, label) values ($1, 'ti', '数据规模小') returning id`, [u.id])).id;
@@ -2430,11 +2431,11 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await want(out, '2,2,2,1', '名单外的成员也看得到（0092）');
   await want(null, '0,0,0,0', '未登录看不到');
   await as(u.owner_id, '2026-11-25');
-  const row = await one(`select mean_overall, prev_id, relation, status from api.submission where id = $1`, [s1]);
-  ok(Number(row.mean_overall) === 2.75 && row.prev_id === s0 && row.relation === 'self' && row.status === 'review', '投稿带审稿人均分，并指向上一轮', JSON.stringify(row));
+  const row = await one(`select mean_overall, prev_id, relation, status, keep_reviewers, keep_ac from api.submission where id = $1`, [s1]);
+  ok(Number(row.mean_overall) === 2.75 && row.prev_id === s0 && row.relation === 'self' && row.status === 'review' && row.keep_reviewers === false && row.keep_ac === true, '投稿带审稿人均分和换审稿人的申请，并指向上一轮', JSON.stringify(row));
   // 汇总（0093）：每篇稿件一行，分数和质疑取最近一轮有评审的
-  const sm = await one(`select rounds, judged_rounds, mean, prev_mean, ac_overall, li, ju, ti, yong, threads, threads_open, status, number from api.review_summary where project_id = $1`, [u.id]);
-  ok(sm.rounds === 2 && sm.judged_rounds === 1 && Number(sm.mean) === 2.75 && sm.prev_mean == null && Number(sm.ac_overall) === 3.5 && sm.li === 1 && sm.ti === 1 && sm.ju === 0 && sm.yong === 0 && sm.threads === 1 && sm.threads_open === 1 && sm.number === 22, '汇总按稿件一行，取最近一轮有评审的', JSON.stringify(sm));
+  const sm = await one(`select rounds, judged_rounds, mean, prev_mean, ac_overall, li, ju, ti, yong, threads, threads_open, status, number, keep_reviewers from api.review_summary where project_id = $1`, [u.id]);
+  ok(sm.rounds === 2 && sm.judged_rounds === 1 && Number(sm.mean) === 2.75 && sm.prev_mean == null && Number(sm.ac_overall) === 3.5 && sm.li === 1 && sm.ti === 1 && sm.ju === 0 && sm.yong === 0 && sm.threads === 1 && sm.threads_open === 1 && sm.number === 22 && sm.keep_reviewers === false, '汇总按稿件一行，取最近一轮有评审的', JSON.stringify(sm));
   await as(null);
   ok((await q(`select 1 from api.review_summary`)).length === 0, '未登录看不到汇总');
   await as(u.owner_id, '2026-11-25');

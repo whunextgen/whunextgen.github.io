@@ -523,3 +523,4 @@ h3.sec{display:flex;align-items:center;gap:10px;margin:22px 0 10px;font-size:14p
 @media(max-width:640px){.rv-mx{grid-template-columns:62px repeat(4,minmax(0,1fr)) 70px}.rv-tr{flex-direction:column;align-items:flex-start}.rv-trr b{width:auto}}
 
 .rv-sumt td.wrap{min-width:260px;max-width:440px}.rv-sumt th .rv-q{margin:0}.rv-sumt td{vertical-align:top}
+.rv-keep{display:inline-block;font-size:12px;font-weight:400;border-radius:6px;padding:0 7px;border:1px solid var(--line);white-space:nowrap}.rv-keep.same{color:var(--mute)}.rv-keep.new{color:var(--bad);border-color:currentColor}
