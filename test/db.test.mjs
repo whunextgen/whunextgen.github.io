@@ -3441,5 +3441,70 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`);
 }
 
+// ---------- 生命周期：停滞过问、终止、结项、建议退组 ----------
+{
+  await db.exec(`reset role`);
+  const W = await one(`select u.id, u.owner_id from project u where u.layer = 'paper' and u.active and not u.proposed and u.owner_id is not null order by u.code limit 1`);
+  await q(`select stall_motions($1, 'stalled')`, [W.id]);
+  const iq = await one(`select id, mtype, status from motion where ref_kind = 'unit_stall' and ref_id = $1`, [W.id]);
+  ok(iq && iq.mtype === 'inquiry' && iq.status === 'seconded', '研究单元停滞，自动列入议程过问', JSON.stringify(iq));
+  await q(`select stall_motions($1, 'stalled')`, [W.id]);
+  eq((await one(`select count(*)::int n from motion where ref_kind = 'unit_stall' and ref_id = $1`, [W.id])).n, 1, '同一次停滞只过问一次');
+  const C3 = (await one(`select id from attend_event where kind = 'council' and ended_at is null order by started_at desc limit 1`)).id;
+  await db.exec(`set role app_api`);
+  await as(U.dir);
+  await raises('过问不表决', /过问事项不表决/, `select open_vote($1, $2)`, [iq.id, C3]);
+  await q(`select close_inquiry($1, '负责人说明：数据延迟，下期恢复')`, [iq.id]);
+  ok((await one(`select status, decided_note from api.council_motion where id = $1`, [iq.id])).status === 'effective', '主持人记下过问结果');
+  await db.exec(`reset role`);
+  await q(`select stall_motions($1, 'terminate')`, [W.id]);
+  const tm = await one(`select id, status, ref_code from motion where ref_kind = 'project_end' and ref_id = $1`, [W.id]);
+  ok(tm && tm.status === 'seconded' && tm.ref_code === 'stall', '停滞满两期，自动生成终止议题');
+  await q(`update motion set status = 'passed', decided_at = now(), veto_until = now() - interval '1 minute' where id = $1`, [tm.id]);
+  await db.exec(`set role app_api`);
+  await as(null); await q(`select council_tick()`);
+  await db.exec(`reset role`);
+  ok((await one(`select active from project where id = $1`, [W.id])).active === false, '终止决议生效，研究单元停用');
+  await q(`update project set active = true where id = $1`, [W.id]);
+  // 负责人申请结项：免附议；其他成员提议：须附议
+  await db.exec(`set role app_api`);
+  await as(W.owner_id);
+  const E1 = await val(`select propose_project_end($1, 'close', '论文已投稿，研究单元结项') v`, [W.id]);
+  ok((await one(`select status, auto from api.council_motion where id = $1`, [E1])).status === 'seconded', '负责人申请结项，免附议');
+  await db.exec(`reset role`);
+  const W2 = await one(`select u.id from project u where u.layer = 'paper' and u.active and not u.proposed and u.id <> $1 and u.owner_id <> $2 and not ($2 = any(council_subjects_for(u.id))) and not exists (select 1 from motion m where m.ref_kind = 'project_end' and m.ref_id = u.id) order by u.code limit 1`, [W.id, U.fin]);
+  await db.exec(`set role app_api`);
+  if (W2) {
+    await as(U.fin);
+     const E2 = await val(`select propose_project_end($1, 'end', '方向已被其他研究单元覆盖') v`, [W2.id]);
+    ok((await one(`select status from api.council_motion where id = $1`, [E2])).status === 'proposed', '其他成员提议终止，须附议');
+  }
+  // 建议退组
+  await db.exec(`reset role`);
+  const PX = await one(`select id, user_id from person where user_id = $1`, [U.mem]);
+  await db.exec(`set role app_api`);
+  await as(U.mem);
+  await raises('由有表决权的成员提议', /有表决权的成员提议/, `select propose_removal($1, '依据')`, [PX.id]);
+  await as(U.lead);
+  const R1 = await val(`select propose_removal($1, '连续两次需改进且未达成改进目标') v`, [PX.id]);
+  const rm = await one(`select threshold, ballot, status from api.council_motion where id = $1`, [R1]);
+  ok(rm.threshold === 'two_thirds' && rm.ballot === 'secret' && rm.status === 'proposed', '建议退组：三分之二、不记名、须附议', JSON.stringify(rm));
+  await as(U.fin); await q(`select second_motion($1)`, [R1]);
+  await as(U.mem);
+  ok(await val(`select request_speech($1, 'con') v`, [R1]), '本人可以到会申辩');
+  await db.exec(`reset role`);
+  await q(`update motion set status = 'passed', decided_at = now(), veto_until = now() - interval '1 minute' where id = $1`, [R1]);
+  await db.exec(`set role app_api`);
+  await as(null); await q(`select council_tick()`);
+  await as(U.lead);
+  await raises('由中心负责人决定', /中心负责人决定/, `select decide_removal($1, true)`, [R1]);
+  await as(U.dir);
+  ok((await one(`select can_decide from api.council_motion where id = $1`, [R1])).can_decide === true, '决议生效后中心负责人可以决定');
+  await q(`select decide_removal($1, false, '给一次改进机会')`, [R1]);
+  await db.exec(`reset role`);
+  ok((await one(`select status from person where id = $1`, [PX.id])).status !== 'left', '不予采纳的人员档案不变');
+  await db.exec(`set role app_api`);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
