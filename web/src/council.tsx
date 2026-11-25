@@ -15,7 +15,7 @@ interface Info { term: string; electorate: number; am_voter: boolean; am_rep: bo
 interface Speech { id: string; motion_id: string; round: number; user_id: string; user_name: string; side: 'pro' | 'con' | 'neutral'; requested_at: string; spoke_at: string | null; mine: boolean; spoken: number }
 interface Act { title: string; hint?: ReactNode; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
-export const CAT: Record<string, string> = { research: '研究方向与项目', unit: '研究单元', topic: '课题立项与延续', budget: '预算', assessment: '考核推荐', personnel: '人员推荐', removal: '建议退组', rules: '议事规则', other: '其他事务', procedure: '程序' };
+export const CAT: Record<string, string> = { research: '研究方向与项目', unit: '研究单元', topic: '课题立项与延续', path: '成长主线认定', budget: '预算', assessment: '考核推荐', personnel: '人员推荐', removal: '建议退组', rules: '议事规则', other: '其他事务', procedure: '程序' };
 const TYPE: Record<Motion['mtype'], string> = { main: '议题', amend: '修正案', reconsider: '复议', procedural: '程序动议' };
 const ST: Record<Motion['status'], [string, string]> = { proposed: ['warn', '待附议'], seconded: ['', '待表决'], voting: ['warn', '表决中'], passed: ['ok', '通过，否决期内'],
   failed: ['bad', '未通过'], vetoed: ['bad', '被否决'], effective: ['ok', '已生效'], withdrawn: ['', '已撤回'] };
@@ -114,6 +114,7 @@ export function MotionPage({ id }: { id: string; me: Me }) {
           {m.mtype === 'main' && ['passed', 'failed'].includes(m.status) && info?.am_voter && <button className="sm ghost" onClick={() => setAct({ title: `复议：${m.title}`, label: '提交',
             hint: '由投了多数一方票的成员在本次或下一次会议提出，经附议、过半数同意的，原议题重新表决。同一议题只能复议一次。', fields: [{ name: 'title', label: '复议理由（一句话）' }, { name: 'body', label: '说明', type: 'area' }],
             run: (v) => submit(v, { mtype: 'reconsider', parent: m.id, category: null }) })}>提复议</button>}
+          {(m as Motion & { can_execute?: boolean }).can_execute && <button className="sm" onClick={() => go(rpc('execute_fixed_change', { id: m.ref_id }))}>按决议调整核定数</button>}
           {m.can_withdraw && <button className="sm ghost danger" onClick={() => go(rpc('withdraw_motion', { id: m.id }))}>撤回</button>}
           {m.can_veto && <button className="sm danger" onClick={() => setAct({ title: `否决：${m.title}`, label: '否决', danger: true, hint: '否决须写明理由，理由向全体成员公开。',
             fields: [{ name: 'r', label: '理由', type: 'area' }], run: (v) => rpc('veto_motion', { id: m.id, reason: v.r }) })}>否决</button>}

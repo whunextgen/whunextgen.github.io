@@ -73,12 +73,7 @@ export function GrowthSections({ me, rank, tasksDone }: { me: Me; rank: string |
         {a.examiner && a.status === 'examining' && !a.examiners.find((e) => e.id === me.id)?.verdict && <>
           <button className="sm" onClick={() => setAct({ title: `认定通过：${a.person_name}`, label: '通过', fields: [{ name: 'note', label: '意见（选填）', type: 'area', required: false }], run: (v) => rpc('judge_small_task', { id: a.id, pass: true, note: v.note || null }) })}>通过</button>
           <button className="ghost sm danger" onClick={() => setAct({ title: `认定未通过：${a.person_name}`, label: '未通过', danger: true, hint: '有一名考核人认定未通过的，即为未通过；可在下一期重新申请。', fields: [{ name: 'note', label: '原因', type: 'area' }], run: (v) => rpc('judge_small_task', { id: a.id, pass: false, note: v.note }) })}>未通过</button></>}
-        {a.can_vote && <button className="sm" onClick={() => setAct({ title: `提交联席会议表决：${a.person_name} · ${a.kind_label}`, label: '提交',
-          hint: '在中台提交议题，经附议后列入联席会议议程；涉及人员，不记名表决，本人不参加投票。通过且否决期满后，转中心负责人决定。',
-          fields: [{ name: 'body', label: '提案（考核人意见、小任务结果等）', type: 'area' }],
-          run: (v) => rpc('submit_motion', { title: `${a.person_name}${a.kind_label}推荐`, category: 'assessment', body: v.body, link: null, subjects: [], urgent: false, mtype: 'main', parent: null, ref_kind: 'assessment', ref_id: a.id, two_thirds: false })
-            .then((id) => { location.hash = `#/motion/${id}`; }) })}>提交联席会议表决</button>}
-        {a.can_vote && <button className="sm ghost" onClick={() => setAct({ title: `录入联席会议表决：${a.person_name}`, label: '录入',
+        {a.can_vote && <button className="sm ghost" onClick={() => setAct({ title: `录入联席会议表决：${a.person_name}`, label: '录入', hint: '考核申请已由正则自动列入联席会议议程，正常在议题上表决。会外已表决的，在这里录入结果，议程上的议题随之撤回。',
           fields: [{ name: 'pass', label: '表决结果', options: [['true', '同意推荐'], ['false', '不同意']] }, { name: 'on', label: '会议日期', type: 'date', value: today() }, { name: 'note', label: '说明（选填）', required: false }],
           run: (v) => rpc('record_council_vote', { id: a.id, pass: v.pass === 'true', on: v.on, note: v.note || null }) })}>录入表决</button>}
         {a.can_decide && <button className="sm" onClick={() => setAct({ title: `决定：${a.person_name} · ${a.kind_label}`, label: '决定',

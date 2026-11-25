@@ -47,6 +47,18 @@ export function Review({ me, start }: { me: Me; start: string }) {
     hint: `当前核定 ${money(l.fixed)}，已用 ${money(l.used)}（含在途）。调减不得低于已用，超额下达部分自动从经费卡收回；调增部分须在「预算编制」补充下达。各研究单元核定数合计不得超过年度总预算。`,
     fields: [{ name: 'amount', label: '新核定数（元）', type: 'number', value: String(num(l.fixed)) }, { name: 'note', label: '调整原因' }],
     run: (v) => rpc('revise_fixed', { id: l.id, amount: v.amount, note: v.note }).then(reload) });
+  // 课题负责人：预算期预算与复盘、追加或调减核定数，都提交联席会议表决
+  const periodAct = (p: Project): Act => { const q = Math.max(quarter, 1); return {
+    title: `提交预算期预算：${p.name}`, submitLabel: '提交',
+    hint: '每个预算期提交一次本期预算，并附上一期复盘。提交后正则列入联席会议议程（免附议）；表决通过、否决期满后记为这一期的复盘结论。表决前可以修改。',
+    fields: [{ name: 'quarter', label: '预算期', options: QN.map((n, i): [string, string] => [String(i + 1), `第 ${i + 1} 期（${n}）`]), value: String(q) },
+      { name: 'review', label: '上一期复盘：计划和实际的偏差、原因和措施', type: 'area' }, { name: 'plan', label: '本期预算：本期要做的事和要用的钱', type: 'area' }],
+    run: (v) => rpc('submit_period_report', { year, quarter: Number(v.quarter), project: p.id, review: v.review, plan: v.plan }).then(reload) }; };
+  const changeAct = (p: Project, l: LineExec): Act => ({
+    title: `申请调整核定数：${p.name} · ${l.purpose}`, submitLabel: '提交',
+    hint: `当前核定 ${money(l.fixed)}，已用 ${money(l.used)}（含在途）。追加或调减须经联席会议表决：提交后正则列入议程（免附议），决议生效后由中心负责人按决议调整。`,
+    fields: [{ name: 'amount', label: '申请的核定数（元）', type: 'number', value: String(num(l.fixed)) }, { name: 'reason', label: '原因', type: 'area' }],
+    run: (v) => rpc('submit_fixed_change', { line: l.id, amount: v.amount, reason: v.reason }).then(reload) });
   const pendingShifts = data.shifts.filter((s) => s.year === year && s.status === 'pending');
   const checked = data.checks.filter((k) => k.year === year && k.actual != null), off = checked.filter((k) => num(k.diff) !== 0);
 
@@ -78,7 +90,8 @@ export function Review({ me, start }: { me: Me; start: string }) {
                   <td>{quarter === 0 || pl === 0 ? '—' : ac < pl * 0.7 ? <Badge tone="bad">落后，差额 {money(pl - ac)}</Badge> : <Badge tone="ok">正常</Badge>}{quarter > 0 && pl > 0 && <div className="sub2">截至第 {quarter} 期末计划 {money(pl)}</div>}</td>
                   <td className="wrap">{rv ? <><Badge tone="ok">已复盘</Badge><span className="sub2">{rv.reviewed_by_name ?? ''} {day(rv.reviewed_at)}</span></> : quarter === 0 ? '—' : <Badge tone="warn">尚未复盘</Badge>}</td>
                   <td><div className="acts"><button className="sm ghost" aria-pressed={open === p.id} onClick={() => setOpen(open === p.id ? '' : p.id)}>明细</button>
-                    {staff && editable && quarter > 0 && <button className="sm ghost" onClick={() => setAct(reviewAct(p, rows))}>{rv ? '修改复盘' : '填写复盘'}</button>}</div></td></tr>); })}</tbody>
+                    {staff && editable && quarter > 0 && <button className="sm ghost" onClick={() => setAct(reviewAct(p, rows))}>{rv ? '修改复盘' : '填写复盘'}</button>}
+                    {editable && p.kind !== 'public' && p.owner_id === me.id && <button className="sm ghost" onClick={() => setAct(periodAct(p))}>提交预算期预算</button>}</div></td></tr>); })}</tbody>
             </table></div>
           </section>
 
@@ -116,7 +129,8 @@ export function Review({ me, start }: { me: Me; start: string }) {
                       <td className="r">{money(l.fixed)}{num(l.fixed) > num(l.allocated) && <span className="sub2 neg">{money(num(l.fixed) - num(l.allocated))} 待下达</span>}</td>
                       <td className={`r ${left < 0 ? 'neg' : ''}`}>{money(left)}<div className="sub2">已用 {money(l.used)}</div></td>
                       {seesCards && <td className="wrap">{al.length === 0 ? '—' : al.map((a) => <div key={a.id}>{a.card_name ?? '—'}<span className="sub2">{money(a.amount)}，已用 {money(a.used)}</span></div>)}</td>}
-                      <td className="r">{director && editable && <button className="ghost sm" onClick={() => setAct(reviseAct(p, l))}>调整</button>}</td></tr>); })}</tbody>
+                      <td className="r">{director && editable && <button className="ghost sm" onClick={() => setAct(reviseAct(p, l))}>调整</button>}
+                        {editable && p.kind !== 'public' && p.owner_id === me.id && <button className="ghost sm" onClick={() => setAct(changeAct(p, l))}>申请调整</button>}</td></tr>); })}</tbody>
                 </table></div>
                 <h4>复盘记录</h4>
                 {notes.length === 0 ? <Empty>暂无复盘记录。</Empty> : (
