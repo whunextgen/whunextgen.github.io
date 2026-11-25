@@ -74,7 +74,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
       }
       if (can(me, 'budget.compile') && !can(me, 'budget.approve')) {
         const all = data.projects.filter((x) => x.active && x.layer !== 'paper'), done = all.filter((x) => b.get(x.id)?.status === 'submitted').length;
-        todo.push({ tone: day(y.due_date) <= now ? 'warn' : 'pri', tag: '年度预算', text: `${y.year} 年度预算申报 ${day(y.due_date)} 截止，${done} / ${all.length} 个课题已提交`, go: day(y.due_date) <= now ? '截止申报' : '查看进度', href });
+        todo.push({ tone: day(y.due_date) <= now ? 'warn' : 'pri', tag: '年度预算', text: `${y.year} 年度预算申报 ${day(y.due_date)} 截止，${done} / ${all.length} 个课题（含公共开支）已提交`, go: day(y.due_date) <= now ? '截止申报' : '查看进度', href });
       }
     }
     const total = (k: 'applied' | 'fixed') => money(data.lines.filter((l) => l.year === y.year).reduce((s, l) => s + num(l[k]), 0));
