@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { rpc, useViews, type Me, type PeoplePick, type Project, type ProjectMember, type ProjectTag } from './api';
 import { ActionDialog, Badge, Empty, Loading, can, day, num, today, type Field } from './ui';
+import { OpenMeeting, type Meeting } from './live';
 
 // 快照与质疑：《The Path of an Independent Researcher》草案第五十三版第五、六节。
 // 研究单元每期交一次快照，提交给主题研讨会；组织者接收、在会上记入质疑、结束讨论；
@@ -28,8 +29,8 @@ const ids = (v: string) => v.split(',').filter(Boolean);
 const axisOf = (a: Axis) => AXES.find(([k]) => k === a)!;
 
 export function IteratePage({ me }: { me: Me }) {
-  const { data, error, reload } = useViews<{ seminars: Seminar[]; snaps: Snapshot[]; pitches: Pitch[]; queries: Query[]; projects: Project[]; tags: ProjectTag[]; members: ProjectMember[]; people: PeoplePick[]; events: AttendEvent[] }>({
-    seminars: ['seminar'], snaps: ['snapshot'], pitches: ['snapshot_pitch'], queries: ['query'], projects: ['project'], tags: ['project_tag'], members: ['project_member'], people: ['people_pick'], events: ['attend_event'] });
+  const { data, error, reload } = useViews<{ seminars: Seminar[]; snaps: Snapshot[]; pitches: Pitch[]; queries: Query[]; projects: Project[]; tags: ProjectTag[]; members: ProjectMember[]; people: PeoplePick[]; events: AttendEvent[]; meetings: Meeting[] }>({
+    seminars: ['seminar'], snaps: ['snapshot'], pitches: ['snapshot_pitch'], queries: ['query'], projects: ['project'], tags: ['project_tag'], members: ['project_member'], people: ['people_pick'], events: ['attend_event'], meetings: ['meeting'] });
   const [act, setAct] = useState<Act | null>(null);
   const [axis, setAxis] = useState('');
   const [unit, setUnit] = useState('');
@@ -129,6 +130,9 @@ export function IteratePage({ me }: { me: Me }) {
           <div className="tile" key={s.code}><div className="k"><a href={`#/seminar/${s.code}`}>{s.name}</a></div>
             <div className="v" style={{ fontSize: 15 }}>{n.filter((x) => x.status !== 'declined').length} 份</div>
             <div className="f">组织者 {s.organizer_name ?? '尚未指定'}{n.some((x) => x.status === 'pending') && ` · 待接收 ${n.filter((x) => x.status === 'pending').length}`}</div>
+            {(() => { const om = data.meetings.find((x) => x.open && x.kind === 'seminar' && x.seminar === s.code); return om
+              ? <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><a className="btn sm" href={`#/live/${om.id}`}>进入现场 · 签到 {om.present}</a></div>
+              : s.mine && <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><OpenMeeting kind="seminar" seminar={s.code} label="开会" /></div>; })()}
             {s.can_set && <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><button className="ghost sm" onClick={() => setAct({ title: `指定组织者：${s.name}`, label: '保存',
               hint: '组织者由 Researcher 担任，负责接收提交、安排讨论、主持会议并记入质疑，记入其「亨」。', fields: [{ name: 'user', label: '组织者', options: people, required: false, value: s.organizer_id ?? '' }],
               run: (v) => rpc('set_seminar_organizer', { seminar: s.code, user: v.user || null }) })}>指定组织者</button></div>}
@@ -193,11 +197,13 @@ export function IteratePage({ me }: { me: Me }) {
         <section className="wb-sec">
           <h3>出勤登记 <span className="h3sub">日常任务按此判定</span></h3>
           <div className="actions" style={{ justifyContent: 'flex-start' }}>
-            {(['lecture', 'seminar', 'council'] as const).filter((k) => canAttend[k]).map((k) => <button key={k} className="sm ghost" onClick={() => setAct(attendAct(k))}>登记{ATT[k]}</button>)}
+            {canAttend.lecture && (data.meetings.some((x) => x.open && x.kind === 'lecture') ? <a className="btn sm" href={`#/live/${data.meetings.find((x) => x.open && x.kind === 'lecture')!.id}`}>进入讲座现场</a> : <OpenMeeting kind="lecture" label="开周日讲座签到" />)}
+            {canAttend.council && (data.meetings.some((x) => x.open && x.kind === 'council') ? <a className="btn sm" href={`#/live/${data.meetings.find((x) => x.open && x.kind === 'council')!.id}`}>进入联席会议现场</a> : <OpenMeeting kind="council" label="开联席会议签到" />)}
+            {(['lecture', 'seminar', 'council'] as const).filter((k) => canAttend[k]).map((k) => <button key={k} className="sm ghost" onClick={() => setAct(attendAct(k))}>补登{ATT[k]}出勤</button>)}
           </div>
           {data.events.length > 0 && <div className="scroll"><table className="wb-table">
             <thead><tr><th>日期</th><th>会议</th><th className="r">出席</th><th className="r">请假</th><th className="r">缺席</th><th>登记人</th></tr></thead>
-            <tbody>{[...data.events].sort((a, b) => b.held_on.localeCompare(a.held_on)).slice(0, 12).map((e) => <tr key={e.id}><td>{day(e.held_on)}</td><td>{e.seminar_name ?? ATT[e.kind]}{e.title && <span className="sub2">{e.title}</span>}</td>
+            <tbody>{[...data.events].sort((a, b) => b.held_on.localeCompare(a.held_on)).slice(0, 12).map((e) => <tr key={e.id}><td>{day(e.held_on)}</td><td><a href={`#/live/${e.id}`}>{e.seminar_name ?? ATT[e.kind as keyof typeof ATT] ?? '会议'}</a>{e.title && <span className="sub2">{e.title}</span>}</td>
               <td className="r">{e.present}</td><td className="r">{e.leave}</td><td className="r">{e.absent}</td><td>{e.recorded_by_name}</td></tr>)}</tbody>
           </table></div>}
         </section>)}
@@ -232,7 +238,7 @@ export function UnitIterate({ unit, me }: { unit: Project; me: Me }) {
     <>
       <div className="ir" style={{ marginBottom: 18 }}>
         <div className="ir-bento">
-          <section className="ir-t ir-hero" style={{ gridColumn: 'span 8' }}>
+          <section className="ir-t ir-hero">
             <div className="ir-mono"><span>快照 · 每两周一次，依次编号</span><a href="#/iterate">快照与质疑 →</a></div>
             <div className="ir-snaps">{snaps.map((x) => <a key={x.id} href={x.link} target="_blank" rel="noreferrer" className={x.period_start === per ? 'cur' : ''}>{md2(x.period_start)}<b>快照 {x.seq}</b></a>)}
               {!curSnap && <span className="cur">本回合<b>快照 {snaps.length + 1}</b></span>}</div>

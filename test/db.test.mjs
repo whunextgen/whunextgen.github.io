@@ -2931,6 +2931,52 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(null);
 }
 
+// ---------- 会议现场与签到 ----------
+{
+  await db.exec(`reset role`);
+  const fx = await one(`select id, owner_id from project where name = '成员申请的研究单元' and layer = 'paper' and active and not proposed`);
+  const UU = fx.id, own = fx.owner_id;
+  await db.exec(`set role app_api`);
+  const D = (await one(`select (token_period(date '2036-06-01') + 6)::text d`)).d;
+  // 周日讲座：人事岗（此处由中心负责人）开会，签到码签到，事先请假，散会后未签到的记缺席
+  await as(U.mem, D);
+  await raises('成员不能开讲座', /人事岗/, `select open_meeting('lecture')`);
+  await q(`select ask_leave('lecture', $1::date, null, '出差')`, [D]);
+  await as(U.dir, D);
+  const L = await val(`select open_meeting('lecture', null, '如何开展卓越研究') v`);
+  await raises('同类会只能开一场', /没有散会/, `select open_meeting('lecture')`);
+  const code = (await one(`select code from api.meeting where id = $1`, [L])).code;
+  ok(/^\d{4}$/.test(code), '开会给出四位签到码', code);
+  await as(U.mem2, D);
+  ok((await one(`select code from api.meeting where id = $1`, [L])).code === null, '与会者在视图里看不到签到码，只在共享的屏幕上看到');
+  await raises('签到码不对', /签到码不对/, `select check_in('0000x')`);
+  ok(/卓越研究/.test(await val(`select check_in($1) v`, [code])), '输入签到码签到');
+  await as(U.dir, D);
+  const sum = await val(`select end_meeting($1) v`, [L]);
+  ok(sum.present === 1 && sum.leave >= 1 && sum.absent >= 1, '散会：请假的记请假，未签到的在岗人员记缺席', JSON.stringify(sum));
+  await as(U.mem2, D);
+  await raises('散会后签到码作废', /已经散会/, `select check_in($1)`, [code]);
+  await as(U.mem, D);
+  ok((await one(`select my_status from api.meeting where id = $1`, [L])).my_status === 'leave', '事先请假的记为请假');
+  await q(`select report_makeup($1)`, [L]);
+  ok((await one(`select lecture_ok from daily_check($1, token_period($2::date))`, [U.mem, D])).lecture_ok === true, '补看回放后讲座计为出勤');
+  // 研讨会现场：组织者开会，结束讨论挂到这次会上
+  await as(own, D);
+  const S1 = await val(`select save_snapshot($1, 'https://example.org/live') v`, [UU]);
+  await q(`select pitch_snapshot($1, array['cog'])`, [S1]);
+  await as(U.lead, D);
+  const M = await val(`select open_meeting('seminar', 'cog') v`);
+  const PX = (await one(`select id from api.snapshot_pitch where snapshot_id = $1`, [S1])).id;
+  await q(`select decide_pitch($1, true)`, [PX]);
+  await q(`select add_query($1, 'yong', '现场记入的质疑')`, [PX]);
+  await q(`select close_pitch($1)`, [PX]);
+  await q(`select set_minutes($1, 'https://example.feishu.cn/minutes/x')`, [M]);
+  const s2 = await val(`select end_meeting($1) v`, [M]);
+  ok(s2.closed === 1, '研讨会现场：结束讨论的快照挂到这次会上', JSON.stringify(s2));
+  ok((await one(`select minutes_link from api.meeting where id = $1`, [M])).minutes_link.includes('minutes'), '会议挂上纪要链接');
+  await as(null);
+}
+
 // ---------- GitHub 事件发到协助群 ----------
 {
   await as(U.mem2);

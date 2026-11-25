@@ -30,6 +30,7 @@ import { People } from './pages/People';
 import { PathPage } from './path';
 import { IteratePage } from './iterate';
 import { AssessmentPage, CoursesPage, QueryPage, SeminarPage, SnapshotPage } from './objects';
+import { LivePage } from './live';
 import { Desk } from './pages/Desk';
 import { Review } from './pages/Review';
 import { Ask } from './pages/Ask';
@@ -174,14 +175,16 @@ function App() {
   const queryId = route.match(/^\/query\/([0-9a-f-]{36})$/)?.[1];
   const asmId = route.match(/^\/assessment\/([0-9a-f-]{36})$/)?.[1];
   const semCode = route.match(/^\/seminar\/(cog|med|fin|hum)$/)?.[1];
+  const liveId = route.match(/^\/live\/([0-9a-f-]{36})$/)?.[1];
   const [, seg0 = '', arg = ''] = route.split('/');
   // 采购并进学校侧进度，旧的 #/procure 链接照样能用
   const procure = seg0 === 'school' && arg === 'procure';
   const seg = seg0;
   const allowed = new Set([...groups.flatMap((g) => g.pages), ...side].map(([to]) => to));
-  const current = snapId || queryId || semCode ? '/iterate' : asmId ? '/path' : reqId ? '/requests' : resId ? '/s-res' : cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
+  const current = snapId || queryId || semCode || liveId ? '/iterate' : asmId ? '/path' : reqId ? '/requests' : resId ? '/s-res' : cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
   const group = groups.find((g) => g.home === current || g.pages.some(([to]) => to === current));
-  const page = snapId ? <SnapshotPage id={snapId} />
+  const page = liveId ? <LivePage id={liveId} me={me} />
+    : snapId ? <SnapshotPage id={snapId} />
     : queryId ? <QueryPage id={queryId} />
     : asmId ? <AssessmentPage id={asmId} />
     : semCode ? <SeminarPage code={semCode} />
