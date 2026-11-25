@@ -1962,8 +1962,7 @@ eq((await one(`select token_amount from api.tier_token where tier_id = $1`, [t1]
 await as(plain, '2032-06-23');
 ok(Number((await one(`select nominal from api.token_me`)).nominal) === 90 && Number((await one(`select pool_cap from api.unit_pool where project_id = $1`, [U1])).pool_cap) === 100, '参数和池子上限改了之后成员看得到');
 await as(U.dir, '2032-06-23');
-eq((await q(`select * from api.token_param`)).length, 8, '代币参数都设在系统里');
-await raises('计划经济时期不铸造', /挂牌铸造率须为空/, `select set_token_param('rate', '0.12'::jsonb)`);
+eq((await q(`select * from api.token_param`)).length, 10, '代币参数都设在系统里');
 await raises('各级系数要齐', /参数不完整/, `select set_token_param('levels', '{"r1": 1}'::jsonb)`);
 await raises('评定的比例不能太低', /30% 到 100% 之间/, `select set_token_param('split', '{"eval": 0.1}'::jsonb)`);
 await q(`select set_token_param('split', '{"eval": 0.85}'::jsonb)`);
@@ -2026,12 +2025,10 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('期次须为两周一期的起始日', /登记的期次有误/, BW, [U1, '2032-06-15', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
   await raises('更早的期次不能登记', /仅可登记本期/, BW, [U1, '2032-05-31', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
   await raises('课题本身不登记双周表', /双周表按研究单元登记/, BW, [TB, '2032-06-14', 'idea', 'a', 'b', 'c', null, 'd', 'e']);
-  await raises('须选写作进度', /请选择写作进度/, BW, [U1, '2032-06-14', null, 'a', 'b', 'c', null, 'd', 'e']);
-  await raises('写作进度只有六档', /写作进度仅限想法、摘要、首图、核心结果表、完整初稿、投稿稿/, BW, [U1, '2032-06-14', 'poster', 'a', 'b', 'c', null, 'd', 'e']);
+    await raises('写作进度只有六档', /写作进度仅限想法、摘要、首图、核心结果表、完整初稿、投稿稿/, BW, [U1, '2032-06-14', 'poster', 'a', 'b', 'c', null, 'd', 'e']);
   await raises('须写本轮回答的问题', /请填写本轮回答的问题/, BW, [U1, '2032-06-14', 'idea', ' ', 'b', 'c', null, 'd', 'e']);
   await raises('须写本轮改变的判断', /请填写本轮改变的判断/, BW, [U1, '2032-06-14', 'idea', 'a', 'b', '', null, 'd', 'e']);
-  await raises('须写成员分工', /请填写成员分工/, BW, [U1, '2032-06-14', 'idea', 'a', 'b', 'c', null, null, 'e']);
-  await raises('须写下一轮安排', /请填写下一轮安排与预期/, BW, [U1, '2032-06-14', 'idea', 'a', 'b', 'c', null, 'd', ' ']);
+    await raises('须写下一轮安排', /请填写下一轮安排与预期/, BW, [U1, '2032-06-14', 'idea', 'a', 'b', 'c', null, 'd', ' ']);
   await raises('问题不能太长', /不得超过 300 个字/, BW, [U1, '2032-06-14', 'idea', 'x'.repeat(301), 'b', 'c', null, 'd', 'e']);
   let s = await st();
   ok(s.filled === false && s.missed === 0 && s.prev_open === false && s.can_fill === true && s.ps === '2032-06-14', '成立所在的一期起须登记，此前的期次不算未登记', JSON.stringify(s));
@@ -2695,7 +2692,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const pool = await one(`select coins::float c, people, pending from api.unit_pool where project_id = $1`, [UU]);
   ok(pool.c === 16 && pool.people === 2 && pool.pending === 1, '名义池子按回应计入，未回应的仍挂着', JSON.stringify(pool));
   const at = await one(`select a_li::float li, d_li from api.person_attr where user_id = $1`, [U.mem]);
-  ok(at.li === 8 && at.d_li === 2, '理加上回应所得；给别人的快照提质疑、回应别的研究单元的质疑，都记入利', JSON.stringify(at));
+  ok(at.li === 8 && Number(at.d_li) === 12, '理加上回应所得；给别人的快照提质疑记 4、回应别的研究单元的质疑按所得名义币，都记入利', JSON.stringify(at));
   ok((await one(`select again from api.query where id = $1`, [Q2])).again === 1, '再次提出的挂在原来那一条下面');
   // 新入队的自下一期起参与分配
   await as(own, A2);
@@ -2769,6 +2766,79 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   // 须过问的情形
   await as(U.dir, A3);
   ok(Array.isArray(await q(`select * from api.path_alert`)), '须过问的情形可以列出');
+  await as(null);
+}
+
+// ---------- 我的事项：当日、嘉许、称号与挑战、实际币 ----------
+{
+  await db.exec(`reset role`);
+  const fx = await one(`select id, owner_id from project where name = '成员申请的研究单元' and layer = 'paper' and active and not proposed`);
+  const UU = fx.id, own = fx.owner_id;
+  const D = (await one(`select (token_period(date '2035-06-01') + 3)::text d`)).d;
+  await db.exec(`set role app_api`);
+  // 当日：修订、审阅
+  await as(U.mem2, D);
+  await q(`select log_revision($1, null, '改了引言')`, [UU]);
+  await q(`select log_revision($1, null, null)`, [UU]);
+  const td = await one(`select rev_done, day_no from api.today_mine`);
+  ok(td.rev_done === true && td.day_no === 4, '当日修订登记一次，本回合第几日', JSON.stringify(td));
+  await as(U.mem, D);
+  await raises('不在研究单元里不能登记修订', /本人所在研究单元/, `select log_revision($1)`, [UU]);
+  const sn = await val(`select id v from api.snapshot where project_id = $1 order by seq desc limit 1`, [UU]);
+  const RV = await val(`select submit_review($1, '图 2 的坐标没有单位') v`, [sn]);
+  await as(U.mem2, D);
+  await raises('不能审阅本单元的快照', /其他研究单元/, `select submit_review($1, '自己看自己')`, [sn]);
+  await raises('成员不能采纳', /负责人采纳/, `select adopt_review($1)`, [RV]);
+  await as(own, D);
+  await q(`select adopt_review($1)`, [RV]);
+  // 嘉许
+  await as(U.mem, D);
+  await raises('不能嘉许本人', /不能嘉许本人/, `select give_praise($1, 'li')`, [U.mem]);
+  await q(`select give_praise($1, 'zhen', '每天都在改')`, [U.mem2]);
+  await q(`select give_praise($1, 'li')`, [own]);
+  await raises('每期至多两次', /至多给出两次/, `select give_praise($1, 'heng')`, [U.mem2]);
+  const at = await one(`select d_li::float li, title from api.person_attr where user_id = $1`, [U.mem]);
+  ok(at.li >= 16, '审阅意见被采纳记入利', JSON.stringify(at));
+  const ch = await q(`select code, progress from api.challenge_mine order by seq`);
+  ok(ch.length === 5 && ch.find((c) => c.code === 'review').progress === 1, '学期挑战按记录计进度', JSON.stringify(ch));
+  await as(U.mem2, D);
+  ok((await q(`select name from api.title_mine where earned`)).some((t) => t.name === '入稿'), '本人的改动进入快照即得称号「入稿」');
+  // 实际币：额度未定不发；定了按期发、铸造、换卡时、到期作废
+  await as(null, D);
+  eq(await val(`select coin_tick() v`), 0, '额度和铸造率未定的，不发不铸');
+  await as(U.dir, D);
+  await raises('身份只有六种', /六种之内/, `select set_token_param('salary', '{"master": 10}'::jsonb)`);
+  await q(`select set_token_param('salary', '{"intern": 50, "assistant": 80, "researcher": 120, "rising_star": 120, "pi": null, "director": null}'::jsonb)`);
+  await q(`select set_token_param('price', '2'::jsonb)`);
+  await q(`select set_token_param('rate', '0.5'::jsonb)`);
+  await as(null, D);
+  const n1 = await val(`select coin_salary_tick() v`);
+  ok(n1 > 0 && (await val(`select coin_salary_tick() v`)) === 0, '每人每期只发一次', String(n1));
+  await as(U.mem2, D);
+  const cm = await one(`select balance::float b, salary::float s from api.coin_mine`);
+  ok(cm.b === cm.s && cm.s > 0, '按身份发到本人账户', JSON.stringify(cm));
+  await raises('标价外的不能换', /卡时须为正整数/, `select buy_compute($1, 1.5)`, [UU]);
+  await raises('余额不足', /实际币不足/, `select buy_compute($1, 100000)`, [UU]);
+  await q(`select buy_compute($1, 10)`, [UU]);
+  ok((await one(`select balance::float b from api.coin_mine`)).b === cm.b - 20, '换卡时按标价扣实际币');
+  ok((await q(`select hours::float h from api.compute_grant where project_id = $1`, [UU])).some((g) => g.h === 10), '换得的卡时记在研究单元名下，集群一侧可读');
+  await as(U.mem, D);
+  await raises('不在研究单元里不能为它换', /本人所在/, `select buy_compute($1, 1)`, [UU]);
+  // 铸造：研究单元有经核对的一级成果
+  await db.exec(`reset role`);
+  const hasOut = (await q(`select 1 from outcome where project_id = $1 and level = 1 and checked_at is not null and not rejected`, [UU])).length > 0;
+  if (!hasOut) await q(`insert into outcome (project_id, level, link, submitted_by, checked_by, checked_at) values ($1, 1, 'https://arxiv.org/abs/3506.00001', $2, $2, now())`, [UU, own]);
+  await db.exec(`set role app_api`);
+  await as(null, D);
+  const mn = await val(`select coin_mint_tick() v`);
+  ok(mn > 0 && (await val(`select coin_mint_tick() v`)) === 0, '解锁后按份额铸造，同一级只铸一次', String(mn));
+  // 到期
+  await as(null, '2040-01-01');
+  ok((await val(`select coin_expire_tick() v`)) > 0, '到期的作废');
+  await as(U.mem2, '2040-01-01');
+  ok(Number((await one(`select balance from api.coin_mine`)).balance) === 0, '作废后余额为零');
+  await as(U.mem2, D);
+  ok((await q(`select kind from api.coin_ledger`)).some((l) => l.kind === 'expire'), '流水里看得到作废');
   await as(null);
 }
 

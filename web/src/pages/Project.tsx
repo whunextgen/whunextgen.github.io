@@ -5,7 +5,7 @@ import { ActionDialog, Badge, Empty, Loading, Scholar, Tile, can, day, money, nu
 import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
 import { RequestTable } from './Requests';
-import { UnitToken } from '../token';
+import { UnitToken, type UnitShare } from '../token';
 import { UnitIterate } from '../iterate';
 import { UnitArr } from '../arr';
 import { UnitReviews } from '../review';
@@ -18,11 +18,11 @@ export const typeText = (r: Project) => r.layer === 'paper' ? '研究单元' : r
 export function ProjectPage({ me, id, start }: { me: Me; id: string; start: string }) {
   const director = can(me, 'budget.approve');
   const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; lines: BudgetLine[]; exec: LineExec[]; cats: BudgetCategory[]; shifts: BudgetShift[];
-    members: ProjectMember[]; people: PeoplePick[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; uexec: UnitExec[]; reqs: Req[]; resreqs: ResourceRequest[] }>({
+    members: ProjectMember[]; people: PeoplePick[]; shares: UnitShare[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; uexec: UnitExec[]; reqs: Req[]; resreqs: ResourceRequest[] }>({
     reqs: ['request'], resreqs: ['resource_request'],
     tags: ['project_tag'], uexec: ['unit_exec'],
     projects: ['project'], years: ['budget_year'], lines: ['budget_line'], exec: ['line_exec'], cats: ['budget_category'], shifts: ['budget_shift'],
-    members: ['project_member'], people: ['people_pick'], caps: ['project_cap'], capreqs: ['cap_request'], assets: ['project_asset'], pallocs: ['project_allocation'],
+    members: ['project_member'], people: ['people_pick'], shares: ['unit_share'], caps: ['project_cap'], capreqs: ['cap_request'], assets: ['project_asset'], pallocs: ['project_allocation'],
   });
   const [act, setAct] = useState<Act | null>(null);
   const [showPosted, setShowPosted] = useState(false);
@@ -130,6 +130,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
         { nm: '学校入账', ds: '以学校明细账的入账为准', v: run ? money(all.actual) : '—', f: run ? `${rq('posted').length} 笔 · 执行率 ${pct(all.actual, all.budget)}` : '' },
         { nm: '年度决算', ds: '年末未使用的不结转', v: y.stage === 'closed' ? '已决算' : '未决算', f: run ? `未使用 ${money(all.budget - all.used)}` : '' },
       ]} />}
+      {isUnit && r.active && !data.tags.some((t) => t.id === r.id && t.proposed) && <UnitIterate unit={r} me={me} />}
       {years.length > 1 && <div className="tabs" style={{ marginBottom: 12 }}>{years.map((n) => <a key={n.year} className="btn sm" aria-current={n.year === year ? 'page' : undefined} href={`#/project/${r.id}/${n.year}`}>{n.year}</a>)}</div>}
       <div className="tabs" style={{ marginBottom: 16 }}>{nav.map(([k, label]) => <button key={k} className="ghost sm" onClick={() => jump(k)}>{label}</button>)}</div>
       <section className="card" id="sec-budget">
@@ -214,7 +215,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
           </div>
         </section>
 
-        {isUnit && r.active && !data.tags.some((t) => t.id === r.id && t.proposed) && <><UnitIterate unit={r} /><UnitToken me={me} unit={r} /></>}
+        {isUnit && r.active && !data.tags.some((t) => t.id === r.id && t.proposed) && <UnitToken me={me} unit={r} />}
         {isUnit && r.active && !data.tags.some((t) => t.id === r.id && t.proposed) && <UnitArr me={me} unit={r} />}
         {isUnit && <UnitReviews unit={r} me={me} />}
 
@@ -223,9 +224,10 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
           <p className="hint">仅名单内人员可从本{un}的预算行提交支出申请、申领本{un}的接口额度。负责人可直接新增和移出成员，无需本人确认；负责人和副手默认在名单内。</p>
           {members.length === 0 ? <Empty>名单暂无成员。{r.can_roster ? `请先将参与本${un}的人员加入名单，加入后方可提交支出申请。` : ''}</Empty> : (
             <div className="scroll"><table>
-              <thead><tr><th>成员</th><th>加入日期</th><th>加入人</th><th className="r">名下接口额度</th><th /></tr></thead>
+              <thead><tr><th>成员</th><th>加入日期</th><th>加入人</th>{isUnit && <><th className="r">名义币</th><th className="r">份额</th></>}<th className="r">名下接口额度</th><th /></tr></thead>
               <tbody>{members.map((m) => (
-                <tr key={m.id}><td>{m.user_name}{m.user_id === me.id && <span className="sub2">本人</span>}<Scholar url={m.scholar_url} /></td><td>{day(m.joined_on)}</td><td>{m.added_by_name ?? '—'}</td>
+                <tr key={m.id}><td>{m.user_name}{m.user_id === me.id && <span className="sub2">本人</span>}<span className="sub2">{[m.user_id === r.owner_id ? '负责人' : '', m.rank_label ?? ''].filter(Boolean).join(' · ')}</span><Scholar url={m.scholar_url} /></td><td>{day(m.joined_on)}</td><td>{m.added_by_name ?? '—'}</td>
+                  {isUnit && (() => { const sh = data.shares.find((x) => x.project_id === r.id && x.user_id === m.user_id); return <><td className="r">{sh ? num(sh.coins).toLocaleString('zh-CN') : '—'}</td><td className="r">{sh?.share ? `${Math.round(num(sh.share) * 100)}%` : '—'}</td></>; })()}
                   <td className="r">{m.holding > 0 ? `${m.holding} 条` : '—'}</td>
                   <td className="r">{r.can_roster && <button className="ghost sm danger" onClick={() => setAct(removeAct(m))}>移出</button>}</td></tr>
               ))}</tbody>

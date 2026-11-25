@@ -3,7 +3,7 @@ import { rpc, useViews, type Me, type PeoplePick } from './api';
 import { ActionDialog, Badge, Empty, Loading, day, num, today, type Field } from './ui';
 
 // 成长主线页上的几节：属性、日常任务、考核、德行确认、须过问的情形（草案第五十三版第三、五、六、七节）
-export interface PersonAttr { user_id: string; user_name: string; a_li: string; a_ju: string; a_ti: string; a_yong: string; d_yuan: number; d_heng: number; d_li: number; d_zhen: string; streak: number }
+export interface PersonAttr { user_id: string; user_name: string; a_li: string; a_ju: string; a_ti: string; a_yong: string; d_yuan: number; d_heng: number; d_li: string | number; d_zhen: string; streak: number; title?: string | null }
 export interface DailyRow { period_start: string; period_end: string; current: boolean; lecture_ok: boolean | null; seminar_ok: boolean | null; change_ok: boolean; biweekly_ok: boolean | null;
   council_ok: boolean | null; done: boolean; streak: number | null; zhen: string | null }
 export interface Assessment { id: string; person_id: string; person_name: string; user_id: string | null; mine: boolean; kind: Kind; kind_label: string; period_start: string;
@@ -29,12 +29,12 @@ const tick = (v: boolean | null) => v == null ? <span className="sub2">—</span
 export function Attrs({ a }: { a?: PersonAttr }) {
   if (!a) return null;
   const wen: [string, string, string][] = [['理', '义理', a.a_li], ['据', '考据', a.a_ju], ['体', '方法', a.a_ti], ['用', '发现', a.a_yong]];
-  const de: [string, string, string][] = [['元', '体仁', String(a.d_yuan)], ['亨', '嘉会', String(a.d_heng)], ['利', '利物', String(a.d_li)], ['贞', '贞固', coin(a.d_zhen)]];
+  const de: [string, string, string][] = [['元', '体仁', String(a.d_yuan)], ['亨', '嘉会', String(a.d_heng)], ['利', '利物', coin(a.d_li)], ['贞', '贞固', coin(a.d_zhen)]];
   return (
     <div className="path-attrs">
       <div><span className="k">文章</span>{wen.map(([n, s, v]) => <span key={n} className="attr"><b>{n}</b><i>{s}</i>{coin(v)}</span>)}</div>
       <div><span className="k">德行</span>{de.map(([n, s, v]) => <span key={n} className="attr"><b>{n}</b><i>{s}</i>{v}</span>)}</div>
-      <p className="sub2">文章四项按回应所得的名义币累加，德行四项按次数累加；属性只增不减。{a.streak > 0 ? `日常任务已连续完成 ${a.streak} 期，本期贞多计 ${a.streak * 10}%。` : ''}</p>
+      <p className="sub2">文章四项按回应所得的名义币累加，德行四项按规定的点数累加；属性只增不减。{a.streak > 0 ? `日常任务已连续完成 ${a.streak} 期，本期贞多计 ${a.streak * 10}%。` : ''}</p>
     </div>
   );
 }
