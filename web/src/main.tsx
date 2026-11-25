@@ -27,6 +27,7 @@ import { Agent } from './pages/Agent';
 import { Naming } from './pages/Naming';
 import { Biweekly } from './pages/Biweekly';
 import { People } from './pages/People';
+import { PathPage } from './path';
 import { Desk } from './pages/Desk';
 import { Review } from './pages/Review';
 import { Ask } from './pages/Ask';
@@ -149,7 +150,7 @@ function App() {
   // 每个部分的标题可以点，进入该部分的汇总页（home）
   // top：上一级目录。财务之下并列项目和资源两组
   const groups = [
-    { top: '', label: '', home: '', note: '', pages: keep(['/', '首页'], ['/tasks', '任务管理']) },
+    { top: '', label: '', home: '', note: '', pages: keep(['/', '首页'], ['/path', '成长主线'], ['/tasks', '任务管理']) },
     // 课题：成员和负责人办的事——登记双周表、从预算行支出、领备用金、申领资源
     { top: '', label: '课题', home: '/s-topic', note: '研究单元、双周表、支出申请、资源申领', pages: keep(['/projects', '课题管理'], ['/apply', '立项与延续申请'], ['/biweekly', '双周表'], !seesStaff && ['/plan', '年度档次'], canUse && ['/requests', '支出申请'], canUse && ['/petty', '备用金管理'], canUse && ['/resource', '资源申领'], ['/ask', '报销咨询']) },
     // 财务：并列三组。年度预算是每年申报、核定、下达、决算这一轮；项目是学校这一侧的经费；资源是中心的接口额度和资产
@@ -186,6 +187,7 @@ function App() {
     : current === '/apply' ? <ApplyPage me={me} />
     : current === '/biweekly' ? <Biweekly />
     : current === '/people' ? <People me={me} />
+    : current === '/path' ? <PathPage me={me} start={arg || undefined} />
     : current === '/agent' ? <Agent me={me} />
     : current === '/naming' ? <Naming />
     : current === '/desk' ? <Desk me={me} />

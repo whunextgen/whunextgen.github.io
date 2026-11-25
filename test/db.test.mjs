@@ -2566,6 +2566,63 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(null);
 }
 
+// ---------- 成长主线：身份与主线任务清单 ----------
+{
+  await db.exec(`reset role`);
+  for (const k of ['mem', 'mem2', 'dir', 'fin'])
+    if (!(await q(`select 1 from person where user_id = $1`, [U[k]])).length) await q(`insert into person (name, user_id, status) select name, id, 'active' from app_user where id = $1`, [U[k]]);
+  const P = {}; for (const k of ['mem', 'mem2', 'dir', 'fin']) P[k] = (await one(`select id from person where user_id = $1`, [U[k]])).id;
+  const unitOwnedBy = (await one(`select owner_id from project where layer = 'paper' and not proposed and owner_id is not null order by code limit 1`)).owner_id;
+  await db.exec(`set role app_api`);
+  const D4 = '2033-08-01';
+  await as(U.mem, D4);
+  const mp = await q(`select person_id, rank, tasks, done, mine from api.path_person`);
+  ok(mp.length === 1 && mp[0].mine && mp[0].rank === 'intern' && mp[0].tasks === 8, '成员只看得到本人，加入即为 Intern，本级 8 条主线任务', JSON.stringify(mp));
+  const tr = await q(`select code, status, verify_label, can_confirm from api.path_tracker order by seq`);
+  ok(tr.length === 8 && tr.every((t) => !t.can_confirm) && tr.find((t) => t.code === 'ri-three').status === 'waiting' && tr.find((t) => t.code === 'ri-sign').verify_label === '人事岗位',
+    '任务清单：写明认定方，快照类任务待中台开通，本人不能自己确认', JSON.stringify(tr));
+  await raises('成员不能确认任务', /由人事岗位认定/, `select confirm_path_task($1, 'ri-sign')`, [P.mem]);
+  await raises('成员不能认定身份', /由中心负责人认定/, `select set_rank($1, 'assistant', '考核通过')`, [P.mem]);
+  await as(U.dir, D4);
+  ok((await q(`select 1 from api.path_person`)).length >= 4, '中心负责人看得到全中心');
+  await raises('自动任务不能手工确认', /自动认定/, `select confirm_path_task($1, 'ri-unit')`, [P.mem]);
+  await raises('完成日期不能晚于今天', /不能晚于今天/, `select confirm_path_task($1, 'ri-sign', '2033-09-01')`, [P.mem]);
+  await q(`select confirm_path_task($1, 'ri-sign', '2033-07-30', '协议已签')`, [P.mem]);
+  await raises('不能重复确认', /已确认过/, `select confirm_path_task($1, 'ri-sign')`, [P.mem]);
+  await as(U.mem, D4);
+  const s1 = await one(`select status, done_on::text d, confirmed_by_name from api.path_tracker where code = 'ri-sign'`);
+  ok(s1.status === 'done' && s1.d === '2033-07-30' && s1.confirmed_by_name === '负责人', '确认后本人看到已完成、日期和确认人', JSON.stringify(s1));
+  ok((await one(`select done from api.path_person`)).done >= 1, '概况里完成数随之增加');
+  await as(U.dir, D4);
+  await q(`select undo_path_task($1, 'ri-sign')`, [P.mem]);
+  await raises('撤销未确认的', /尚未确认/, `select undo_path_task($1, 'ri-sign')`, [P.mem]);
+  // 自动任务：研究单元负责人进入研究单元、提出研究单元
+  await db.exec(`reset role`);
+  const po = (await one(`select id from person where user_id = $1`, [unitOwnedBy]).catch(() => null))?.id
+    ?? (await one(`insert into person (name, user_id, status) select name, id, 'active' from app_user where id = $1 returning id`, [unitOwnedBy])).id;
+  await db.exec(`set role app_api`);
+  await as(U.dir, D4);
+  ok((await one(`select status from api.path_tracker where person_id = $1 and code = 'ri-unit'`, [po])).status === 'done', '负责研究单元的人，「进入一个研究单元」自动完成');
+  // 认定身份
+  await raises('依据必填', /写明认定的依据/, `select set_rank($1, 'assistant', ' ')`, [P.mem]);
+  await raises('身份只有六种', /六种之内/, `select set_rank($1, 'master', '误填')`, [P.mem]);
+  await q(`select set_rank($1, 'assistant', 'RA 考核通过')`, [P.mem]);
+  await raises('同一身份不必再认定', /已是/, `select set_rank($1, 'assistant', '再来')`, [P.mem]);
+  await as(U.mem, D4);
+  const r2 = await one(`select rank, rank_label, tasks from api.path_person`);
+  ok(r2.rank === 'assistant' && r2.rank_label === 'Assistant（RA）' && r2.tasks === 5, '认定为 RA 后，清单换成 RA 的 5 条任务', JSON.stringify(r2));
+  const ch = await q(`select from_label, to_label, basis, decided_by_name from api.rank_change`);
+  ok(ch.length === 1 && ch[0].from_label === 'Intern（RI）' && ch[0].basis === 'RA 考核通过', '身份变动留记录，本人看得到', JSON.stringify(ch));
+  const bw = await one(`select status, progress from api.path_tracker where code = 'ra-biweekly'`);
+  ok(bw.status === 'open' && /共需 6 期/.test(bw.progress), '双周表累计期数显示进度', JSON.stringify(bw));
+  await as(U.mem2, D4);
+  eq((await q(`select 1 from api.rank_change`)).length, 0, '别人的身份变动成员看不到');
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from feishu_outbox where target = (select coalesce(feishu_union_id, feishu_open_id) from app_user where id = $1) and payload->>'text' like '身份认定：%'`, [U.mem]).catch(() => ({ n: 1 }))).n >= 1, '认定身份通知本人');
+  await db.exec(`set role app_api`);
+  await as(null);
+}
+
 // ---------- GitHub 事件发到协助群 ----------
 {
   await as(U.mem2);

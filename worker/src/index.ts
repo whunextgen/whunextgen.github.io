@@ -32,7 +32,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
   'budget_plan', 'budget_source', 'budget_module', 'budget_tier', 'tier_pick', 'module_topic', 'unit_apply', 'unit_exec',
   'token_param', 'tier_token', 'token_me', 'time_log', 'unit_pool', 'unit_share', 'outcome',
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
-  'arr_cycle', 'arr_sponsor', 'arr_claim',
+  'arr_cycle', 'arr_sponsor', 'arr_claim', 'path_tracker', 'path_person', 'rank_change',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -116,6 +116,9 @@ export const RPC: Record<string, [string, string][]> = {
   ask_arr: [['project', 'uuid'], ['sponsor', 'uuid']],
   answer_arr: [['id', 'uuid'], ['ok', 'boolean'], ['note', 'text']],
   withdraw_arr: [['id', 'uuid']],
+  set_rank: [['person', 'uuid'], ['rank', 'text'], ['basis', 'text']],
+  confirm_path_task: [['person', 'uuid'], ['code', 'text'], ['done_on', 'date'], ['note', 'text']],
+  undo_path_task: [['person', 'uuid'], ['code', 'text']],
   rename_project: [['id', 'uuid'], ['name', 'text']],
   approve_unit: [['unit', 'uuid']],
   confirm_unit: [['unit', 'uuid']],
@@ -354,6 +357,8 @@ async function withUser<T>(env: Env, uid: string | null, fn: (sql: postgres.Tran
 // 通知在数据库里是一句话。这里按句式给出标题、分项和跳转的页面，拼成卡片；认不出的句式整句放进正文。
 const NOTICE_RULES: [RegExp, string, string][] = [
   [/ARR 担保/, 'ARR 担保', '/'],
+  [/^身份认定/, '身份认定', '/path'],
+  [/^主线任务已认定/, '成长主线', '/path'],
   [/^(研究单元|课题)改名/, '改名', '/projects'],
   [/研究单元申请待同意/, '研究单元申请待同意', '/projects'],
   [/研究单元立项/, '研究单元立项提醒', '/projects'],
@@ -462,7 +467,7 @@ export function noticeView(body: NoticeBody, origin: string, appId?: string) {
   const given = done ? 'pass' : body.kind && body.kind in KIND ? (body.kind as NoticeKind) : null;
   const kind: NoticeKind = given ?? (body.group === true ? (/提醒/.test(title) ? 'remind' : 'post')
     : /退回|不同意|未通过/.test(title) ? 'back' : /^待|待(同意|核对|审|确认|办|答复)/.test(title) ? 'todo' : /提醒|截止|逾期/.test(title) ? 'remind'
-    : /已成立|已同意|已通过|已批准/.test(title) ? 'pass' : /待同意|待核对|待审|待确认|待办|待答复|派了任务/.test(bare) ? 'todo' : 'fyi');
+    : /已成立|已同意|已通过|已批准|已认定/.test(title) ? 'pass' : /待同意|待核对|待审|待确认|待办|待答复|派了任务/.test(bare) ? 'todo' : 'fyi');
   const act = kind === 'todo' || kind === 'remind' || kind === 'back';
   const tag = typeof body.tag === 'string' && body.tag.trim() ? body.tag.trim().slice(0, 12) : KIND[kind].tag;
   const sub = [rule && rule[1] !== title ? rule[1] : '', body.at ?? ''].filter(Boolean).join(' · ') || '正则';
