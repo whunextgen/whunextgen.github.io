@@ -199,7 +199,7 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
           {num(coin?.balance) > 0 ? <div className="ir-acts"><button className="sm" onClick={() => setAct(investAct())}>投给研究单元</button></div> : null}
           {data.ledger.length > 0 && <ul className="ir-sc">{[...data.ledger].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5).map((l) =>
             <li key={l.id}><span>{KIND[l.kind]}{l.project_name ? ` · ${l.project_name}` : ''}</span><em>{num(l.amount) > 0 ? '+' : ''}{n1(l.amount)}</em></li>)}</ul>}
-          <p className="ir-hint">代币不是经费。实际币按期按身份发放，研究单元解锁后按份额铸造；只能投给研究单元，由研究单元换 GPU 卡时，以后也可以换别的资源。每笔有到期日，先扣先到期的。</p>
+          <p className="ir-hint">代币不是经费。按期发放的实际币只在当期和下一期有效，用不掉作废；成果铸造的 12 个月有效。实际币只能投给研究单元，由研究单元换 GPU 卡时（买后 8 周内有效），以后也可以换别的资源。投出时先扣先到期的。</p>
         </section>
         <section className="ir-t ir-third">
           <div className="ir-mono"><span>嘉许 · 每期限两次</span><span>本期尚可给出 {Math.max(0, 2 - gaveNow)} 次</span></div>

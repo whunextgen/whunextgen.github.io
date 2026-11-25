@@ -1962,7 +1962,7 @@ eq((await one(`select token_amount from api.tier_token where tier_id = $1`, [t1]
 await as(plain, '2032-06-23');
 ok(Number((await one(`select nominal from api.token_me`)).nominal) === 90 && Number((await one(`select pool_cap from api.unit_pool where project_id = $1`, [U1])).pool_cap) === 100, '参数和池子上限改了之后成员看得到');
 await as(U.dir, '2032-06-23');
-eq((await q(`select * from api.token_param`)).length, 10, '代币参数都设在系统里');
+eq((await q(`select * from api.token_param`)).length, 12, '代币参数都设在系统里');
 await raises('各级系数要齐', /参数不完整/, `select set_token_param('levels', '{"r1": 1}'::jsonb)`);
 await raises('评定的比例不能太低', /30% 到 100% 之间/, `select set_token_param('split', '{"eval": 0.1}'::jsonb)`);
 await q(`select set_token_param('split', '{"eval": 0.85}'::jsonb)`);
@@ -2839,6 +2839,15 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await q(`select ack_cluster_quota($1, 10, true, '已更新')`, [UU]);
   const cq = await one(`select granted_hours::float g, used_hours::float u, left_hours::float l, members, last_ack from api.cluster_quota where project_id = $1`, [UU]);
   ok(cq.g >= 10 && cq.u === 4 && cq.l === cq.g - 4 && cq.members.some((m) => m.owner) && cq.last_ack.ok === true, '集群读额度、报回用量（同期覆盖）和执行回执', JSON.stringify(cq));
+  // 有效期：按期发放的四周，卡时八周
+  await db.exec(`reset role`);
+  const ex = await one(`select (select expires_on - period_start from coin_ledger where kind = 'salary' and user_id = $1 limit 1) s, (select expires_on - $3::date from compute_grant where project_id = $2 limit 1) g`, [U.mem2, UU, D]);
+  ok(ex.s === 27 && ex.g === 56, '按期发放的实际币四周内有效，换得的卡时八周内有效', JSON.stringify(ex));
+  await db.exec(`set role app_api`);
+  await as(U.dir, await (async () => (await one(`select ($1::date + 70)::text d`, [D])).d)());
+  const cx = await one(`select left_hours::float l, expired_hours::float e from api.cluster_quota where project_id = $1`, [UU]);
+  ok(cx.l === 0 && cx.e > 0, '过期的卡时不再计入剩余', JSON.stringify(cx));
+  await as(U.mem2, D);
   // 铸造：研究单元有经核对的一级成果
   await db.exec(`reset role`);
   const hasOut = (await q(`select 1 from outcome where project_id = $1 and level = 1 and checked_at is not null and not rejected`, [UU])).length > 0;

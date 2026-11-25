@@ -92,7 +92,7 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
         const inv = data.ucoin.filter((c) => c.kind === 'invest');
         return <>
           <h3 style={{ marginTop: 18 }}>实际币 <span className="h3sub">账上 {coin(ub?.balance ?? 0)} · 已换 GPU 卡时 {coin(ub?.hours ?? 0)}{price ? ` · 标价每卡时 ${coin(price)}` : ' · 卡时标价未定'}</span></h3>
-          <p className="hint">代币不是经费。任何人都可以把自己的实际币投给研究单元，由负责人换 GPU 卡时，以后也可以换别的资源；换得的卡时集群按此设定额度。</p>
+          <p className="hint">代币不是经费。任何人都可以把自己的实际币投给研究单元，由负责人换 GPU 卡时，买后 8 周内有效，以后也可以换别的资源；换得的卡时集群按此设定额度。</p>
           {inv.length > 0 && <ul className="path-hist">{[...data.ucoin].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8).map((c) => <li key={c.id}>{day(c.created_at)} {c.kind === 'invest' ? `${c.user_name ?? ''} 投入 ${coin(c.amount)}` : `${c.user_name ?? ''} ${c.note ?? '换卡时'}，用去 ${coin(-num(c.amount))}`}{c.kind === 'invest' && c.note ? `：${c.note}` : ''}</li>)}</ul>}
           <div className="actions" style={{ justifyContent: 'flex-start' }}>
             {mine > 0 && <button className="sm ghost" onClick={() => setAct({ title: `投给研究单元：${unit.name}`, label: '投入', hint: `本人余额 ${coin(mine)} 实际币，先扣先到期的。`, fields: [{ name: 'amount', label: '实际币', type: 'number' }, { name: 'note', label: '说明（选填）', required: false }], run: (v) => rpc('invest_coins', { project: unit.id, amount: v.amount, note: v.note || null }) })}>投入实际币</button>}
@@ -116,6 +116,7 @@ export function TokenParams({ me }: { me: Me }) {
   const get = (k: string) => data.params.find((p) => p.key === k)?.value;
   const lv = (get('levels') ?? {}) as Num, rs = (get('resubmit') ?? {}) as Num, sp = (get('split') ?? {}) as Num;
   const sal = (get('salary') ?? {}) as Record<string, number | null>, price = get('price') as number | null;
+  const spn = Number(get('salary_periods') ?? 2), hd = Number(get('hours_days') ?? 56);
   const phase = get('phase'), reserve = Number(get('reserve') ?? 0), valid = Number(get('valid') ?? 0), rate = get('rate') as number | null;
   const director = can(me, 'budget.approve');
   const set = (key: string, value: unknown) => rpc('set_token_param', { key, value });
@@ -140,11 +141,15 @@ export function TokenParams({ me }: { me: Me }) {
     ['挂牌铸造率', rate == null ? '未挂牌：暂不铸造' : `每 1 名义币铸 ${rate} 实际币`, '研究单元的成果核对通过后，按各人在池子里的名义币乘以这个数铸造；二、三、四级按上面的系数追加。',
       { title: '挂牌铸造率', label: '保存', hint: '留空表示暂不铸造。', fields: [{ name: 'v', label: '每 1 点铸多少实际币', type: 'number', required: false, value: rate == null ? '' : String(rate) }], run: (v) => set('rate', v.v ? Number(v.v) : null) }],
     ['各身份每期发放的实际币', RK.map(([k, n]) => `${n} ${sal[k] ?? '未定'}`).join('，'), '每两周按身份发到个人账户，各身份都有；个人只能投给研究单元。未定的不发。',
-      { title: '各身份每期发放的实际币', label: '保存', hint: '每两周发放到个人，到期作废；个人只能投给研究单元。留空表示这一身份暂不发放。', fields: RK.map(([k, n]) => ({ name: k, label: n, type: 'number', required: false, value: sal[k] != null ? String(sal[k]) : '' })),
+      { title: '各身份每期发放的实际币', label: '保存', hint: '每两周发放到个人，按「按期发放的有效期」作废；个人只能投给研究单元。留空表示这一身份暂不发放。', fields: RK.map(([k, n]) => ({ name: k, label: n, type: 'number', required: false, value: sal[k] != null ? String(sal[k]) : '' })),
         run: (v) => set('salary', Object.fromEntries(RK.map(([k]) => [k, v[k] === '' ? null : Number(v[k])]))) }],
     ['卡时标价', price == null ? '未定：暂不能换卡时' : `每卡时 ${price} 实际币`, '研究单元的负责人用研究单元账上的实际币换 GPU 卡时，集群按换得的卡时设定额度。',
       { title: '卡时标价', label: '保存', hint: '每卡时多少实际币。留空表示暂不开放兑换。', fields: [{ name: 'v', label: '每卡时的实际币', type: 'number', required: false, value: price == null ? '' : String(price) }], run: (v) => set('price', v.v ? Number(v.v) : null) }],
-    ['铸造所得的有效期', `${valid} 个月`, '按期发放和铸造所得的实际币，过期作废。',
+    ['按期发放的有效期', `${spn} 期（${spn * 2} 周）`, '按期发放的实际币只在发放的这一期起若干期内有效，用不掉作废，防止攒起来一次用。',
+      { title: '按期发放的有效期', label: '保存', fields: [nf('v', '期数（每期两周）', spn)], run: (v) => set('salary_periods', Math.round(Number(v.v))) }],
+    ['卡时的有效期', `${hd} 天`, '研究单元换得的 GPU 卡时，买后这些天内有效；报给集群的剩余卡时扣掉过期的部分。',
+      { title: '卡时的有效期', label: '保存', fields: [nf('v', '天数', hd)], run: (v) => set('hours_days', Math.round(Number(v.v))) }],
+    ['铸造所得的有效期', `${valid} 个月`, '成果铸造的实际币，过期作废。',
       { title: '铸造所得的有效期', label: '保存', fields: [nf('v', '月数', valid)], run: (v) => set('valid', Math.round(Number(v.v))) }],
   ];
   return (
