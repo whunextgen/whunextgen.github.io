@@ -7,7 +7,7 @@ import { ActionDialog, Badge, Empty, Loading, can, day, num, today, type Field }
 // 未回应的质疑全中心公开，负责人组队；下一期无人再提的即为已回应，按 16 名义币由队员平分，进入研究单元的池子。
 export interface Seminar { code: string; name: string; seq: number; organizer_id: string | null; organizer_name: string | null; mine: boolean; can_set: boolean }
 export interface Snapshot { id: string; project_id: string; project_code: string; project_name: string; owner_id: string | null; owner_name: string | null; period_start: string; seq: number;
-  link: string; note: string | null; submitted_by_name: string | null; submitted_at: string; authors: { id: string; name: string }[]; can_edit: boolean }
+  link: string; note: string | null; submitted_by_name: string | null; submitted_at: string; authors: { id: string; name: string }[]; can_edit: boolean; person_id?: string | null; person_name?: string | null; title?: string | null }
 export interface Pitch { id: string; snapshot_id: string; project_id: string; project_code: string; project_name: string; seq: number; period_start: string; link: string;
   seminar: string; seminar_name: string; status: 'pending' | 'accepted' | 'declined' | 'closed'; note: string | null; decided_by_name: string | null; decided_at: string | null; closed_at: string | null;
   can_run: boolean; new_queries: number; again_queries: number; resolved: number }
@@ -108,9 +108,25 @@ export function IteratePage({ me }: { me: Me }) {
       </section>
 
       <section className="wb-sec">
+        <h3>本人主线上的草稿 <span className="h3sub">开题稿、综述、方案报告、立场论文等，挂在一个课题之下，由该课题的负责人指导</span></h3>
+        {(() => { const mine = data.snaps.filter((x) => x.person_id === me.id).sort((a, b) => b.period_start.localeCompare(a.period_start) || b.seq - a.seq); const curP = mine.filter((x) => x.period_start === per);
+          const topics = data.projects.filter((p) => p.layer !== 'paper' && p.kind !== 'public' && p.active && !waiting.has(p.id)).sort((a, b) => a.code.localeCompare(b.code));
+          return <>
+            {mine.length === 0 ? <Empty>还没有交过本人主线草稿的快照。主线上的每一项成果都按同样的办法做：有自己的草稿，每两周取快照，在会上展示并接受质疑。</Empty> : (
+              <ul className="path-hist">{mine.slice(0, 8).map((x) => <li key={x.id}>{day(x.period_start)} 起一期 · <a href={`#/snapshot/${x.id}`}>「{x.title}」第 {x.seq} 次快照</a> · 课题 {x.project_name}
+                {x.can_edit && <> <button className="ghost sm" onClick={() => setAct(pitchAct(x))}>提交研讨会</button></>}</li>)}</ul>)}
+            <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="sm ghost" onClick={() => setAct({ title: '交本人主线草稿的快照', label: '提交',
+              hint: `本期每个课题之下一份，再交即更新${curP.length ? `；本期已交 ${curP.map((x) => `「${x.title}」`).join('')}` : ''}。回应这份草稿上的质疑同样记名义币。`,
+              fields: [{ name: 'topic', label: '挂在哪个课题之下', options: topics.map((p): [string, string] => [p.id, `${p.code} ${p.name}`]) }, { name: 'title', label: '哪一项成果（如开题稿、综述、方案报告、立场论文）' },
+                { name: 'link', label: '写作草稿的链接' }, { name: 'note', label: '本期改了什么（选填）', type: 'area', required: false }],
+              run: (v) => rpc('save_personal_snapshot', { topic: v.topic, title: v.title, link: v.link, note: v.note || null }) })}>交主线草稿的快照</button></div>
+          </>; })()}
+      </section>
+
+      <section className="wb-sec">
         <h3>主题研讨会 <span className="h3sub">认知基础、医疗、金融、人文社会；研究单元不固定归入某一个</span></h3>
         <div className="tiles">{data.seminars.map((s) => { const n = cur.filter((x) => x.seminar === s.code); return (
-          <div className="tile" key={s.code}><div className="k">{s.name}</div>
+          <div className="tile" key={s.code}><div className="k"><a href={`#/seminar/${s.code}`}>{s.name}</a></div>
             <div className="v" style={{ fontSize: 15 }}>{n.filter((x) => x.status !== 'declined').length} 份</div>
             <div className="f">组织者 {s.organizer_name ?? '尚未指定'}{n.some((x) => x.status === 'pending') && ` · 待接收 ${n.filter((x) => x.status === 'pending').length}`}</div>
             {s.can_set && <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><button className="ghost sm" onClick={() => setAct({ title: `指定组织者：${s.name}`, label: '保存',
@@ -122,8 +138,8 @@ export function IteratePage({ me }: { me: Me }) {
             <thead><tr><th>研讨会</th><th>研究单元</th><th>快照</th><th>状态</th><th className="r">本次质疑</th><th /></tr></thead>
             <tbody>{cur.sort((a, b) => a.seminar.localeCompare(b.seminar) || a.project_code.localeCompare(b.project_code)).map((x) => (
               <tr key={x.id}>
-                <td>{x.seminar_name}</td><td>{x.project_name}<span className="sub2">{x.project_code}</span></td>
-                <td><a href={x.link} target="_blank" rel="noreferrer">第 {x.seq} 次</a></td>
+                <td><a href={`#/seminar/${x.seminar}`}>{x.seminar_name}</a></td><td>{(x as Pitch & { person_name?: string | null; title?: string | null }).person_name ? `${(x as Pitch & { person_name?: string | null }).person_name} · ${(x as Pitch & { title?: string | null }).title ?? '主线草稿'}` : x.project_name}<span className="sub2">{x.project_code}</span></td>
+                <td><a href={`#/snapshot/${x.snapshot_id}`}>第 {x.seq} 次</a></td>
                 <td className="wrap"><Badge tone={PITCH[x.status][0]}>{PITCH[x.status][1]}</Badge>{x.note && <span className="sub2">{x.note}</span>}
                   {x.status === 'closed' && <span className="sub2">已回应 {x.resolved} 条</span>}</td>
                 <td className="r">{x.new_queries}{x.again_queries > 0 && <span className="sub2">再次提出 {x.again_queries}</span>}</td>
@@ -159,7 +175,7 @@ export function IteratePage({ me }: { me: Me }) {
               <tr key={q.id}>
                 <td>{q.project_name}<span className="sub2">{q.project_code} · 负责人 {q.owner_name ?? '—'}</span></td>
                 <td title={axisOf(q.axis)[2]}><b>{q.axis_label}</b></td>
-                <td className="wrap">{q.body}{ag.length > 0 && <span className="sub2">再次提出 {ag.length} 次：{ag.map((a) => `${day(a.period_start)} ${a.body.slice(0, 30)}`).join('；')}</span>}</td>
+                <td className="wrap"><a href={`#/query/${q.id}`}>{q.body}</a>{ag.length > 0 && <span className="sub2">再次提出 {ag.length} 次：{ag.map((a) => `${day(a.period_start)} ${a.body.slice(0, 30)}`).join('；')}</span>}</td>
                 <td>{day(q.period_start)} 起一期<span className="sub2">{q.seminar_name} · 第 {q.snapshot_seq} 次快照</span></td>
                 <td className="wrap">{q.team.length === 0 ? <span className="sub2">尚无队员</span> : q.team.map((m) => <span key={m.id} className="sub2" style={{ display: 'block' }}>{m.name}{m.from > per ? `（${m.from} 起参与分配）` : ''}
                   {q.can_team && <> <button className="ghost sm danger" onClick={() => setAct({ title: `移出队伍：${m.name}`, label: '移出', danger: true, fields: [], run: () => rpc('remove_query_member', { query: q.id, user: m.id }) })}>移出</button></>}</span>)}</td>

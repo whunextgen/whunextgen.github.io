@@ -34,7 +34,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
   'arr_cycle', 'arr_sponsor', 'arr_claim', 'path_tracker', 'path_person', 'rank_change',
   'seminar', 'snapshot', 'snapshot_pitch', 'query', 'person_attr', 'daily_mine', 'attend_event', 'assessment', 'merit', 'path_alert',
-  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage',
+  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -146,6 +146,8 @@ export const RPC: Record<string, [string, string][]> = {
   adopt_review: [['id', 'uuid']],
   give_praise: [['to', 'uuid'], ['virtue', 'text'], ['note', 'text']],
   invest_coins: [['project', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
+  record_training: [['course', 'text'], ['on', 'date'], ['present', 'uuid[]'], ['leave', 'uuid[]']],
+  save_personal_snapshot: [['topic', 'uuid'], ['title', 'text'], ['link', 'text'], ['note', 'text']],
   report_cluster_usage: [['project', 'uuid'], ['period', 'date'], ['hours', 'numeric']],
   ack_cluster_quota: [['project', 'uuid'], ['hours', 'numeric'], ['ok', 'boolean'], ['note', 'text']],
   buy_compute: [['project', 'uuid'], ['hours', 'numeric']],
@@ -411,6 +413,8 @@ const NOTICE_RULES: [RegExp, string, string][] = [
   [/^审阅意见/, '审阅意见', '/iterate'],
   [/^嘉许/, '嘉许', '/'],
   [/^实际币投入/, '实际币投入', '/projects'],
+  [/^主线草稿/, '主线草稿', '/iterate'],
+  [/^研究单元停滞|^研究单元应予终止/, '研究单元停滞', '/projects'],
   [/^(研究单元|课题)改名/, '改名', '/projects'],
   [/研究单元申请待同意/, '研究单元申请待同意', '/projects'],
   [/研究单元立项/, '研究单元立项提醒', '/projects'],
@@ -890,6 +894,7 @@ export default {
     await biweeklyTasks(env).catch((e) => console.error('双周表任务', e));
     await withUser(env, null, (sql) => sql`select public.path_latch_tick()`).catch((e) => console.error('主线任务补记', e));
     await withUser(env, null, (sql) => sql`select public.coin_tick()`).catch((e) => console.error('实际币发放与到期', e));
+    await withUser(env, null, (sql) => sql`select public.unit_stall_tick()`).catch((e) => console.error('研究单元停滞', e));
     const batch = await withUser(env, null, (sql) => sql`select msg_id, target_id, body from public.outbox_take(20)`);
     if (!batch.length) return;
     const tok = await feishu('/auth/v3/tenant_access_token/internal', {

@@ -58,7 +58,7 @@ export function GrowthSections({ me, rank, tasksDone }: { me: Me; rank: string |
 
   const Row = ({ a }: { a: Assessment }) => (
     <tr>
-      <td><b>{a.person_name}</b><span className="sub2">{a.kind_label} · {day(a.applied_at)} 申请</span></td>
+      <td><a href={`#/assessment/${a.id}`}><b>{a.person_name}</b></a><span className="sub2">{a.kind_label} · {day(a.applied_at)} 申请</span></td>
       <td className="wrap"><Badge tone={AS[a.status][0]}>{AS[a.status][1]}</Badge>
         {a.link && <span className="sub2"><a href={a.link} target="_blank" rel="noreferrer">材料</a></span>}
         {a.task_title && <span className="sub2">小任务「{a.task_title}」，{day(a.task_due)} 前汇报</span>}
