@@ -3313,5 +3313,74 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok((await one(`select threshold from api.council_motion where id = $1`, [await val(`select submit_motion('议事规则', 'rules', '全文', null, '{}') v`)])).threshold === 'two_thirds', '修订议事规则须三分之二');
 }
 
+// ---------- 课题系统接入联席会议：研究单元申请、课题档次申请自动成为议题，表决结果落回申请 ----------
+{
+  await db.exec(`reset role`);
+  const T = await one(`select p.id, p.owner_id from project p where p.layer = 'big' and p.active and not p.proposed and p.kind <> 'public' and p.owner_id is not null order by p.code limit 1`);
+  await q(`update person set rank = 'researcher' where user_id = $1`, [T.owner_id]);
+  const tm = (await one(`select count(*)::int n from motion where ref_kind = 'tier'`)).n;
+  await db.exec(`set role app_api`);
+  await as(T.owner_id);
+  const UN = await val(`select propose_unit(null, $1, '议事测试单元', null, null, '研究内容和拟用经费', $2) v`, [T.id, U.mem2]);
+  const um = await one(`select id, status, auto, category, subject_names, can_withdraw from api.council_motion where ref_kind = 'unit' and ref_id = $1`, [UN]);
+  ok(um && um.status === 'seconded' && um.auto === true && um.category === 'unit' && um.can_withdraw === false, '研究单元申请不填会议日期的，自动列入联席会议议程，免附议', JSON.stringify(um));
+  ok(um.subject_names.length >= 2, '申请人、成员和所挂课题负责人不参加投票', JSON.stringify(um.subject_names));
+  await raises('只填一个日期不行', /须一起填写/, `select propose_unit(null, $1, '另一个单元', '2026-11-20', null, '说明')`, [T.id]);
+  await db.exec(`reset role`);
+  ok((await one(`select minutes_on from project where id = $1`, [UN])).minutes_on === null, '决议生效前没有纪要日期，不能确认成立');
+  const C2 = (await one(`select id from attend_event where kind = 'council' and ended_at is null order by started_at desc limit 1`)).id;
+  await db.exec(`set role app_api`);
+  // 表决未通过：退回申请人
+  await db.exec(`reset role`);
+  await q(`update motion set created_at = now() - interval '4 days' where id = $1`, [um.id]);
+  await db.exec(`set role app_api`);
+  await as(U.dir); await q(`select open_vote($1, $2)`, [um.id, C2]);
+  await db.exec(`reset role`);
+  const voter = (await q(`select id from app_user where id = any($1) and motion_can_vote($2, id)`, [[U.lead, U.fin], um.id]))[0].id;
+  await db.exec(`set role app_api`);
+  await as(voter); await q(`select cast_vote($1, 'no')`, [um.id]);
+  await as(U.dir); await q(`select close_vote($1)`, [um.id]);
+  await db.exec(`reset role`);
+  ok((await one(`select return_note from project where id = $1`, [UN])).return_note === '联席会议表决未通过', '表决未通过的研究单元申请退回申请人');
+  await db.exec(`set role app_api`);
+  // 修改后重新提交：生成新的议题；通过、否决期满后记下会议日期，可确认成立
+  await as(T.owner_id);
+  await q(`select propose_unit($1, $2, '议事测试单元', null, null, '改过的研究内容', $3)`, [UN, T.id, U.mem2]);
+  const um2 = await one(`select id, status, body from api.council_motion where ref_kind = 'unit' and ref_id = $1 and status = 'seconded'`, [UN]);
+  ok(um2 && um2.id !== um.id && um2.body.includes('改过的研究内容'), '重新提交生成新的议题', JSON.stringify(um2));
+  await raises('议题不能单独撤回', /请撤回申请/, `select withdraw_motion($1)`, [um2.id]);
+  await db.exec(`reset role`);
+  await q(`update motion set created_at = now() - interval '4 days' where id = $1`, [um2.id]);
+  await db.exec(`set role app_api`);
+  await as(U.dir); await q(`select open_vote($1, $2)`, [um2.id, C2]);
+  await as(voter); await q(`select cast_vote($1, 'yes')`, [um2.id]);
+  await as(U.dir); await q(`select close_vote($1)`, [um2.id]);
+  await db.exec(`reset role`);
+  await q(`update motion set veto_until = now() - interval '1 minute' where id = $1`, [um2.id]);
+  await db.exec(`set role app_api`);
+  await as(null); await q(`select council_tick()`);
+  await db.exec(`reset role`);
+  const pu = await one(`select meeting_on, minutes_on, proposed, parent_ok_at from project where id = $1`, [UN]);
+  ok(pu.meeting_on && pu.minutes_on && pu.proposed === true, '决议生效后记下会议和纪要日期，待确认成立', JSON.stringify(pu));
+  // 课题档次申请：自动成为议题
+  ok((await one(`select count(*)::int n from motion where ref_kind = 'tier'`)).n >= tm, '课题档次申请生成议题');
+  const Y = await one(`select y.year, y.stage, t.id tier from budget_year y join budget_tier t on t.year = y.year order by (y.stage = 'declare') desc, y.year desc, t.amount limit 1`);
+  if (Y) await q(`update budget_year set stage = 'declare' where year = $1`, [Y.year]);
+  if (Y) {
+    const P2 = (await one(`select p.id from project p where p.layer = 'big' and p.active and p.kind <> 'public' and not exists (select 1 from tier_pick k where k.year = $1 and k.project_id = p.id) order by p.code limit 1`, [Y.year]))?.id;
+    if (P2) {
+      await q(`insert into tier_pick (year, project_id, tier_id, reason, picked_by, kind) values ($1, $2, $3, '延续理由', $4, 'renew')`, [Y.year, P2, Y.tier, T.owner_id]);
+      const tmo = await one(`select id, status, category, title from motion where ref_kind = 'tier' and ref_id = $1 and ref_year = $2`, [P2, Y.year]);
+      ok(tmo && tmo.status === 'seconded' && tmo.category === 'topic', '课题延续申请自动列入议程', JSON.stringify(tmo));
+      await q(`update motion set status = 'failed', decided_at = now() where id = $1`, [tmo.id]);
+      await q(`select motion_apply($1, 'failed')`, [tmo.id]);
+      ok((await one(`select rejected, decide_note from tier_pick where year = $1 and project_id = $2`, [Y.year, P2])).rejected === true, '表决未通过的记为不予通过');
+      await q(`delete from tier_pick where year = $1 and project_id = $2`, [Y.year, P2]);
+    }
+    await q(`update budget_year set stage = $2 where year = $1`, [Y.year, Y.stage]);
+  }
+  await db.exec(`set role app_api`);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
