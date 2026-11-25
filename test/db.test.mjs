@@ -2635,7 +2635,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   // 研讨会组织者
   await as(U.dir, A1);
   await q(`select set_rank($1, 'researcher', '测试：课题负责人')`, [Plead]).catch(() => null);
-  await raises('组织者由 Researcher 担任', /Researcher 担任/, `select set_seminar_organizer('med', $1)`, [U.mem]);
+  await raises('组织者由 Researcher 担任', /Researcher 及以上担任/, `select set_seminar_organizer('med', $1)`, [U.mem]);
   await q(`select set_seminar_organizer('cog', $1)`, [U.lead]);
   await as(U.mem, A1);
   await raises('成员不能指定组织者', /中心负责人指定/, `select set_seminar_organizer('fin', $1)`, [U.lead]);
@@ -2664,8 +2664,10 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   // symposium：两位以上组织者；接收为口头报告或海报，时长按研讨会设
   await as(U.dir, A1);
   await raises('至少两位组织者', /至少两位/, `select set_seminar_organizers('hum', $1)`, [[U.lead]]);
-  await raises('组织者须为 Researcher 及以上', /Researcher 及以上/, `select set_seminar_organizers('hum', $1)`, [[U.lead, U.mem]]);
-  await q(`select set_seminar_organizers('med', $1)`, [[U.lead, U.dir]]);
+  await raises('组织者须为 Researcher 及以上', /Researcher 及以上担任/, `select set_seminar_organizers('hum', $1)`, [[U.lead, U.mem]]);
+  await raises('Director 不参与组织', /Director 不参与组织/, `select set_seminar_organizers('hum', $1)`, [[U.lead, U.dir]]);
+  await q(`select set_rank($1, 'rising_star', '测试：晨星')`, [Pfin]);
+  await q(`select set_seminar_organizers('med', $1)`, [[U.lead, U.fin]]);
   ok((await one(`select organizers from api.seminar where code = 'med'`)).organizers.length === 2, '研讨会有两位组织者');
   await as(U.lead, A1);
   await q(`select set_seminar_minutes('med', 25, 6)`);
