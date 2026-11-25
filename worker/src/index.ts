@@ -38,6 +38,11 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
 
 // 函数名 → 参数名与类型（按位置传给数据库函数）
 export const RPC: Record<string, [string, string][]> = {
+  // 投稿与评审的自行填报
+  submission_save: [['id', 'uuid'], ['project_id', 'uuid'], ['relation', 'text'], ['venue', 'text'], ['cycle', 'text'], ['number', 'int'], ['title', 'text'], ['status', 'text'], ['link', 'text'], ['scale', 'numeric'], ['keep', 'text'], ['ac_overall', 'numeric'], ['ac_text', 'text']],
+  submission_delete: [['id', 'uuid']],
+  review_save: [['id', 'uuid'], ['submission_id', 'uuid'], ['reviewer', 'text'], ['overall', 'numeric'], ['soundness', 'numeric'], ['excitement', 'numeric'], ['confidence', 'numeric'], ['strengths', 'text'], ['weaknesses', 'text'], ['comments', 'text']],
+  review_delete: [['id', 'uuid']],
   submit_request: [['card_id', 'uuid'], ['subject_id', 'uuid'], ['expense_type_id', 'uuid'], ['title', 'text'], ['amount', 'numeric'], ['eta_date', 'date'], ['emergency', 'boolean'], ['path', 'text']],
   approve_request: [['id', 'uuid']],
   reject_request: [['id', 'uuid'], ['note', 'text']],

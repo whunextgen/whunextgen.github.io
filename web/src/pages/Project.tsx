@@ -37,7 +37,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
       <h2>{r.name}{r.mine && r.active && r.kind !== 'public' && !data.tags.some((t) => t.id === r.id && t.proposed) && <button className="ghost sm" style={{ marginLeft: 12, verticalAlign: 'middle' }} onClick={() => setAct(renameAct())}>修改名称</button>}</h2>
     </div>
   );
-  if (!r.seen) return <>{head}<Empty>该{un}的预算和执行情况仅负责人、财务岗和中心负责人可查看。{r.member ? `本人在成员名单中，可在「支出申请」中从该${un}的预算行提交支出申请。` : ''}</Empty>{r.layer === 'paper' && <UnitReviews unit={r} />}</>;
+  if (!r.seen) return <>{head}<Empty>该{un}的预算和执行情况仅负责人、财务岗和中心负责人可查看。{r.member ? `本人在成员名单中，可在「支出申请」中从该${un}的预算行提交支出申请。` : ''}</Empty>{r.layer === 'paper' && <UnitReviews unit={r} me={me} />}</>;
 
   const years = data.years.slice().sort((a, b) => b.year - a.year);
   const cat = new Map(data.cats.map((c) => [c.id, c.name]));
@@ -213,7 +213,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
         </section>
 
         {isUnit && r.active && !data.tags.some((t) => t.id === r.id && t.proposed) && <UnitToken me={me} unit={r} />}
-        {isUnit && <UnitReviews unit={r} />}
+        {isUnit && <UnitReviews unit={r} me={me} />}
 
         <section className="card" id="sec-members">
           <h3>成员 <span className="h3sub">{members.length} 人</span></h3>
