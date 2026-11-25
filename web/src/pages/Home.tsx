@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { ArrClaim } from '../arr';
+import { PathMine } from '../path';
 import { useViews, type Resource, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task, type UnitApply, type BiweeklyStatus } from '../api';
 import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, cardGap, cardGranted, cardTotal, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Track, TreeNode, execSegs, type Seg } from '../tree';
@@ -498,11 +499,12 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
         {canUse ? <div className="wb-facts"><a className="btn" href="#/requests/new">提交支出申请</a><a className="btn ghost" href="#/resource">申领资源</a><a className="btn ghost" href="#/petty">申请备用金</a></div>
           : <div className="wb-facts"><span>本人尚不在已立项的课题或研究单元中，暂不能提交支出申请、申领资源和申请备用金。可请研究单元负责人将本人加入名单；成立研究单元须先经联席会议通过，通过后在「立项与延续申请」中提交申请。</span><a className="btn" href="#/plan">立项与延续申请</a></div>}
       </>)}
-      <section className="wb-sec">{head('00', '本期登记', <>双周表与时间去向 · 每两周登记一次 · <a href="#/biweekly">双周表 →</a></>)}
+      <section className="wb-sec">{head('00', '成长主线', <a href="#/path">任务清单 →</a>)}<PathMine /></section>
+      <section className="wb-sec">{head('01', '本期登记', <>双周表与时间去向 · 每两周登记一次 · <a href="#/biweekly">双周表 →</a></>)}
         {myBw.length > 0 && <div style={{ marginBottom: 14 }}>{todoTable(myBw, '')}</div>}<TokenMine me={me} /></section>
-      <section className="wb-sec">{head('01', '本人的支出申请', <a href="#/requests">全部申请 →</a>)}{mineTable}</section>
+      <section className="wb-sec">{head('02', '本人的支出申请', <a href="#/requests">全部申请 →</a>)}{mineTable}</section>
       <section className="wb-sec">
-        {head('02', '本人的备用金和资源申领')}
+        {head('03', '本人的备用金和资源申领')}
         {myPetty.length + myRes.length === 0 ? <Empty>暂无在办的备用金和资源申领。</Empty> : (
           <div className="scroll"><table className="wb-table">
             <thead><tr><th>类型</th><th>事项</th><th>所属</th><th /></tr></thead>

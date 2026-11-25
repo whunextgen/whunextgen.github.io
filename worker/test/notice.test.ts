@@ -113,4 +113,8 @@ c = parts('ARR 担保申请已同意：乙 同意为研究单元「单元一」�
 ok(c.title === 'ARR 担保申请已同意' && c.kind === 'pass', 'ARR 担保已同意归为通过', JSON.stringify(c));
 c = parts('ARR 担保申请不同意：乙 不同意为研究单元「单元一」在「2033 年 5 月」一轮的 ARR 投稿担保，原因：时间冲突');
 ok(c.title === 'ARR 担保申请不同意' && c.kind === 'back', 'ARR 担保不同意归为退回', JSON.stringify(c));
+c = parts('主线任务已认定：「开题」已由 甲 确认完成（2033-01-01）', '甲');
+ok(c.title === '主线任务已认定' && c.btn.url.endsWith('/#/path') && c.kind === 'pass', '主线任务认定：去成长主线页，归为通过', JSON.stringify(c));
+c = parts('身份认定：你的身份已由 甲 认定为 Assistant（RA）（原为 Intern（RI））。依据：考核通过', '甲');
+ok(c.title === '身份认定' && c.btn.url.endsWith('/#/path'), '身份认定：去成长主线页', JSON.stringify(c));
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);
