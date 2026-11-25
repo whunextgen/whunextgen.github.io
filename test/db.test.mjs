@@ -2830,15 +2830,6 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok(ub.b === 10 && ub.h >= 10, '负责人用研究单元的实际币按标价换卡时，集群一侧可读', JSON.stringify(ub));
   await as(U.mem, D);
   ok((await q(`select 1 from api.unit_coin where project_id = $1`, [UU])).length >= 2, '研究单元的实际币账全中心看得到');
-  // 集群：研究单元一个 QOS，挂到名单内每个人的集群账号上
-  await as(U.mem2, D);
-  await raises('集群账号格式', /小写字母/, `select set_slurm_user($1, 'Bad Name!')`, [U.mem2]);
-  await q(`select set_slurm_user($1, 'mem2')`, [U.mem2]);
-  await raises('不能替别人登记', /本人或人事岗/, `select set_slurm_user($1, 'x1')`, [U.mem]);
-  await as(U.mem, D);
-  await raises('集群账号不能重复', /已由他人登记/, `select set_slurm_user($1, 'mem2')`, [U.mem]);
-  const cq = await one(`select qos, hours::float h, users from api.cluster_qos where project_id = $1`, [UU]);
-  ok(/^clain_/.test(cq.qos) && cq.h >= 10 && cq.users.some((u) => u.slurm_user === 'mem2') && cq.users.some((u) => u.owner), '每个研究单元一个 QOS，列出卡时和应挂上的集群用户（含负责人）', JSON.stringify(cq));
   // 铸造：研究单元有经核对的一级成果
   await db.exec(`reset role`);
   const hasOut = (await q(`select 1 from outcome where project_id = $1 and level = 1 and checked_at is not null and not rejected`, [UU])).length > 0;

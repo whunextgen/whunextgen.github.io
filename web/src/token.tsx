@@ -47,9 +47,9 @@ export function TokenMine({ me }: { me: Me }) {
 // ---------- 研究单元页：池子与成果 ----------
 export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
   const { data, error, reload } = useViews<{ pools: UnitPool[]; shares: UnitShare[]; outs: Outcome[]; grants: { id: string; project_id: string; hours: string; coins: string; bought_by_name: string | null; bought_at: string }[];
-    ucoin: { id: string; kind: 'invest' | 'compute'; amount: string; user_name: string | null; note: string | null; created_at: string }[]; ubal: { project_id: string; balance: string; hours: string; can_buy: boolean }[]; cm: { balance: string; price: string | null }[]; qos: { qos: string; users: { name: string; slurm_user: string | null }[] }[] }>({
+    ucoin: { id: string; kind: 'invest' | 'compute'; amount: string; user_name: string | null; note: string | null; created_at: string }[]; ubal: { project_id: string; balance: string; hours: string; can_buy: boolean }[]; cm: { balance: string; price: string | null }[] }>({
     pools: ['unit_pool'], shares: ['unit_share'], outs: ['outcome'], grants: ['compute_grant', { project_id: unit.id }],
-    ucoin: ['unit_coin', { project_id: unit.id }], ubal: ['unit_coin_balance', { project_id: unit.id }], cm: ['coin_mine'], qos: ['cluster_qos', { project_id: unit.id }],
+    ucoin: ['unit_coin', { project_id: unit.id }], ubal: ['unit_coin_balance', { project_id: unit.id }], cm: ['coin_mine'],
   }, unit.id);
   const [act, setAct] = useState<Act | null>(null);
   if (!data) return <Loading error={error} />;
@@ -92,8 +92,7 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
         const inv = data.ucoin.filter((c) => c.kind === 'invest');
         return <>
           <h3 style={{ marginTop: 18 }}>实际币 <span className="h3sub">账上 {coin(ub?.balance ?? 0)} · 已换 GPU 卡时 {coin(ub?.hours ?? 0)}{price ? ` · 标价每卡时 ${coin(price)}` : ' · 卡时标价未定'}</span></h3>
-          <p className="hint">代币不是经费。任何人都可以把自己的实际币投给研究单元，由负责人换 GPU 卡时，以后也可以换别的资源。换得的卡时是本研究单元在集群上的 QOS{data.qos[0] ? `「${data.qos[0].qos}」` : ''}，固定卡时、不限卡数，挂到名单内每个人的集群账号上共用。
-            {data.qos[0] && data.qos[0].users.some((u) => !u.slurm_user) ? ` 尚未登记集群账号、挂不上的：${data.qos[0].users.filter((u) => !u.slurm_user).map((u) => u.name).join('、')}，请本人在「我的事项」登记。` : ''}</p>
+          <p className="hint">代币不是经费。任何人都可以把自己的实际币投给研究单元，由负责人换 GPU 卡时，以后也可以换别的资源；换得的卡时集群按此设定额度。</p>
           {inv.length > 0 && <ul className="path-hist">{[...data.ucoin].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8).map((c) => <li key={c.id}>{day(c.created_at)} {c.kind === 'invest' ? `${c.user_name ?? ''} 投入 ${coin(c.amount)}` : `${c.user_name ?? ''} ${c.note ?? '换卡时'}，用去 ${coin(-num(c.amount))}`}{c.kind === 'invest' && c.note ? `：${c.note}` : ''}</li>)}</ul>}
           <div className="actions" style={{ justifyContent: 'flex-start' }}>
             {mine > 0 && <button className="sm ghost" onClick={() => setAct({ title: `投给研究单元：${unit.name}`, label: '投入', hint: `本人余额 ${coin(mine)} 实际币，先扣先到期的。`, fields: [{ name: 'amount', label: '实际币', type: 'number' }, { name: 'note', label: '说明（选填）', required: false }], run: (v) => rpc('invest_coins', { project: unit.id, amount: v.amount, note: v.note || null }) })}>投入实际币</button>}
