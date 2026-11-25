@@ -2580,5 +2580,18 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`);
 }
 
+// ---------- 协助群话题 ----------
+{
+  await as(U.dir);
+  await raises('登录用户不能改话题', /当前角色/, `select notice_thread_set('assist', 'om_x')`);
+  ok((await val(`select notice_thread('assist') v`)) === null, '登录用户读不到话题编号');
+  await as(null);
+  ok((await val(`select notice_thread('assist') v`)) === null, '还没有话题');
+  await q(`select notice_thread_set('assist', 'om_root')`);
+  ok((await val(`select notice_thread('assist') v`)) === 'om_root', '记下话题根消息');
+  await q(`select notice_thread_set('assist', null)`);
+  ok((await val(`select notice_thread('assist') v`)) === null, '清掉后重开');
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

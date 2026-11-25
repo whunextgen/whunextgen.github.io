@@ -213,6 +213,7 @@ async function hmac(secret: string, msg: string) {
 // ---------- GitHub 事件 ----------
 // 只发中台分支上的 PR：开出（草稿转为待审也算）、重新打开、提交审查、合并或关闭。其余事件不发
 export const GITHUB_BASE = 'finance-portal';
+export const ASSIST_THREAD_TEXT = '【正则】GitHub 动态：中台仓库 finance-portal 分支的 PR 开出、提交审查、合并、关闭，都在这个话题里通报，讨论请直接在话题里回复。';
 export function githubText(event: string, p: any): { text: string; url: string; btn: string } | null {
   const pr = p?.pull_request;
   if (!pr || pr.base?.ref !== GITHUB_BASE) return null;
@@ -843,17 +844,44 @@ export default {
         if (up?.code === 0 && up.data?.image_key) markKeys[k] = String(up.data.image_key); else markNote = `标志图未传上去，卡片不带图。飞书返回 ${up?.code}：${String(up?.msg ?? '').slice(0, 120)}`;
       }
     }
+    // 协助群话题的根消息：库里记着就用，没有就先发一条开出话题
+    let rootCache: string | null | undefined;
+    const assistRoot = async (direct: (t: string, c: unknown) => Promise<any>) => {
+      if (rootCache !== undefined) return rootCache;
+      const [row] = await withUser(env, null, (sql) => sql`select public.notice_thread('assist') as id`).catch(() => [null]);
+      if (row?.id) return (rootCache = String(row.id));
+      const r = await direct('text', { text: ASSIST_THREAD_TEXT });
+      const id = r?.code === 0 ? String(r.data?.message_id ?? '') : '';
+      if (id) await withUser(env, null, (sql) => sql`select public.notice_thread_set('assist', ${id})`).catch(() => null);
+      return (rootCache = id || null);
+    };
     for (const m of batch) {
       if (!tok?.tenant_access_token) { results.push([String(m.msg_id), false, '无法获取应用凭证']); continue; }
       const body = typeof m.body === 'string' ? JSON.parse(m.body) : m.body;
       const group = m.target_id === 'group' || m.target_id === 'assist';
       const to = m.target_id === 'group' ? env.NOTICE_CHAT_ID : m.target_id === 'assist' ? env.ASSIST_CHAT_ID : String(m.target_id);
       if (!to) { results.push([String(m.msg_id), false, m.target_id === 'assist' ? '未配置协助群' : '未配置全员群']); continue; }
-      const send = (msg_type: string, content: unknown) => feishu(`/im/v1/messages?receive_id_type=${group ? 'chat_id' : to.startsWith('on_') ? 'union_id' : 'open_id'}`, {
+      const direct = (msg_type: string, content: unknown) => feishu(`/im/v1/messages?receive_id_type=${group ? 'chat_id' : to.startsWith('on_') ? 'union_id' : 'open_id'}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
         body: JSON.stringify({ receive_id: to, msg_type, content: JSON.stringify(content) }),
       }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
+      // 协助群的通报回复在同一个话题里；话题开不出来或回复失败的，清掉话题，照常发到群里
+      const send = async (msg_type: string, content: unknown) => {
+        if (m.target_id !== 'assist') return direct(msg_type, content);
+        const root = await assistRoot(direct);
+        if (!root) return direct(msg_type, content);
+        const r = await feishu(`/im/v1/messages/${encodeURIComponent(root)}/reply`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
+          body: JSON.stringify({ msg_type, content: JSON.stringify(content), reply_in_thread: true }),
+        }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
+        if (r?.code === 0 || msg_type === 'text') return r;
+        if (r?.code !== 0 && /not exist|withdrawn|deleted|recall/i.test(String(r?.msg ?? ''))) {
+          await withUser(env, null, (sql) => sql`select public.notice_thread_set('assist', null)`).catch(() => null); rootCache = undefined;
+        }
+        return r;
+      };
       // 先发卡片；卡片被拒的，退回发纯文字，通知不能因为版式丢掉
       const actToken = env.CARD_ACTIONS === '1' && !group && body.act ? await sign(env.SESSION_SECRET, 'act', String(m.msg_id), ACT_TTL) : undefined;
       // 带图的通报：先把图传上去；传不上去的照发文字，并记下原因
