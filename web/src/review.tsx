@@ -98,7 +98,7 @@ function Chain({ title, sub, subs, reviews, points, threads }: { title: string; 
   );
 }
 
-// 研究单元页的「投稿与评审」：没有投稿记录，或本人无权查看的，这一节不出现
+// 研究单元页的「投稿与评审」：中心成员都看得到；没有投稿记录的，这一节不出现
 export function UnitReviews({ unit }: { unit: Project }) {
   const f = { project_id: unit.id };
   const { data } = useViews<{ subs: Submission[]; reviews: SubmissionReview[]; points: ReviewPoint[]; threads: ReviewThread[] }>(
@@ -106,7 +106,7 @@ export function UnitReviews({ unit }: { unit: Project }) {
   if (!data || data.subs.length === 0) return null;
   const part = (rel: 'self' | 'prior') => data.subs.filter((s) => s.relation === rel);
   const self = part('self'), prior = part('prior');
-  const note = '评审是保密材料，仅名单内成员、负责人、所挂课题负责人和中心负责人可见';
+  const note = '评审是保密材料，仅中心成员可见，不得外传';
   return <>
     {self.length > 0 && <Chain title="投稿与评审" sub={note} subs={self} reviews={data.reviews} points={data.points} threads={data.threads.filter((t) => t.relation === 'self')} />}
     {prior.length > 0 && <Chain title="前作的评审" sub={`本研究单元以这篇稿件为基础；${note}`} subs={prior} reviews={data.reviews} points={data.points} threads={data.threads.filter((t) => t.relation === 'prior')} />}

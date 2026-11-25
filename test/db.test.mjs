@@ -2399,7 +2399,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(null);
 }
 
-// ---------- 投稿与评审（0091）：挂在研究单元上，只有名单内成员、负责人、所挂课题负责人和中心负责人看得到 ----------
+// ---------- 投稿与评审（0091、0092）：挂在研究单元上，登录的中心成员都看得到，未登录看不到 ----------
 {
   await db.exec(`reset role`);
   const u = await one(`select p.id, p.owner_id, (select owner_id from project where id = p.parent_id) as topic_owner from project p
@@ -2427,7 +2427,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await want(mem, '2,2,2,1', '名单内成员看得到');
   await want(u.topic_owner, '2,2,2,1', '所挂课题的负责人看得到');
   await want(U.dir, '2,2,2,1', '中心负责人看得到');
-  await want(out, '0,0,0,0', '名单外的成员看不到');
+  await want(out, '2,2,2,1', '名单外的成员也看得到（0092）');
   await want(null, '0,0,0,0', '未登录看不到');
   await as(u.owner_id, '2026-11-25');
   const row = await one(`select mean_overall, prev_id, relation, status from api.submission where id = $1`, [s1]);
