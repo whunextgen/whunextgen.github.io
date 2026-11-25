@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { rpc, useViews, type Me, type PeoplePick } from './api';
 import { ActionDialog, Badge, Empty, Loading, day, type Field } from './ui';
-import { AXES, type Pitch, type Query } from './iterate';
+import { AXES, type Pitch, type Query, type Seminar } from './iterate';
 
 // 会议现场：组织者开会时共享这一页。研讨会逐份过快照、当场记入质疑、结束讨论并结算；讲座和联席会议只签到。散会出纪要。
 export interface Meeting { id: string; kind: 'lecture' | 'seminar' | 'council' | 'training' | 'other'; seminar: string | null; seminar_name: string | null; held_on: string; title: string | null;
@@ -9,10 +9,15 @@ export interface Meeting { id: string; kind: 'lecture' | 'seminar' | 'council' |
   present: number; leave: number; absent: number; my_status: 'present' | 'leave' | 'absent' | null; my_made_up: boolean | null; roll: { name: string; status: string; made_up: boolean }[] | null }
 interface Act { title: string; hint?: ReactNode; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 const KIND: Record<Meeting['kind'], string> = { lecture: '周日讲座', seminar: '主题研讨会', council: '联席会议', training: '训练课程', other: '自建会议' };
+interface Draft { id: string; pitch_id: string; axis: string; axis_label: string; body: string; parent_id: string | null; author_name: string | null; status: 'pending' | 'accepted' | 'dropped'; mine: boolean; can_accept: boolean }
 export const meetingName = (m: Meeting) => m.kind === 'seminar' ? `${m.seminar_name ?? ''}主题研讨会` : m.title ?? KIND[m.kind];
 
 export function LivePage({ id }: { id: string; me: Me }) {
-  const { data, error, reload } = useViews<{ m: Meeting[]; pitches: Pitch[]; queries: Query[]; people: PeoplePick[]; sync: { id: string; feishu_no: string | null; zoom_id: string | null; sync_note: string | null; synced_at: string | null; sync_unmatched: string[] | null }[] }>({ m: ['meeting', { id }], pitches: ['snapshot_pitch'], queries: ['query'], people: ['people_pick'], sync: ['meeting_sync', { id }] }, id);
+  const { data, error, reload } = useViews<{ m: Meeting[]; pitches: Pitch[]; queries: Query[]; people: PeoplePick[]; sync: { id: string; feishu_no: string | null; zoom_id: string | null; sync_note: string | null; synced_at: string | null; sync_unmatched: string[] | null }[]; drafts: Draft[]; seminars: Seminar[] }>({ m: ['meeting', { id }], pitches: ['snapshot_pitch'], queries: ['query'], people: ['people_pick'], sync: ['meeting_sync', { id }], drafts: ['query_draft'], seminars: ['seminar'] }, id);
+  const [mine, setMine] = useState('');
+  const [startAt, setStartAt] = useState<{ id: string; t: number } | null>(null);
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(t); }, []);
   const [act, setAct] = useState<Act | null>(null);
   const [cur, setCur] = useState('');
   const [body, setBody] = useState('');
@@ -25,7 +30,10 @@ export function LivePage({ id }: { id: string; me: Me }) {
   const m = data.m[0];
   if (!m) return <Empty>会议不存在。</Empty>;
   const per = data.pitches.length ? data.pitches.map((x) => x.period_start).sort().reverse()[0] : '';
-  const agenda = m.kind === 'seminar' ? data.pitches.filter((x) => x.seminar === m.seminar && x.period_start === per && x.status !== 'declined') : [];
+  // 议程：先口头报告，再海报，待定的投稿放最后
+  const rankOf = (x: Pitch) => x.status === 'pending' ? 2 : x.format === 'poster' ? 1 : 0;
+  const agenda = m.kind === 'seminar' ? data.pitches.filter((x) => x.seminar === m.seminar && x.period_start === per && x.status !== 'declined').sort((a, b) => rankOf(a) - rankOf(b)) : [];
+  const sem = data.seminars.find((x) => x.code === m.seminar);
   const item = agenda.find((x) => x.id === cur) ?? agenda.find((x) => x.status === 'accepted') ?? agenda[0];
   const pp = item as (Pitch & { person_id?: string | null; person_name?: string | null; title?: string | null }) | undefined;
   const prior = item ? data.queries.filter((q) => q.project_id === item.project_id && (q as Query & { person_id?: string | null }).person_id == pp?.person_id && q.status === 'open' && q.period_start < item.period_start) : [];
@@ -41,6 +49,17 @@ export function LivePage({ id }: { id: string; me: Me }) {
     setBusy(false);
   };
   const live = m.open && m.can_run;
+  const target = item?.format === 'poster' ? sem?.poster_target ?? 1 : sem?.oral_target ?? 3;
+  const got = here.length;
+  const drafts = item ? data.drafts.filter((d) => d.pitch_id === item.id && d.status === 'pending') : [];
+  const left = startAt && item && startAt.id === item.id ? Math.max(0, (item.minutes ?? 10) * 60 - Math.floor((Date.now() - startAt.t) / 1000)) : null;
+  const mmss = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+  const submitDraft = async (axis: string) => {
+    if (!item || !mine.trim()) { setMsg('先写下质疑'); return; }
+    setBusy(true); setMsg('');
+    try { await rpc('submit_query_draft', { pitch: item.id, axis, body: mine, parent: null }); setMine(''); setMsg('已提交，等组织者记入'); reload(); } catch (e) { setMsg((e as Error).message); }
+    setBusy(false);
+  };
   return (
     <div className="ir live">
       <div className="ir-bento">
@@ -64,13 +83,27 @@ export function LivePage({ id }: { id: string; me: Me }) {
             <div className="ir-mono"><span>议程 · {day(per)} 起一期</span><span>{agenda.filter((x) => x.status === 'closed').length} / {agenda.length} 已讨论</span></div>
             {agenda.length === 0 ? <p className="ir-hint">本期没有快照提交给这个研讨会。</p> : <ol className="ir-ch">{agenda.map((x) => { const px = x as Pitch & { person_name?: string | null; title?: string | null }; return (
               <li key={x.id} className={x.status === 'closed' ? 'd' : ''} style={{ cursor: 'pointer', background: item?.id === x.id ? 'var(--i-soft)' : undefined }} onClick={() => setCur(x.id)}>
-                <i /><div>{px.person_name ? `${px.person_name} · ${px.title ?? '主线草稿'}` : x.project_name}<small>第 {x.seq} 次快照 · {x.status === 'pending' ? '待接收' : x.status === 'closed' ? `已讨论，结算 ${x.resolved} 条` : '讨论中'}</small></div></li>); })}</ol>}
+                <i /><div>{px.person_name ? `${px.person_name} · ${px.title ?? '主线草稿'}` : x.project_name}<small>{x.format === 'oral' ? `口头报告 ${x.minutes} 分钟` : x.format === 'poster' ? `海报 ${x.minutes} 分钟` : '投稿待定'} · 第 {x.seq} 次快照 · {x.status === 'closed' ? `已讨论，结算 ${x.resolved} 条` : x.status === 'accepted' ? '待讨论' : ''}</small></div></li>); })}</ol>}
           </section>
           <section className="ir-t ir-main">
             {!item ? <p className="ir-hint">选一份快照开始。</p> : <>
-              <div className="ir-mono"><span>正在讨论</span><a href={item.link} target="_blank" rel="noreferrer">打开草稿 →</a></div>
+              <div className="ir-mono"><span>正在讨论 · {item.format === 'oral' ? '口头报告' : item.format === 'poster' ? '海报' : '投稿待定'}{item.minutes ? ` · ${item.minutes} 分钟` : ''}</span><a href={item.link} target="_blank" rel="noreferrer">打开草稿 →</a></div>
+              {item.status === 'accepted' && <div className="ir-conv" style={{ marginTop: 0, marginBottom: 12 }}>
+                <div><small>收获质疑</small><b style={{ color: got >= target ? 'var(--i-ink)' : 'var(--i-red)' }}>{got}</b><em>/ 目标 {target} 条</em></div><i />
+                <div><small>剩余时间</small><b>{left == null ? mmss((item.minutes ?? 10) * 60) : mmss(left)}</b>{live && <em><button className="ghost sm" onClick={() => setStartAt({ id: item.id, t: Date.now() })}>{left == null ? '开始计时' : '重新计时'}</button></em>}</div><i />
+                <div><small>待记入</small><b>{drafts.length}</b><em>条与会者提的</em></div></div>}
               <h2 style={{ font: '700 28px/1.3 var(--i-serif)', margin: '0 0 6px' }}>{pp?.person_name ? `${pp.person_name} · ${pp.title}` : item.project_name} · 第 {item.seq} 次快照</h2>
-              {item.status === 'pending' && live && <div className="ir-acts"><button className="sm" onClick={() => rpc('decide_pitch', { pitch: item.id, accept: true, note: null }).then(reload)}>接收讨论</button></div>}
+              {item.status === 'pending' && live && <div className="ir-acts"><button className="sm" onClick={() => rpc('decide_pitch', { pitch: item.id, accept: true, note: null, format: 'oral' }).then(reload)}>接收为口头报告</button>
+                <button className="sm" onClick={() => rpc('decide_pitch', { pitch: item.id, accept: true, note: null, format: 'poster' }).then(reload)}>接收为海报</button>
+                <button className="ghost sm" onClick={() => rpc('decide_pitch', { pitch: item.id, accept: false, note: null, format: null }).then(reload)}>不接收</button></div>}
+              {item.status === 'accepted' && m.open && <>
+                <h3 style={{ margin: '14px 0 6px', fontSize: 14 }}>我来提质疑 <span className="h3sub">与会者都可以提，组织者记入后计在提出人名下（记入「利」）</span></h3>
+                <textarea rows={2} value={mine} onChange={(e) => setMine(e.target.value)} placeholder="针对这份快照的问题或质疑" style={{ width: '100%' }} aria-label="我的质疑" />
+                <div className="ir-acts" style={{ alignItems: 'center' }}>{AXES.map(([k, n, d]) => <button key={k} className="sm ghost" disabled={busy} title={d} onClick={() => submitDraft(k)}>提「{n}」</button>)}</div></>}
+              {live && drafts.length > 0 && <>
+                <h3 style={{ margin: '14px 0 6px', fontSize: 14 }}>与会者提的 {drafts.length} 条，待记入</h3>
+                <ul className="ir-sc">{drafts.map((d) => <li key={d.id}><span><b>{d.axis_label}</b> {d.body} · {d.author_name}</span>
+                  <em><button className="sm" onClick={() => rpc('accept_query_draft', { id: d.id, accept: true }).then(reload)}>记入</button> <button className="ghost sm" onClick={() => rpc('accept_query_draft', { id: d.id, accept: false }).then(reload)}>不记入</button></em></li>)}</ul></>}
               {prior.length > 0 && <>
                 <h3 style={{ margin: '14px 0 6px', fontSize: 14 }}>上期还没回应的 {prior.length} 条 <span className="h3sub">会上有人再次提出的，点「再次提出」；没人再提的，结束讨论时即为已回应</span></h3>
                 <ul className="ir-sc">{prior.map((q) => <li key={q.id}><span><b>{q.axis_label}</b> {q.body}<small style={{ display: 'block', color: 'var(--i-mut)' }}>队伍：{q.team.map((t) => t.name).join('、') || '无'}</small></span>

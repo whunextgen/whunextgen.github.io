@@ -2661,6 +2661,28 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('本期提出的不必再次提出', /不必再次提出/, `select add_query($1, null, '又来', null, $2)`, [pc1, Q1]);
   eq(await val(`select close_pitch($1) v`, [pc1]), 0, '第一期没有可结算的质疑');
   await raises('结束后不能再记', /尚未结束/, `select add_query($1, 'li', '会后补记')`, [pc1]);
+  // symposium：两位以上组织者；接收为口头报告或海报，时长按研讨会设
+  await as(U.dir, A1);
+  await raises('至少两位组织者', /至少两位/, `select set_seminar_organizers('hum', $1)`, [[U.lead]]);
+  await raises('组织者须为 Researcher 及以上', /Researcher 及以上/, `select set_seminar_organizers('hum', $1)`, [[U.lead, U.mem]]);
+  await q(`select set_seminar_organizers('med', $1)`, [[U.lead, U.dir]]);
+  ok((await one(`select organizers from api.seminar where code = 'med'`)).organizers.length === 2, '研讨会有两位组织者');
+  await as(U.lead, A1);
+  await q(`select set_seminar_minutes('med', 25, 6)`);
+  await raises('接收的形式只有两种', /口头报告和海报/, `select decide_pitch($1, true, null, 'talk')`, [pm1]);
+  await q(`select decide_pitch($1, true, null, 'poster')`, [pm1]);
+  const fm = await one(`select format, minutes from api.snapshot_pitch where id = $1`, [pm1]);
+  ok(fm.format === 'poster' && fm.minutes === 6, '接收为海报，时长按研讨会的设置', JSON.stringify(fm));
+  ok((await one(`select oral_minutes, oral_target, poster_target from api.seminar where code = 'cog'`)).oral_minutes === 10, '口头报告默认 10 分钟');
+  // 与会者当场提质疑，组织者记入
+  await as(U.mem, A1);
+  const QD = await val(`select submit_query_draft($1, 'ju', '和已有基准的差别没有讲清') v`, [pm1]);
+  await raises('成员不能自己记入', /组织者记入/, `select accept_query_draft($1, true)`, [QD]);
+  await as(U.lead, A1);
+  await q(`select accept_query_draft($1, true)`, [QD]);
+  const qd = await one(`select q.raised_by_name, q.axis from api.query_draft d join api.query q on q.body = d.body where d.id = $1`, [QD]);
+  ok(qd.axis === 'ju' && qd.raised_by_name != null, '与会者提的质疑经组织者记入，记在提出人名下', JSON.stringify(qd));
+  await q(`select remove_query(q.id) from api.query q join api.query_draft d on d.body = q.body where d.id = $1`, [QD]);
   // 小队
   await as(U.mem, A1);
   ok((await q(`select 1 from api.query where project_id = $1 and status = 'open'`, [UU])).length === 2, '未回应的质疑全中心公开');
