@@ -2669,6 +2669,21 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await q(`select set_rank($1, 'rising_star', '测试：晨星')`, [Pfin]);
   await q(`select set_seminar_organizers('med', $1)`, [[U.lead, U.fin]]);
   ok((await one(`select organizers from api.seminar where code = 'med'`)).organizers.length === 2, '研讨会有两位组织者');
+  // 还没有账号的人先记为待登录的组织者，首次登录对上档案时自动成为组织者
+  await db.exec(`reset role`);
+  const PP = (await one(`insert into person (name, status, rank) values ('待登录研究者', 'active', 'researcher') returning id`)).id;
+  const PI0 = (await one(`insert into person (name, status, rank) values ('待登录实习生', 'active', 'intern') returning id`)).id;
+  await db.exec(`set role app_api`);
+  await as(U.dir, A1);
+  await raises('待登录的组织者也须 Researcher 及以上', /Researcher 及以上/, `select add_pending_organizer('hum', $1)`, [PI0]);
+  await raises('已有账号的直接指定', /直接指定/, `select add_pending_organizer('hum', $1)`, [Plead]);
+  await q(`select add_pending_organizer('hum', $1)`, [PP]);
+  await db.exec(`reset role`);
+  const NU = (await one(`select (login_feishu('ou_pending_org', '待登录研究者', null, 'on_pending_org')).id as id`)).id;
+  ok((await one(`select count(*)::int n from seminar_organizer where seminar = 'hum' and user_id = $1`, [NU])).n === 1, '首次登录对上档案后自动成为组织者');
+  ok((await one(`select count(*)::int n from seminar_organizer_pending`)).n === 0, '待登录记录办完即清');
+  await db.exec(`set role app_api`);
+  await as(U.dir, A1);
   await as(U.lead, A1);
   await q(`select set_seminar_minutes('med', 25, 6)`);
   await raises('接收的形式只有两种', /口头报告和海报/, `select decide_pitch($1, true, null, 'talk')`, [pm1]);
