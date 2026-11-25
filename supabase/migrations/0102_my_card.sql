@@ -5,7 +5,8 @@
 --   三、称号与学期挑战：按记录自动取得，学期按二月、八月起算。
 --   四、属性改按点数：文章四项仍按名义币；德行四项按规定的点数累加（见 person_attr）。
 --   五、实际币：个人账户按流水记，每笔收入有到期日，支出先扣先到期的。来源有三：按期发放（各身份的额度由中心负责人定，
---       Rising Star 也有）、研究单元解锁后按份额铸造（挂牌铸造率、各级系数）；用途是为研究单元或课题换卡时（标价由中心负责人定），
+--       Rising Star、PI、Director 也有）、研究单元解锁后按份额铸造（挂牌铸造率、各级系数）。代币不是经费，与经费卡无关。
+--       个人的实际币只能投给研究单元，进研究单元的账；研究单元的负责人再用它换 GPU 卡时（标价由中心负责人定），以后也可以换别的资源。
 --       换得的卡时记在 compute_grant，集群一侧按此设定 Slurm 的额度。额度和标价未定的，不发、不换。
 --   六、双周表的「写作进度」「成员分工」两栏由快照和质疑取代，不再必填。
 
@@ -238,7 +239,7 @@ insert into token_param (key, value) values
 create table coin_ledger (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references app_user(id),
-  kind         text not null check (kind in ('salary','mint','spend','expire','adjust')),
+  kind         text not null check (kind in ('salary','mint','invest','expire','adjust')),
   amount       numeric not null check (amount <> 0),
   remain       numeric,                                  -- 收入尚未用掉、未过期的部分
   expires_on   date,
@@ -261,7 +262,19 @@ create table compute_grant (
   bought_by   uuid not null references app_user(id),
   bought_at   timestamptz not null default now()
 );
-select seal('coin_ledger', 'compute_grant');
+-- 研究单元的实际币账：成员和其他人投入的，负责人换资源用掉的
+create table unit_coin (
+  id          uuid primary key default gen_random_uuid(),
+  project_id  uuid not null references project(id),
+  kind        text not null check (kind in ('invest','compute')),
+  amount      numeric not null check (amount <> 0),
+  user_id     uuid not null references app_user(id),
+  note        text check (note is null or length(note) <= 200),
+  created_at  timestamptz not null default now()
+);
+create index unit_coin_project on unit_coin (project_id);
+select seal('coin_ledger', 'compute_grant', 'unit_coin');
+create trigger audit after insert or update or delete on unit_coin for each row execute function trg_audit();
 create trigger audit after insert or update or delete on coin_ledger for each row execute function trg_audit();
 create trigger audit after insert or update or delete on compute_grant for each row execute function trg_audit();
 
@@ -330,19 +343,17 @@ begin
   return coin_expire_tick() + coin_salary_tick() + coin_mint_tick();
 end $$;
 
--- 为研究单元或课题换卡时：本人所在的；按标价扣实际币，先扣先到期的
-create function buy_compute(p_project uuid, p_hours numeric) returns uuid language plpgsql security definer set search_path = public as $$
-declare price numeric := nullif((select value #>> '{}' from token_param where key = 'price'), '')::numeric; p project; need numeric; left_n numeric; r record; take numeric; v_id uuid;
+-- 投给研究单元：任何人都可以把自己的实际币投给一个已成立的研究单元，先扣先到期的
+create function invest_coins(p_project uuid, p_amount numeric, p_note text default null) returns void language plpgsql security definer set search_path = public as $$
+declare p project; left_n numeric; r record; take numeric; nt text := nullif(btrim(coalesce(p_note, '')), '');
 begin
   if app_uid() is null then raise exception '请先登录' using errcode = '42501'; end if;
-  if price is null or price <= 0 then raise exception '卡时的标价尚未公布'; end if;
   select * into p from project where id = p_project;
-  if not found or not p.active or p.proposed or p.kind = 'public' then raise exception '请选择已成立的研究单元或课题'; end if;
-  if not (p.owner_id = app_uid() or is_on_project(p_project)) then raise exception '只能为本人所在的研究单元或课题换卡时' using errcode = '42501'; end if;
-  if p_hours is null or p_hours <= 0 or p_hours <> round(p_hours) then raise exception '卡时须为正整数'; end if;
-  need := p_hours * price;
-  if coin_balance(app_uid()) < need then raise exception '实际币不足：需要 %，余额 %', need, coin_balance(app_uid()); end if;
-  left_n := need;
+  if not found or p.layer <> 'paper' or not p.active or p.proposed then raise exception '实际币只能投给已成立的研究单元'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception '投入的数目须大于 0'; end if;
+  if nt is not null and length(nt) > 200 then raise exception '说明不得超过 200 个字'; end if;
+  if coin_balance(app_uid()) < p_amount then raise exception '实际币不足：余额 %', coin_balance(app_uid()); end if;
+  left_n := p_amount;
   for r in select id, remain from coin_ledger where user_id = app_uid() and remain > 0 and (expires_on is null or expires_on >= app_today())
            order by expires_on nulls last, created_at for update loop
     take := least(r.remain, left_n);
@@ -350,8 +361,29 @@ begin
     left_n := left_n - take;
     exit when left_n <= 0;
   end loop;
+  insert into coin_ledger (user_id, kind, amount, project_id, note) values (app_uid(), 'invest', -p_amount, p_project, coalesce(nt, format('投给研究单元「%s」', p.name)));
+  insert into unit_coin (project_id, kind, amount, user_id, note) values (p_project, 'invest', p_amount, app_uid(), nt);
+  perform notify_user(p.owner_id, format('实际币投入：%s 向研究单元「%s」投入 %s 实际币%s', (select name from app_user where id = app_uid()), p.name, p_amount, case when nt is null then '' else '。' || nt end));
+end $$;
+
+create function unit_coin_balance(p_project uuid) returns numeric language sql stable security definer set search_path = public as $$
+  select coalesce(sum(amount), 0) from unit_coin where project_id = p_project
+$$;
+
+-- 研究单元换 GPU 卡时：由负责人办理，按标价从研究单元的账上扣
+create function buy_compute(p_project uuid, p_hours numeric) returns uuid language plpgsql security definer set search_path = public as $$
+declare price numeric := nullif((select value #>> '{}' from token_param where key = 'price'), '')::numeric; p project; need numeric; v_id uuid;
+begin
+  if app_uid() is null then raise exception '请先登录' using errcode = '42501'; end if;
+  if price is null or price <= 0 then raise exception '卡时的标价尚未公布'; end if;
+  select * into p from project where id = p_project for update;
+  if not found or p.layer <> 'paper' or not p.active or p.proposed then raise exception '卡时由研究单元换'; end if;
+  if not (p.owner_id = app_uid() or app_role() = 'director') then raise exception '由研究单元的负责人办理' using errcode = '42501'; end if;
+  if p_hours is null or p_hours <= 0 or p_hours <> round(p_hours) then raise exception '卡时须为正整数'; end if;
+  need := p_hours * price;
+  if unit_coin_balance(p_project) < need then raise exception '研究单元的实际币不足：需要 %，账上 %', need, unit_coin_balance(p_project); end if;
+  insert into unit_coin (project_id, kind, amount, user_id, note) values (p_project, 'compute', -need, app_uid(), format('换 %s 卡时', p_hours));
   insert into compute_grant (project_id, hours, coins, bought_by) values (p_project, p_hours, need, app_uid()) returning compute_grant.id into v_id;
-  insert into coin_ledger (user_id, kind, amount, project_id, note) values (app_uid(), 'spend', -need, p_project, format('为「%s」换 %s 卡时', p.name, p_hours));
   return v_id;
 end $$;
 
@@ -405,7 +437,7 @@ begin
   update token_param set value = p_value, updated_by = app_uid(), updated_at = now() where key = p_key;
 end $$;
 
-select expose('log_revision(uuid, uuid, text)', 'submit_review(uuid, text)', 'adopt_review(uuid)', 'give_praise(uuid, text, text)', 'buy_compute(uuid, numeric)', 'coin_tick()');
+select expose('log_revision(uuid, uuid, text)', 'submit_review(uuid, text)', 'adopt_review(uuid)', 'give_praise(uuid, text, text)', 'invest_coins(uuid, numeric, text)', 'buy_compute(uuid, numeric)', 'coin_tick()');
 
 -- ---------- 视图 ----------
 -- 本人的当日：今天是本回合第几日、三项是否完成、抽到的质疑和快照
@@ -476,6 +508,18 @@ create view api.period_record as
          (case when exists (select 1 from snapshot s join snapshot_author a on a.snapshot_id = s.id where a.user_id = app_uid() and s.period_start = d.period_start) then 2 else 0 end) as snapshot
   from (select (token_period(app_today()) - g * 14) as period_start from generate_series(0, 5) g) d
   where app_uid() is not null;
+
+-- 研究单元的实际币账：全中心看得到
+create view api.unit_coin as
+  select c.id, c.project_id, p.code as project_code, p.name as project_name, c.kind, c.amount, c.user_id, (select name from app_user where id = c.user_id) as user_name, c.note, c.created_at,
+         unit_coin_balance(c.project_id) as balance
+  from unit_coin c join project p on p.id = c.project_id where app_role() is not null;
+create view api.unit_coin_balance as
+  select p.id as project_id, unit_coin_balance(p.id) as balance,
+         coalesce((select sum(hours) from compute_grant g where g.project_id = p.id), 0) as hours,
+         (p.owner_id = app_uid() or app_role() = 'director') as can_buy
+  from project p where p.layer = 'paper' and p.active and not p.proposed and app_role() is not null;
+grant select on api.unit_coin, api.unit_coin_balance to app_api;
 
 grant select on api.person_attr, api.today_mine, api.review_note, api.praise_mine, api.challenge_mine, api.title_mine, api.coin_mine, api.coin_ledger, api.compute_grant, api.period_record to app_api;
 

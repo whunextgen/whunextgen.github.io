@@ -15,7 +15,7 @@ interface Challenge { code: string; seq: number; title: string; detail: string |
 interface TitleMine { code: string; seq: number; name: string; rule: string; earned: boolean }
 interface PraiseRow { id: string; from_user: string; from_name: string; to_user: string; to_name: string; virtue: 'yuan' | 'heng' | 'li' | 'zhen'; period_start: string; note: string | null; created_at: string }
 interface CoinMine { balance: string; expiring: string; next_expiry: string | null; price: string | null; rate: string | null; salary: string | null }
-interface CoinRow { id: string; kind: 'salary' | 'mint' | 'spend' | 'expire' | 'adjust'; amount: string; expires_on: string | null; project_name: string | null; note: string | null; created_at: string }
+interface CoinRow { id: string; kind: 'salary' | 'mint' | 'invest' | 'expire' | 'adjust'; amount: string; expires_on: string | null; project_name: string | null; note: string | null; created_at: string }
 interface PeriodRec { period_start: string; lecture: number | null; seminar: number | null; biweekly: number | null; snapshot: number }
 interface Act { title: string; hint?: ReactNode; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
@@ -23,7 +23,7 @@ const RANKS: [string, string][] = [['intern', 'Intern'], ['assistant', 'Assistan
 const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 const AX: Record<string, string> = { li: '理', ju: '据', ti: '体', yong: '用' };
 const VIRTUE: [PraiseRow['virtue'], string, string][] = [['yuan', '元', '指导'], ['heng', '亨', '展示'], ['li', '利', '协助'], ['zhen', '贞', '守时']];
-const KIND: Record<CoinRow['kind'], string> = { salary: '按期发放', mint: '成果铸造', spend: '换卡时', expire: '到期作废', adjust: '调整' };
+const KIND: Record<CoinRow['kind'], string> = { salary: '按期发放', mint: '成果铸造', invest: '投给研究单元', expire: '到期作废', adjust: '调整' };
 const n1 = (v: string | number | null | undefined) => num(v).toLocaleString('zh-CN', { maximumFractionDigits: 1 });
 const addDays = (d: string, k: number) => new Date(Date.parse(`${d}T00:00:00Z`) + k * 864e5).toISOString().slice(0, 10);
 const md = (d: string) => d.slice(5).replace('-', '-');
@@ -74,9 +74,10 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
   const praiseAct = (): Act => ({ title: '嘉许', label: '嘉许', hint: `每期至多给出两次，本期尚可给出 ${2 - gaveNow} 次。记入对方的元、亨、利、贞中的一项。`,
     fields: [{ name: 'to', label: '嘉许谁', options: people }, { name: 'virtue', label: '记入', options: VIRTUE.map(([k, g, w]): [string, string] => [k, `${g} · ${w}`]) }, { name: 'note', label: '为什么（选填）', required: false }],
     run: (v) => rpc('give_praise', { to: v.to, virtue: v.virtue, note: v.note || null }) });
-  const buyAct = (): Act => ({ title: '换卡时', label: '换', hint: `按标价每卡时 ${n1(price)} 实际币，先扣先到期的。换得的卡时记在所选研究单元或课题名下，集群按此设定额度。`,
-    fields: [{ name: 'project', label: '研究单元或课题', options: data.projects.filter((x) => x.active && x.kind !== 'public' && !waiting.has(x.id) && (x.owner_id === me.id || x.member)).map((x): [string, string] => [x.id, `${x.code} ${x.name}`]) },
-      { name: 'hours', label: '卡时', type: 'number' }], run: (v) => rpc('buy_compute', { project: v.project, hours: v.hours }) });
+  const investAct = (): Act => ({ title: '投给研究单元', label: '投入', hint: '实际币只能投给研究单元，进研究单元的账，由负责人换 GPU 卡时，以后也可以换别的资源。投给哪个研究单元不限，先扣先到期的。',
+    fields: [{ name: 'project', label: '研究单元', options: data.projects.filter((x) => x.layer === 'paper' && x.active && !waiting.has(x.id)).sort((a, b) => Number(b.member || b.owner_id === me.id) - Number(a.member || a.owner_id === me.id) || a.code.localeCompare(b.code)).map((x): [string, string] => [x.id, `${x.code} ${x.name}${x.member || x.owner_id === me.id ? '（本人所在）' : ''}`]) },
+      { name: 'amount', label: '实际币', type: 'number' }, { name: 'note', label: '说明（选填）', required: false }],
+    run: (v) => rpc('invest_coins', { project: v.project, amount: v.amount, note: v.note || null }) });
 
   // 日历：本回合十四天
   const cal = Array.from({ length: 14 }, (_, i) => { const d = addDays(per, i); const w = new Date(`${d}T00:00:00Z`).getUTCDay();
@@ -188,17 +189,17 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
                 <td>{n1(s.coins)}</td><td>{Math.round(num(s.share) * 100)}%</td></tr>; })}</tbody></table>}
           <div className="ir-conv"><div><small>累计入池</small><b>{n1(inPool)}</b><em>名义币</em></div><i>→</i>
             <div><small>解锁后期望铸造</small><b>{rate != null ? n1(inPool * rate) : '—'}</b><em>实际币</em></div><i>→</i>
-            <div><small>可兑换算力</small><b>{rate != null && price ? n1(inPool * rate / price) : '—'}</b><em>卡时</em></div></div>
-          <p className="ir-hint">一个名义币等于一小时。研究单元取得第一个外部成果时池子解锁，按挂牌铸造率铸造实际币；二、三、四级成果按系数追加。</p>
+            <div><small>投入研究单元可换</small><b>{rate != null && price ? n1(inPool * rate / price) : '—'}</b><em>卡时</em></div></div>
+          <p className="ir-hint">一个名义币等于一小时。研究单元取得第一个外部成果时池子解锁，按挂牌铸造率铸造实际币到个人；二、三、四级成果按系数追加。</p>
         </section>
         <section className="ir-t ir-third">
           <div className="ir-mono"><span>实际币</span><span>{coin?.salary != null ? `每期发放 ${n1(coin.salary)}` : '本身份的发放额度未定'}</span></div>
           <div className="ir-num">{n1(coin?.balance)}<i> 实际币</i></div>
           <div className="ir-kv"><span>两个月内到期<b>{n1(coin?.expiring)}</b></span><span>最近到期日<b>{coin?.next_expiry ? day(coin.next_expiry) : '—'}</b></span><span>卡时标价<b>{price ? `${n1(price)} / 卡时` : '未定'}</b></span></div>
-          {price && num(coin?.balance) > 0 ? <div className="ir-acts"><button className="sm" onClick={() => setAct(buyAct())}>换卡时</button></div> : null}
+          {num(coin?.balance) > 0 ? <div className="ir-acts"><button className="sm" onClick={() => setAct(investAct())}>投给研究单元</button></div> : null}
           {data.ledger.length > 0 && <ul className="ir-sc">{[...data.ledger].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5).map((l) =>
             <li key={l.id}><span>{KIND[l.kind]}{l.project_name ? ` · ${l.project_name}` : ''}</span><em>{num(l.amount) > 0 ? '+' : ''}{n1(l.amount)}</em></li>)}</ul>}
-          <p className="ir-hint">实际币代表资源使用权，按期按身份发放，研究单元解锁后按份额铸造；用来为研究单元或课题换卡时。每笔有到期日，先扣先到期的。</p>
+          <p className="ir-hint">代币不是经费。实际币按期按身份发放，研究单元解锁后按份额铸造；只能投给研究单元，由研究单元换 GPU 卡时，以后也可以换别的资源。每笔有到期日，先扣先到期的。</p>
         </section>
         <section className="ir-t ir-third">
           <div className="ir-mono"><span>嘉许 · 每期限两次</span><span>本期尚可给出 {Math.max(0, 2 - gaveNow)} 次</span></div>

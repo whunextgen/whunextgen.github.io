@@ -2817,13 +2817,19 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.mem2, D);
   const cm = await one(`select balance::float b, salary::float s from api.coin_mine`);
   ok(cm.b === cm.s && cm.s > 0, '按身份发到本人账户', JSON.stringify(cm));
-  await raises('标价外的不能换', /卡时须为正整数/, `select buy_compute($1, 1.5)`, [UU]);
-  await raises('余额不足', /实际币不足/, `select buy_compute($1, 100000)`, [UU]);
+  await raises('只能投给研究单元', /只能投给已成立的研究单元/, `select invest_coins((select parent_id from api.project where id = $1), 10)`, [UU]);
+  await raises('余额不足', /实际币不足/, `select invest_coins($1, 100000)`, [UU]);
+  await q(`select invest_coins($1, 30, '补实验')`, [UU]);
+  ok((await one(`select balance::float b from api.coin_mine`)).b === cm.b - 30, '投给研究单元，从个人账上扣');
+  await raises('成员不能换卡时', /负责人办理/, `select buy_compute($1, 10)`, [UU]);
+  await as(own, D);
+  await raises('卡时须为整数', /卡时须为正整数/, `select buy_compute($1, 1.5)`, [UU]);
+  await raises('研究单元的实际币不足', /研究单元的实际币不足/, `select buy_compute($1, 1000)`, [UU]);
   await q(`select buy_compute($1, 10)`, [UU]);
-  ok((await one(`select balance::float b from api.coin_mine`)).b === cm.b - 20, '换卡时按标价扣实际币');
-  ok((await q(`select hours::float h from api.compute_grant where project_id = $1`, [UU])).some((g) => g.h === 10), '换得的卡时记在研究单元名下，集群一侧可读');
+  const ub = await one(`select balance::float b, hours::float h from api.unit_coin_balance where project_id = $1`, [UU]);
+  ok(ub.b === 10 && ub.h >= 10, '负责人用研究单元的实际币按标价换卡时，集群一侧可读', JSON.stringify(ub));
   await as(U.mem, D);
-  await raises('不在研究单元里不能为它换', /本人所在/, `select buy_compute($1, 1)`, [UU]);
+  ok((await q(`select 1 from api.unit_coin where project_id = $1`, [UU])).length >= 2, '研究单元的实际币账全中心看得到');
   // 铸造：研究单元有经核对的一级成果
   await db.exec(`reset role`);
   const hasOut = (await q(`select 1 from outcome where project_id = $1 and level = 1 and checked_at is not null and not rejected`, [UU])).length > 0;
