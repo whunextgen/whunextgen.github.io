@@ -2637,5 +2637,26 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`);
 }
 
+// ---------- 协助群话题：一个 PR 一个 ----------
+{
+  await as(null);
+  ok((await val(`select github_notice('d-9', 'PR 待审：#9 示例', null, null, 'pr:9') v`)) === true, '带话题键入队');
+  await raises('话题键不对的不入队', /话题键不对/, `select github_notice('d-10', 'PR 待审：#10 示例', null, null, 'assist')`);
+  await db.exec(`reset role`);
+  ok((await val(`select payload->>'thread' v from feishu_outbox where payload->>'text' like 'PR 待审：#9%'`)) === 'pr:9', '队列里记着话题键');
+  await db.exec(`set role app_api`);
+  await as(U.dir);
+  await raises('登录用户不能改话题', /当前角色/, `select notice_thread_set('pr:9', 'om_x')`);
+  ok((await val(`select notice_thread('pr:9') v`)) === null, '登录用户读不到话题编号');
+  await as(null);
+  ok((await val(`select notice_thread('pr:9') v`)) === null, '还没有话题');
+  await q(`select notice_thread_set('pr:9', 'om_root9')`);
+  await q(`select notice_thread_set('pr:10', 'om_root10')`);
+  ok((await val(`select notice_thread('pr:9') v`)) === 'om_root9' && (await val(`select notice_thread('pr:10') v`)) === 'om_root10', '各 PR 各记各的根消息');
+  await raises('不再有共用话题', /check|违反|约束/i, `select notice_thread_set('assist', 'om_x')`);
+  await q(`select notice_thread_set('pr:9', null)`);
+  ok((await val(`select notice_thread('pr:9') v`)) === null, '清掉后重开');
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

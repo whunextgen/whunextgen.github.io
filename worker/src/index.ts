@@ -216,9 +216,14 @@ async function hmac(secret: string, msg: string) {
 // ---------- GitHub 事件 ----------
 // 只发中台分支上的 PR：开出（草稿转为待审也算）、重新打开、提交审查、合并或关闭。其余事件不发
 export const GITHUB_BASE = 'finance-portal';
-export function githubText(event: string, p: any): { text: string; url: string; btn: string } | null {
+// 一个 PR 一个话题：thread 是话题的键，同一个 PR 的通报都回复在它第一条通报的话题里
+export function githubText(event: string, p: any): { text: string; url: string; btn: string; thread: string } | null {
+  const n = githubBody(event, p);
+  return n ? { ...n, thread: `pr:${Number(p.pull_request.number)}` } : null;
+}
+function githubBody(event: string, p: any): { text: string; url: string; btn: string } | null {
   const pr = p?.pull_request;
-  if (!pr || pr.base?.ref !== GITHUB_BASE) return null;
+  if (!pr || pr.base?.ref !== GITHUB_BASE || !Number.isInteger(pr.number) || pr.number <= 0) return null;
   const head = `#${pr.number} ${String(pr.title ?? '').slice(0, 120)}`, url = String(pr.html_url ?? '');
   if (!/^https:\/\/github\.com\//.test(url)) return null;
   const who = (u: any) => String(u?.login ?? '—');
@@ -719,7 +724,7 @@ export default {
         let p: unknown; try { p = JSON.parse(raw); } catch { return json({ error: '格式不对' }, 400); }
         const n = githubText(event, p);
         if (!n || !delivery) return json({ ok: true, skipped: true });
-        const [r] = await withUser(env, null, (sql) => sql`select public.github_notice(${delivery}, ${n.text}, ${n.url}, ${n.btn}) as queued`);
+        const [r] = await withUser(env, null, (sql) => sql`select public.github_notice(${delivery}, ${n.text}, ${n.url}, ${n.btn}, ${n.thread}) as queued`);
         return json({ ok: true, queued: r.queued });
       }
 
@@ -848,17 +853,48 @@ export default {
         if (up?.code === 0 && up.data?.image_key) markKeys[k] = String(up.data.image_key); else markNote = `标志图未传上去，卡片不带图。飞书返回 ${up?.code}：${String(up?.msg ?? '').slice(0, 120)}`;
       }
     }
+    // 协助群里每个 PR 的话题：根消息是这个 PR 的第一条通报，库里按 pr:<编号> 记着
+    const roots = new Map<string, string | null>();
+    const rootOf = async (key: string) => {
+      if (roots.has(key)) return roots.get(key) ?? null;
+      const [row] = await withUser(env, null, (sql) => sql`select public.notice_thread(${key}) as id`).catch(() => [null]);
+      roots.set(key, row?.id ? String(row.id) : null);
+      return roots.get(key) ?? null;
+    };
+    const setRoot = async (key: string, id: string | null) => {
+      roots.set(key, id);
+      await withUser(env, null, (sql) => sql`select public.notice_thread_set(${key}, ${id ?? ''})`).catch(() => null);
+    };
     for (const m of batch) {
       if (!tok?.tenant_access_token) { results.push([String(m.msg_id), false, '无法获取应用凭证']); continue; }
       const body = typeof m.body === 'string' ? JSON.parse(m.body) : m.body;
       const group = m.target_id === 'group' || m.target_id === 'assist';
       const to = m.target_id === 'group' ? env.NOTICE_CHAT_ID : m.target_id === 'assist' ? env.ASSIST_CHAT_ID : String(m.target_id);
       if (!to) { results.push([String(m.msg_id), false, m.target_id === 'assist' ? '未配置协助群' : '未配置全员群']); continue; }
-      const send = (msg_type: string, content: unknown) => feishu(`/im/v1/messages?receive_id_type=${group ? 'chat_id' : to.startsWith('on_') ? 'union_id' : 'open_id'}`, {
+      const direct = (msg_type: string, content: unknown) => feishu(`/im/v1/messages?receive_id_type=${group ? 'chat_id' : to.startsWith('on_') ? 'union_id' : 'open_id'}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
         body: JSON.stringify({ receive_id: to, msg_type, content: JSON.stringify(content) }),
       }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
+      // 协助群的 PR 通报：这个 PR 已有话题的，回复在话题里；还没有的，直接发到群里，这一条就是话题的根。
+      // 根消息被撤回、删除的，清掉后把这一条当新的根
+      const key = m.target_id === 'assist' && typeof body.thread === 'string' && /^pr:\d{1,7}$/.test(body.thread) ? body.thread : null;
+      const send = async (msg_type: string, content: unknown) => {
+        if (!key) return direct(msg_type, content);
+        const root = await rootOf(key);
+        if (root) {
+          const r = await feishu(`/im/v1/messages/${encodeURIComponent(root)}/reply`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${tok.tenant_access_token}` },
+            body: JSON.stringify({ msg_type, content: JSON.stringify(content), reply_in_thread: true }),
+          }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
+          if (r?.code === 0 || !/not exist|withdrawn|deleted|recall/i.test(String(r?.msg ?? ''))) return r;
+          await setRoot(key, null);
+        }
+        const r = await direct(msg_type, content);
+        if (r?.code === 0 && r.data?.message_id) await setRoot(key, String(r.data.message_id));
+        return r;
+      };
       // 先发卡片；卡片被拒的，退回发纯文字，通知不能因为版式丢掉
       const actToken = env.CARD_ACTIONS === '1' && !group && body.act ? await sign(env.SESSION_SECRET, 'act', String(m.msg_id), ACT_TTL) : undefined;
       // 带图的通报：先把图传上去；传不上去的照发文字，并记下原因
