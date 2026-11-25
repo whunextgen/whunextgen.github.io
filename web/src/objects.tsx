@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { rpc, useViews, type Me, type PeoplePick } from './api';
 import { ActionDialog, Badge, Empty, Loading, day, today, type Field } from './ui';
 import { AXES, type AttendEvent, type Pitch, type Query, type Seminar, type Snapshot } from './iterate';
 import type { Assessment } from './growth';
 
 // 各对象自己的页面：快照、质疑、考核、研讨会，以及训练课程。从列表点进来
-interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
+interface Act { title: string; hint?: ReactNode; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 interface SnapX extends Snapshot { person_id: string | null; person_name: string | null; title: string | null }
 interface QueryX extends Query { person_id: string | null; person_name: string | null }
 interface ReviewNote { id: string; snapshot_id: string; author_name: string; day: string; body: string; adopted_at: string | null }
@@ -123,7 +123,8 @@ export function AssessmentPage({ id }: { id: string }) {
 
 // ---------- 研讨会 ----------
 export function SeminarPage({ code }: { code: string }) {
-  const { data, error } = useViews<{ s: Seminar[]; pitches: Pitch[]; events: AttendEvent[] }>({ s: ['seminar', { code }], pitches: ['snapshot_pitch', { seminar: code }], events: ['attend_event', { seminar: code }] }, code);
+  const { data, error, reload } = useViews<{ s: Seminar[]; pitches: Pitch[]; events: AttendEvent[] }>({ s: ['seminar', { code }], pitches: ['snapshot_pitch', { seminar: code }], events: ['attend_event', { seminar: code }] }, code);
+  const [act, setAct] = useState<Act | null>(null);
   if (!data) return <Loading error={error} />;
   const s = data.s[0];
   if (!s) return <Empty>研讨会不存在。</Empty>;
@@ -135,14 +136,19 @@ export function SeminarPage({ code }: { code: string }) {
         <section className="wb-sec" key={p}>
           <h3>{day(p)} 起一期 <span className="h3sub">{rows.length} 份 · 接收 {rows.filter((x) => x.status === 'accepted' || x.status === 'closed').length} 份</span></h3>
           <div className="scroll"><table className="wb-table">
-            <thead><tr><th>稿子</th><th>快照</th><th>状态</th><th className="r">新记质疑</th><th className="r">再次提出</th><th className="r">结算</th></tr></thead>
+            <thead><tr><th>稿子</th><th>快照</th><th>状态</th><th className="r">新记质疑</th><th className="r">再次提出</th><th className="r">结算</th><th /></tr></thead>
             <tbody>{rows.map((x) => { const px = x as Pitch & { person_name?: string | null; title?: string | null }; return <tr key={x.id}><td>{px.person_name ? `${px.person_name} · ${px.title ?? '主线草稿'}` : x.project_name}<span className="sub2">{x.project_code}</span></td>
               <td><a href={`#/snapshot/${x.snapshot_id}`}>第 {x.seq} 次</a></td><td><Badge tone={PITCH[x.status][0]}>{PITCH[x.status][1]}</Badge></td>
-              <td className="r">{x.new_queries}</td><td className="r">{x.again_queries}</td><td className="r">{x.resolved}</td></tr>; })}</tbody>
+              <td className="r">{x.new_queries}</td><td className="r">{x.again_queries}</td><td className="r">{x.resolved}</td>
+              <td>{x.status === 'accepted' && <button className="ghost sm" onClick={() => setAct({ title: `写质疑卡：${px.person_name ? `${px.person_name} · ${px.title ?? '主线草稿'}` : x.project_name}`, label: '交卡',
+                hint: <>先读快照：<a href={x.link} target="_blank" rel="noreferrer">打开草稿</a>。会前写的卡和会上写的一样，由组织者记入后计在你名下（记入「利」）。</>,
+                fields: [{ name: 'axis', label: '针对哪一问', options: AXES.map(([k, n, d]): [string, string] => [k, `${n}：${d}`]) }, { name: 'body', label: '质疑', type: 'area' }],
+                run: (v) => rpc('submit_query_draft', { pitch: x.id, axis: v.axis, body: v.body, parent: null }) })}>写质疑卡</button>}</td></tr>; })}</tbody>
           </table></div>
         </section>); })}
       {data.events.length > 0 && <section className="wb-sec"><h3>出勤 <span className="h3sub">{data.events.length} 次会</span></h3>
         <ul className="path-hist">{[...data.events].sort((a, b) => b.held_on.localeCompare(a.held_on)).map((e) => <li key={e.id}>{day(e.held_on)}{e.title ? ` · ${e.title}` : ''}：出席 {e.present}，请假 {e.leave}，缺席 {e.absent}</li>)}</ul></section>}
+      {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.label} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
     </div>
   );
 }
