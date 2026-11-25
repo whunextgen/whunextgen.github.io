@@ -53,6 +53,8 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
   const cat = new Map(data.cats.map((c) => [c.id, c]));
   const lines = data.lines.filter((l) => l.year === year);
   const budget = new Map(data.budgets.filter((b) => b.year === year).map((b) => [b.project_id, b]));
+  // 本人负责的研究单元：研究单元不设预算行，在页上指明由所属课题的负责人填报
+  const myUnits = data.projects.filter((p) => p.layer === 'paper' && p.active && p.owner_id === me.id && !budget.has(p.id));
   const projects = data.projects.filter((p) => (p.layer !== 'paper' || budget.has(p.id)) && (p.active || budget.has(p.id)))
     .sort((a, b) => Number(a.kind === 'public') - Number(b.kind === 'public') || a.code.localeCompare(b.code));
   const inSum = (l: BudgetLine) => budget.get(l.project_id)?.status === 'submitted';
@@ -237,7 +239,14 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
 
       {staff && step >= 3 && y.stage !== 'granted' && <IssuePanel me={me} y={y} projects={projects} cats={data.cats} onStage={reload} />}
 
-      {!staff && projects.filter((p) => p.mine).length === 0 && <Empty>本人名下暂无课题。年度预算只编在课题上，由课题负责人填报，研究单元使用所属课题的预算；新课题请在「<a href="#/apply">立项与延续申请</a>」中申请立项。</Empty>}
+      {myUnits.length > 0 && <section className="card"><h3>本人负责的研究单元</h3>
+        <p className="hint">年度预算只编在课题上，研究单元不单独填报。请把研究单元的预算交给所属课题的负责人，由其在课题的年度预算中填报。</p>
+        <ul>{myUnits.map((u) => <li key={u.id}>{u.code} {u.name}：所属课题 <a href={`#/project/${u.parent_id}/${year}`}>{u.parent_code} {u.parent_name}</a>
+          {(() => { const t = data.projects.find((x) => x.id === u.parent_id); return t?.owner_name ? `，负责人 ${t.owner_name}` : ''; })()}
+          {(() => { const st = budget.get(u.parent_id ?? '')?.status; return st ? <> <Badge tone={PB[st][1]}>{PB[st][0]}</Badge></> : null; })()}</li>)}</ul>
+      </section>}
+
+      {!staff && myUnits.length === 0 && projects.filter((p) => p.mine).length === 0 && <Empty>本人名下暂无课题。年度预算只编在课题上，由课题负责人填报，研究单元使用所属课题的预算；新课题请在「<a href="#/apply">立项与延续申请</a>」中申请立项。</Empty>}
 
       {projects.filter((p) => p.mine).map((p) => {
         const b = budget.get(p.id); const rows = lines.filter((l) => l.project_id === p.id);
