@@ -3,7 +3,7 @@ import { rpc, useViews, type Me, type PeoplePick } from './api';
 import { ActionDialog, Badge, Empty, Loading, day, type Field } from './ui';
 
 // 联席会议：议题从提案、附议、讨论、表决到否决期和生效，全在中台办。会上表决在会议现场页，紧急议题可以会外表决
-export interface Motion { id: string; seq: number; mtype: 'main' | 'amend' | 'reconsider' | 'procedural'; category: string; title: string; body: string; link: string | null;
+export interface Motion { id: string; seq: number; mtype: 'main' | 'amend' | 'reconsider' | 'procedural' | 'inquiry'; decided_note?: string | null; director_decision?: string | null; can_decide?: boolean; can_execute?: boolean; auto?: boolean; category: string; title: string; body: string; link: string | null;
   parent_id: string | null; parent_seq: number | null; parent_title: string | null; proposer_id: string; proposer_name: string; seconder_name: string | null; subject_names: string[];
   threshold: 'majority' | 'two_thirds'; ballot: 'open' | 'secret'; urgent: boolean; ref_kind: string | null; ref_id: string | null;
   status: 'proposed' | 'seconded' | 'voting' | 'passed' | 'failed' | 'vetoed' | 'effective' | 'withdrawn'; round: number; meeting_id: string | null; online: boolean;
@@ -16,14 +16,15 @@ interface Speech { id: string; motion_id: string; round: number; user_id: string
 interface Act { title: string; hint?: ReactNode; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
 export const CAT: Record<string, string> = { research: '研究方向与项目', unit: '研究单元', topic: '课题立项与延续', path: '成长主线认定', budget: '预算', assessment: '考核推荐', personnel: '人员推荐', removal: '建议退组', rules: '议事规则', other: '其他事务', procedure: '程序' };
-const TYPE: Record<Motion['mtype'], string> = { main: '议题', amend: '修正案', reconsider: '复议', procedural: '程序动议' };
+const TYPE: Record<Motion['mtype'], string> = { main: '议题', amend: '修正案', reconsider: '复议', procedural: '程序动议', inquiry: '过问' };
 const ST: Record<Motion['status'], [string, string]> = { proposed: ['warn', '待附议'], seconded: ['', '待表决'], voting: ['warn', '表决中'], passed: ['ok', '通过，否决期内'],
   failed: ['bad', '未通过'], vetoed: ['bad', '被否决'], effective: ['ok', '已生效'], withdrawn: ['', '已撤回'] };
 const SIDE: Record<Speech['side'], string> = { pro: '支持', con: '反对', neutral: '中立' };
 const CHOICE: Record<string, string> = { yes: '同意', no: '反对', abstain: '弃权' };
 const t = (v: string | null) => (v ? new Date(v).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 const label = (m: Motion) => `第 ${m.seq} 号${m.mtype === 'main' ? '' : TYPE[m.mtype]}`;
-const rule = (m: Motion) => `${m.threshold === 'two_thirds' ? '三分之二' : '过半数'} · ${m.ballot === 'secret' ? '不记名' : '记名'}${m.urgent ? ' · 紧急' : ''}`;
+const stLabel = (m: Motion) => m.mtype === 'inquiry' ? (m.status === 'effective' ? '已过问' : m.status === 'withdrawn' ? '已撤下' : '待过问') : ST[m.status][1];
+const rule = (m: Motion) => m.mtype === 'inquiry' ? '过问，不表决' : `${m.threshold === 'two_thirds' ? '三分之二' : '过半数'} · ${m.ballot === 'secret' ? '不记名' : '记名'}${m.urgent ? ' · 紧急' : ''}`;
 
 const motionFields = (people: PeoplePick[]): Field[] => [
   { name: 'title', label: '题目（不超过 80 字）' },
@@ -38,28 +39,36 @@ const submit = (v: Record<string, string>, extra: Record<string, unknown> = {}) 
 
 // ---------- 联席会议页 ----------
 export function CouncilPage(_: { me: Me }) {
-  const { data, error, reload } = useViews<{ ms: Motion[]; info: Info[]; rep: { id: string; name: string; votes: number }[]; pick: { id: string; name: string }[]; people: PeoplePick[] }>(
-    { ms: ['council_motion'], info: ['council_info'], rep: ['council_rep'], pick: ['council_rep_pick'], people: ['people_pick'] });
+  const { data, error, reload } = useViews<{ ms: Motion[]; info: Info[]; rep: { id: string; name: string; votes: number }[]; pick: { id: string; name: string }[]; people: PeoplePick[];
+    targets: { id: string; code: string; name: string; layer: string; owner_name: string | null }[]; persons: { id: string; name: string; rank_label: string }[] }>(
+    { ms: ['council_motion'], info: ['council_info'], rep: ['council_rep'], pick: ['council_rep_pick'], people: ['people_pick'], targets: ['council_targets'], persons: ['council_people'] });
   const [act, setAct] = useState<Act | null>(null);
   if (!data) return <Loading error={error} />;
   const info = data.info[0];
-  const mains = data.ms.filter((m) => m.mtype === 'main').sort((a, b) => b.seq - a.seq);
+  const mains = data.ms.filter((m) => m.mtype === 'main' || m.mtype === 'inquiry').sort((a, b) => b.seq - a.seq);
   const groups: [string, Motion[]][] = [
-    ['表决中', mains.filter((m) => m.status === 'voting')], ['待附议', mains.filter((m) => m.status === 'proposed')], ['已附议，待表决', mains.filter((m) => m.status === 'seconded')],
+    ['表决中', mains.filter((m) => m.status === 'voting')], ['待附议', mains.filter((m) => m.status === 'proposed')], ['已列入议程，待表决或过问', mains.filter((m) => m.status === 'seconded')],
     ['已通过，否决期内', mains.filter((m) => m.status === 'passed')], ['已生效', mains.filter((m) => m.status === 'effective')],
     ['未通过、被否决、已撤回', mains.filter((m) => ['failed', 'vetoed', 'withdrawn'].includes(m.status))]];
   const canPropose = info && (info.am_voter || info.am_director || info.am_rep);
   return (
     <div className="wb">
       <div className="top"><h2>联席会议</h2>{canPropose && <button onClick={() => setAct({ title: '提交提案', label: '提交', fields: motionFields(data.people),
-        hint: '研究单元申请、课题立项与延续、考核推荐在各自的申请里提交，由正则自动列入议程。其他事项在这里提案，须经另一名有表决权的成员附议才列入议程；表决前三天提交。涉及人员的事项不记名表决；建议退组、修订议事规则须三分之二同意。', run: (v) => submit(v).then((id) => { location.hash = `#/motion/${id}`; }) })}>提交提案</button>}</div>
+        hint: '研究单元申请、课题立项与延续、预算、考核和主线任务审核在各自的申请里提交，由正则自动列入议程；研究单元停滞由正则自动列入过问。其他事项在这里提案，须经另一名有表决权的成员附议才列入议程；表决前三天提交。涉及人员的事项不记名表决；建议退组、修订议事规则须三分之二同意。', run: (v) => submit(v).then((id) => { location.hash = `#/motion/${id}`; }) })}>提交提案</button>}
+        {canPropose && <button className="ghost" onClick={() => setAct({ title: '提议终止或结项', label: '提交', hint: '负责人本人申请的免附议，直接列入议程；其他成员提议的须附议。研究单元决议生效即停用；课题转中心负责人和财务办理。',
+          fields: [{ name: 'p', label: '研究单元或课题', options: [...data.targets].sort((a, b) => a.code.localeCompare(b.code)).map((x): [string, string] => [x.id, `${x.code} ${x.layer === 'paper' ? '研究单元' : '课题'}「${x.name}」${x.owner_name ? `（${x.owner_name}）` : ''}`]) },
+            { name: 'k', label: '类别', options: [['close', '结项：工作完成'], ['end', '终止：不再继续']] }, { name: 'r', label: '理由', type: 'area' }],
+          run: (v) => rpc('propose_project_end', { project: v.p, kind: v.k, reason: v.r }).then((id) => { location.hash = `#/motion/${id}`; }) })}>提议终止或结项</button>}
+        {info?.am_voter && <button className="ghost" onClick={() => setAct({ title: '建议退组', label: '提交', danger: true, hint: '按章程，连续两次需改进且未达成改进目标的，可以表决建议退组：须附议，投票者三分之二同意，不记名；本人可以到会申辩。通过后由中心负责人决定。',
+          fields: [{ name: 'p', label: '成员', options: [...data.persons].sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((x): [string, string] => [x.id, `${x.name}（${x.rank_label}）`]) }, { name: 'r', label: '依据', type: 'area' }],
+          run: (v) => rpc('propose_removal', { person: v.p, reason: v.r }).then((id) => { location.hash = `#/motion/${id}`; }) })}>建议退组</button>}</div>
       <p className="lede">有表决权的成员 {info?.electorate ?? '—'} 人（Researcher、Rising Star、PI）· {info?.term}学期代表 {info?.rep_name ?? '尚未推选'}（列席，有发言权）· Director 不参加，决议通过后三个工作日内可以否决。会上表决在会议现场页进行。</p>
       {groups.map(([name, rows]) => rows.length > 0 && <section className="wb-sec" key={name}>
         <h3>{name} <span className="h3sub">{rows.length} 份</span></h3>
         <div className="scroll"><table className="wb-table"><thead><tr><th>议题</th><th>类别</th><th>提案人</th><th>规则</th><th>状态</th></tr></thead>
           <tbody>{rows.map((m) => <tr key={m.id}><td><a href={`#/motion/${m.id}`}>{label(m)} {m.title}</a>{m.open_amendments > 0 && <span className="sub2">修正案 {m.open_amendments} 份待表决</span>}</td>
-            <td>{CAT[m.category]}</td><td>{m.proposer_name}{m.seconder_name ? <span className="sub2">附议 {m.seconder_name}</span> : (m as Motion & { auto?: boolean }).auto ? <span className="sub2">申请自动列入</span> : null}</td><td className="sub2">{rule(m)}</td>
-            <td><Badge tone={ST[m.status][0]}>{ST[m.status][1]}</Badge>{m.status === 'voting' && m.online && <span className="sub2">会外表决，{t(m.vote_until)} 截止</span>}
+            <td>{CAT[m.category]}</td><td>{m.proposer_name}{m.seconder_name ? <span className="sub2">附议 {m.seconder_name}</span> : m.auto ? <span className="sub2">申请自动列入</span> : null}</td><td className="sub2">{rule(m)}</td>
+            <td><Badge tone={ST[m.status][0]}>{stLabel(m)}</Badge>{m.status === 'voting' && m.online && <span className="sub2">会外表决，{t(m.vote_until)} 截止</span>}
               {m.status === 'passed' && <span className="sub2">{t(m.veto_until)} 前未否决即生效</span>}</td></tr>)}</tbody></table></div>
       </section>)}
       {mains.length === 0 && <Empty>还没有议题。</Empty>}
@@ -93,10 +102,12 @@ export function MotionPage({ id }: { id: string; me: Me }) {
       <div className="top"><h2>{m.title}</h2></div>
       <p className="lede">{TYPE[m.mtype]}{m.parent_id && <> · 针对 <a href={`#/motion/${m.parent_id}`}>第 {m.parent_seq} 号「{m.parent_title}」</a></>} · {CAT[m.category]} · {rule(m)} · 提案人 {m.proposer_name}，{t(m.created_at)} 提交
         {m.seconder_name ? ` · ${m.seconder_name} 附议` : ''}{m.subject_names.length ? ` · 涉及 ${m.subject_names.join('、')}（不参加投票）` : ''}{m.recused_names.length ? ` · 回避 ${m.recused_names.join('、')}` : ''}</p>
-      <section className="wb-sec"><h3>状态 <Badge tone={ST[m.status][0]}>{ST[m.status][1]}</Badge>
+      <section className="wb-sec"><h3>状态 <Badge tone={ST[m.status][0]}>{stLabel(m)}</Badge>
         <span className="h3sub">{m.status === 'voting' ? (m.online ? `会外表决，${t(m.vote_until)} 截止；已投 ${m.cast_count} 人${m.meeting_requests ? `；${m.meeting_requests} 人要求当面讨论（两人即转到会上）` : ''}` : `会上表决中，已投 ${m.cast_count} 人`)
           : m.status === 'passed' ? `${t(m.veto_until)} 前未否决即生效` : m.status === 'effective' ? `${t(m.effective_at)} 生效` : ''}</span></h3>
-        {decided && <p>同意 {m.yes}，反对 {m.no}，弃权 {m.abstain}（可以投票的 {m.eligible} 人）{m.note ? `。${m.note}` : ''}{m.veto_reason ? `。否决理由：${m.veto_reason}` : ''}</p>}
+        {m.decided_note && <p>{m.mtype === 'inquiry' ? '过问结果' : '中心负责人说明'}：{m.decided_note}</p>}
+        {m.director_decision && <p>中心负责人决定：{m.director_decision === 'accepted' ? '同意退组' : '不予采纳'}</p>}
+        {decided && m.mtype !== 'inquiry' && <p>同意 {m.yes}，反对 {m.no}，弃权 {m.abstain}（可以投票的 {m.eligible} 人）{m.note ? `。${m.note}` : ''}{m.veto_reason ? `。否决理由：${m.veto_reason}` : ''}</p>}
         {decided && data.ballot.length > 0 && <p className="sub2">{data.ballot.map((b) => `${b.name} ${CHOICE[b.choice]}`).join('、')}</p>}
         {m.my_vote && <p className="sub2">我的票：{CHOICE[m.my_vote]}{m.status === 'voting' ? '（截止前可以改）' : ''}</p>}
         <div className="ir-acts" style={{ alignItems: 'center' }}>
@@ -114,7 +125,10 @@ export function MotionPage({ id }: { id: string; me: Me }) {
           {m.mtype === 'main' && ['passed', 'failed'].includes(m.status) && info?.am_voter && <button className="sm ghost" onClick={() => setAct({ title: `复议：${m.title}`, label: '提交',
             hint: '由投了多数一方票的成员在本次或下一次会议提出，经附议、过半数同意的，原议题重新表决。同一议题只能复议一次。', fields: [{ name: 'title', label: '复议理由（一句话）' }, { name: 'body', label: '说明', type: 'area' }],
             run: (v) => submit(v, { mtype: 'reconsider', parent: m.id, category: null }) })}>提复议</button>}
-          {(m as Motion & { can_execute?: boolean }).can_execute && <button className="sm" onClick={() => go(rpc('execute_fixed_change', { id: m.ref_id }))}>按决议调整核定数</button>}
+          {m.can_execute && <button className="sm" onClick={() => go(rpc('execute_fixed_change', { id: m.ref_id }))}>按决议调整核定数</button>}
+          {m.mtype === 'inquiry' && m.can_chair && ['proposed', 'seconded'].includes(m.status) && <button className="sm" onClick={() => setAct({ title: `记下过问结果：${m.title}`, label: '记下', fields: [{ name: 'n', label: '过问结果（负责人的说明、恢复计划、会上意见）', type: 'area' }], run: (v) => rpc('close_inquiry', { id: m.id, note: v.n }) })}>记下过问结果</button>}
+          {m.can_decide && <><button className="sm" onClick={() => setAct({ title: `决定：${m.title}`, label: '同意退组', danger: true, hint: '同意的，人员档案记为已离开，并通知本人。', fields: [{ name: 'n', label: '说明（选填）', required: false }], run: (v) => rpc('decide_removal', { id: m.id, accept: true, note: v.n || null }) })}>同意退组</button>
+            <button className="sm ghost" onClick={() => setAct({ title: `决定：${m.title}`, label: '不予采纳', fields: [{ name: 'n', label: '说明（选填）', required: false }], run: (v) => rpc('decide_removal', { id: m.id, accept: false, note: v.n || null }) })}>不予采纳</button></>}
           {m.can_withdraw && <button className="sm ghost danger" onClick={() => go(rpc('withdraw_motion', { id: m.id }))}>撤回</button>}
           {m.can_veto && <button className="sm danger" onClick={() => setAct({ title: `否决：${m.title}`, label: '否决', danger: true, hint: '否决须写明理由，理由向全体成员公开。',
             fields: [{ name: 'r', label: '理由', type: 'area' }], run: (v) => rpc('veto_motion', { id: m.id, reason: v.r }) })}>否决</button>}
@@ -126,7 +140,7 @@ export function MotionPage({ id }: { id: string; me: Me }) {
         {m.link && <p><a href={m.link} target="_blank" rel="noreferrer">附件 →</a></p>}
         {m.body_prev && <details><summary className="sub2">修正前的文本</summary><div style={{ whiteSpace: 'pre-wrap' }}>{m.body_prev}</div></details>}</section>
       {kids.length > 0 && <section className="wb-sec"><h3>修正案与复议 <span className="h3sub">{kids.length} 份</span></h3>
-        <ul className="path-hist">{kids.map((k) => <li key={k.id}><a href={`#/motion/${k.id}`}>{label(k)} {k.title}</a> · {k.proposer_name} · <Badge tone={ST[k.status][0]}>{ST[k.status][1]}</Badge></li>)}</ul></section>}
+        <ul className="path-hist">{kids.map((k) => <li key={k.id}><a href={`#/motion/${k.id}`}>{label(k)} {k.title}</a> · {k.proposer_name} · <Badge tone={ST[k.status][0]}>{stLabel(k)}</Badge></li>)}</ul></section>}
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.label} danger={act.danger} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
     </div>
   );
@@ -161,7 +175,7 @@ export function CouncilLive({ meetingId, open, canRun }: { meetingId: string; op
       <p className="ir-hint" style={{ marginTop: 0 }}>出席的有表决权成员 {cm?.present_voters ?? 0} / {cm?.electorate ?? 0} 人，{quorum ? '已过半数，可以表决' : '不足半数，不能表决'}。</p>
       {agenda.length === 0 ? <p className="ir-hint">没有待表决的议题。议题在「联席会议」页提交，经附议后列入议程。</p>
         : <ol className="ir-ch">{agenda.map((x) => <li key={x.id} className={['seconded', 'voting'].includes(x.status) ? '' : 'd'} style={{ cursor: 'pointer', background: m?.id === x.id ? 'var(--i-soft)' : undefined }} onClick={() => setCur(x.id)}>
-          <i /><div>{label(x)} {x.title}<small>{TYPE[x.mtype]} · {rule(x)} · {ST[x.status][1]}</small></div></li>)}</ol>}
+          <i /><div>{label(x)} {x.title}<small>{TYPE[x.mtype]} · {rule(x)} · {stLabel(x)}</small></div></li>)}</ol>}
     </section>
     <section className="ir-t ir-main">
       {!m ? <p className="ir-hint">选一份议题开始。</p> : <>
@@ -179,6 +193,8 @@ export function CouncilLive({ meetingId, open, canRun }: { meetingId: string; op
             <button className="sm ghost" onClick={() => go(rpc('cancel_speech', { speech: mineQ.id }))}>取消</button></>
             : (['pro', 'con', 'neutral'] as const).map((s) => <button key={s} className="sm ghost" onClick={() => go(rpc('request_speech', { id: m.id, side: s }))}>申请发言：{SIDE[s]}</button>)}</div>}
         </>}
+        {m.mtype === 'inquiry' ? <>{['proposed', 'seconded'].includes(m.status) && canRun && open && <InquiryClose id={m.id} onDone={reload} />}
+          {m.decided_note && <p>过问结果：{m.decided_note}</p>}</> : <>
         <h3 style={{ margin: '14px 0 6px', fontSize: 14 }}>表决 <span className="h3sub">出席的有表决权成员在自己的手机或电脑上投票，结束前可以改票</span></h3>
         {m.status === 'seconded' && (canRun && open ? <div className="ir-acts"><button className="sm" disabled={!quorum} onClick={() => go(rpc('open_vote', { id: m.id, meeting: meetingId }))}>开始表决</button></div>
           : <p className="ir-hint">等主持人开始表决。</p>)}
@@ -190,9 +206,17 @@ export function CouncilLive({ meetingId, open, canRun }: { meetingId: string; op
           {canRun && !m.online && <div className="ir-acts"><button className="sm" onClick={() => go(rpc('close_vote', { id: m.id }))}>结束表决，公布结果</button></div>}
         </>}
         {['passed', 'failed', 'effective', 'vetoed'].includes(m.status) && <p style={{ font: '700 20px/1.4 var(--i-serif)' }}>{m.status === 'failed' ? '未通过' : '通过'}：同意 {m.yes}，反对 {m.no}，弃权 {m.abstain}
-          {m.mtype === 'main' && m.status === 'passed' ? `；${t(m.veto_until)} 前中心主任未否决即生效` : ''}</p>}
+          {m.mtype === 'main' && m.status === 'passed' ? `；${t(m.veto_until)} 前中心主任未否决即生效` : ''}</p>}</>}
         {err && <p className="sub2" style={{ color: 'var(--bad)' }}>{err}</p>}
       </>}
     </section>
   </>;
+}
+
+function InquiryClose({ id, onDone }: { id: string; onDone: () => void }) {
+  const [n, setN] = useState('');
+  const [err, setErr] = useState('');
+  return <><h3 style={{ margin: '14px 0 6px', fontSize: 14 }}>过问 <span className="h3sub">负责人说明情况和恢复计划，不表决；主持人记下结果</span></h3>
+    <textarea rows={3} value={n} onChange={(e) => setN(e.target.value)} placeholder="负责人的说明、恢复计划、会上意见" style={{ width: '100%' }} aria-label="过问结果" />
+    <div className="ir-acts"><button className="sm" onClick={() => rpc('close_inquiry', { id, note: n }).then(onDone).catch((e) => setErr((e as Error).message))}>记下过问结果</button>{err && <span className="sub2" style={{ color: 'var(--bad)' }}>{err}</span>}</div></>;
 }
