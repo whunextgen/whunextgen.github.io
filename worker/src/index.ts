@@ -371,7 +371,14 @@ async function meetingSync(env: Env) {
   const cal = await withUser(env, null, (sql) => sql`select event_id, kind, seminar_name, title, from_ts, to_ts, calendar_id from public.calendar_todo()`).catch(() => []);
   if (cal.length && tok?.tenant_access_token) {
     const c0 = cal[0];
-    const ev = await feishu(`/calendar/v4/calendars/${encodeURIComponent(String(c0.calendar_id))}/events?start_time=${Math.min(...cal.map((c: any) => Number(c.from_ts)))}&end_time=${Math.max(...cal.map((c: any) => Number(c.to_ts)))}&page_size=100`, { headers: auth }).catch(() => null);
+    let calId = String(c0.calendar_id);
+    // 填的是日历名称的，按名称搜公开日历取编号
+    if (!calId.includes('@')) {
+      const sr = await feishu('/calendar/v4/calendars/search?page_size=20', { method: 'POST', headers: { ...auth, 'content-type': 'application/json; charset=utf-8' }, body: JSON.stringify({ query: calId }) }).catch(() => null);
+      const hit = ((sr?.data?.items ?? []) as { calendar_id?: string; summary?: string }[]).find((x) => x.summary === calId) ?? (sr?.data?.items ?? [])[0];
+      if (hit?.calendar_id) calId = String(hit.calendar_id); else console.error('中心日历按名称没有搜到', sr?.code, sr?.msg);
+    }
+    const ev = await feishu(`/calendar/v4/calendars/${encodeURIComponent(calId)}/events?start_time=${Math.min(...cal.map((c: any) => Number(c.from_ts)))}&end_time=${Math.max(...cal.map((c: any) => Number(c.to_ts)))}&page_size=100`, { headers: auth }).catch(() => null);
     const items = (ev?.code === 0 ? ev.data?.items ?? [] : []) as { summary?: string; start_time?: { timestamp?: string }; vchat?: { meeting_url?: string } }[];
     for (const c of cal) {
       const key = c.kind === 'seminar' ? String(c.seminar_name ?? '') : c.kind === 'lecture' ? '讲座' : '联席';
