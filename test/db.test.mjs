@@ -3506,5 +3506,60 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`);
 }
 
+// ---------- 项目双选与试做期 ----------
+{
+  await db.exec(`reset role`);
+  const W = await one(`select u.id, u.owner_id from project u where u.layer = 'paper' and u.active and not u.proposed and u.owner_id is not null and u.owner_id not in ($1, $2) order by u.code limit 1`, [U.mem, U.lead]);
+  await q(`update project_member set left_on = current_date where project_id = $1 and user_id = $2 and left_on is null`, [W.id, U.mem]);
+  await q(`update person set rank = 'assistant' where user_id = $1`, [U.mem]);
+  await q(`update person set rank = 'researcher' where user_id = $1`, [U.lead]);
+  await db.exec(`set role app_api`);
+  await as(W.owner_id);
+  await q(`select save_project_recruit($1, '研究长程推理的评测', '整理基准、跑基线', '会 Python', 'Intern、Assistant、硕士', 'open', null)`, [W.id]);
+  await as(U.mem);
+  ok((await one(`select status, intro, can_manage from api.recruit where id = $1`, [W.id])).intro === '研究长程推理的评测', '招募信息公开');
+  await raises('不是负责人不能改招募信息', /负责人或副手维护/, `select save_project_recruit($1, 'x', null, null, null, 'open', null)`, [W.id]);
+  await q(`select express_interest($1, '做过推理评测，想参与基线', 'https://example.org/me')`, [W.id]);
+  await raises('意向不重复', /已表达过意向/, `select express_interest($1, '再来一次')`, [W.id]);
+  await as(W.owner_id);
+  ok((await q(`select 1 from api.recruit_interest where project_id = $1 and user_id = $2`, [W.id, U.mem])).length === 1, '负责人看得到意向');
+  await raises('指导人须申报没有私人关系', /没有私人关系/, `select start_trial($1, $2, $3, app_today() + 30, '整理基准', '把三个基准整理成统一格式', app_today() + 10, false)`, [W.id, U.mem, U.lead]);
+  await raises('试做期不超过一个月', /一个月以内/, `select start_trial($1, $2, $3, app_today() + 40, '整理基准', '内容', app_today() + 10, true)`, [W.id, U.mem, U.lead]);
+  await raises('指导人须 Researcher 及以上', /Researcher 及以上/, `select start_trial($1, $2, $2, app_today() + 30, '整理基准', '内容', app_today() + 10, true)`, [W.id, U.mem]);
+  const TR = await val(`select start_trial($1, $2, $3, app_today() + 30, '整理基准', '把三个基准整理成统一格式', app_today() + 10, true) v`, [W.id, U.mem, U.lead]);
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from project_member where project_id = $1 and user_id = $2 and left_on is null`, [W.id, U.mem])).n === 1, '开试做期时一并加入成员名单');
+  ok((await one(`select status from recruit_interest where project_id = $1 and user_id = $2 order by created_at desc limit 1`, [W.id, U.mem])).status === 'joined', '意向记为已加入');
+  await db.exec(`set role app_api`);
+  await as(U.mem);
+  await q(`select submit_trial($1, 'mid', '整理了两个基准', 'https://example.org/progress')`, [TR]);
+  await raises('结论由指导人给出', /指导人给出/, `select conclude_trial($1, 'continue', '理由')`, [TR]);
+  await as(U.lead);
+  await q(`select trial_feedback($1, '格式统一了，第三个基准下周补上')`, [TR]);
+  await q(`select conclude_trial($1, 'extend', '还差一个基准', app_today() + 20, '补齐第三个基准并跑基线')`, [TR]);
+  await raises('只能延长一次', /只能延长一次/, `select conclude_trial($1, 'extend', '再延', app_today() + 25, '再做')`, [TR]);
+  await q(`select conclude_trial($1, 'end', '第三个基准仍未完成，投入不足')`, [TR]);
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from project_member where project_id = $1 and user_id = $2 and left_on is null`, [W.id, U.mem])).n === 0, '结束参与的移出名单');
+  ok((await one(`select rank from person where user_id = $1`, [U.mem])).rank === 'assistant', '结论不影响身份');
+  await db.exec(`set role app_api`);
+  await as(U.lead);
+  ok((await q(`select conclusion from api.trial_filing where id = $1`, [TR])).length === 1, '期满结论报联席会议备案');
+  await as(U.mem);
+  ok((await one(`select can_appeal from api.trial where id = $1`, [TR])).can_appeal === true, '结束参与的本人可以申诉');
+  const AP = await val(`select appeal_trial($1, '第三个基准的数据源当时无法访问') v`, [TR]);
+  const apm = await one(`select status, ballot, auto from api.council_motion where id = $1`, [AP]);
+  ok(apm.status === 'seconded' && apm.ballot === 'secret', '申诉列入联席会议议程，免附议、不记名', JSON.stringify(apm));
+  await db.exec(`reset role`);
+  await q(`update motion set status = 'passed', decided_at = now(), veto_until = now() - interval '1 minute' where id = $1`, [AP]);
+  await db.exec(`set role app_api`);
+  await as(null); await q(`select council_tick()`);
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from project_member where project_id = $1 and user_id = $2 and left_on is null`, [W.id, U.mem])).n === 1, '申诉通过，恢复成员资格');
+  await db.exec(`set role app_api`);
+  await as(null);
+  ok((await val(`select trial_tick() v`)) >= 0, '试做提醒定时任务可以运行');
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
