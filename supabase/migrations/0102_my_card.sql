@@ -532,3 +532,69 @@ create or replace view api.project_member as
          (select rank_label(pr.rank) from person pr where pr.user_id = m.user_id and pr.status in ('active','offroll') order by pr.updated_at desc nulls last limit 1) as rank_label
   from project_member m join app_user u on u.id = m.user_id
   where can_see_project(m.project_id) or m.user_id = app_uid();
+
+-- ---------- 七、与集群同步的接口 ----------
+-- 中台只记研究单元换得的卡时；QOS 怎么建、挂到谁的集群账号上，由集群一侧在 Slurm 里设置。
+-- 集群一侧用一个带「集群同步」权限的访问令牌，经 MCP 读写：
+--   读 cluster_quota：每个已成立的研究单元一行，累计换得的卡时、集群报回的已用卡时、剩余，名单内的人（含负责人），最近一次执行回执
+--   写 report_cluster_usage：按研究单元、按期报回已用的 GPU 卡时（同一期再报即覆盖）
+--   写 ack_cluster_quota：报回额度已在集群上执行到多少卡时，成功或失败及原因
+insert into rbac_perm (code, name, grp, scope, sort) values ('cluster.sync', '集群同步：读取研究单元的卡时额度，报回用量和执行结果', '资源', 'global', 60)
+on conflict (code) do nothing;
+insert into rbac_role (code, name, note, builtin, locked, implicit, sort)
+values ('cluster', '集群同步', '集群一侧的同步脚本使用', false, false, false, 20) on conflict (code) do nothing;
+insert into rbac_role_perm (role_id, perm) select r.id, 'cluster.sync' from rbac_role r where r.code in ('cluster', 'director') on conflict do nothing;
+
+create table cluster_usage (
+  project_id   uuid not null references project(id),
+  period_start date not null check (period_start = token_period(period_start)),
+  hours        numeric not null check (hours >= 0),
+  reported_by  uuid not null references app_user(id),
+  reported_at  timestamptz not null default now(),
+  primary key (project_id, period_start)
+);
+create table cluster_ack (
+  id           uuid primary key default gen_random_uuid(),
+  project_id   uuid not null references project(id),
+  hours        numeric not null check (hours >= 0),
+  ok           boolean not null,
+  note         text check (note is null or length(note) <= 300),
+  reported_by  uuid not null references app_user(id),
+  reported_at  timestamptz not null default now()
+);
+select seal('cluster_usage', 'cluster_ack');
+create trigger audit after insert or update or delete on cluster_usage for each row execute function trg_audit();
+create trigger audit after insert or update or delete on cluster_ack for each row execute function trg_audit();
+
+create function report_cluster_usage(p_project uuid, p_period date, p_hours numeric) returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not has_perm('cluster.sync') then raise exception '需要权限：cluster.sync' using errcode = '42501'; end if;
+  if not exists (select 1 from project where id = p_project and layer = 'paper') then raise exception '研究单元不存在'; end if;
+  if p_period is null or p_period <> token_period(p_period) or p_period > token_period(app_today()) then raise exception '期次有误：须为某一期的第一天，且不晚于本期'; end if;
+  if p_hours is null or p_hours < 0 then raise exception '卡时不能为负'; end if;
+  insert into cluster_usage (project_id, period_start, hours, reported_by) values (p_project, p_period, p_hours, app_uid())
+  on conflict (project_id, period_start) do update set hours = excluded.hours, reported_by = excluded.reported_by, reported_at = now();
+end $$;
+
+create function ack_cluster_quota(p_project uuid, p_hours numeric, p_ok boolean, p_note text default null) returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not has_perm('cluster.sync') then raise exception '需要权限：cluster.sync' using errcode = '42501'; end if;
+  if not exists (select 1 from project where id = p_project and layer = 'paper') then raise exception '研究单元不存在'; end if;
+  if p_hours is null or p_hours < 0 then raise exception '卡时不能为负'; end if;
+  insert into cluster_ack (project_id, hours, ok, note, reported_by) values (p_project, p_hours, coalesce(p_ok, false), left(nullif(btrim(coalesce(p_note, '')), ''), 300), app_uid());
+end $$;
+select expose('report_cluster_usage(uuid, date, numeric)', 'ack_cluster_quota(uuid, numeric, boolean, text)');
+
+create view api.cluster_quota as
+  select p.id as project_id, p.code as project_code, p.name as project_name,
+         coalesce((select sum(hours) from compute_grant g where g.project_id = p.id), 0) as granted_hours,
+         coalesce((select sum(hours) from cluster_usage u where u.project_id = p.id), 0) as used_hours,
+         coalesce((select sum(hours) from compute_grant g where g.project_id = p.id), 0) - coalesce((select sum(hours) from cluster_usage u where u.project_id = p.id), 0) as left_hours,
+         (select coalesce(jsonb_agg(jsonb_build_object('user_id', u.id, 'name', u.name, 'owner', u.id = p.owner_id) order by u.name), '[]')
+            from app_user u where u.active and (u.id = p.owner_id or exists (select 1 from project_member m where m.project_id = p.id and m.user_id = u.id and m.left_on is null))) as members,
+         (select jsonb_build_object('hours', a.hours, 'ok', a.ok, 'note', a.note, 'at', a.reported_at) from cluster_ack a where a.project_id = p.id order by a.reported_at desc limit 1) as last_ack
+  from project p where p.layer = 'paper' and p.active and not p.proposed and app_role() is not null;
+create view api.cluster_usage as
+  select u.project_id, p.code as project_code, p.name as project_name, u.period_start, u.hours, u.reported_at
+  from cluster_usage u join project p on p.id = u.project_id where app_role() is not null;
+grant select on api.cluster_quota, api.cluster_usage to app_api;

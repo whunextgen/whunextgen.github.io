@@ -1020,7 +1020,7 @@ const hp = async (code, ...a) => (await one(`select has_perm($1${a.map((_, i) =>
 const RID = {};
 await as(U.dir, '2028-01-10');
 for (const r of await q(`select id, code from api.role`)) RID[r.code] = r.id;
-ok(Object.keys(RID).length === 14, '中心负责人能看到全部预置角色');
+ok(Object.keys(RID).length === 15, '中心负责人能看到全部预置角色');
 let myp = (await one(`select perms from api.me`)).perms;
 ok(myp.includes('rbac.manage') && myp.includes('request.approve') && myp.includes('ledger.post') && myp.includes('request.process') && myp.includes('card.fund'), '中心负责人是管理员：能批，也能经办入账和登记回收');
 await as(U.fin, '2028-01-10');
@@ -2830,6 +2830,15 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok(ub.b === 10 && ub.h >= 10, '负责人用研究单元的实际币按标价换卡时，集群一侧可读', JSON.stringify(ub));
   await as(U.mem, D);
   ok((await q(`select 1 from api.unit_coin where project_id = $1`, [UU])).length >= 2, '研究单元的实际币账全中心看得到');
+  // 与集群同步的接口
+  await raises('没有集群同步权限不能报用量', /cluster.sync/, `select report_cluster_usage($1, token_period($2::date), 3)`, [UU, D]);
+  await as(U.dir, D);
+  await raises('期次须为某一期的第一天', /期次有误/, `select report_cluster_usage($1, $2::date + 1, 3)`, [UU, D]);
+  await q(`select report_cluster_usage($1, token_period($2::date), 3)`, [UU, D]);
+  await q(`select report_cluster_usage($1, token_period($2::date), 4)`, [UU, D]);
+  await q(`select ack_cluster_quota($1, 10, true, '已更新')`, [UU]);
+  const cq = await one(`select granted_hours::float g, used_hours::float u, left_hours::float l, members, last_ack from api.cluster_quota where project_id = $1`, [UU]);
+  ok(cq.g >= 10 && cq.u === 4 && cq.l === cq.g - 4 && cq.members.some((m) => m.owner) && cq.last_ack.ok === true, '集群读额度、报回用量（同期覆盖）和执行回执', JSON.stringify(cq));
   // 铸造：研究单元有经核对的一级成果
   await db.exec(`reset role`);
   const hasOut = (await q(`select 1 from outcome where project_id = $1 and level = 1 and checked_at is not null and not rejected`, [UU])).length > 0;
