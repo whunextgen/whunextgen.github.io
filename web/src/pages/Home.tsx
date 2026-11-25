@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import type { ArrClaim } from '../arr';
-import { PathMine } from '../path';
 import { useViews, type Resource, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task, type UnitApply, type BiweeklyStatus } from '../api';
 import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, cardGap, cardGranted, cardTotal, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Track, TreeNode, execSegs, type Seg } from '../tree';
 import { cardRisk, nodeState } from './Overview';
 import { KIND, STAGE_TEXT, STEP_OF } from './Budget';
 import { taskDue } from './Tasks';
-import { TokenMine, addDays } from '../token';
+import { addDays } from '../token';
+import { MyCard } from '../card';
 import { ReviewSummary } from '../review';
 
 const wan = (x: number) => `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 ? 0 : 1)} 万`;
@@ -261,7 +261,8 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   // ---------- 各页共用的几块 ----------
   // 首页按角色分流
   const landing = asked === 'home';
-  const view: HomeView = !landing ? (asked === 'center' && !seesCards ? 'mine' : asked) : seesCards ? 'center' : data.projects.some((p) => p.active && p.owner_id === me.id) ? 'topic' : 'mine';
+  // 首页是每个人的「我的事项」；中心、项目、课题、资源的汇总在左侧菜单各组的「汇总」
+  const view: HomeView = !landing ? (asked === 'center' && !seesCards ? 'mine' : asked) : 'mine';
   type Todo = (typeof todo)[number];
   // 待办按去处归到各部分：课题（预算、上限、决算）、支出（申请、报销、备用金）、资源、项目（经费卡）
   const secOf = (t: Todo): HomeView => /^#\/(budget|caps|review|requests|petty|plan|biweekly)/.test(t.href) ? 'topic' : /^#\/(school|procure)/.test(t.href) ? 'fund' : /^#\/(pool|resource)/.test(t.href) ? 'res' : /^#\/(card|funds|settle|cards)/.test(t.href) ? 'fund' : 'mine';
@@ -492,28 +493,20 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
         <td>{r.project_name ?? cardName.get(r.card_id ?? '') ?? '—'}</td><td className="r">{money(r.amount)}</td>
         <td><Badge tone={reqBadge(r)[1]}>{reqBadge(r)[0]}</Badge> <Flow status={r.status} /></td><td className="r"><a className="wb-op" href={`#/req/${r.id}`}>查看</a></td></tr>)}</tbody>
     </table></div>);
+  const pettyTable = myPetty.length + myRes.length === 0 ? <Empty>暂无在办的备用金和资源申领。</Empty> : (
+    <div className="scroll"><table className="wb-table">
+      <thead><tr><th>类型</th><th>事项</th><th>所属</th><th /></tr></thead>
+      <tbody>
+        {myPetty.map((r) => <tr key={r.id}><td><Badge tone={r.status === 'pending' ? 'warn' : 'pri'}>{r.status === 'pending' ? '备用金待审批' : '备用金待核销'}</Badge></td><td className="wrap">{r.purpose}，{money(r.amount)}</td><td>{r.project_name ?? '—'}</td><td className="r"><a className="wb-op" href={`#/petty/${r.id}`}>查看</a></td></tr>)}
+        {myRes.map((r) => <tr key={r.id}><td><Badge tone="warn">{r.status === 'pending' ? '申领待批示' : r.status === 'reviewed' ? '申领待批准' : '申领待分发'}</Badge></td><td className="wrap">{r.resource_name ?? '资源'}：{r.purpose}</td><td>{r.project_name ?? '—'}</td><td className="r"><a className="wb-op" href="#/resource">查看</a></td></tr>)}
+      </tbody>
+    </table></div>);
+  const reqBlock = <>{mineTable}{canUse ? <div className="ir-acts"><a className="btn sm" href="#/requests/new">提交支出申请</a></div>
+    : <p className="ir-hint">本人尚不在已立项的课题或研究单元中，暂不能提交支出申请、申领资源和申请备用金。可请研究单元负责人将本人加入名单。</p>}</>;
+  const pettyBlock = <>{pettyTable}{canUse && <div className="ir-acts"><a className="btn sm ghost" href="#/resource">申领资源</a><a className="btn sm ghost" href="#/petty">申请备用金</a></div>}</>;
   return (
-    <div className="wb">
-      {hero(`我的事项 · ${me.name} · ${ROLE[me.role]}`, '本人发起、进行中', `${mineOpen.length + myPetty.length + myRes.length}`, '项', <>
-        <div className="wb-facts"><span>支出申请<b>{mineOpen.length} 笔</b></span><span>备用金<b>{myPetty.length} 笔</b></span><span>资源申领<b>{myRes.length} 项</b></span></div>
-        {canUse ? <div className="wb-facts"><a className="btn" href="#/requests/new">提交支出申请</a><a className="btn ghost" href="#/resource">申领资源</a><a className="btn ghost" href="#/petty">申请备用金</a></div>
-          : <div className="wb-facts"><span>本人尚不在已立项的课题或研究单元中，暂不能提交支出申请、申领资源和申请备用金。可请研究单元负责人将本人加入名单；成立研究单元须先经联席会议通过，通过后在「立项与延续申请」中提交申请。</span><a className="btn" href="#/plan">立项与延续申请</a></div>}
-      </>)}
-      <section className="wb-sec">{head('00', '成长主线', <a href="#/path">任务清单 →</a>)}<PathMine /></section>
-      <section className="wb-sec">{head('01', '本期登记', <>双周表与时间去向 · 每两周登记一次 · <a href="#/biweekly">双周表 →</a></>)}
-        {myBw.length > 0 && <div style={{ marginBottom: 14 }}>{todoTable(myBw, '')}</div>}<TokenMine me={me} /></section>
-      <section className="wb-sec">{head('02', '本人的支出申请', <a href="#/requests">全部申请 →</a>)}{mineTable}</section>
-      <section className="wb-sec">
-        {head('03', '本人的备用金和资源申领')}
-        {myPetty.length + myRes.length === 0 ? <Empty>暂无在办的备用金和资源申领。</Empty> : (
-          <div className="scroll"><table className="wb-table">
-            <thead><tr><th>类型</th><th>事项</th><th>所属</th><th /></tr></thead>
-            <tbody>
-              {myPetty.map((r) => <tr key={r.id}><td><Badge tone={r.status === 'pending' ? 'warn' : 'pri'}>{r.status === 'pending' ? '备用金待审批' : '备用金待核销'}</Badge></td><td className="wrap">{r.purpose}，{money(r.amount)}</td><td>{r.project_name ?? '—'}</td><td className="r"><a className="wb-op" href={`#/petty/${r.id}`}>查看</a></td></tr>)}
-              {myRes.map((r) => <tr key={r.id}><td><Badge tone="warn">{r.status === 'pending' ? '申领待批示' : r.status === 'reviewed' ? '申领待批准' : '申领待分发'}</Badge></td><td className="wrap">{r.resource_name ?? '资源'}：{r.purpose}</td><td>{r.project_name ?? '—'}</td><td className="r"><a className="wb-op" href="#/resource">查看</a></td></tr>)}
-            </tbody>
-          </table></div>)}
-      </section>
-    </div>
+    <MyCard me={me} todoCount={todo.length} initiated={mineOpen.length + myPetty.length + myRes.length}
+      todo={todoTable(todo, '暂无待办事项。')} register={myBw.length > 0 ? todoTable(myBw, '') : <Empty>本期的双周表都已登记，或本人不负责研究单元。</Empty>}
+      requests={reqBlock} petty={pettyBlock} />
   );
 }

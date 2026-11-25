@@ -15,6 +15,7 @@ export interface TokenParam { key: string; value: unknown }
 export interface TierToken { tier_id: string; year: number; token_amount: string | null }
 
 export const LEVEL = ['', '一级 · 公开发布', '二级 · 完整发布', '三级 · 外部反响', '四级 · 同行认可'];
+const RK: [string, string][] = [['intern', 'Intern'], ['assistant', 'Assistant'], ['researcher', 'Researcher'], ['rising_star', 'Rising Star'], ['pi', 'PI'], ['director', 'Director']];
 const LEVEL_HINT = ['', 'arXiv 预印本或公开的投稿页', '项目网页、演示视频、代码或数据或模型公开', 'HuggingFace 论文榜排名靠前，星标、下载量过线', '会议或期刊录用，口头报告、奖项'];
 const coin = (v: string | number | null | undefined) => (v == null ? '—' : num(v).toLocaleString('zh-CN', { maximumFractionDigits: 1 }));
 const pctOf = (v: string | number | null | undefined) => (v == null ? '—' : `${Math.round(num(v) * 100)}%`);
@@ -45,8 +46,10 @@ export function TokenMine({ me }: { me: Me }) {
 
 // ---------- 研究单元页：池子与成果 ----------
 export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
-  const { data, error, reload } = useViews<{ pools: UnitPool[]; shares: UnitShare[]; outs: Outcome[] }>({
-    pools: ['unit_pool'], shares: ['unit_share'], outs: ['outcome'],
+  const { data, error, reload } = useViews<{ pools: UnitPool[]; shares: UnitShare[]; outs: Outcome[]; grants: { id: string; project_id: string; hours: string; coins: string; bought_by_name: string | null; bought_at: string }[];
+    ucoin: { id: string; kind: 'invest' | 'compute'; amount: string; user_name: string | null; note: string | null; created_at: string }[]; ubal: { project_id: string; balance: string; hours: string; can_buy: boolean }[]; cm: { balance: string; price: string | null }[] }>({
+    pools: ['unit_pool'], shares: ['unit_share'], outs: ['outcome'], grants: ['compute_grant', { project_id: unit.id }],
+    ucoin: ['unit_coin', { project_id: unit.id }], ubal: ['unit_coin_balance', { project_id: unit.id }], cm: ['coin_mine'],
   }, unit.id);
   const [act, setAct] = useState<Act | null>(null);
   if (!data) return <Loading error={error} />;
@@ -85,6 +88,17 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
           <thead><tr><th>成员</th><th className="r">名义币</th><th className="r">份额</th></tr></thead>
           <tbody>{shares.map((s) => <tr key={s.user_id}><td>{s.user_name}</td><td className="r">{coin(s.coins)}</td><td className="r">{pctOf(s.share)}</td></tr>)}</tbody>
         </table></div>)}
+      {(() => { const ub = data.ubal[0]; const price = data.cm[0]?.price != null ? num(data.cm[0].price) : null; const mine = num(data.cm[0]?.balance);
+        const inv = data.ucoin.filter((c) => c.kind === 'invest');
+        return <>
+          <h3 style={{ marginTop: 18 }}>实际币 <span className="h3sub">账上 {coin(ub?.balance ?? 0)} · 已换 GPU 卡时 {coin(ub?.hours ?? 0)}{price ? ` · 标价每卡时 ${coin(price)}` : ' · 卡时标价未定'}</span></h3>
+          <p className="hint">代币不是经费。任何人都可以把自己的实际币投给研究单元，由负责人换 GPU 卡时，以后也可以换别的资源；换得的卡时集群按此设定额度。</p>
+          {inv.length > 0 && <ul className="path-hist">{[...data.ucoin].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8).map((c) => <li key={c.id}>{day(c.created_at)} {c.kind === 'invest' ? `${c.user_name ?? ''} 投入 ${coin(c.amount)}` : `${c.user_name ?? ''} ${c.note ?? '换卡时'}，用去 ${coin(-num(c.amount))}`}{c.kind === 'invest' && c.note ? `：${c.note}` : ''}</li>)}</ul>}
+          <div className="actions" style={{ justifyContent: 'flex-start' }}>
+            {mine > 0 && <button className="sm ghost" onClick={() => setAct({ title: `投给研究单元：${unit.name}`, label: '投入', hint: `本人余额 ${coin(mine)} 实际币，先扣先到期的。`, fields: [{ name: 'amount', label: '实际币', type: 'number' }, { name: 'note', label: '说明（选填）', required: false }], run: (v) => rpc('invest_coins', { project: unit.id, amount: v.amount, note: v.note || null }) })}>投入实际币</button>}
+            {ub?.can_buy && price && num(ub.balance) >= price && <button className="sm" onClick={() => setAct({ title: `换 GPU 卡时：${unit.name}`, label: '换', hint: `按标价每卡时 ${coin(price)} 实际币，从研究单元的账上扣；账上 ${coin(ub.balance)}，最多可换 ${Math.floor(num(ub.balance) / price)} 卡时。`, fields: [{ name: 'hours', label: '卡时', type: 'number' }], run: (v) => rpc('buy_compute', { project: unit.id, hours: v.hours }) })}>换 GPU 卡时</button>}
+          </div>
+        </>; })()}
       {(recorder || setup) && <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="sm ghost" onClick={() => setAct({ title: `池子上限：${unit.name}`, label: '保存',
         hint: '按联席会议立项时核定的数填写；超过上限的不计。不设上限请留空。', fields: [{ name: 'cap', label: '上限（名义币）', type: 'number', required: false, value: cap != null ? String(cap) : '' }],
         run: (v) => rpc('set_pool_cap', { project: unit.id, cap: v.cap || null }) })}>{cap != null ? '修改池子上限' : '登记池子上限'}</button></div>}
@@ -101,6 +115,7 @@ export function TokenParams({ me }: { me: Me }) {
   if (!data) return <Loading error={error} />;
   const get = (k: string) => data.params.find((p) => p.key === k)?.value;
   const lv = (get('levels') ?? {}) as Num, rs = (get('resubmit') ?? {}) as Num, sp = (get('split') ?? {}) as Num;
+  const sal = (get('salary') ?? {}) as Record<string, number | null>, price = get('price') as number | null;
   const phase = get('phase'), reserve = Number(get('reserve') ?? 0), valid = Number(get('valid') ?? 0), rate = get('rate') as number | null;
   const director = can(me, 'budget.approve');
   const set = (key: string, value: unknown) => rpc('set_token_param', { key, value });
@@ -122,14 +137,19 @@ export function TokenParams({ me }: { me: Me }) {
       '四级的铸造量按首轮池子定，重投不会把它做大；录用在计划去向之外的打折，清单之外的不算。',
       { title: '投稿与重投', label: '保存', fields: [nf('lower', '低一档去向的折扣（0 到 1）', rs.lower ?? 0.4), nf('decay', '每多投一轮的折扣（0 到 1）', rs.decay ?? 0.8), nf('rounds', '最多投稿轮数', rs.rounds ?? 3), nf('extra', '每轮追加投入的上限（占首轮池子，0 到 1）', rs.extra ?? 0.3)],
         run: (v) => set('resubmit', { lower: Number(v.lower), decay: Number(v.decay), rounds: Math.round(Number(v.rounds)), extra: Number(v.extra) }) }],
-    ['挂牌铸造率', rate == null ? '未挂牌：试行期只记录，不铸造' : `每 1 点铸 ${rate} 实际币`, '转入市场经济时期后启用：事先公布，成果核对通过当天按这个数铸造。',
-      { title: '挂牌铸造率', label: '保存', hint: '计划经济时期须留空。', fields: [{ name: 'v', label: '每 1 点铸多少实际币', type: 'number', required: false, value: rate == null ? '' : String(rate) }], run: (v) => set('rate', v.v ? Number(v.v) : null) }],
-    ['铸造所得的有效期', `${valid} 个月`, '个人和课题凭成果得到的实际币，过期作废。',
+    ['挂牌铸造率', rate == null ? '未挂牌：暂不铸造' : `每 1 名义币铸 ${rate} 实际币`, '研究单元的成果核对通过后，按各人在池子里的名义币乘以这个数铸造；二、三、四级按上面的系数追加。',
+      { title: '挂牌铸造率', label: '保存', hint: '留空表示暂不铸造。', fields: [{ name: 'v', label: '每 1 点铸多少实际币', type: 'number', required: false, value: rate == null ? '' : String(rate) }], run: (v) => set('rate', v.v ? Number(v.v) : null) }],
+    ['各身份每期发放的实际币', RK.map(([k, n]) => `${n} ${sal[k] ?? '未定'}`).join('，'), '每两周按身份发到个人账户，各身份都有；个人只能投给研究单元。未定的不发。',
+      { title: '各身份每期发放的实际币', label: '保存', hint: '每两周发放到个人，到期作废；个人只能投给研究单元。留空表示这一身份暂不发放。', fields: RK.map(([k, n]) => ({ name: k, label: n, type: 'number', required: false, value: sal[k] != null ? String(sal[k]) : '' })),
+        run: (v) => set('salary', Object.fromEntries(RK.map(([k]) => [k, v[k] === '' ? null : Number(v[k])]))) }],
+    ['卡时标价', price == null ? '未定：暂不能换卡时' : `每卡时 ${price} 实际币`, '研究单元的负责人用研究单元账上的实际币换 GPU 卡时，集群按换得的卡时设定额度。',
+      { title: '卡时标价', label: '保存', hint: '每卡时多少实际币。留空表示暂不开放兑换。', fields: [{ name: 'v', label: '每卡时的实际币', type: 'number', required: false, value: price == null ? '' : String(price) }], run: (v) => set('price', v.v ? Number(v.v) : null) }],
+    ['铸造所得的有效期', `${valid} 个月`, '按期发放和铸造所得的实际币，过期作废。',
       { title: '铸造所得的有效期', label: '保存', fields: [nf('v', '月数', valid)], run: (v) => set('valid', Math.round(Number(v.v))) }],
   ];
   return (
     <section className="card">
-      <h3>代币参数 <span className="h3sub">{phase === 'plan' ? '计划经济时期：只记录，不铸造' : '市场经济时期'}</span></h3>
+      <h3>代币参数 <span className="h3sub">名义币来自回应质疑；实际币按期发放、按成果铸造，用来换卡时</span></h3>
       <p className="hint">名义币来自回应质疑，一个名义币等于一小时，每回应一条记 16 名义币，进入研究单元的池子，不能换资源；实际币代表资源使用权，数量在「总预算与档次」的档次表里填。代币不是钱，不与经费卡和学校账目发生关系。下面与铸造有关的参数在转入市场经济时期后才起作用，现在先定下来供大家查看。</p>
       <div className="scroll"><table>
         <thead><tr><th style={{ width: '18%' }}>参数</th><th style={{ width: '34%' }}>现行</th><th>说明</th>{director && <th />}</tr></thead>

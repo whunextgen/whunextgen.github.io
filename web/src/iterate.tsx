@@ -191,22 +191,67 @@ export function IteratePage({ me }: { me: Me }) {
   );
 }
 
-// 研究单元页：本单元的快照和未回应的质疑（池子见「池子与成果」）
-export function UnitIterate({ unit }: { unit: Project }) {
-  const { data } = useViews<{ snaps: Snapshot[]; queries: Query[] }>({ snaps: ['snapshot', { project_id: unit.id }], queries: ['query', { project_id: unit.id }] }, unit.id);
+// 研究单元页：按设计稿 ir-unit-card。本回合、历次快照、四问上的质疑、待回应质疑和队伍、审阅意见
+interface ReviewNote { id: string; snapshot_id: string; project_id: string; project_name: string; seq: number; author_id: string; author_name: string; day: string; body: string; adopted_at: string | null; can_adopt: boolean }
+export function UnitIterate({ unit, me }: { unit: Project; me: Me }) {
+  const { data, reload } = useViews<{ snaps: Snapshot[]; queries: Query[]; reviews: ReviewNote[]; people: PeoplePick[] }>({ snaps: ['snapshot', { project_id: unit.id }], queries: ['query', { project_id: unit.id }],
+    reviews: ['review_note', { project_id: unit.id }], people: ['people_pick'] }, unit.id);
+  const [act, setAct] = useState<Act | null>(null);
   if (!data) return null;
-  const snaps = [...data.snaps].sort((a, b) => b.seq - a.seq);
-  const open = data.queries.filter((q) => q.status === 'open'), done = data.queries.filter((q) => q.status === 'resolved');
+  const per = periodOf(today());
+  const left = Math.max(0, Math.round((Date.parse(`${per}T00:00:00Z`) + 13 * 864e5 - Date.parse(`${today()}T00:00:00Z`)) / 864e5) + 1);
+  const snaps = [...data.snaps].sort((a, b) => a.seq - b.seq);
+  const curSnap = snaps.find((x) => x.period_start === per);
+  const open = data.queries.filter((q) => q.status === 'open').sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
+  const all = data.queries.filter((q) => q.status !== 'again');
+  // 连续有快照的期数，从上一期往回数
+  let run = 0; for (let d = curSnap ? per : new Date(Date.parse(`${per}T00:00:00Z`) - 14 * 864e5).toISOString().slice(0, 10); snaps.some((x) => x.period_start === d); d = new Date(Date.parse(`${d}T00:00:00Z`) - 14 * 864e5).toISOString().slice(0, 10)) run++;
+  const lead = unit.owner_id === me.id || me.role === 'director';
+  const people = [...data.people].sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((p): [string, string] => [p.id, p.name]);
+  const teamAct = (q: Query): Act => ({ title: `组队：${q.axis_label} · ${q.body.slice(0, 24)}`, label: '加入队伍',
+    hint: '本研究单元的人和其他研究单元的人都可以入队，由负责人加人。新入队的自下一期起参与分配。入队回应质疑的其他研究单元人员不进名单。',
+    fields: [{ name: 'user', label: '成员', options: people.filter(([id]) => !q.team.some((m) => m.id === id)) }], run: (v) => rpc('add_query_member', { query: q.id, user: v.user }) });
+  const pending = data.reviews.filter((r) => !r.adopted_at);
   return (
-    <section className="card">
-      <h3>快照与质疑 <span className="h3sub">快照 {snaps.length} 次 · 未回应 {open.length} 条 · 已回应 {done.length} 条</span></h3>
-      {snaps.length === 0 ? <Empty>尚未提交快照。每期在「<a href="#/iterate">快照与质疑</a>」提交本期的写作草稿。</Empty> : (
-        <ul className="path-hist">{snaps.slice(0, 6).map((s) => <li key={s.id}>{day(s.period_start)} 起一期 · <a href={s.link} target="_blank" rel="noreferrer">第 {s.seq} 次快照</a> · 有改动：{s.authors.map((a) => a.name).join('、') || '—'}</li>)}</ul>)}
-      {open.length > 0 && <div className="scroll"><table>
-        <thead><tr><th>一问</th><th>质疑</th><th>队伍</th></tr></thead>
-        <tbody>{open.map((q) => <tr key={q.id}><td><b>{q.axis_label}</b></td><td className="wrap">{q.body}{q.again > 0 && <span className="sub2">再次提出 {q.again} 次</span>}</td><td className="wrap">{q.team.map((m) => m.name).join('、') || '—'}</td></tr>)}</tbody>
-      </table></div>}
-      {AXES.some(([k]) => done.some((q) => q.axis === k)) && <p className="hint">已回应：{AXES.map(([k, n]) => `${n} ${done.filter((q) => q.axis === k).length} 条`).join('，')}，共记名义币 {num(done.length * 16)}。</p>}
-    </section>
+    <>
+      <div className="ir" style={{ marginBottom: 18 }}>
+        <div className="ir-bento">
+          <section className="ir-t ir-hero" style={{ gridColumn: 'span 8' }}>
+            <div className="ir-mono"><span>快照 · 每两周一次，依次编号</span><a href="#/iterate">快照与质疑 →</a></div>
+            <div className="ir-snaps">{snaps.map((x) => <a key={x.id} href={x.link} target="_blank" rel="noreferrer" className={x.period_start === per ? 'cur' : ''}>{md2(x.period_start)}<b>快照 {x.seq}</b></a>)}
+              {!curSnap && <span className="cur">本回合<b>快照 {snaps.length + 1}</b></span>}</div>
+            <p className="ir-hint">每一次迭代把整篇再做一轮。研究单元的进度看相邻两次快照之间变了什么，以及理、据、体、用四问上还有哪些质疑没有回应。</p>
+          </section>
+          <section className="ir-t ir-turn">
+            <div className="ir-mono"><span>本回合 · 第 {curSnap ? curSnap.seq : snaps.length + 1} 次快照</span><span>{md2(per)} — {md2(new Date(Date.parse(`${per}T00:00:00Z`) + 13 * 864e5).toISOString().slice(0, 10))}</span></div>
+            <div className="ir-big">{left}<small>天</small></div>
+            <dl><div><dt>待回应质疑</dt><dd>{open.length} 条</dd></div><div><dt>连续有快照</dt><dd>{run} 期</dd></div></dl>
+          </section>
+          <section className="ir-q4" style={{ gridColumn: '1 / -1' }}>{AXES.map(([k, n, d], i) => { const o = open.filter((q) => q.axis === k), t = all.filter((q) => q.axis === k), done = t.filter((q) => q.status === 'resolved').length; const top = o[0];
+            return <div key={k}><span className="ir-mono" style={{ margin: 0 }}><span>0{i + 1} / 质疑</span><span className="val">{o.length}</span></span><b>{n}</b><small>{d}</small>
+              <p>{top ? `「${top.body.slice(0, 40)}」` : ''}</p><small>未回应 {o.length} 条 · 累计 {t.length} 条，已回应 {done} 条{top ? ` · 队伍：${top.team.map((m) => m.name).join('、') || '待组队'}` : ''}</small></div>; })}</section>
+        </div>
+      </div>
+      <section className="card" id="sec-iterate">
+        <h3>待回应质疑 <span className="h3sub">每条是一个小副本，下一期无人再提即为已回应 · 共 {open.length} 条，{open.filter((q) => q.team.length === 0).length} 条待组队</span></h3>
+        {open.length === 0 ? <Empty>没有未回应的质疑。{curSnap ? '' : '本期快照还没有提交，在「快照与质疑」提交并交给主题研讨会。'}</Empty> : (
+          <div className="scroll"><table>
+            <thead><tr><th>#</th><th>一问</th><th>质疑</th><th>提出</th><th>队伍</th><th /></tr></thead>
+            <tbody>{open.map((q, i) => <tr key={q.id}><td className="mono">{String(i + 1).padStart(2, '0')}</td><td><b>{q.axis_label}</b></td>
+              <td className="wrap">{q.body}{q.again > 0 && <span className="sub2">再次提出 {q.again} 次</span>}</td>
+              <td>{q.raised_by_name ?? '—'}<span className="sub2">第 {q.snapshot_seq} 次快照 · {q.seminar_name}</span></td>
+              <td className="wrap">{q.team.length ? `${q.team.map((m) => m.name).join('、')}` : <span className="sub2">待组队</span>}{q.team.length > 0 && <span className="sub2">队伍 {q.team.length} 人</span>}</td>
+              <td className="r">{q.can_team ? <button className="ghost sm" onClick={() => setAct(teamAct(q))}>加人</button>
+                : !q.in_team && <button className="ghost sm" onClick={() => setAct({ title: `申请入队：${q.body.slice(0, 24)}`, label: '申请', hint: `入队由负责人 ${q.owner_name ?? ''} 加人。`, fields: [{ name: 'note', label: '说明（选填）', type: 'area', required: false }], run: (v) => rpc('ask_join_query', { query: q.id, note: v.note || null }) })}>申请入队</button>}</td></tr>)}</tbody>
+          </table></div>)}
+        {data.reviews.length > 0 && <>
+          <h3 style={{ marginTop: 18 }}>审阅意见 <span className="h3sub">其他研究单元的人当日审阅本单元快照提的意见 · {pending.length} 条待采纳</span></h3>
+          <ul className="path-hist">{[...data.reviews].sort((a, b) => b.day.localeCompare(a.day)).slice(0, 8).map((r) => <li key={r.id}>{day(r.day)} {r.author_name} · 第 {r.seq} 次快照：{r.body}
+            {r.adopted_at ? '（已采纳）' : r.can_adopt && <> <button className="ghost sm" onClick={() => setAct({ title: '采纳审阅意见', label: '采纳', hint: '采纳后记入审阅人的「利」；可在下一次研讨会上作为质疑提出。', fields: [], run: () => rpc('adopt_review', { id: r.id }) })}>采纳</button></>}</li>)}</ul></>}
+        {lead && <p className="hint">质疑由研讨会组织者在会上记入；负责人为质疑组队、把各人写的收成一篇。</p>}
+      </section>
+      {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.label} danger={act.danger} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
+    </>
   );
 }
+const md2 = (d: string) => d.slice(5);
