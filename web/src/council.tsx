@@ -5,7 +5,7 @@ import { ActionDialog, Badge, Empty, Loading, day, type Field } from './ui';
 // 联席会议：议题从提案、附议、讨论、表决到否决期和生效，全在中台办。会上表决在会议现场页，紧急议题可以会外表决
 export interface Motion { id: string; seq: number; mtype: 'main' | 'amend' | 'reconsider' | 'procedural' | 'inquiry'; decided_note?: string | null; director_decision?: string | null; can_decide?: boolean; can_execute?: boolean; auto?: boolean; category: string; title: string; body: string; link: string | null;
   parent_id: string | null; parent_seq: number | null; parent_title: string | null; proposer_id: string; proposer_name: string; seconder_name: string | null; subject_names: string[];
-  threshold: 'majority' | 'two_thirds'; ballot: 'open' | 'secret'; urgent: boolean; ref_kind: string | null; ref_id: string | null;
+  threshold: 'majority' | 'two_thirds' | 'abs_majority'; total?: number | null; ballot: 'open' | 'secret'; urgent: boolean; ref_kind: string | null; ref_id: string | null;
   status: 'proposed' | 'seconded' | 'voting' | 'passed' | 'failed' | 'vetoed' | 'effective' | 'withdrawn'; round: number; meeting_id: string | null; online: boolean;
   vote_open_at: string | null; vote_until: string | null; yes: number | null; no: number | null; abstain: number | null; eligible: number | null; note: string | null;
   decided_at: string | null; veto_until: string | null; veto_reason: string | null; effective_at: string | null; body_prev: string | null; created_at: string; seconded_at: string | null;
@@ -24,7 +24,7 @@ const CHOICE: Record<string, string> = { yes: '同意', no: '反对', abstain: '
 const t = (v: string | null) => (v ? new Date(v).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 const label = (m: Motion) => `第 ${m.seq} 号${m.mtype === 'main' ? '' : TYPE[m.mtype]}`;
 const stLabel = (m: Motion) => m.mtype === 'inquiry' ? (m.status === 'effective' ? '已过问' : m.status === 'withdrawn' ? '已撤下' : '待过问') : ST[m.status][1];
-const rule = (m: Motion) => m.mtype === 'inquiry' ? '过问，不表决' : `${m.threshold === 'two_thirds' ? '三分之二' : '过半数'} · ${m.ballot === 'secret' ? '不记名' : '记名'}${m.urgent ? ' · 紧急' : ''}`;
+const rule = (m: Motion) => m.mtype === 'inquiry' ? '过问，不表决' : `${m.threshold === 'abs_majority' ? `在线表决，赞成超过${m.total ? ` ${Math.floor(m.total / 2)} 人` : '可投票人数一半'}即通过` : m.threshold === 'two_thirds' ? '三分之二' : '过半数'} · ${m.ballot === 'secret' ? '不记名' : '记名'}${m.urgent ? ' · 紧急' : ''}`;
 
 const motionFields = (people: PeoplePick[]): Field[] => [
   { name: 'title', label: '题目（不超过 80 字）' },
@@ -104,7 +104,7 @@ export function MotionPage({ id }: { id: string; me: Me }) {
       <p className="lede">{TYPE[m.mtype]}{m.parent_id && <> · 针对 <a href={`#/motion/${m.parent_id}`}>第 {m.parent_seq} 号「{m.parent_title}」</a></>} · {CAT[m.category]} · {rule(m)} · 提案人 {m.proposer_name}，{t(m.created_at)} 提交
         {m.seconder_name ? ` · ${m.seconder_name} 附议` : ''}{m.subject_names.length ? ` · 涉及 ${m.subject_names.join('、')}（不参加投票）` : ''}{m.recused_names.length ? ` · 回避 ${m.recused_names.join('、')}` : ''}</p>
       <section className="wb-sec"><h3>状态 <Badge tone={ST[m.status][0]}>{stLabel(m)}</Badge>
-        <span className="h3sub">{m.status === 'voting' ? (m.online ? `会外表决，${t(m.vote_until)} 截止；已投 ${m.cast_count} 人${m.meeting_requests ? `；${m.meeting_requests} 人要求当面讨论（两人即转到会上）` : ''}` : `会上表决中，已投 ${m.cast_count} 人`)
+        <span className="h3sub">{m.status === 'voting' ? (m.threshold === 'abs_majority' ? `在线表决中，可以投票的 ${m.total ?? '—'} 人，已投 ${m.cast_count} 人；赞成过半即立项，赞成已不可能过半即未通过` : m.online ? `会外表决，${t(m.vote_until)} 截止；已投 ${m.cast_count} 人${m.meeting_requests ? `；${m.meeting_requests} 人要求当面讨论（两人即转到会上）` : ''}` : `会上表决中，已投 ${m.cast_count} 人`)
           : m.status === 'passed' ? `${t(m.veto_until)} 前未否决即生效` : m.status === 'effective' ? `${t(m.effective_at)} 生效` : ''}</span></h3>
         {m.decided_note && <p>{m.mtype === 'inquiry' ? '过问结果' : '中心负责人说明'}：{m.decided_note}</p>}
         {m.director_decision && <p>中心负责人决定：{m.director_decision === 'accepted' ? '同意退组' : '不予采纳'}</p>}
@@ -114,7 +114,7 @@ export function MotionPage({ id }: { id: string; me: Me }) {
         <div className="ir-acts" style={{ alignItems: 'center' }}>
           {m.can_second && <button className="sm" onClick={() => go(rpc('second_motion', { id: m.id }))}>附议</button>}
           {m.status === 'voting' && m.can_vote && (['yes', 'no', 'abstain'] as const).map((c) => <button key={c} className={m.my_vote === c ? 'sm' : 'sm ghost'} onClick={() => go(rpc('cast_vote', { id: m.id, choice: c }))}>{CHOICE[c]}</button>)}
-          {m.status === 'voting' && m.online && info?.am_voter && !m.my_request && <button className="sm ghost" onClick={() => go(rpc('request_meeting', { id: m.id }))}>要求当面讨论</button>}
+          {m.status === 'voting' && m.online && m.threshold !== 'abs_majority' && info?.am_voter && !m.my_request && <button className="sm ghost" onClick={() => go(rpc('request_meeting', { id: m.id }))}>要求当面讨论</button>}
           {m.can_chair && m.status === 'seconded' && m.urgent && m.mtype === 'main' && <button className="sm ghost" onClick={() => setAct({ title: `会外表决：${m.title}`, label: '开始表决',
             hint: '正则通知每一名有表决权的成员。有表决权的成员过半数投票方为有效；两名成员要求当面讨论的，转到下次会议。', fields: [{ name: 'h', label: '开放时长（小时）', type: 'number', value: '48' }], run: (v) => rpc('open_online_vote', { id: m.id, hours: Number(v.h) }) })}>召集会外表决</button>}
           {m.can_chair && m.status === 'seconded' && council && <a className="btn sm ghost" href={`#/live/${council.id}`}>到会议现场表决 →</a>}

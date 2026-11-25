@@ -3323,45 +3323,38 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(T.owner_id);
   const UN = await val(`select propose_unit(null, $1, '议事测试单元', null, null, '研究内容和拟用经费', $2) v`, [T.id, U.mem2]);
   const um = await one(`select id, status, auto, category, subject_names, can_withdraw from api.council_motion where ref_kind = 'unit' and ref_id = $1`, [UN]);
-  ok(um && um.status === 'seconded' && um.auto === true && um.category === 'unit' && um.can_withdraw === false, '研究单元申请不填会议日期的，自动列入联席会议议程，免附议', JSON.stringify(um));
+  ok(um && um.status === 'voting' && um.auto === true && um.category === 'unit' && um.can_withdraw === false, '研究单元申请不填会议日期的，自动列入联席会议议程，免附议', JSON.stringify(um));
   ok(um.subject_names.length >= 2, '申请人、成员和所挂课题负责人不参加投票', JSON.stringify(um.subject_names));
   await raises('只填一个日期不行', /须一起填写/, `select propose_unit(null, $1, '另一个单元', '2026-11-20', null, '说明')`, [T.id]);
   await db.exec(`reset role`);
-  ok((await one(`select minutes_on from project where id = $1`, [UN])).minutes_on === null, '决议生效前没有纪要日期，不能确认成立');
-  const C2 = (await one(`select id from attend_event where kind = 'council' and ended_at is null order by started_at desc limit 1`)).id;
+  const um0 = await one(`select status, threshold, total from motion where id = $1`, [um.id]);
+  ok(um0.status === 'voting' && um0.threshold === 'abs_majority' && um0.total >= 1, '课题负责人已同意的研究单元申请即刻开始在线表决', JSON.stringify(um0));
+  const voters = (await q(`select id from app_user where id = any($1) and motion_can_vote($2, id) order by id`, [[U.lead, U.fin, U.mem2], um.id])).map((x) => x.id);
   await db.exec(`set role app_api`);
-  // 表决未通过：退回申请人
+  await as(voters[0]);
+  await raises('研究单元在线表决不转到会上', /不转到会上/, `select request_meeting($1)`, [um.id]);
+  // 赞成已不可能过半：即为未通过，退回申请人
+  for (const v of voters.slice(0, um0.total - Math.floor(um0.total / 2))) { await as(v); await q(`select cast_vote($1, 'no')`, [um.id]); }
   await db.exec(`reset role`);
-  await q(`update motion set created_at = now() - interval '4 days' where id = $1`, [um.id]);
+  ok((await one(`select status from motion where id = $1`, [um.id])).status === 'failed', '赞成已不可能过半，即为未通过');
+  ok((await one(`select return_note from project where id = $1`, [UN])).return_note === '联席会议表决未通过', '未通过的研究单元申请退回申请人');
   await db.exec(`set role app_api`);
-  await as(U.dir); await q(`select open_vote($1, $2)`, [um.id, C2]);
-  await db.exec(`reset role`);
-  const voter = (await q(`select id from app_user where id = any($1) and motion_can_vote($2, id)`, [[U.lead, U.fin], um.id]))[0].id;
-  await db.exec(`set role app_api`);
-  await as(voter); await q(`select cast_vote($1, 'no')`, [um.id]);
-  await as(U.dir); await q(`select close_vote($1)`, [um.id]);
-  await db.exec(`reset role`);
-  ok((await one(`select return_note from project where id = $1`, [UN])).return_note === '联席会议表决未通过', '表决未通过的研究单元申请退回申请人');
-  await db.exec(`set role app_api`);
-  // 修改后重新提交：生成新的议题；通过、否决期满后记下会议日期，可确认成立
+  // 修改后重新提交：生成新的议题，赞成超过半数即成立
   await as(T.owner_id);
   await q(`select propose_unit($1, $2, '议事测试单元', null, null, '改过的研究内容', $3)`, [UN, T.id, U.mem2]);
-  const um2 = await one(`select id, status, body from api.council_motion where ref_kind = 'unit' and ref_id = $1 and status = 'seconded'`, [UN]);
-  ok(um2 && um2.id !== um.id && um2.body.includes('改过的研究内容'), '重新提交生成新的议题', JSON.stringify(um2));
-  await raises('议题不能单独撤回', /请撤回申请/, `select withdraw_motion($1)`, [um2.id]);
   await db.exec(`reset role`);
-  await q(`update motion set created_at = now() - interval '4 days' where id = $1`, [um2.id]);
+  const um2r = await one(`select id, status, body, total from motion where ref_kind = 'unit' and ref_id = $1 and status = 'voting'`, [UN]);
+  ok(um2r && um2r.id !== um.id && um2r.body.includes('改过的研究内容'), '重新提交生成新的议题并开始表决', JSON.stringify(um2r));
   await db.exec(`set role app_api`);
-  await as(U.dir); await q(`select open_vote($1, $2)`, [um2.id, C2]);
-  await as(voter); await q(`select cast_vote($1, 'yes')`, [um2.id]);
-  await as(U.dir); await q(`select close_vote($1)`, [um2.id]);
+  await raises('议题不能单独撤回', /表决开始后不能撤回|请撤回申请/, `select withdraw_motion($1)`, [um2r.id]);
+  for (const v of voters.slice(0, Math.floor(um2r.total / 2) + 1)) { await as(v); await q(`select cast_vote($1, 'yes')`, [um2r.id]); }
   await db.exec(`reset role`);
-  await q(`update motion set veto_until = now() - interval '1 minute' where id = $1`, [um2.id]);
-  await db.exec(`set role app_api`);
-  await as(null); await q(`select council_tick()`);
+  const pu = await one(`select proposed, meeting_on from project where id = $1`, [UN]);
+  ok(pu.proposed === false && pu.meeting_on, '赞成超过半数即立项成立，不经否决期', JSON.stringify(pu));
+  ok((await one(`select status from motion where id = $1`, [um2r.id])).status === 'effective', '表决结果记录存档');
+  await db.exec(`set role app_api`); await as(U.lead);
+  ok(Number((await one(`select total from api.council_motion where id = $1`, [um2r.id])).total) === um2r.total, '议题页显示可以投票的总人数');
   await db.exec(`reset role`);
-  const pu = await one(`select meeting_on, minutes_on, proposed, parent_ok_at from project where id = $1`, [UN]);
-  ok(pu.meeting_on && pu.minutes_on && pu.proposed === true, '决议生效后记下会议和纪要日期，待确认成立', JSON.stringify(pu));
   // 课题档次申请：自动成为议题
   ok((await one(`select count(*)::int n from motion where ref_kind = 'tier'`)).n >= tm, '课题档次申请生成议题');
   const Y = await one(`select y.year, y.stage, t.id tier from budget_year y join budget_tier t on t.year = y.year order by (y.stage = 'declare') desc, y.year desc, t.amount limit 1`);
