@@ -388,7 +388,8 @@ const KIND: Record<NoticeKind, { bar: string; title: string; sub: string; tagCol
 };
 export type NoticeBody = { text?: string; by?: string | null; at?: string | null; url?: string | null; btn?: string | null; all?: boolean | null; group?: boolean | null; kind?: string | null; tag?: string | null;
   act?: { kind?: string; unit?: string } | null;   // 能在卡片上直接办的动作
-  done?: string | null };                          // 已在卡片上办完：这句话替换掉按钮
+  done?: string | null;                            // 已在卡片上办完：这句话替换掉按钮
+  img?: string | null; img_key?: string | null; img_note?: string | null };   // 通报带的图：img 是图的 base64（PNG），发出前换成 img_key；img_note 是图下的小字
 // 通知的内容：归类、标题、分项、正文、按钮。卡片和测试都从这里取
 export function noticeView(body: NoticeBody, origin: string, appId?: string) {
   const own = typeof body.url === 'string' && /^https:\/\/[^\s]+$/.test(body.url) ? body.url : null;
@@ -478,6 +479,9 @@ export function noticeCard(body: NoticeBody, origin: string, appId?: string, mar
   } else if (v.text) main.push(v.kind === 'back'
     ? { tag: 'interactive_container', width: 'fill', height: 'auto', corner_radius: '10px', padding: '9px 14px 9px 14px', background_style: 'zz-bad-bg', has_border: true, border_color: 'zz-bad', behaviors: [], elements: [plain(v.text, 'zz-bad')] }
     : plain(v.text, 'zz-ink'));
+  // 通报带的图：图在正文下面，图下一行小字说明（来源等）。图先由定时任务传到飞书换成 img_key
+  if (body.img_key) { main.push({ tag: 'img', img_key: body.img_key, alt: { tag: 'plain_text', content: body.img_note ?? '' }, scale_type: 'fit_horizontal', preview: true, corner_radius: '8px' });
+    if (body.img_note) main.push(plain(body.img_note, 'zz-mute', 'notation')); }
   const button = (text: string, type: string, behaviors: unknown[], extra: object = {}) => ({ tag: 'button', text: { tag: 'plain_text', content: text }, type, size: 'medium', width: 'fill', behaviors, ...extra });
   const open = [{ type: 'open_url', default_url: v.btn.url }];
   if (v.done) main.push({ tag: 'interactive_container', width: 'fill', height: 'auto', corner_radius: '10px', padding: '9px 14px 9px 14px', background_style: 'zz-ok-bg', has_border: true, border_color: 'zz-ok', behaviors: [], elements: [plain(v.done, 'zz-ok')] });
@@ -786,6 +790,13 @@ export default {
       }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
       // 先发卡片；卡片被拒的，退回发纯文字，通知不能因为版式丢掉
       const actToken = env.CARD_ACTIONS === '1' && !group && body.act ? await sign(env.SESSION_SECRET, 'act', String(m.msg_id), ACT_TTL) : undefined;
+      // 带图的通报：先把图传上去；传不上去的照发文字，并记下原因
+      if (body.img && !body.img_key) {
+        const fd = new FormData(); fd.append('image_type', 'message');
+        fd.append('image', new Blob([Uint8Array.from(atob(String(body.img)), (c) => c.charCodeAt(0))], { type: 'image/png' }), 'post.png');
+        const up = await feishu('/im/v1/images', { method: 'POST', headers: { authorization: `Bearer ${tok.tenant_access_token}` }, body: fd }).catch(() => null);
+        if (up?.code === 0 && up.data?.image_key) body.img_key = String(up.data.image_key); else markNote = `通报的图未传上去，卡片不带图。飞书返回 ${up?.code}：${String(up?.msg ?? '').slice(0, 120)}`;
+      }
       let r = await send('interactive', noticeCard({ ...body, group }, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev', env.FEISHU_APP_ID, markKeys, actToken).card);
       const why = (x: any) => `飞书返回 ${x?.code}：${String(x?.msg ?? '').slice(0, 200)}`;
       let note: string | null = markNote;

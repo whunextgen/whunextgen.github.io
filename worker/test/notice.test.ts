@@ -99,4 +99,12 @@ ok(parts('一句话', undefined, { kind: 'pass' }).kind === 'pass' && parts('一
 { const m = els({ text: '登记截止通报：本期应登记 4 个研究单元，已登记 1 个，未登记 3 个。\n第二句是规矩。\n第三句也是。\n未登记\n· 单元二（乙）', group: true }).main;
   const ps = m.filter((x) => x.tag === 'div').map((x) => [x.text.content, x.text.text_size]);
   ok(ps.some(([c2, z]) => c2.startsWith('本期应登记') && z === 'notation') && ps.some(([c2, z]) => c2 === '第二句是规矩。\n第三句也是。' && z === 'normal'), '带数字的通报：第一句小字，其余的话照常显示', JSON.stringify(ps)); }
+{
+  // 带图的通报：图在正文下面、按钮上面，图下一行小字；没传上图的不出现
+  const main = (b: any) => (noticeCard(b, O).card.body.elements as any[])[1].columns[0].elements as any[];
+  const m = main({ text: '分数画像：一句话', kind: 'post', group: true, img_key: 'img_x', img_note: '数据来源：某处' });
+  const at = m.findIndex((x) => x.tag === 'img');
+  ok(at > 0 && m[at].img_key === 'img_x' && m[at + 1].text.content === '数据来源：某处' && m.slice(at + 2).some((x) => x.tag === 'button'), '带图的通报：图、图下说明、按钮依次排');
+  ok(!main({ text: '分数画像：一句话', kind: 'post', group: true, img: 'AAAA', img_note: '数据来源：某处' }).some((x) => x.tag === 'img'), '图没传上去的卡片不带图');
+}
 console.log(bad ? `${bad} failed` : `notice: all passed (${n})`); process.exit(bad ? 1 : 0);
