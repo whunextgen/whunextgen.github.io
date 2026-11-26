@@ -99,6 +99,7 @@ export function RequestTable({ me, rows, subjectName, cardName, userName, cards,
 interface Part { card_id: string; subject_id: string; amount: string }
 const blank = (): Part => ({ card_id: '', subject_id: '', amount: '' });
 
+const SYSTEM_TYPES = new Set(['在途补登', '学校明细账', '旧门户导入']);
 function NewRequest({ cards, subjects, types, picks, units, canCard, onDone }: { cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; picks: LinePick[]; units: Project[]; canCard: boolean; onDone: (msg: string) => void }) {
   const usable = cards.filter((c) => c.status === 'active');
   const [v, setV] = useState({ card_id: '', subject_id: '', expense_type_id: '', title: '', amount: '', eta_date: '', path: '', emergency: false });
@@ -115,6 +116,8 @@ function NewRequest({ cards, subjects, types, picks, units, canCard, onDone }: {
   const [error, setError] = useState('');
   const card = usable.find((c) => c.id === v.card_id);
   const subsOf = (cardId: string) => { const c = usable.find((x) => x.id === cardId); return subjectsOf(subjects, c); };
+  // 系统内部用的类型不给申请人选：在途补登、学校明细账、旧门户导入由财务岗在各自的页面上记
+  const choosable = types.filter((t) => !SYSTEM_TYPES.has(t.name));
   const type = types.find((t) => t.id === v.expense_type_id);
   const set = (patch: Partial<typeof v>) => setV({ ...v, ...patch });
   const setPart = (i: number, patch: Partial<Part>) => setParts(parts.map((p, j) => (j === i ? { ...p, ...patch } : p)));
@@ -173,8 +176,8 @@ function NewRequest({ cards, subjects, types, picks, units, canCard, onDone }: {
         </>}
         <label className="field"><span>支出类型</span>
           <select required value={v.expense_type_id} onChange={(e) => set({ expense_type_id: e.target.value })}>
-            <option value="">请选择</option>{types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select></label>
+            <option value="">请选择</option>{choosable.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>{choosable.length === 0 && <span className="sub2">财务岗还没有登记支出类型（如 API 充值、国内差旅），请联系财务岗在「采购与报销要求」中登记。</span>}</label>
         <label className="field"><span>事项</span><input required maxLength={200} value={v.title} onChange={(e) => set({ title: e.target.value })} /></label>
         {!split && <label className="field"><span>金额（元）</span><input required type="number" min="0.01" step="0.01" value={v.amount} onChange={(e) => set({ amount: e.target.value })} /></label>}
         <label className="field"><span>预计学校入账日</span><input required type="date" min={today()} max={byLine ? undefined : cutoff}
