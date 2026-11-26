@@ -3,7 +3,7 @@ import { Badge, Empty, Loading, can, day, money, num } from '../ui';
 import { ObjHead, Stages, Track } from '../tree';
 import { KIND, RES_REQ, qty } from './Resource';
 
-// 资源页：一项接口额度或资产从入库、分配、使用到盘点回收的全过程。分配、回收和入库在「资源调配」「资产盘点」办理
+// 资源页：一项接口额度或资产从入库、分配、使用到盘点回收的全过程。申领的批准和分发在「资源调配」，入库、直接分配、收回和盘点在「资产盘点」
 export function ResourceOne({ me, id }: { me: Me; id: string }) {
   const { data, error } = useViews<{ res: Resource[]; allocs: Allocation[]; stock: ResourceStock[]; reqs: ResourceRequest[] }>({
     res: ['resource', { id }], allocs: ['allocation', { resource_id: id }], stock: ['resource_stock', { resource_id: id }], reqs: ['resource_request', { resource_id: id }],
@@ -22,7 +22,7 @@ export function ResourceOne({ me, id }: { me: Me; id: string }) {
   const at = !r.active ? 6 : cur.length > 0 ? 3 : stock.length > 0 || total != null ? 2 : 1;
   return (
     <div className="wb obj">
-      <ObjHead crumb={<>{staff ? <><a href="#/s-res">财务 › 资源</a> › <a href="#/pool">资源调配</a></> : <a href="#/resource">资源申领</a>} › {r.name}</>}
+      <ObjHead crumb={<>{staff ? <><a href="#/s-res">财务 › 资源</a> › <a href="#/stock">资产盘点</a></> : <a href="#/resource">资源申领</a>} › {r.name}</>}
         eyebrow={['资源', KIND[r.kind], spec].filter(Boolean).join(' · ')} title={r.name} badge={r.active ? <Badge tone="ok">在用</Badge> : <Badge>已停用</Badge>}
         label={total != null ? '未分配' : '已分配'} value={total != null ? qty(total - given, r.unit) : qty(given, r.unit)} neg={total != null && total - given < 0}
         chart={total != null && total > 0 ? <Track cap="分配情况 · 已分配与未分配" segs={[
@@ -51,7 +51,7 @@ export function ResourceOne({ me, id }: { me: Me; id: string }) {
                 <td>{day(a.from_date)}{a.to_date ? ` 至 ${day(a.to_date)}` : ' 起'}</td><td className="wrap">{[a.location, a.note].filter(Boolean).join(' · ') || '—'}</td></tr>); })}</tbody>
           </table></div>
         )}
-        {staff && <p className="hint">分配、调整和回收在「<a href="#/pool">资源调配</a>」办理{r.kind === 'asset' ? '，盘点在「' : ''}{r.kind === 'asset' && <a href="#/stock">资产盘点</a>}{r.kind === 'asset' ? '」办理' : ''}。</p>}
+        {staff && <p className="hint">申领的批准和分发在「<a href="#/pool">资源调配</a>」办理；入库、直接分配、调整和收回、盘点在「<a href="#/stock">资产盘点</a>」办理。</p>}
       </section>
 
       <section className="card">
