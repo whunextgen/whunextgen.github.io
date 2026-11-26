@@ -26,8 +26,8 @@ const AX: Record<string, string> = { li: '理', ju: '据', ti: '体', yong: '用
 const VIRTUE: [PraiseRow['virtue'], string, string][] = [['yuan', '元', '指导'], ['heng', '亨', '展示'], ['li', '利', '协助'], ['zhen', '贞', '守时']];
 const KIND: Record<CoinRow['kind'], string> = { salary: '按期发放', mint: '成果铸造', invest: '投给研究单元', expire: '到期作废', adjust: '调整' };
 const n1 = (v: string | number | null | undefined) => num(v).toLocaleString('zh-CN', { maximumFractionDigits: 1 });
-const addDays = (d: string, k: number) => new Date(Date.parse(`${d}T00:00:00Z`) + k * 864e5).toISOString().slice(0, 10);
-const md = (d: string) => d.slice(5).replace('-', '-');
+const addDays = (d: string, k: number) => new Date(Date.parse(`${day(d)}T00:00:00Z`) + k * 864e5).toISOString().slice(0, 10);
+const md = (d: string) => day(d).slice(5);
 
 export function MyCard({ me, todoCount, todo, register, requests, petty, initiated }: {
   me: Me; todoCount: number; todo: ReactNode; register: ReactNode; requests: ReactNode; petty: ReactNode; initiated: number }) {
@@ -43,7 +43,7 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
   const p = data.people.find((x) => x.mine);
   const attr = data.attrs.find((a) => a.user_id === me.id);
   const td = data.td[0];
-  const per = td?.period_start ?? today();
+  const per = day(td?.period_start ?? today());
   const left = Math.max(0, Date.parse(`${addDays(per, 13)}T00:00:00Z`) / 864e5 - Date.parse(`${today()}T00:00:00Z`) / 864e5 + 1);
   const tasks = data.tasks.filter((t) => t.mine).sort((a, b) => a.seq - b.seq);
   const doneN = tasks.filter((t) => t.status === 'done').length;

@@ -658,7 +658,9 @@ function fixArrays<R extends Record<string, unknown>>(rows: R[] & { columns?: { 
 }
 
 async function withUser<T>(env: Env, uid: string | null, fn: (sql: postgres.TransactionSql) => Promise<T>): Promise<T> {
-  const sql = postgres(env.HYPERDRIVE.connectionString, { max: 1, fetch_types: false, prepare: false });
+  // 日期列（date）按数据库里的原文返回 YYYY-MM-DD。交给驱动会变成 JS 时间，序列化后带上时分秒，页面拼日期时出错
+  const sql = postgres(env.HYPERDRIVE.connectionString, { max: 1, fetch_types: false, prepare: false,
+    types: { date: { to: 1082, from: [1082], serialize: (x: unknown) => (x instanceof Date ? x.toISOString().slice(0, 10) : String(x)), parse: (x: string) => x } } });
   try {
     return (await sql.begin(async (tx) => {
       await tx`select set_config('app.uid', ${uid ?? ''}, true)`;

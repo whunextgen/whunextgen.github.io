@@ -26,7 +26,7 @@ export const AXES: [Axis, string, string][] = [['li', '理', '为什么读者要
 const PITCH: Record<Pitch['status'], [string, string]> = { pending: ['warn', '投稿待定'], accepted: ['ok', '已接收'], declined: ['', '未接收'], closed: ['', '讨论结束'] };
 const ATT: Record<AttendEvent['kind'], string> = { lecture: '周日讲座', seminar: '主题研讨会', council: '联席会议' };
 // 两周一期，自 2026-11-23 起
-const periodOf = (d: string) => { const b = Date.parse('2026-11-23T00:00:00Z'), x = Date.parse(`${d}T00:00:00Z`); return new Date(b + Math.floor((x - b) / 864e5 / 14) * 14 * 864e5).toISOString().slice(0, 10); };
+const periodOf = (d: string) => { const b = Date.parse('2026-11-23T00:00:00Z'), x = Date.parse(`${day(d)}T00:00:00Z`); return new Date(b + Math.floor((x - b) / 864e5 / 14) * 14 * 864e5).toISOString().slice(0, 10); };
 const ids = (v: string) => v.split(',').filter(Boolean);
 const axisOf = (a: Axis) => AXES.find(([k]) => k === a)!;
 
@@ -285,4 +285,4 @@ export function UnitIterate({ unit, me }: { unit: Project; me: Me }) {
     </>
   );
 }
-const md2 = (d: string) => d.slice(5);
+const md2 = (d: string) => day(d).slice(5);

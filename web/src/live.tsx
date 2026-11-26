@@ -192,7 +192,7 @@ export function SignIn({ onDone }: { onDone?: () => void }) {
   const [act, setAct] = useState<Act | null>(null);
   if (!data) return null;
   const open = data.ms.filter((m) => m.open);
-  const toMakeUp = data.ms.filter((m) => !m.open && m.my_status === 'leave' && !m.my_made_up && Date.parse(`${m.held_on}T00:00:00Z`) + 8 * 864e5 > Date.now());
+  const toMakeUp = data.ms.filter((m) => !m.open && m.my_status === 'leave' && !m.my_made_up && Date.parse(`${day(m.held_on)}T00:00:00Z`) + 8 * 864e5 > Date.now());
   return (
     <div className="ir-acts" style={{ alignItems: 'center' }}>
       <button className="sm" onClick={() => setAct({ title: '签到', label: '签到', hint: open.length ? `正在开的会：${open.map(meetingName).join('、')}。签到码在会上共享的屏幕上。` : '现在没有正在开的会。', fields: [{ name: 'code', label: '四位签到码' }],
