@@ -30,6 +30,8 @@ export function MembersPage({ me }: { me: Me }) {
   const [tab, setTab] = useState<'join' | 'term'>('join');
   if (!data) return <Loading error={error} />;
   const people = [...data.people].sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((p): [string, string] => [p.id, p.name]);
+  // 考核人须为 Researcher 及以上，且不是被考核人本人（#76）
+  const reviewerPick = (self: string) => [...data.people].filter((p) => p.id !== self && ['researcher', 'rising_star', 'pi', 'director'].includes(p.rank ?? '')).sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((p): [string, string] => [p.id, p.name]);
   const isDirector = me.role === 'director';
   const chair = data.rev.some((r) => r.can_chair) || isDirector || me.perms.includes('budget.evaluate');
   const recOf = (id: string) => data.rec.find((x) => x.id === id);
@@ -59,7 +61,7 @@ export function MembersPage({ me }: { me: Me }) {
 
   const reviewerAct = (r: Review): Act => ({ title: `${r.track === 'group' ? '登记进展小组' : '指定合作者'}：${r.user_name}`, label: '登记',
     hint: r.track === 'group' ? '进展小组由联席会议指定两名成员组成（Researcher 及以上），这里按联席会议的指定登记。本人、与本人有私人关系的不担任。' : '由合作的 Researcher 及以上成员评价，默认取本人所在研究单元的负责人。本人、与本人有私人关系的不担任。',
-    fields: [{ name: 'a', label: '考核人一', options: people, value: r.reviewers[0]?.id ?? '' }, { name: 'b', label: r.track === 'group' ? '考核人二' : '考核人二（选填）', options: people, value: r.reviewers[1]?.id ?? '', required: r.track === 'group' },
+    fields: [{ name: 'a', label: '考核人一', options: reviewerPick(r.user_id), value: r.reviewers[0]?.id ?? '' }, { name: 'b', label: r.track === 'group' ? '考核人二' : '考核人二（选填）', options: reviewerPick(r.user_id), value: r.reviewers[1]?.id ?? '', required: r.track === 'group' },
       { name: 'ok', label: '考核人与本人没有私人关系', type: 'check', value: 'false' }],
     run: (v) => rpc('set_term_reviewers', { id: r.id, users: [v.a, v.b].filter(Boolean), no_conflict: v.ok === 'true' }) });
   const draftAct = (r: Review): Act => ({ title: `出具意见：${r.user_name}`, label: '起草并签署',

@@ -194,7 +194,7 @@ export interface Project { id: string; code: string; name: string; kind: 'projec
   layer: 'big' | 'paper'; parent_id: string | null; parent_code: string | null; parent_name: string | null; parent_owner_id: string | null; seen: boolean;
   member: boolean; can_roster: boolean; members: number; owner_scholar_url?: string | null }
 export interface ProjectMember { id: string; project_id: string; user_id: string; user_name: string; joined_on: string; left_on: string | null; added_by_name: string | null; holding: number; scholar_url?: string | null; rank_label?: string | null }
-export interface PeoplePick { id: string; name: string }
+export interface PeoplePick { id: string; name: string; rank?: string | null }
 export interface Task { id: string; title: string; detail: string | null; assignee_id: string; assignee_name: string | null; due_date: string | null; card_id: string | null; card_name: string | null;
   status: 'open' | 'done' | 'cancelled'; created_by: string; creator_name: string | null; created_at: string; closed_by_name: string | null; closed_at: string | null; close_note: string | null;
   steps: number; steps_done: number; mine: boolean; can_manage: boolean }
