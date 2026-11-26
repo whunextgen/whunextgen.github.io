@@ -2,7 +2,7 @@
 -- 全员可见范围沿用人员权限；普通成员只能查看本人。
 create view api.selection_roster as
 select p.id, p.user_id, p.name, p.kind,
-       case when p.kind = 'ra' then 'RA' when p.kind = 'ri' then 'RI' else '硕士' end as kind_label,
+       p.rank, rank_label(p.rank) as rank_label,
        case when p.user_id is null then 'unlinked' when not coalesce(u.active, false) then 'inactive'
             when jsonb_array_length(j.projects) > 0 then 'joined'
             when jsonb_array_length(i.interests) > 0 then 'interested' else 'unselected' end as selection_status,
@@ -26,5 +26,5 @@ cross join lateral (
     and pr.kind <> 'public' and pr.layer in ('big','paper')
 ) i
 where app_role() is not null and (has_perm('read.people') or has_perm('people.manage') or p.user_id = app_uid())
-  and p.status in ('active','offroll') and p.left_on is null and p.kind in ('ra','ri','master');
+  and p.status in ('active','offroll') and p.left_on is null and (p.rank in ('intern','assistant') or p.kind = 'master');
 grant select on api.selection_roster to app_api;
