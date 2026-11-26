@@ -36,7 +36,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
   const years = data.years.map((y) => y.year).sort((a, b) => b - a);
   const next = Number(today().slice(0, 4)) + 1;
   const openAct = (y?: BudgetYear): Act => ({
-    title: y ? `修改 ${y.year} 年度预算申报截止日` : '启动新年度预算', hint: '启动后，财务岗在「总预算与档次」中测算总预算、编档次，中心负责人批准方案；截止日前各课题申请档次并提交明细，由联席会议评定。',
+    title: y ? `修改 ${y.year} 年度预算申报截止日` : '启动新年度预算', submitLabel: y ? '保存' : '启动', hint: '启动后，财务岗在「总预算与档次」中测算总预算、编档次，中心负责人批准方案；截止日前各课题申请档次并提交明细，由联席会议评定。',
     fields: [...(y ? [] : [{ name: 'year', label: '年度', type: 'number', value: String(next) } as Field]), { name: 'due', label: '申报截止日', type: 'date', value: y ? day(y.due_date) : '' }],
     run: (v) => rpc('open_budget_year', { year: y?.year ?? Math.round(Number(v.year)), due_date: v.due }).then(reload),
   });
