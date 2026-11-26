@@ -4,7 +4,7 @@ import { ActionDialog, day, num, today, type Field } from './ui';
 import type { PathPerson, PathTask } from './path';
 import type { Query, Seminar } from './iterate';
 import type { DailyRow, PersonAttr } from './growth';
-import type { UnitPool, UnitShare } from './token';
+import { hoursValid, type UnitPool, type UnitShare } from './token';
 import { SignIn } from './live';
 
 // 个人主页「我的事项」：按设计稿 ir-character-card。身份、本回合、当日、属性、任务列表、主线、份额、实际币、嘉许、各期记录；
@@ -32,10 +32,10 @@ const md = (d: string) => day(d).slice(5);
 export function MyCard({ me, todoCount, todo, register, requests, petty, initiated }: {
   me: Me; todoCount: number; todo: ReactNode; register: ReactNode; requests: ReactNode; petty: ReactNode; initiated: number }) {
   const { data, error, reload } = useViews<{ people: PathPerson[]; tasks: PathTask[]; attrs: PersonAttr[]; td: TodayMine[]; daily: DailyRow[]; rec: PeriodRec[]; queries: Query[];
-    ch: Challenge[]; titles: TitleMine[]; praise: PraiseRow[]; coin: CoinMine[]; ledger: CoinRow[]; shares: UnitShare[]; pools: UnitPool[]; projects: Project[]; tags: ProjectTag[]; pick: PeoplePick[]; seminars: Seminar[] }>({
+    ch: Challenge[]; titles: TitleMine[]; praise: PraiseRow[]; coin: CoinMine[]; ledger: CoinRow[]; shares: UnitShare[]; pools: UnitPool[]; projects: Project[]; tags: ProjectTag[]; pick: PeoplePick[]; seminars: Seminar[]; tp: { key: string; value: unknown }[] }>({
     people: ['path_person'], tasks: ['path_tracker'], attrs: ['person_attr'], td: ['today_mine'], daily: ['daily_mine'], rec: ['period_record'], queries: ['query'],
     ch: ['challenge_mine'], titles: ['title_mine'], praise: ['praise_mine'], coin: ['coin_mine'], ledger: ['coin_ledger'], shares: ['unit_share'], pools: ['unit_pool'],
-    projects: ['project'], tags: ['project_tag'], pick: ['people_pick'], seminars: ['seminar'] });
+    projects: ['project'], tags: ['project_tag'], pick: ['people_pick'], seminars: ['seminar'], tp: ['token_param'] });
   const [act, setAct] = useState<Act | null>(null);
   const [tab, setTab] = useState('all');
   if (!data) return error ? <div className="msg bad" role="alert">{error.message}</div> : <p className="empty">加载中…</p>;
@@ -201,7 +201,7 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
           {num(coin?.balance) > 0 ? <div className="ir-acts"><button className="sm" onClick={() => setAct(investAct())}>投给研究单元</button></div> : null}
           {data.ledger.length > 0 && <ul className="ir-sc">{[...data.ledger].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5).map((l) =>
             <li key={l.id}><span>{KIND[l.kind]}{l.project_name ? ` · ${l.project_name}` : ''}</span><em>{num(l.amount) > 0 ? '+' : ''}{n1(l.amount)}</em></li>)}</ul>}
-          <p className="ir-hint">代币不是经费。按期发放的实际币只在当期和下一期有效，用不掉作废；成果铸造的 12 个月有效。实际币只能投给研究单元，由研究单元换 GPU 卡时（买后 8 周内有效），以后也可以换别的资源。投出时先扣先到期的。</p>
+          <p className="ir-hint">代币不是经费。按期发放的实际币只在当期和下一期有效，用不掉作废；成果铸造的 12 个月有效。实际币只能投给研究单元，由研究单元换 GPU 卡时（买后 {hoursValid(data.tp)}内有效），以后也可以换别的资源。投出时先扣先到期的。</p>
         </section>
         <section className="ir-t ir-third">
           <div className="ir-mono"><span>嘉许 · 每期限两次</span><span>本期尚可给出 {Math.max(0, 2 - gaveNow)} 次</span></div>
