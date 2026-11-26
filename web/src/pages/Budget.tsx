@@ -25,7 +25,7 @@ const opt = (v: string | null) => (v == null ? '—' : money(v));
 export function BudgetPage({ me, start }: { me: Me; start: string }) {
   const staff = can(me, 'budget.compile');
   const director = can(me, 'budget.approve');
-  const { data, error, reload } = useViews<{ years: BudgetYear[]; projects: Project[]; cats: BudgetCategory[]; budgets: ProjectBudget[]; lines: BudgetLine[]; cards: Card[]; picks: ResourcePick[]; sopen: { year: number; project_id: string }[];
+  const { data, error, reload } = useViews<{ years: BudgetYear[]; projects: Project[]; cats: BudgetCategory[]; budgets: ProjectBudget[]; lines: BudgetLine[]; cards: Card[]; picks: ResourcePick[]; sopen: { year: number; project_id: string; can_withdraw: boolean }[];
     plans: BudgetPlan[]; sources: BudgetSource[]; modules: BudgetModule[]; tiers: BudgetTier[]; tpicks: TierPick[]; mtopics: ModuleTopic[] }>({
     plans: ['budget_plan'], sources: ['budget_source'], modules: ['budget_module'], tiers: ['budget_tier'], tpicks: ['tier_pick'], mtopics: ['module_topic'],
     years: ['budget_year'], projects: ['project'], cats: ['budget_category'], budgets: ['project_budget'], lines: ['budget_line'], cards: ['card'], picks: ['resource_pick'],
@@ -252,7 +252,8 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
       {projects.filter((p) => p.mine).map((p) => {
         const b = budget.get(p.id); const rows = lines.filter((l) => l.project_id === p.id);
         // 已评定档次或特批的课题：年度核定后、下达前仍可补填明细，提交即核定（#92）
-        const special = data.sopen.some((x) => x.year === y.year && x.project_id === p.id);
+        const so = data.sopen.find((x) => x.year === y.year && x.project_id === p.id);
+        const special = !!so && (b?.status !== 'submitted' || so.can_withdraw);
         const editable = (y.stage === 'declare' || special) && b?.status !== 'submitted';
         const adjustable = staff && b?.status === 'submitted' && (y.stage === 'summary' || y.stage === 'granted');
         const [st, tone] = PB[b?.status ?? 'none'];
@@ -297,7 +298,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
               {editable && <button className="ghost" onClick={() => setAct(lineAct(p))}>新增预算行</button>}
               {editable && <><button className="ghost" onClick={() => setAct(pasteAct(p))}>整表导入</button><a className="btn ghost" href={TEMPLATE} download={`年度预算模板-${year}.csv`}>下载模板</a></>}
               {editable && rows.length > 0 && <button onClick={() => setAct({ title: `提交 ${p.name} 的 ${year} 年度预算`, hint: `明细合计 ${money(tot(rows, 'declared'))}。提交时按所申请档次的金额和限制校验；提交后不可修改，评定完成前可撤回。`, fields: [], submitLabel: '提交', run: () => setBudget(p, 'submit') })}>提交</button>}
-              {(y.stage === 'declare' || special) && b?.status === 'submitted' && <button className="ghost" onClick={() => setAct({ title: '撤回修改', hint: '撤回后可修改，修改后须重新提交。', fields: [], submitLabel: '撤回', run: () => setBudget(p, 'withdraw') })}>撤回修改</button>}
+              {(y.stage === 'declare' || !!so?.can_withdraw) && b?.status === 'submitted' && <button className="ghost" onClick={() => setAct({ title: '撤回修改', hint: '撤回后可修改，修改后须重新提交。', fields: [], submitLabel: '撤回', run: () => setBudget(p, 'withdraw') })}>撤回修改</button>}
               {staff && y.stage === 'declare' && b?.status === 'submitted' &&
                 <button className="ghost" onClick={() => setAct({ title: `退回 ${p.name} 的预算`, fields: [{ name: 'note', label: '退回原因' }], danger: true, submitLabel: '退回', run: (v) => setBudget(p, 'return', v.note) })}>退回重新填报</button>}
             </div>
