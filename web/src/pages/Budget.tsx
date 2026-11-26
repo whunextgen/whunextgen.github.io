@@ -260,7 +260,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
         return (
           <section className="card" key={p.id} id={`p-${p.id}`}>
             <h3>{p.name} <Badge tone={tone}>{st}</Badge></h3>
-            <p className="hint">{p.code} · {KIND[p.kind]}{p.owner_name ? ` · 负责人 ${p.owner_name}` : ''}{b?.submitted_at ? ` · ${b.submitted_by_name ?? ''} ${day(b.submitted_at)} 提交` : ''}</p>
+            <p className="hint">{p.code} · {KIND[p.kind]}{p.owner_name ? ` · 负责人 ${p.owner_name}` : ''}{b?.submitted_at ? ` · ${b.submitted_by_name ?? ''} ${day(b.submitted_at)} ${b.status === 'submitted' ? '提交' : '提交过，已撤回或退回'}` : ''}</p>
             {!legacy && (ti.direct
               ? <p className="hint">金额由预算方案直接确定：{money(ti.direct.amount)}，不参加档次评定。课题连同研究单元已填明细 {money(ti.filled)}，合计不得超过这个金额。</p>
               : ti.k ? <p className="hint">{ti.k.kind === 'new' ? '立项' : '延续'}申请「{kt?.name ?? '—'}」{kt ? money(kt.amount) : ''}，
