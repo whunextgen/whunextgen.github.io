@@ -109,7 +109,7 @@ export function MotionPage({ id }: { id: string; me: Me }) {
           : m.status === 'passed' ? `${t(m.veto_until)} 前未否决即生效` : m.status === 'effective' ? `${t(m.effective_at)} 生效` : ''}</span></h3>
         {m.decided_note && <p>{m.mtype === 'inquiry' ? '过问结果' : '中心负责人说明'}：{m.decided_note}</p>}
         {m.director_decision && <p>中心负责人决定：{m.director_decision === 'accepted' ? '同意退组' : '不予采纳'}</p>}
-        {decided && m.mtype !== 'inquiry' && <p>同意 {m.yes}，反对 {m.no}，弃权 {m.abstain}（可以投票的 {m.eligible} 人）{m.note ? `。${m.note}` : ''}{m.veto_reason ? `。否决理由：${m.veto_reason}` : ''}</p>}
+        {decided && m.mtype !== 'inquiry' && m.yes != null && <p>同意 {m.yes}，反对 {m.no}，弃权 {m.abstain}（可以投票的 {m.eligible} 人）{m.note ? `。${m.note}` : ''}{m.veto_reason ? `。否决理由：${m.veto_reason}` : ''}</p>}
         {decided && data.ballot.length > 0 && <p className="sub2">{data.ballot.map((b) => `${b.name} ${CHOICE[b.choice]}`).join('、')}</p>}
         {m.my_vote && <p className="sub2">我的票：{CHOICE[m.my_vote]}{m.status === 'voting' ? '（截止前可以改）' : ''}</p>}
         <div className="ir-acts" style={{ alignItems: 'center' }}>
@@ -207,7 +207,7 @@ export function CouncilLive({ meetingId, open, canRun }: { meetingId: string; op
             : <p className="ir-hint">{info?.am_voter ? '这份涉及本人或已申报回避，不参加投票。' : '列席的成员不参加投票。'}</p>}
           {canRun && !m.online && <div className="ir-acts"><button className="sm" onClick={() => go(rpc('close_vote', { id: m.id }))}>结束表决，公布结果</button></div>}
         </>}
-        {['passed', 'failed', 'effective', 'vetoed'].includes(m.status) && <p style={{ font: '700 20px/1.4 var(--i-serif)' }}>{m.status === 'failed' ? '未通过' : '通过'}：同意 {m.yes}，反对 {m.no}，弃权 {m.abstain}
+        {['passed', 'failed', 'effective', 'vetoed'].includes(m.status) && m.yes != null && <p style={{ font: '700 20px/1.4 var(--i-serif)' }}>{m.status === 'failed' ? '未通过' : '通过'}：同意 {m.yes}，反对 {m.no}，弃权 {m.abstain}
           {m.mtype === 'main' && m.status === 'passed' ? `；${t(m.veto_until)} 前中心负责人未否决即生效` : ''}</p>}</>}
         {err && <p className="sub2" style={{ color: 'var(--bad)' }}>{err}</p>}
       </>}
