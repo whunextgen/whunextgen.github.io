@@ -124,6 +124,8 @@ export function PettyPage({ me, only }: { me: Me; only?: string }) {
 interface Item { id: string; type: '支出申请' | '备用金' | '资源申请'; flag: string; title: string; sub: string; who: string; amount: string; at: string; wait: string; badge: [string, string]; href: string }
 export function TrackPage({ me }: { me: Me }) {
   const staff = can(me, 'read.finance');
+  // 资源管理员看得到全部资源申请，办理在资源调配页（#72）
+  const resStaff = staff || can(me, 'read.resource');
   const { data, error } = useViews<{ reqs: Req[]; petty: PettyCash[]; res: ResourceRequest[]; users: User[] }>({
     reqs: ['request'], petty: ['petty_cash'], res: ['resource_request'], users: ['users'],
   });
@@ -139,7 +141,7 @@ export function TrackPage({ me }: { me: Me }) {
       who: r.requested_by === me.id ? '我' : r.requester_name, amount: money(r.amount), at: r.created_at, wait: r.status === 'pending' ? '中心负责人审批' : '财务岗凭票核销', badge: PETTY[r.status], href: '#/petty' })),
     ...data.res.filter((r) => ['pending', 'reviewed', 'approved'].includes(r.status)).map((r): Item => ({ id: r.id, type: '资源申请', flag: r.urgent ? '加急' : '', title: r.purpose,
       sub: `${r.resource_name ?? KIND[r.kind]}${r.project_code ? ` · ${r.project_code}` : ''}`, who: r.requested_by === me.id ? '我' : r.requester_name, amount: qty(r.approved_amount ?? r.amount, r.unit), at: r.created_at,
-      wait: { pending: '研究单元负责人批示', reviewed: '财务岗批准', approved: '财务岗分发' }[r.status as 'pending'], badge: RES_REQ[r.status], href: staff ? '#/pool' : '#/resource' })),
+      wait: { pending: '研究单元负责人批示', reviewed: '财务岗批准', approved: '财务岗分发' }[r.status as 'pending'], badge: RES_REQ[r.status], href: resStaff ? '#/pool' : '#/resource' })),
   ].sort((a, b) => Number(!!b.flag) - Number(!!a.flag) || a.at.localeCompare(b.at));
   const types = ['支出申请', '备用金', '资源申请'] as const;
   const shown = items.filter((i) => !type || i.type === type);
@@ -155,7 +157,7 @@ export function TrackPage({ me }: { me: Me }) {
         <Tile k="学校退回" v={data.reqs.filter((r) => r.status === 'returned').length} f="财务岗变更经费卡或释放" tone={data.reqs.some((r) => r.status === 'returned') ? 'bad' : ''} />
       </div>
       <section className="card wide">
-        <h3>{staff ? '全部在途事项' : '我的在途事项'} <span className="h3sub">各事项当前等待对象</span></h3>
+        <h3>{staff ? '全部在途事项' : resStaff ? '在途事项（资源申请为全部，其余为本人的）' : '我的在途事项'} <span className="h3sub">各事项当前等待对象</span></h3>
         <p className="hint">本页仅供查看，不办理业务：支出申请（含紧急支出）、备用金、资源申请中尚未办结的事项均列于此，按紧急程度和提交先后排序。需办理的，点击右侧链接进入对应页面。</p>
         <div className="tabs" style={{ marginBottom: 12 }}>
           <button className="sm" aria-pressed={!type} onClick={() => setType('')}>全部 {items.length}</button>
