@@ -3872,6 +3872,13 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`);
 }
 
+// ---------- 视图提速后的定义（0138、0139） ----------
+{
+  await db.exec(`reset role`);
+  ok(/materialized/i.test((await one(`select pg_get_viewdef('api.period_record'::regclass) d`)).d), 'period_record 本人所在的研究单元只算一次');
+  await db.exec(`set role app_api`);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {
