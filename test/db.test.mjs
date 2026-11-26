@@ -3796,4 +3796,12 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
 }
 
 console.log(`${pass} passed, ${fail} failed`);
+// 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
+if (process.env.DEMO_OUT && !fail) {
+  const { writeFileSync } = await import('node:fs');
+  await db.exec(`reset role`);
+  const f = await db.dumpDataDir('gzip');
+  writeFileSync(process.env.DEMO_OUT, Buffer.from(await f.arrayBuffer()));
+  console.log('演示数据库已导出', process.env.DEMO_OUT);
+}
 process.exit(fail ? 1 : 0);
