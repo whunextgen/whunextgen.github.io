@@ -34,6 +34,8 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   const SUMMARY_ONLY = ['cells', 'school', 'exec', 'allocs', 'funds', 'pcaps', 'resources'] as const;
   const mineOnly = asked === 'home' || asked === 'mine';
   const want = Object.fromEntries(Object.entries(spec).filter(([k]) => !(mineOnly && (SUMMARY_ONLY as readonly string[]).includes(k)))) as typeof spec;
+  // 支出申请也只取在办的和本人提交的，全部历史单据只有汇总页用
+  if (mineOnly) want.reqs = ['request_live'];
   const { data: raw, error } = useViews<D>(want, mineOnly ? 'mine' : asked);
   const data: D | undefined = raw && { ...(Object.fromEntries(SUMMARY_ONLY.map((k) => [k, []])) as unknown as Pick<D, typeof SUMMARY_ONLY[number]>), ...raw };
   if (!data) return <Loading error={error} />;
