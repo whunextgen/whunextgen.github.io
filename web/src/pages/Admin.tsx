@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rpc, useViews, type Card, type Emergency, type Me, type Outbox, type Perm, type Project, type RbacLog, type RoleDef, type RoleGrant, type Subject, type Template, type TemplateCap, type User, type UserAdmin } from '../api';
-import { ActionDialog, Badge, Empty, END_RULE, FUND_KIND, Loading, can, PERSON, ROLE, ROLE_OPTIONS, canPublic, day, money, num, today, type Field } from '../ui';
+import { ActionDialog, Badge, Empty, END_RULE, END_RULE_CHOICES, FUND_KIND, Loading, can, PERSON, ROLE, ROLE_OPTIONS, canPublic, day, money, num, today, type Field } from '../ui';
 
 interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 type Opt = [string, string];
@@ -15,7 +15,7 @@ export function cardFields(c: Card): Field[] {
     { name: 'start_date', label: '下达日', type: 'date', value: day(c.start_date) },
     { name: 'cutoff_date', label: '单据截止日', type: 'date', value: day(c.cutoff_date) },
     { name: 'settle_date', label: '结清日（选填，结清前须填写）', type: 'date', required: false, value: c.settle_date ? day(c.settle_date) : '' },
-    { name: 'end_rule', label: '到期处理', options: Object.entries(END_RULE), value: c.end_rule },
+    { name: 'end_rule', label: '到期处理', options: END_RULE_CHOICES, value: c.end_rule },
     { name: 'rule_note', label: '备注（选填）', required: false, value: c.rule_note ?? '' },
     { name: 'received', label: '已到账金额（元；横向经费的支出不得超过已到账，其他性质仅作记录）', type: 'number', required: false, value: c.received != null ? String(num(c.received)) : '' },
     { name: 'priority', label: '下达优先级（1–99，数值小者优先；留空按到期规则排序）', type: 'number', required: false, value: c.priority != null ? String(c.priority) : '' },
