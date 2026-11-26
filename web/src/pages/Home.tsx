@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { ArrClaim } from '../arr';
-import { useViews, type Resource, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task, type UnitApply, type BiweeklyStatus } from '../api';
+import { prefetch, useViews, type Resource, type CardSchoolSubject, type BudgetAlloc, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type Card, type CardPick, type Cell, type FundProject, type Project, type ProjectBudget, type ProjectCap, type FundEvent, type LineExec, type Me, type Node, type PettyCash, type Req, type ReqStatus, type ResourceRequest, type Task, type UnitApply, type BiweeklyStatus } from '../api';
 import { Badge, Empty, END_RULE, Flow, FUND_SOURCE, Loading, can, cardGap, cardGranted, cardTotal, reqBadge, ROLE, day, money, num, pct, today } from '../ui';
 import { Track, TreeNode, execSegs, type Seg } from '../tree';
 import { cardRisk, nodeState } from './Overview';
 import { KIND, STAGE_TEXT, STEP_OF } from './Budget';
 import { taskDue } from './Tasks';
 import { addDays } from '../token';
-import { MyCard } from '../card';
+import { MyCard, cardViews } from '../card';
 import { ReviewSummary } from '../review';
 
 const wan = (x: number) => `${(x / 1e4).toFixed(Math.abs(x) >= 1e6 ? 0 : 1)} 万`;
@@ -37,6 +37,8 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   // 支出申请也只取在办的和本人提交的，全部历史单据只有汇总页用
   if (mineOnly) want.reqs = ['request_live'];
   const { data: raw, error } = useViews<D>(want, mineOnly ? 'mine' : asked);
+  // 「我的事项」：个人卡片和签到栏要的数据一并预取，与上面这批同时发出，不必等首页数据到了再取
+  useEffect(() => { if (mineOnly) prefetch([...Object.values(cardViews(me.id)), ['meeting']] as [string, Record<string, string>?][]); }, [mineOnly, me.id]);
   const data: D | undefined = raw && { ...(Object.fromEntries(SUMMARY_ONLY.map((k) => [k, []])) as unknown as Pick<D, typeof SUMMARY_ONLY[number]>), ...raw };
   if (!data) return <Loading error={error} />;
   const now = today();

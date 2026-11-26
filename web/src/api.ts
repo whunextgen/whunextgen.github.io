@@ -37,15 +37,31 @@ function flush() {
       }), (e) => part.forEach((p) => p.fail(e)));
   }
 }
-export const view = <T,>(name: string, filter: Record<string, string> = {}): Promise<T[]> =>
+// 预取：页面一开始取数时，把稍后才渲染的组件要的数据一并放进同一批；15 秒内读取直接用（导航栏和卡片可以共用），有任何写操作即清空
+const prefetched = new Map<string, { at: number; p: Promise<unknown> }>();
+const keyOf = (name: string, filter: Record<string, string>) => `${name}?${new URLSearchParams(filter)}`;
+const queued = (name: string, filter: Record<string, string>) =>
+  new Promise((ok, fail) => { queue.push({ name, filter, ok, fail }); if (!timer) timer = setTimeout(flush, 0); });
+export function prefetch(specs: [string, Record<string, string>?][]) {
+  for (const [name, filter = {}] of specs) {
+    const k = keyOf(name, filter);
+    if (!prefetched.has(k)) { const p = queued(name, filter); p.catch(() => {}); prefetched.set(k, { at: Date.now(), p }); }
+  }
+}
+export const view = <T,>(name: string, filter: Record<string, string> = {}): Promise<T[]> => {
+  const k = keyOf(name, filter), hit = prefetched.get(k);
+  if (hit) { if (Date.now() - hit.at < 15000) return hit.p.then((rows) => shape(name, rows) as T[]); prefetched.delete(k); }
+  return viewNow<T>(name, filter);
+};
+const viewNow = <T,>(name: string, filter: Record<string, string> = {}): Promise<T[]> =>
   (name === 'me'
     ? send(`/api/v/me${Object.keys(filter).length ? '?' + new URLSearchParams(filter) : ''}`)
     : new Promise((ok, fail) => { queue.push({ name, filter, ok, fail }); if (!timer) timer = setTimeout(flush, 0); }))
     .then((rows) => shape(name, rows) as T[]);
 
 export const rpc = (fn: string, args: Record<string, unknown>) =>
-  send(`/api/rpc/${fn}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(args) })
-    .then((b) => b.result);
+  (prefetched.clear(), send(`/api/rpc/${fn}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(args) })
+    .then((b) => b.result));
 
 // 密钥单独走这两个接口：保存时由服务端加密，取用时记一条取用记录；页面不缓存明文
 const post = (path: string, body: unknown) => send(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((b) => b.result);
