@@ -208,7 +208,7 @@ export function CouncilLive({ meetingId, open, canRun }: { meetingId: string; op
           {canRun && !m.online && <div className="ir-acts"><button className="sm" onClick={() => go(rpc('close_vote', { id: m.id }))}>结束表决，公布结果</button></div>}
         </>}
         {['passed', 'failed', 'effective', 'vetoed'].includes(m.status) && <p style={{ font: '700 20px/1.4 var(--i-serif)' }}>{m.status === 'failed' ? '未通过' : '通过'}：同意 {m.yes}，反对 {m.no}，弃权 {m.abstain}
-          {m.mtype === 'main' && m.status === 'passed' ? `；${t(m.veto_until)} 前中心主任未否决即生效` : ''}</p>}</>}
+          {m.mtype === 'main' && m.status === 'passed' ? `；${t(m.veto_until)} 前中心负责人未否决即生效` : ''}</p>}</>}
         {err && <p className="sub2" style={{ color: 'var(--bad)' }}>{err}</p>}
       </>}
     </section>
