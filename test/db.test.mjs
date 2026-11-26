@@ -3732,7 +3732,9 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const sb = await val(`select special_biweekly($1, '本人有个人原因，已向中心负责人说明') v`, [UN.id]);
   ok(sb > 0, '双周表特批');
   await raises('同一期只特批一次', /已特批过/, `select special_biweekly($1, '再来')`, [UN.id]);
-  ok((await one(`select open from api.biweekly_status where project_id = $1`, [UN.id])).open === true, '特批的研究单元本期可以登记');
+  const bs = await one(`select open, missed from api.biweekly_status where project_id = $1`, [UN.id]);
+  ok(bs.open === true, '特批的研究单元本期可以登记');
+  ok(Number(bs.missed) === 0, '特批的本期不算漏登', JSON.stringify(bs));
   ok((await q(`select seq from api.special_approval`)).length >= 1, '特批记录全中心可见');
   await as(U.dir);
 }
