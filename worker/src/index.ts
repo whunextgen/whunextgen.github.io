@@ -314,25 +314,36 @@ async function hmac(secret: string, msg: string) {
   return b64u(await crypto.subtle.sign('HMAC', key, enc.encode(msg)));
 }
 // ---------- GitHub 事件 ----------
-// 只发中台分支上的 PR：开出（草稿转为待审也算）、重新打开、提交审查、合并或关闭；以及反馈议题的关闭和重新打开。其余事件不发
+// 只发中台分支上的 PR：开出（草稿转为待审也算）、重新打开、提交审查、合并或关闭；以及 issue 的新建、关闭、重新打开和认领留言。其余事件不发
 export const GITHUB_BASE = 'finance-portal';
 // 一个 PR 一个话题：thread 是话题的键，同一个 PR 的通报都回复在它第一条通报的话题里
 export function githubText(event: string, p: any): { text: string; url: string; btn: string; thread: string } | null {
-  if (event === 'issues') return issueBody(p);
+  if (event === 'issues' || event === 'issue_comment') return issueBody(event, p);
   const n = githubBody(event, p);
   return n ? { ...n, thread: `pr:${Number(p.pull_request.number)}` } : null;
 }
-// 议题：只认带「反馈」标签的（反馈按钮转成的）。新建的由正则转议题时直接通报，这里只发关闭和重新打开
-function issueBody(p: any): { text: string; url: string; btn: string; thread: string } | null {
+// 议题：新建、关闭、重新打开都通报，回在该议题的话题里；有人留言认领时也通报一句。
+// 反馈按钮转成的议题（带「反馈」标签）新建时由正则直接通报，这里不重复
+function issueBody(event: string, p: any): { text: string; url: string; btn: string; thread: string } | null {
   const is = p?.issue;
   if (!is || is.pull_request || !Number.isInteger(is.number) || is.number <= 0) return null;
-  if (!(Array.isArray(is.labels) && is.labels.some((l: any) => l?.name === '反馈'))) return null;
   const url = String(is.html_url ?? '');
   if (!/^https:\/\/github\.com\//.test(url)) return null;
+  const fb = Array.isArray(is.labels) && is.labels.some((l: any) => l?.name === '反馈');
+  const labels = Array.isArray(is.labels) ? is.labels.map((l: any) => String(l?.name ?? '')).filter(Boolean).join('、') : '';
   const head = `#${is.number} ${String(is.title ?? '').slice(0, 120)}`, who = String(p.sender?.login ?? '—');
-  const thread = `issue:${is.number}`;
-  if (p.action === 'closed') return { text: `${is.state_reason === 'not_planned' ? '反馈不予处理' : '反馈已处理'}：${head}\n关闭人 ${who}`, url, btn: '查看议题', thread };
-  if (p.action === 'reopened') return { text: `反馈重新打开：${head}\n操作人 ${who}`, url, btn: '查看议题', thread };
+  const thread = `issue:${is.number}`, btn = '查看 issue';
+  const kind = fb ? '反馈' : 'issue ';
+  if (event === 'issue_comment') {
+    if (p.action !== 'created') return null;
+    const body = String(p.comment?.body ?? '').replace(/\r/g, '').trim();
+    if (!/^认领/.test(body)) return null;
+    const link = /^https:\/\/github\.com\//.test(String(p.comment?.html_url ?? '')) ? String(p.comment.html_url) : url;
+    return { text: `${kind}已认领：${head}\n认领人 ${String(p.comment?.user?.login ?? who)}${body.length > 2 ? `\n${body.length > 200 ? body.slice(0, 200) + '……' : body}` : ''}`, url: link, btn, thread };
+  }
+  if (p.action === 'opened') return fb ? null : { text: `新 issue：${head}\n提交人 ${String(is.user?.login ?? who)}${labels ? ` · 标签 ${labels}` : ''}`, url, btn, thread };
+  if (p.action === 'closed') return { text: `${kind}${is.state_reason === 'not_planned' ? '不予处理' : '已处理'}：${head}\n关闭人 ${who}`, url, btn, thread };
+  if (p.action === 'reopened') return { text: `${kind}重新打开：${head}\n操作人 ${who}`, url, btn, thread };
   return null;
 }
 function githubBody(event: string, p: any): { text: string; url: string; btn: string } | null {
