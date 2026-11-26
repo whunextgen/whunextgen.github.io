@@ -720,7 +720,7 @@ ok(eqC >= 130000, '卡 C 设备费可用额够测试用', String(eqC));
 await as(U.lead, D7);
 eq((await q(`select * from api.budget_alloc`)).length, 4, '项目负责人只看到自己项目下达到哪些卡');
 eq((await q(`select * from api.line_pick`)).length, 0, '没下达之前提交支出时选不到预算行');
-await raises('没下达不能按项目支出', /年度预算尚未下达，下达后方可支出/, `select submit_project_request($1, $2, 'GPU 节点', 1000, '2027-06-30')`, [L1, TY['服务器与 GPU']]);
+await raises('没下达不能按项目支出', /年度预算尚未下达/, `select submit_project_request($1, $2, 'GPU 节点', 1000, '2027-06-30')`, [L1, TY['服务器与 GPU']]);
 await raises('项目负责人不能下达', /./, `select advance_budget_year(2027, 'issue')`);
 await as(U.dir, D7);
 await raises('已经下达到卡的不能直接退回', /已有预算行下达至经费卡，请先撤销下达再退回/, `select advance_budget_year(2027, 'reopen')`);
@@ -3749,6 +3749,37 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
     await q(`select set_project_budget($1, $2, 'withdraw')`, [Y27.year, TP.id]);
     await db.exec(`reset role`);
     ok((await one(`select fixed from project_budget_line where id = $1`, [LN])).fixed === null, '撤回即取消核定');
+    // 分课题下达：财务审核通过即下达，课题可以支出，不等年度整体下达，也不等日历年
+    await db.exec(`set role app_api`);
+    await as(TP.owner_id);
+    await q(`select set_project_budget($1, $2, 'submit')`, [Y27.year, TP.id]);
+    await raises('课题负责人不能自己下达', /./, `select issue_topic($1, $2)`, [Y27.year, TP.id]);
+    ok((await q(`select 1 from api.line_pick where id = $1`, [LN])).length === 0, '下达前选不到这行预算');
+    await as(U.fin);
+    ok((await one(`select can_issue from api.topic_issue where year = $1 and project_id = $2`, [Y27.year, TP.id])).can_issue === true, '财务岗可以审核下达');
+    let issued = true;
+    try { await q(`select issue_topic($1, $2, '明细核对无误')`, [Y27.year, TP.id]); } catch (e) { issued = false; ok(/可用余额不够/.test(e.message), '经费卡分不够时说明哪一科目', e.message); }
+    if (!issued) {
+      // 财务岗先手工分配到经费卡，再审核下达
+      await db.exec(`reset role`);
+      const CS = await one(`select k.id card_id, s.id subject_id from fund_card k join template_subject s on s.template_id = k.template_id where k.status = 'active' order by k.card_no, s.sort limit 1`);
+      await q(`insert into budget_allocation (line_id, card_id, subject_id, amount) values ($1, $2, $3, 2000)`, [LN, CS.card_id, CS.subject_id]);
+      await db.exec(`set role app_api`);
+      await as(U.fin);
+      await q(`select issue_topic($1, $2, '明细核对无误')`, [Y27.year, TP.id]);
+      issued = true;
+    }
+    if (issued) {
+      await as(TP.owner_id);
+      ok((await q(`select 1 from api.line_pick where id = $1`, [LN])).length === 1, '审核下达后课题可以选这行预算提交支出申请');
+      await as(U.fin);
+      await q(`select unissue_topic($1, $2)`, [Y27.year, TP.id]);
+      await as(TP.owner_id);
+      ok((await q(`select 1 from api.line_pick where id = $1`, [LN])).length === 0, '没有支出时可以撤销下达');
+    }
+    await as(TP.owner_id);
+    await q(`select set_project_budget($1, $2, 'withdraw')`, [Y27.year, TP.id]);
+    await db.exec(`reset role`);
     await q(`update budget_year set stage = $2 where year = $1`, [Y27.year, stage0]);
     await db.exec(`set role app_api`);
     await as(U.dir);

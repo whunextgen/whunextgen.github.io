@@ -216,7 +216,7 @@ function noLineReason(years: BudgetYear[]) {
   const now = Number(today().slice(0, 4));
   if (years.some((y) => y.year === now && y.stage === 'issued')) return '本人当前不在任何已下达预算研究单元的成员名单内，无法提交支出申请。请研究单元负责人在「课题管理」页加入名单；加入后即可选择该研究单元的预算行。';
   const next = [...years].sort((a, b) => a.year - b.year).find((y) => y.year >= now && y.stage !== 'closed');
-  return `${now} 年没有已下达的课题年度预算，暂不能按课题预算提交支出申请。${next ? `${next.year} 年度预算目前为「${STAGE_TEXT[next.stage]}」，下达到经费卡之后才能提交；` : ''}课题的额度在下达之前只是核定数。急需支出的，请联系财务岗。`;
+  return `本人所在的课题还没有已下达的年度预算，暂不能按课题预算提交支出申请。${next ? `${next.year} 年度预算目前为「${STAGE_TEXT[next.stage]}」，按课题下达：课题负责人提交预算明细，财务岗审核通过即下达，之后就能提交；` : ''}课题的额度在下达之前只是核定数。急需支出的，请联系财务岗。`;
 }
 
 export function Requests({ me, start = '' }: { me: Me; start?: string }) {
