@@ -20,15 +20,22 @@ export type HomeView = 'home' | 'mine' | 'center' | 'fund' | 'topic' | 'res';
 // canUse：本人在已立项的课题或研究单元里，能用支出申请、备用金和资源申领
 export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view?: HomeView; canUse?: boolean }) {
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
-  const { data, error } = useViews<{ reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
+  type D = { reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
     years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[]; tasks: Task[];
-    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[]; resources: Resource[]; uapps: UnitApply[]; bws: BiweeklyStatus[]; arrs: ArrClaim[] }>({
+    funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[]; resources: Resource[]; uapps: UnitApply[]; bws: BiweeklyStatus[]; arrs: ArrClaim[] };
+  const spec: { [K in keyof D]: [string, Record<string, string>?] } = {
     resources: ['resource'], uapps: ['unit_apply'], bws: ['biweekly_status'], arrs: ['arr_claim'],
     school: ['card_school_subject'],
     reqs: ['request'], picks: ['card_pick'], cards: ['card'], nodes: ['node'], events: ['fund_event', { done: 'false' }],
     years: ['budget_year'], projects: ['project'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], petty: ['petty_cash'], res: ['resource_request'], caps: ['cap_request'], shifts: ['budget_shift'], tasks: ['task', { status: 'open' }],
     funds: ['fund_project'], cells: ['cell'], allocs: ['budget_alloc'], pcaps: ['project_cap'],
-  });
+  };
+  // 「我的事项」只取用得到的：经费卡格子、学校科目汇总、预算执行、经费分配、项目、课题上限、资源只有各汇总页用，这里不取，给空数组
+  const SUMMARY_ONLY = ['cells', 'school', 'exec', 'allocs', 'funds', 'pcaps', 'resources'] as const;
+  const mineOnly = asked === 'home' || asked === 'mine';
+  const want = Object.fromEntries(Object.entries(spec).filter(([k]) => !(mineOnly && (SUMMARY_ONLY as readonly string[]).includes(k)))) as typeof spec;
+  const { data: raw, error } = useViews<D>(want, mineOnly ? 'mine' : asked);
+  const data: D | undefined = raw && { ...(Object.fromEntries(SUMMARY_ONLY.map((k) => [k, []])) as unknown as Pick<D, typeof SUMMARY_ONLY[number]>), ...raw };
   if (!data) return <Loading error={error} />;
   const now = today();
   const active = data.cards.filter((c) => c.status === 'active');

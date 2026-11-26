@@ -33,7 +33,7 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
   me: Me; todoCount: number; todo: ReactNode; register: ReactNode; requests: ReactNode; petty: ReactNode; initiated: number }) {
   const { data, error, reload } = useViews<{ people: PathPerson[]; tasks: PathTask[]; attrs: PersonAttr[]; td: TodayMine[]; daily: DailyRow[]; rec: PeriodRec[]; queries: Query[];
     ch: Challenge[]; titles: TitleMine[]; praise: PraiseRow[]; coin: CoinMine[]; ledger: CoinRow[]; shares: UnitShare[]; pools: UnitPool[]; projects: Project[]; tags: ProjectTag[]; pick: PeoplePick[]; seminars: Seminar[]; tp: { key: string; value: unknown }[] }>({
-    people: ['path_person'], tasks: ['path_tracker'], attrs: ['person_attr'], td: ['today_mine'], daily: ['daily_mine'], rec: ['period_record'], queries: ['query'],
+    people: ['path_person', { mine: 'true' }], tasks: ['path_tracker', { mine: 'true' }], attrs: ['person_attr', { user_id: me.id }], td: ['today_mine'], daily: ['daily_mine'], rec: ['period_record'], queries: ['query'],
     ch: ['challenge_mine'], titles: ['title_mine'], praise: ['praise_mine'], coin: ['coin_mine'], ledger: ['coin_ledger'], shares: ['unit_share'], pools: ['unit_pool'],
     projects: ['project'], tags: ['project_tag'], pick: ['people_pick'], seminars: ['seminar'], tp: ['token_param'] });
   const [act, setAct] = useState<Act | null>(null);
