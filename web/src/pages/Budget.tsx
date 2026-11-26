@@ -251,7 +251,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
 
       {projects.filter((p) => p.mine).map((p) => {
         const b = budget.get(p.id); const rows = lines.filter((l) => l.project_id === p.id);
-        // 特批档次的课题：年度核定后、下达前仍可补填明细，提交即核定
+        // 已评定档次或特批的课题：年度核定后、下达前仍可补填明细，提交即核定（#92）
         const special = data.sopen.some((x) => x.year === y.year && x.project_id === p.id);
         const editable = (y.stage === 'declare' || special) && b?.status !== 'submitted';
         const adjustable = staff && b?.status === 'submitted' && (y.stage === 'summary' || y.stage === 'granted');
@@ -270,7 +270,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
                   ? <>该课题尚未申请档次。请先在「<a href="#/apply">立项与延续申请</a>」中选择档次，再提交明细。</>
                   : '预算方案尚未批准公布，批准后才能申请档次。明细可以先填，申请档次后再提交。'}</div> : null)}
             {b?.status === 'returned' && <div className="msg bad">财务岗退回：{b.return_note}</div>}
-            {special && <div className="msg warn" role="status">本课题的档次为中心负责人特批，可在年度预算下达前补填明细；提交时按档次的金额和限制校验，通过即核定，下达时与其他课题一并分到经费卡上。</div>}
+            {special && <div className="msg warn" role="status">本课题的档次已评定（或由中心负责人特批），年度预算下达前可以补填明细；提交时按档次的金额和限制校验，通过即核定，下达时与其他课题一并分到经费卡上。</div>}
             {rows.length === 0 ? <Empty>{y.stage === 'declare' ? '尚未填报明细。' : '未填报明细。'}</Empty> : (
               <div className="scroll"><table className="tight">
                 <thead><tr><th>科目</th><th>用途</th>{QN.map((n) => <th key={n} className="r">{n}</th>)}<th className="r">明细</th>{legacy && <th className="r">申请数</th>}<th className="r">核定数</th><th /></tr></thead>

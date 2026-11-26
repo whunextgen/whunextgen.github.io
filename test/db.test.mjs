@@ -3814,6 +3814,30 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`);
 }
 
+// ---------- 已评定档次的课题，下达前可以补交明细（#92） ----------
+{
+  await db.exec(`reset role`);
+  const K = await one(`select k.year, k.project_id, p.owner_id from tier_pick k join project p on p.id = k.project_id join budget_year y on y.year = k.year
+    where k.decided_tier_id is not null and not coalesce(k.rejected, false) and p.owner_id is not null and p.active
+      and not exists (select 1 from special_approval s where s.project_id = k.project_id and s.year = k.year) order by k.year desc limit 1`);
+  if (K) {
+    const st0 = (await one(`select stage from budget_year where year = $1`, [K.year])).stage;
+    await q(`update budget_year set stage = 'fixed' where year = $1`, [K.year]);
+    await q(`update project_budget set status = 'draft' where year = $1 and project_id = $2`, [K.year, K.project_id]);
+    const CAT2 = (await one(`select id from budget_category where active order by sort limit 1`)).id;
+    await db.exec(`set role app_api`);
+    await as(K.owner_id);
+    ok((await q(`select 1 from api.special_budget_open where year = $1 and project_id = $2`, [K.year, K.project_id])).length === 1, '已评定档次的课题在核定后列为可补填');
+    const L9 = await val(`select save_budget_line(null, $1, $2, $3, '补交的明细', 0, 100, 0, 0) v`, [K.year, K.project_id, CAT2]);
+    ok(!!L9, '已评定档次的课题核定后可以补填明细');
+    await db.exec(`reset role`);
+    await q(`delete from project_budget_line where id = $1`, [L9]);
+    await q(`update budget_year set stage = $2 where year = $1`, [K.year, st0]);
+    await db.exec(`set role app_api`);
+  } else ok(false, '测试数据里找不到已评定档次的课题');
+  await as(U.dir);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {
