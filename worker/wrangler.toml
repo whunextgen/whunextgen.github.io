@@ -18,3 +18,8 @@ id = "74b386399f8e409c84b9b13ab2f9a5ca"
 # 每 5 分钟处理一次飞书通知队列。只有把 FEISHU_NOTIFY 设为 on（wrangler secret put 或在控制台加变量）才会真正发送
 [triggers]
 crons = ["*/5 * * * *"]
+
+# Worker 就近数据库运行：数据库在东京（Supabase ap-northeast-1），每个请求与数据库往返 4 次，
+# 放在用户附近的边缘节点时每次都跨洋。按数据库所在区域放置
+[placement]
+region = "aws:ap-northeast-1"
