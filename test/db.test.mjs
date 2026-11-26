@@ -3807,6 +3807,13 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok((await q(`select 1 from api.card_pick`)).length === 0, '普通成员仍看不到经费卡');
 }
 
+// ---------- 称呼统一为中心负责人（#67） ----------
+{
+  await db.exec(`reset role`);
+  ok((await one(`select count(*)::int n from pg_proc where pronamespace = 'public'::regnamespace and prosrc like '%中心主任%'`)).n === 0, '函数里不再写「中心主任」');
+  await db.exec(`set role app_api`);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {
