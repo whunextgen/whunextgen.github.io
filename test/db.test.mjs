@@ -3852,6 +3852,26 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// ---------- 权限判断按事务缓存（0137） ----------
+{
+  await db.exec(`reset role`);
+  const PC = await id(`insert into app_user (name, role, feishu_open_id) values ('缓存甲', 'member', 'ou_pc_a')`);
+  const r = await db.transaction(async (tx) => {
+    await tx.query(`select set_config('app.uid', $1, true)`, [PC]);
+    const a = (await tx.query(`select has_perm('people.manage') v`)).rows[0].v;
+    await tx.query(`insert into rbac_grant (user_id, role_id, from_date) select $1, id, current_date - 1 from rbac_role where code = 'hr'`, [PC]);
+    const b = (await tx.query(`select has_perm('people.manage') v`)).rows[0].v;
+    await tx.query(`select set_config('app.uid', $1, true)`, [U.dir]);
+    const c = (await tx.query(`select has_perm('people.manage') v, app_role() r`)).rows[0];
+    await tx.query(`select set_config('app.uid', $1, true)`, [PC]);
+    const d = (await tx.query(`select app_role() r`)).rows[0].r;
+    return { a, b, c, d };
+  });
+  ok(r.a === false && r.b === true, '同一事务里授权后，缓存失效、权限立即生效', JSON.stringify(r));
+  ok(r.c.v === true && r.c.r === 'director' && r.d === 'member', '同一事务里换了用户，权限和角色按新用户重算', JSON.stringify(r));
+  await db.exec(`set role app_api`);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {
