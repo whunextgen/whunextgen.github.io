@@ -28,6 +28,9 @@ export function LivePage({ id }: { id: string; me: Me }) {
   const [pick, setPick] = useState<Record<string, string>>({});
   // 现场每 15 秒刷新一次，签到人数和别人记入的质疑跟着更新
   useEffect(() => { const t = setInterval(reload, 15000); return () => clearInterval(t); }, [reload]);
+  // 告诉外层这是哪类会，侧栏按类别高亮（#78）
+  const liveKind = data?.m[0]?.kind;
+  useEffect(() => { if (liveKind) window.dispatchEvent(new CustomEvent('live-kind', { detail: liveKind })); }, [liveKind]);
   if (!data) return <Loading error={error} />;
   const m = data.m[0];
   if (!m) return <Empty>会议不存在。</Empty>;
