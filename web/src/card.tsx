@@ -29,13 +29,19 @@ const n1 = (v: string | number | null | undefined) => num(v).toLocaleString('zh-
 const addDays = (d: string, k: number) => new Date(Date.parse(`${day(d)}T00:00:00Z`) + k * 864e5).toISOString().slice(0, 10);
 const md = (d: string) => day(d).slice(5);
 
+// 个人卡片要的视图；首页一开始取数时据此预取，合进同一批请求（见 Home）
+const v = (n: string, f?: Record<string, string>): [string, Record<string, string>?] => (f ? [n, f] : [n]);
+export const cardViews = (uid: string) => ({
+  people: v('path_person', { mine: 'true' }), tasks: v('path_tracker', { mine: 'true' }), attrs: v('person_attr', { user_id: uid }), td: v('today_mine'), daily: v('daily_mine'), rec: v('period_record'), queries: v('query'),
+  ch: v('challenge_mine'), titles: v('title_mine'), praise: v('praise_mine'), coin: v('coin_mine'), ledger: v('coin_ledger'), shares: v('unit_share'), pools: v('unit_pool'),
+  projects: v('project'), tags: v('project_tag'), pick: v('people_pick'), seminars: v('seminar'), tp: v('token_param'),
+});
+
 export function MyCard({ me, todoCount, todo, register, requests, petty, initiated }: {
   me: Me; todoCount: number; todo: ReactNode; register: ReactNode; requests: ReactNode; petty: ReactNode; initiated: number }) {
   const { data, error, reload } = useViews<{ people: PathPerson[]; tasks: PathTask[]; attrs: PersonAttr[]; td: TodayMine[]; daily: DailyRow[]; rec: PeriodRec[]; queries: Query[];
     ch: Challenge[]; titles: TitleMine[]; praise: PraiseRow[]; coin: CoinMine[]; ledger: CoinRow[]; shares: UnitShare[]; pools: UnitPool[]; projects: Project[]; tags: ProjectTag[]; pick: PeoplePick[]; seminars: Seminar[]; tp: { key: string; value: unknown }[] }>({
-    people: ['path_person', { mine: 'true' }], tasks: ['path_tracker', { mine: 'true' }], attrs: ['person_attr', { user_id: me.id }], td: ['today_mine'], daily: ['daily_mine'], rec: ['period_record'], queries: ['query'],
-    ch: ['challenge_mine'], titles: ['title_mine'], praise: ['praise_mine'], coin: ['coin_mine'], ledger: ['coin_ledger'], shares: ['unit_share'], pools: ['unit_pool'],
-    projects: ['project'], tags: ['project_tag'], pick: ['people_pick'], seminars: ['seminar'], tp: ['token_param'] });
+    ...cardViews(me.id) });
   const [act, setAct] = useState<Act | null>(null);
   const [tab, setTab] = useState('all');
   if (!data) return error ? <div className="msg bad" role="alert">{error.message}</div> : <p className="empty">加载中…</p>;
