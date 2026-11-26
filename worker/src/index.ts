@@ -8,6 +8,7 @@ export interface Env {
   GITHUB_ISSUE_TOKEN?: string; GITHUB_ISSUE_REPO?: string;   // 反馈转 GitHub issue：只需 issues 写权限的令牌，仓库写成 owner/name；没设的反馈先存在中台
   ANTHROPIC_API_KEY?: string;   // 录音补漏：从逐字稿里自动找出质疑。没有设的，用「资源」里登记的「录音补漏」API 资源；都没有的，由济民按需提取
   HYPERDRIVE: { connectionString: string };   // 以 app_api 角色连接 Supabase Postgres
+  DATABASE_URL?: string;   // 直连 Supabase 连接池（事务模式，端口 6543）；设了就不走 Hyperdrive。由负责人用 wrangler secret 设置
   FEISHU_APP_ID: string;
   FEISHU_APP_SECRET: string;
   // 发通知用的应用（机器人）。不设时沿用登录应用
@@ -701,10 +702,15 @@ function fixArrays<R extends Record<string, unknown>>(rows: R[] & { columns?: { 
 
 async function withUser<T>(env: Env, uid: string | null, fn: (sql: postgres.TransactionSql) => Promise<T>): Promise<T> {
   // 日期列（date）按数据库里的原文返回 YYYY-MM-DD。交给驱动会变成 JS 时间，序列化后带上时分秒，页面拼日期时出错
-  const sql = postgres(env.HYPERDRIVE.connectionString, { max: 1, fetch_types: false, prepare: false,
+  // 2026-11-26 Hyperdrive 免费用量当天用完、全站报错：设了 DATABASE_URL 的直连 Supabase 连接池，不受 Hyperdrive 用量限制
+  const direct = !!env.DATABASE_URL;
+  const sql = postgres(direct ? env.DATABASE_URL! : env.HYPERDRIVE.connectionString, { max: 1, fetch_types: false, prepare: false,
+    ...(direct ? { ssl: 'require' as const, connect_timeout: 10 } : {}),
     types: { date: { to: 1082, from: [1082], serialize: (x: unknown) => (x instanceof Date ? x.toISOString().slice(0, 10) : String(x)), parse: (x: string) => x } } });
   try {
     return (await sql.begin(async (tx) => {
+      // 直连时切到接口角色 app_api，权限与走 Hyperdrive 时相同；连接账号本身就是 app_api 或无权切换的，不切
+      if (direct) await tx`select set_config('role', 'app_api', true) where current_user <> 'app_api' and pg_has_role(current_user, 'app_api', 'SET')`;
       await tx`select set_config('app.uid', ${uid ?? ''}, true)`;
       return fn(tx);
     })) as T;
