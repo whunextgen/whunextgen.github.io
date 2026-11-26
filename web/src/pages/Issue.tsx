@@ -7,10 +7,15 @@ const RANK: Record<Card['end_rule'], number> = { recall: 0, carry: 2 };
 const endOf = (c: Card) => day(c.settle_date ?? c.cutoff_date);
 
 // 03 下达：把每一行的核定数对到经费卡的学校科目上。到期回收的卡先填满，填不满的缺口在这里标出来。
+// 分课题下达：财务岗审核通过一个课题的预算即下达，这个课题随即可以支出
+interface TopicIssue { year: number; project_id: string; code: string; name: string; status: string; issued_at: string | null; issued_by_name: string | null; issue_note: string | null;
+  fixed: string; allocated: string; can_issue: boolean; can_unissue: boolean }
+const BST: Record<string, string> = { draft: '草稿', submitted: '已提交', returned: '已退回' };
+
 export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: BudgetYear; projects: Project[]; cats: BudgetCategory[]; onStage: () => void }) {
   const year = y.year, director = can(me, 'budget.approve');
-  const { data, error, reload } = useViews<{ exec: LineExec[]; allocs: BudgetAlloc[]; map: CategorySubject[]; subjects: Subject[]; cards: Card[]; cells: Cell[] }>({
-    exec: ['line_exec', { year: String(year) }], allocs: ['budget_alloc', { year: String(year) }], map: ['category_subject'], subjects: ['subject'], cards: ['card'], cells: ['cell'],
+  const { data, error, reload } = useViews<{ exec: LineExec[]; allocs: BudgetAlloc[]; map: CategorySubject[]; subjects: Subject[]; cards: Card[]; cells: Cell[]; topics: TopicIssue[] }>({
+    exec: ['line_exec', { year: String(year) }], allocs: ['budget_alloc', { year: String(year) }], map: ['category_subject'], subjects: ['subject'], cards: ['card'], cells: ['cell'], topics: ['topic_issue', { year: String(year) }],
   }, String(year));
   const [act, setAct] = useState<Act | null>(null);
   const [note, setNote] = useState('');
@@ -58,7 +63,7 @@ export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: Budg
     <>
       <section className="card" id="issue">
         <h3>下达至经费卡 {y.stage === 'fixed' ? <Badge tone="warn">待下达</Badge> : y.stage === 'issued' ? <Badge tone="ok">已下达</Badge> : <Badge>已决算</Badge>}</h3>
-        <p className="hint">{y.stage === 'fixed' ? '年度总预算确定后，各行核定数均须分配至经费卡的学校科目，全部分配完毕方可下达；下达后各研究单元方可按预算提交支出申请。'
+        <p className="hint">{y.stage === 'fixed' ? '可以按课题审核下达（见下一节），审核通过的课题即可支出；也可以等各行核定数全部分配至经费卡的学校科目后，整个年度一并下达。'
           : y.stage === 'issued' ? `${day(y.issued_at)} 已下达。复盘时调增核定数的行须在此补充下达；调减部分系统已自动收回。` : `${year} 年度已决算，下达记录仅供查看。`}</p>
         {unmapped.length > 0 && <div className="msg bad">以下预算科目尚未对应学校科目，自动分配时将跳过：{unmapped.join('、')}。<a href="#/desk">前往预算参数设置</a></div>}
         {note && <div className="msg ok" role="status">{note}</div>}
@@ -76,6 +81,23 @@ export function IssuePanel({ me, y, projects, cats, onStage }: { me: Me; y: Budg
           {y.stage === 'fixed' && director && allocSum === 0 && <button className="ghost" onClick={() => setAct({ title: '退回核定', danger: true, submitLabel: '退回', fields: [], hint: '退回核定阶段，可重新调整各行核定数和年度总预算。', run: () => go('reopen') })}>退回核定</button>}
         </div>}
       </section>
+
+      {y.stage === 'fixed' && <section className="card">
+        <h3>按课题审核下达 <span className="h3sub">财务岗审核通过一个课题的预算即下达，这个课题及其研究单元随即可以提交支出申请，不等其他课题，也不等年度整体下达</span></h3>
+        {data.topics.length === 0 ? <Empty>还没有课题提交 {year} 年度预算。</Empty> : (
+          <div className="scroll"><table className="tight">
+            <thead><tr><th>课题</th><th>预算</th><th className="r">核定数</th><th className="r">已分配至经费卡</th><th>下达</th><th /></tr></thead>
+            <tbody>{[...data.topics].sort((a, b) => a.code.localeCompare(b.code)).map((t) => (
+              <tr key={t.project_id}><td>{t.name}<span className="sub2">{t.code}</span></td><td>{BST[t.status] ?? t.status}</td>
+                <td className="r">{money(t.fixed)}</td><td className="r">{money(t.allocated)}</td>
+                <td>{t.issued_at ? <><Badge tone="ok">已下达</Badge><span className="sub2">{t.issued_by_name} {day(t.issued_at)}{t.issue_note ? ` · ${t.issue_note}` : ''}</span></> : t.status === 'submitted' ? <Badge tone="warn">待审核</Badge> : <span className="sub2">待课题提交</span>}</td>
+                <td className="r">{t.can_issue && <button className="sm" onClick={() => setAct({ title: `审核下达：${t.name}`, submitLabel: '审核通过并下达', fields: [{ name: 'n', label: '审核意见（选填）', required: false }],
+                    hint: `核定数 ${money(t.fixed)}。审核通过即下达：尚未分配的明细按科目对应自动分配到经费卡（优先到期回收的经费卡）；分不够的会提示，请先在下方逐行手工分配。下达后课题负责人和研究单元成员会收到通知。`,
+                    run: (v) => rpc('issue_topic', { year, project: t.project_id, note: v.n || null }).then(() => { setNote(`已下达：${t.name}`); reload(); }) })}>审核通过并下达</button>}
+                  {t.can_unissue && <button className="ghost sm" onClick={() => setAct({ title: `撤销下达：${t.name}`, submitLabel: '撤销', danger: true, fields: [], hint: '只能在还没有任何支出或在办申请时撤销；撤销后收回分配到经费卡的数额。',
+                    run: () => rpc('unissue_topic', { year, project: t.project_id }).then(() => { setNote(`已撤销下达：${t.name}`); reload(); }) })}>撤销下达</button>}</td></tr>))}</tbody>
+          </table></div>)}
+      </section>}
 
       <section className="card">
         <h3>到期回收的经费卡须使用完毕</h3>
