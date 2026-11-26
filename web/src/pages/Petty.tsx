@@ -24,13 +24,16 @@ export function PettyPage({ me, only }: { me: Me; only?: string }) {
   const settled = rows.filter((r) => r.status === 'settled' && day(r.settled_on).startsWith(year));
   const sum = (list: PettyCash[], k: 'amount' | 'spent' = 'amount') => list.reduce((s, r) => s + num(r[k]), 0);
   // 研究单元都用课题的钱：选课题的预算行，申请记在本人所在的研究单元名下
-  const myUnits = data.projects.filter((p) => p.layer === 'paper' && p.active && (p.member || p.mine) && !data.tags.some((t) => t.id === p.id && t.proposed)).map((p): [string, string] => [p.id, `${p.code} ${p.name}`]);
+  // 只列挂在可选预算行所属课题下的研究单元，名称后注明课题，方便与所选预算行对上（#63）
+  const lineTopics = new Set(data.lines.map((l) => l.project_id));
+  const myUnits = data.projects.filter((p) => p.layer === 'paper' && p.active && (p.member || p.mine) && !!p.parent_id && lineTopics.has(p.parent_id) && !data.tags.some((t) => t.id === p.id && t.proposed))
+    .map((p): [string, string] => [p.id, `${p.code} ${p.name}（课题：${p.parent_name ?? '—'}）`]);
   const saveAct = (r?: PettyCash): Act => ({
     label: r ? '保存' : '提交申请', title: r ? '修改备用金申请' : '申请备用金',
     hint: '备用金用于来不及办理支出申请的小额周转，同样从年度预算列支：选择一行预算，金额不得超过该预算行剩余额度；领用期间占用该预算行。由中心负责人审批，领用后凭票据由财务岗核销，未使用部分退回并释放预算。',
     fields: [{ name: 'line_id', label: '支出预算行', value: r?.budget_line_id,
       options: data.lines.map((l): [string, string] => [l.id, `${l.project_code} ${l.project_name} · ${l.category_name} · ${l.purpose}`]) },
-      ...(myUnits.length > 0 ? [{ name: 'unit_id', label: '所属研究单元（选填；本人在同一课题下多个研究单元名单内时须选）', required: false, options: myUnits }] : []),
+      ...(myUnits.length > 0 ? [{ name: 'unit_id', label: '所属研究单元（选填；须与所选预算行属同一课题；本人在该课题下多个研究单元名单内时须选）', required: false, options: myUnits }] : []),
       { name: 'amount', label: '金额（元）', type: 'number', value: r ? String(num(r.amount)) : '' }, { name: 'purpose', label: '用途', value: r?.purpose }],
     run: (v) => rpc('save_petty_cash', { id: r?.id ?? null, amount: v.amount, purpose: v.purpose, line_id: v.line_id, unit_id: v.unit_id || null }),
   });

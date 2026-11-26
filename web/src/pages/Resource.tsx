@@ -66,8 +66,11 @@ export function ResourcePage({ me }: { me: Me }) {
     [p.id, `${p.project_code} ${p.purpose} · ${p.resource_name}，计划 ${qty(p.plan_qty, p.unit)}，剩余 ${qty(rest(p), p.unit)}`]);
   const none = (kind: 'api' | 'asset') => (lineOpts(kind).length ? '' : `本年度预算中暂无${KIND[kind]}的资源计划，暂不能提交申请。如需使用，请研究单元负责人在年度预算中补充；年中追加的，由财务岗在复盘时调整。`);
   // 研究单元都用课题的钱：选课题的预算行，申请记在本人所在的研究单元名下，由该研究单元的负责人批示
-  const myUnits = data.projects.filter((p) => p.layer === 'paper' && p.active && (p.member || p.mine) && !data.tags.some((t) => t.id === p.id && t.proposed)).map((p): [string, string] => [p.id, `${p.code} ${p.name}`]);
-  const unitField: Field[] = myUnits.length > 0 ? [{ name: 'unit_id', label: '所属研究单元（选填；本人在同一课题下多个研究单元名单内时须选）', required: false, options: myUnits }] : [];
+  // 只列挂在可选预算行所属课题下的研究单元，名称后注明课题，方便与所选预算行对上（#63）
+  const lineTopics = new Set(plans.map((x) => x.project_id));
+  const myUnits = data.projects.filter((p) => p.layer === 'paper' && p.active && (p.member || p.mine) && !!p.parent_id && lineTopics.has(p.parent_id) && !data.tags.some((t) => t.id === p.id && t.proposed))
+    .map((p): [string, string] => [p.id, `${p.code} ${p.name}（课题：${p.parent_name ?? '—'}）`]);
+  const unitField: Field[] = myUnits.length > 0 ? [{ name: 'unit_id', label: '所属研究单元（选填；须与所选预算行属同一课题；本人在该课题下多个研究单元名单内时须选）', required: false, options: myUnits }] : [];
   const reqAct = (kind: 'api' | 'asset'): Act => kind === 'api' ? {
     label: '提交申请', title: '申请接口额度',
     hint: `资源均由年度预算列支：选择一条已编制资源计划的预算行，累计申请不得超过计划数量。先由研究单元负责人批示，再由财务岗批准并分发；本人负责的研究单元直接提交财务岗。申请中不得填写任何密钥。${none(kind)}`,
