@@ -25,6 +25,8 @@ interface Act { title: string; hint?: string; label: string; fields: Field[]; da
 export const AXES: [Axis, string, string][] = [['li', '理', '为什么读者要关注这个问题'], ['ju', '据', '为什么别人没有解决'], ['ti', '体', '为什么你能解决'], ['yong', '用', '为什么别人要关注你的解决和发现']];
 const PITCH: Record<Pitch['status'], [string, string]> = { pending: ['warn', '投稿待定'], accepted: ['ok', '已接收'], declined: ['', '未接收'], closed: ['', '讨论结束'] };
 const ATT: Record<AttendEvent['kind'], string> = { lecture: '周日讲座', seminar: '主题研讨会', council: '联席会议' };
+// 出勤表里显示用：还有训练课程和自建会议（#77）
+const EVENT_KIND: Record<string, string> = { ...ATT, training: '训练课程', other: '自建会议' };
 // 两周一期，自 2026-11-23 起
 const periodOf = (d: string) => { const b = Date.parse('2026-11-23T00:00:00Z'), x = Date.parse(`${day(d)}T00:00:00Z`); return new Date(b + Math.floor((x - b) / 864e5 / 14) * 14 * 864e5).toISOString().slice(0, 10); };
 const ids = (v: string) => v.split(',').filter(Boolean);
@@ -214,7 +216,7 @@ export function IteratePage({ me }: { me: Me }) {
           </div>
           {data.events.length > 0 && <div className="scroll"><table className="wb-table">
             <thead><tr><th>日期</th><th>会议</th><th className="r">出席</th><th className="r">请假</th><th className="r">缺席</th><th>登记人</th></tr></thead>
-            <tbody>{[...data.events].sort((a, b) => b.held_on.localeCompare(a.held_on)).slice(0, 12).map((e) => <tr key={e.id}><td>{day(e.held_on)}</td><td><a href={`#/live/${e.id}`}>{e.seminar_name ?? ATT[e.kind as keyof typeof ATT] ?? '会议'}</a>{e.title && <span className="sub2">{e.title}</span>}</td>
+            <tbody>{[...data.events].sort((a, b) => b.held_on.localeCompare(a.held_on)).slice(0, 12).map((e) => <tr key={e.id}><td>{day(e.held_on)}</td><td><a href={`#/live/${e.id}`}>{e.seminar_name ?? EVENT_KIND[e.kind] ?? '会议'}</a>{e.title && <span className="sub2">{e.title}</span>}</td>
               <td className="r">{e.present}</td><td className="r">{e.leave}</td><td className="r">{e.absent}</td><td>{e.recorded_by_name}</td></tr>)}</tbody>
           </table></div>}
         </section>)}
