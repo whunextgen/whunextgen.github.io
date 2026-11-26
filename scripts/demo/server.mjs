@@ -69,6 +69,20 @@ const server = http.createServer(async (req, res) => {
         const rows = await asUser(uid, (tx) => tx.query(`select * from api.${view}${where ? ' where ' + where : ''} limit 2000`, f.map(([, v]) => v)));
         return send(res, 200, rows.rows);
       }
+      // 与 Worker 一致：一次读多张视图，每张单独，出错的那张返回 error
+      if (url.pathname === '/api/batch' && req.method === 'GET') {
+        let specs; try { specs = JSON.parse(url.searchParams.get('q') ?? '[]'); } catch { return send(res, 400, { error: '格式不对' }); }
+        if (!Array.isArray(specs) || specs.length === 0 || specs.length > 40) return send(res, 400, { error: '一次读 1 到 40 张视图' });
+        const out = [];
+        for (const [v, f0] of specs) {
+          if (!VIEWS.has(v)) return send(res, 404, { error: `没有这个视图：${v}` });
+          const f = Object.entries(f0 ?? {}).filter(([k]) => /^[a-z_]+$/.test(k));
+          const where = f.map(([k], i) => `${k}::text = $${i + 1}`).join(' and ');
+          try { out.push({ rows: (await asUser(uid, (tx) => tx.query(`select * from api.${v}${where ? ' where ' + where : ''} limit 2000`, f.map(([, x]) => String(x))))).rows }); }
+          catch (e) { out.push({ error: String(e?.message ?? e).slice(0, 200) }); }
+        }
+        return send(res, 200, out);
+      }
       const fn = url.pathname.match(/^\/api\/rpc\/([a-z_]+)$/)?.[1];
       if (fn && req.method === 'POST') {
         const spec = RPC[fn];

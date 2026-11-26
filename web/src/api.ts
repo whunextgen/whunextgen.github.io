@@ -13,9 +13,35 @@ async function send(path: string, init?: RequestInit) {
 }
 
 const LISTS: Record<string, string[]> = { me: ['perms', 'scoped'], role: ['perms'] };
+const shape = (name: string, rows: unknown) =>
+  LISTS[name] && Array.isArray(rows) ? rows.map((r: Record<string, unknown>) => ({ ...r, ...Object.fromEntries(LISTS[name].map((k) => [k, list(r[k])])) })) : rows;
+
+// 同一时刻发出的视图请求合成一次 /api/batch：一页十几张视图原来是十几次请求，现在通常一次。
+// me 单独请求，会话续期靠它；只有一张的也走原来的接口
+type Pending = { name: string; filter: Record<string, string>; ok: (rows: unknown) => void; fail: (e: unknown) => void };
+let queue: Pending[] = [];
+let timer: ReturnType<typeof setTimeout> | null = null;
+function flush() {
+  const all = queue; queue = []; timer = null;
+  for (let i = 0; i < all.length; i += 40) {
+    const part = all.slice(i, i + 40);
+    if (part.length === 1) {
+      const p = part[0];
+      send(`/api/v/${p.name}${Object.keys(p.filter).length ? '?' + new URLSearchParams(p.filter) : ''}`).then(p.ok, p.fail);
+      continue;
+    }
+    send(`/api/batch?q=${encodeURIComponent(JSON.stringify(part.map((p) => [p.name, p.filter])))}`)
+      .then((res: ({ rows: unknown[] } | { error: string })[]) => part.forEach((p, k) => {
+        const r = res[k];
+        if (r && 'rows' in r) p.ok(r.rows); else p.fail(new ApiError(500, (r as { error?: string })?.error ?? '服务器错误'));
+      }), (e) => part.forEach((p) => p.fail(e)));
+  }
+}
 export const view = <T,>(name: string, filter: Record<string, string> = {}): Promise<T[]> =>
-  send(`/api/v/${name}${Object.keys(filter).length ? '?' + new URLSearchParams(filter) : ''}`)
-    .then((rows) => LISTS[name] && Array.isArray(rows) ? rows.map((r: Record<string, unknown>) => ({ ...r, ...Object.fromEntries(LISTS[name].map((k) => [k, list(r[k])])) })) : rows);
+  (name === 'me'
+    ? send(`/api/v/me${Object.keys(filter).length ? '?' + new URLSearchParams(filter) : ''}`)
+    : new Promise((ok, fail) => { queue.push({ name, filter, ok, fail }); if (!timer) timer = setTimeout(flush, 0); }))
+    .then((rows) => shape(name, rows) as T[]);
 
 export const rpc = (fn: string, args: Record<string, unknown>) =>
   send(`/api/rpc/${fn}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(args) })
