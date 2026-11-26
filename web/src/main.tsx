@@ -121,6 +121,9 @@ function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);   // undefined 加载中，null 未登录
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);   // 窄屏上的导航抽屉
+  // 会议现场页按会议类别高亮侧栏（#78）：现场页读到会议后发出 live-kind 事件
+  const [liveKind, setLiveKind] = useState<string | null>(null);
+  useEffect(() => { const f = (e: Event) => setLiveKind(String((e as CustomEvent).detail ?? '')); window.addEventListener('live-kind', f); return () => window.removeEventListener('live-kind', f); }, []);
   useEffect(() => setOpen(false), [route]);
   useEffect(() => {
     view<Me>('me').then((rows) => setMe(rows[0] ?? null))
@@ -187,7 +190,8 @@ function App() {
   const procure = seg0 === 'school' && arg === 'procure';
   const seg = seg0;
   const allowed = new Set([...groups.flatMap((g) => g.pages), ...side].map(([to]) => to));
-  const current = motionId ? '/council' : snapId || queryId || semCode || liveId ? '/iterate' : asmId ? '/path' : reqId ? '/requests' : resId ? '/s-res' : cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
+  const LIVE_NAV: Record<string, string> = { council: '/council', seminar: '/iterate', training: '/courses', lecture: '/', other: '/' };
+  const current = motionId ? '/council' : liveId ? (LIVE_NAV[liveKind ?? ''] ?? '/iterate') : snapId || queryId || semCode ? '/iterate' : asmId ? '/path' : reqId ? '/requests' : resId ? '/s-res' : cardId ? '/cards' : fundId ? '/funds' : proj ? '/projects' : allowed.has(`/${seg}`) ? `/${seg}` : '/';
   const group = groups.find((g) => g.home === current || g.pages.some(([to]) => to === current));
   const page = liveId ? <LivePage id={liveId} me={me} />
     : motionId ? <MotionPage id={motionId} me={me} />
