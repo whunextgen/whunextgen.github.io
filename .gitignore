@@ -7,3 +7,6 @@ data/
 dist/
 *.zip
 internal/
+
+# 使用手册的截图在本地生成（scripts/demo），体积大，不进仓库
+docs/manual/img/
