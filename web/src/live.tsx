@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { rpc, useViews, type Me, type PeoplePick } from './api';
-import { ActionDialog, Badge, Empty, Loading, day, type Field } from './ui';
+import { ActionDialog, Badge, Empty, Loading, day, today, type Field } from './ui';
 import { AXES, type Pitch, type Query, type Seminar } from './iterate';
 import { CouncilLive } from './council';
 
@@ -192,7 +192,7 @@ export function SignIn({ onDone }: { onDone?: () => void }) {
   const [act, setAct] = useState<Act | null>(null);
   if (!data) return null;
   const open = data.ms.filter((m) => m.open);
-  const toMakeUp = data.ms.filter((m) => !m.open && m.my_status === 'leave' && !m.my_made_up && Date.parse(`${day(m.held_on)}T00:00:00Z`) + 8 * 864e5 > Date.now());
+  const toMakeUp = data.ms.filter((m) => !m.open && m.my_status === 'leave' && !m.my_made_up && new Date(Date.parse(`${day(m.held_on)}T00:00:00Z`) + 7 * 864e5).toISOString().slice(0, 10) >= today());
   return (
     <div className="ir-acts" style={{ alignItems: 'center' }}>
       <button className="sm" onClick={() => setAct({ title: '签到', label: '签到', hint: open.length ? `正在开的会：${open.map(meetingName).join('、')}。签到码在会上共享的屏幕上。` : '现在没有正在开的会。', fields: [{ name: 'code', label: '四位签到码' }],
