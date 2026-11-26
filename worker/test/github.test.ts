@@ -34,13 +34,19 @@ ok(await githubSigned('k-test', raw, sig), '签名对的收');
 ok(!(await githubSigned('k-other', raw, sig)), '密钥不对的不收');
 ok(!(await githubSigned('k-test', raw + ' ', sig)), '内容被改的不收');
 ok(!(await githubSigned('k-test', raw, null)) && !(await githubSigned('k-test', raw, 'sha1=abc')), '没有签名或不是 sha256 的不收');
-// 反馈议题：只认带「反馈」标签的，只发关闭和重新打开
+// issue：新建、关闭、重新打开、认领留言都发；反馈转成的新建不重复
 {
-  const issue = (x = {}) => ({ number: 46, title: '[反馈 #2] 双选页筛选', html_url: 'https://github.com/o/r/issues/46', labels: [{ name: '反馈' }], state_reason: 'completed', ...x });
+  const issue = (x = {}) => ({ number: 46, title: '[反馈 #2] 双选页筛选', html_url: 'https://github.com/o/r/issues/46', labels: [{ name: '反馈' }], state_reason: 'completed', user: { login: 'bot' }, ...x });
   const c = githubText('issues', { action: 'closed', issue: issue(), sender: { login: 'someone' } });
   ok(c !== null && c.text.startsWith('反馈已处理') && c.thread === 'issue:46', '反馈议题关闭发到协助群，回在议题话题里');
-  ok(githubText('issues', { action: 'closed', issue: issue({ labels: [] }) }) === null, '不带反馈标签的议题不发');
-  ok(githubText('issues', { action: 'opened', issue: issue() }) === null, '新建的由正则直接通报，这里不重复');
+  ok(githubText('issues', { action: 'opened', issue: issue() }) === null, '反馈转成的新建由正则直接通报，这里不重复');
+  const o = githubText('issues', { action: 'opened', issue: issue({ number: 60, title: '侧栏高亮不对', labels: [{ name: 'bug' }], user: { login: 'dev' } }), sender: { login: 'dev' } });
+  ok(o !== null && o.text.startsWith('新 issue：#60') && o.text.includes('标签 bug') && o.thread === 'issue:60', '其他 issue 新建也发', JSON.stringify(o));
+  ok(githubText('issues', { action: 'closed', issue: issue({ labels: [] }) })?.text.startsWith('issue 已处理') === true, '不带反馈标签的关闭也发');
   ok(githubText('issues', { action: 'closed', issue: issue({ state_reason: 'not_planned' }) })?.text.startsWith('反馈不予处理') === true, '不予处理的写明');
+  const cl = githubText('issue_comment', { action: 'created', issue: issue({ labels: [] }), comment: { body: '认领：由某某的 agent 来修', user: { login: 'dev' }, html_url: 'https://github.com/o/r/issues/46#c1' }, sender: { login: 'dev' } });
+  ok(cl !== null && cl.text.startsWith('issue 已认领') && cl.text.includes('认领人 dev') && cl.thread === 'issue:46', '认领留言发到群里', JSON.stringify(cl));
+  ok(githubText('issue_comment', { action: 'created', issue: issue(), comment: { body: '看起来是样式问题' } }) === null, '普通留言不发');
+  ok(githubText('issue_comment', { action: 'created', issue: { ...issue(), pull_request: {} }, comment: { body: '认领' } }) === null, 'PR 上的留言不当 issue');
 }
 console.log(bad ? `${bad} failed` : `github: all passed (${n})`); process.exit(bad ? 1 : 0);
