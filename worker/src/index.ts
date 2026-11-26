@@ -1175,12 +1175,23 @@ export default {
           if (typeof v !== 'string' || !VIEWS.has(v)) return json({ error: `没有这个视图：${String(v).slice(0, 40)}` }, 404, cors);
           list.push([v, Object.entries(f).filter(([k]) => /^[a-z_]+$/.test(k)).map(([k, val]): [string, string] => [k, String(val)])]);
         }
+        const text = (v: string, filters: [string, string][]) => {
+          const where = filters.map(([k], i) => `${k}::text = $${i + 1}`).join(' and ');
+          return `select * from api.${v}${where ? ' where ' + where : ''} limit 2000`;
+        };
+        // 快路径：一批查询不逐个等待、连发出去（驱动按流水线发送），整批只需几次往返
+        try {
+          const out = await withUser(env, uid, (tx) => Promise.all(list.map(([v, f]) => tx.unsafe(text(v, f), f.map(([, val]) => val) as any))));
+          return json(out.map((rows) => ({ rows: fixArrays(rows as any) })), 200, cors);
+        } catch (e: any) {
+          console.error('batch 快路径失败，改逐张隔离', e?.message);
+        }
+        // 慢路径：有一张出错时，逐张用 savepoint 隔离，出错的那张返回 error，其余照常
         const out = await withUser(env, uid, async (tx) => {
           const res: ({ rows: unknown[] } | { error: string })[] = [];
           for (const [v, filters] of list) {
-            const where = filters.map(([k], i) => `${k}::text = $${i + 1}`).join(' and ');
             try {
-              const rows = await tx.savepoint((sp) => sp.unsafe(`select * from api.${v}${where ? ' where ' + where : ''} limit 2000`, filters.map(([, val]) => val) as any));
+              const rows = await tx.savepoint((sp) => sp.unsafe(text(v, filters), filters.map(([, val]) => val) as any));
               res.push({ rows: fixArrays(rows as any) });
             } catch (e: any) {
               console.error('batch', v, e?.message);
