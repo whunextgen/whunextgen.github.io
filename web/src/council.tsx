@@ -72,6 +72,7 @@ export function CouncilPage(_: { me: Me }) {
               {m.status === 'passed' && <span className="sub2">{t(m.veto_until)} 前未否决即生效</span>}</td></tr>)}</tbody></table></div>
       </section>)}
       {mains.length === 0 && <Empty>还没有议题。</Empty>}
+      <Specials />
       <Filings />
       <section className="wb-sec"><h3>{info?.term}学期代表 <span className="h3sub">Assistant 和 Intern 推选一名，列席联席会议，有发言权、无表决权；得票最多者当选，可以改票</span></h3>
         <p>{data.rep.length ? [...data.rep].sort((a, b) => b.votes - a.votes).map((r) => `${r.name} ${r.votes} 票`).join('，') : '还没有人投票。'}</p>
@@ -231,4 +232,32 @@ function Filings() {
     <div className="scroll"><table className="wb-table"><thead><tr><th>成员</th><th>课题或研究单元</th><th>指导人</th><th>试做期</th><th>结论</th></tr></thead>
       <tbody>{rows.map((r) => <tr key={r.id}><td>{r.user_name}<span className="sub2">{r.rank_label}</span></td><td>{r.project_name}</td><td>{r.mentor_name}</td><td className="sub2">{day(r.start_on)} 至 {day(r.end_on)}</td>
         <td><Badge tone={r.conclusion === 'end' ? 'bad' : r.conclusion === 'continue' ? 'ok' : 'warn'}>{r.conclusion_label}</Badge>{r.conclusion_note && <span className="sub2">{r.conclusion_note}</span>}</td></tr>)}</tbody></table></div></section>;
+}
+
+// 中心负责人特批：不经联席会议、不受登记日限制；记录全中心可见，每一次都在全员群通报
+function Specials() {
+  const { data, reload } = useViews<{ s: { id: string; seq: number; kind: 'tier' | 'biweekly'; project_code: string; project_name: string; owner_name: string | null; year: number | null; period: string | null;
+      tier_name: string | null; tier_amount: string | null; reason: string; approved_by_name: string | null; approved_at: string }[];
+    t: { id: string; code: string; name: string; layer: 'big' | 'paper' }[]; tiers: { id: string; year: number; name: string; amount: string; slots: number }[] }>(
+    { s: ['special_approval'], t: ['special_targets'], tiers: ['budget_tier'] });
+  const [act, setAct] = useState<Act | null>(null);
+  if (!data) return null;
+  const can = data.t.length > 0;
+  if (!can && data.s.length === 0) return null;
+  const opt = (layer: string) => data.t.filter((x) => x.layer === layer).sort((a, b) => a.code.localeCompare(b.code)).map((x): [string, string] => [x.id, `${x.code} ${x.name}`]);
+  const reason = { name: 'r', label: '理由（在全员群通报）', type: 'area' as const };
+  return (
+    <section className="wb-sec"><h3>中心负责人特批 <span className="h3sub">中心负责人的权限，不经联席会议、不受登记日限制；每一次都写明理由，在全员群通报</span></h3>
+      {can && <div className="ir-acts">
+        <button className="sm ghost" onClick={() => setAct({ title: '特批课题档次', label: '特批', hint: '直接定当年档次，占该档次的名额；年度预算已下达的，同时下达课题当年额度。不列入联席会议议程。',
+          fields: [{ name: 'p', label: '课题', options: opt('big') }, { name: 't', label: '档次', options: [...data.tiers].sort((a, b) => b.year - a.year || Number(a.amount) - Number(b.amount)).map((x): [string, string] => [x.id, `${x.year} 年度 ${x.name}，${Number(x.amount).toLocaleString('zh-CN')} 元，${x.slots} 个名额`]) }, reason],
+          run: (v) => rpc('special_tier', { project: v.p, year: data.tiers.find((x) => x.id === v.t)?.year, tier: v.t, reason: v.r }) })}>特批课题档次</button>
+        <button className="sm ghost" onClick={() => setAct({ title: '特批双周表登记', label: '特批', hint: '准许该研究单元在本期登记日之外登记本期的双周表，并从本期起计登记。',
+          fields: [{ name: 'p', label: '研究单元', options: opt('paper') }, reason], run: (v) => rpc('special_biweekly', { unit: v.p, reason: v.r }) })}>特批双周表登记</button></div>}
+      {data.s.length === 0 ? <Empty>还没有特批。</Empty> : <div className="scroll"><table className="wb-table"><thead><tr><th>编号</th><th>事项</th><th>理由</th><th>时间</th></tr></thead>
+        <tbody>{[...data.s].sort((a, b) => b.seq - a.seq).map((x) => <tr key={x.id}><td>{x.seq}</td>
+          <td className="wrap">{x.kind === 'tier' ? `${x.project_code} ${x.project_name}：${x.year} 年度「${x.tier_name}」，${Number(x.tier_amount ?? 0).toLocaleString('zh-CN')} 元` : `${x.project_code} ${x.project_name}：登记 ${day(x.period)} 一期双周表`}
+            <span className="sub2">负责人 {x.owner_name ?? '—'}</span></td><td className="wrap">{x.reason}</td><td>{day(x.approved_at)}</td></tr>)}</tbody></table></div>}
+      {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.label} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
+    </section>);
 }

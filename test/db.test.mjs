@@ -3704,5 +3704,38 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`);
 }
 
+
+// ---------- 中心负责人特批：档次与双周表 ----------
+{
+  await db.exec(`reset role`);
+  const TP = await one(`select p.id, p.owner_id from project p where p.layer = 'big' and p.active and p.kind <> 'public' and not exists (select 1 from tier_pick k where k.project_id = p.id and k.year = 2027) order by p.code limit 1`);
+  const Y27 = await one(`select year from budget_year order by year desc limit 1`);
+  const TR = await one(`select id, slots from budget_tier where year = $1 order by amount limit 1`, [Y27.year]);
+  const UN = await one(`select p.id from project p where p.layer = 'paper' and p.active and not p.proposed order by p.code limit 1`);
+  await db.exec(`set role app_api`);
+  await as(U.lead);
+  await raises('特批只有中心负责人能办', /中心负责人办理/, `select special_biweekly($1, '理由')`, [UN.id]);
+  await as(U.dir);
+  await raises('特批须写理由', /理由/, `select special_biweekly($1, ' ')`, [UN.id]);
+  if (TP && TR) {
+    const before = (await one(`select count(*)::int n from api.council_motion where ref_kind = 'tier'`)).n;
+    const sq = await val(`select special_tier($1, $2, $3, '本人有个人原因，已向中心负责人说明') v`, [TP.id, Y27.year, TR.id]);
+    ok(sq > 0, '档次特批得到编号');
+    const k = await one(`select decided_tier_id, decide_note from api.tier_pick where project_id = $1 and year = $2`, [TP.id, Y27.year]);
+    ok(k && k.decided_tier_id === TR.id && k.decide_note.includes('特批'), '档次直接评定，写明特批', JSON.stringify(k));
+    ok((await one(`select count(*)::int n from api.council_motion where ref_kind = 'tier'`)).n === before, '特批不列入联席会议议程');
+    await db.exec(`reset role`);
+    ok((await q(`select 1 from feishu_outbox where target = 'group' and payload->>'text' like '中心负责人特批（第 ' || $1 || ' 号）%'`, [sq])).length === 1, '特批在全员群通报');
+    await db.exec(`set role app_api`);
+  }
+  await as(U.dir, '2026-11-26');
+  const sb = await val(`select special_biweekly($1, '本人有个人原因，已向中心负责人说明') v`, [UN.id]);
+  ok(sb > 0, '双周表特批');
+  await raises('同一期只特批一次', /已特批过/, `select special_biweekly($1, '再来')`, [UN.id]);
+  ok((await one(`select open from api.biweekly_status where project_id = $1`, [UN.id])).open === true, '特批的研究单元本期可以登记');
+  ok((await q(`select seq from api.special_approval`)).length >= 1, '特批记录全中心可见');
+  await as(U.dir);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
