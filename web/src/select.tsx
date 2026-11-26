@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { rpc, useViews, type Me, type PeoplePick } from './api';
 import { ActionDialog, Badge, Empty, Loading, day, type Field } from './ui';
+import { ResearchIntro } from './ResearchIntro';
 
 // 项目双选与试做期：成员找可以参与的研究、表达意向；负责人维护招募信息、加人并开试做期；指导人给反馈和期满结论
 interface Recruit { id: string; code: string; name: string; layer: 'big' | 'paper'; parent_id: string | null; parent_name: string | null; owner_id: string | null; owner_name: string | null; owner_scholar_url: string | null;
@@ -64,7 +65,7 @@ export function SelectPage({ me }: { me: Me }) {
   const Card = ({ r }: { r: Recruit }) => (
     <div style={{ padding: '10px 0', borderTop: '1px solid var(--line)' }}>
       <div><b>{r.layer === 'big' ? '课题' : '研究单元'}「{r.name}」</b> <span className="sub2">{r.code} · 负责人 {r.owner_name ?? '—'}{r.owner_scholar_url && <> <a href={r.owner_scholar_url} target="_blank" rel="noreferrer">学术主页</a></>} · 成员 {r.members} 人</span></div>
-      {r.intro && <div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{r.intro}</div>}
+      {r.intro && <ResearchIntro text={r.intro} />}
       {r.snapshot && <div className="sub2" style={{ marginLeft: 0 }}>最新快照：<a href={r.snapshot.link} target="_blank" rel="noreferrer">第 {r.snapshot.seq} 次（{day(r.snapshot.period_start)} 起一期）</a></div>}
       {r.queries.length > 0 && <div style={{ marginTop: 4 }}>还没回应的质疑 {r.open_queries} 条，回应它们可以加入质疑小队：
         <ul className="path-hist" style={{ margin: '2px 0' }}>{r.queries.map((x) => <li key={x.id}><a href={`#/query/${x.id}`}>{x.axis}：{x.body}</a></li>)}</ul></div>}
@@ -73,7 +74,7 @@ export function SelectPage({ me }: { me: Me }) {
     </div>);
   return (
     <div className="wb">
-      <div className="top"><h2>双选</h2></div>
+      <div className="top"><h2>双选</h2><a href="#/guide">查看使用指南</a></div>
       <p className="lede">中心已有的 Intern、Assistant 和硕士研究生选择参与的课题和研究单元。看课题和研究单元的介绍、快照和还没回应的质疑，表达意向或直接私聊负责人，谈妥后由负责人加入成员名单；新加入的可以开一个月的试做期，期满结论报联席会议备案。规则见联席会议议题《项目双选与试做期规则（草案）》。</p>
       {(myTrials.length > 0 || mentoring.length > 0) && <section className="wb-sec"><h3>我的试做</h3>
         <ul className="path-hist">{myTrials.map((t) => <TrialCard key={t.id} t={t} />)}{mentoring.filter((t) => !t.mine).map((t) => <TrialCard key={t.id} t={t} />)}</ul></section>}
