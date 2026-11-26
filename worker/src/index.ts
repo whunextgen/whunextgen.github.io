@@ -1162,6 +1162,36 @@ export default {
         return json(rows, 200, renew ? { ...cors, 'set-cookie': setCookie('fp_session', await sign(env.SESSION_SECRET, 'uid', uid, SESSION_TTL), SESSION_TTL) } : cors);
       }
 
+      // 一次读多张视图（只读）：页面一屏要的十几张合成一次请求、一个事务，每张单独隔离，一张出错不影响别的
+      // GET /api/batch?q=[["视图名",{"列":"值"}],...]，返回 [{"rows":[...]} 或 {"error":"..."}]，顺序与请求一致
+      if (url.pathname === '/api/batch' && req.method === 'GET') {
+        let specs: unknown;
+        try { specs = JSON.parse(url.searchParams.get('q') ?? '[]'); } catch { return json({ error: '格式不对' }, 400, cors); }
+        if (!Array.isArray(specs) || specs.length === 0 || specs.length > 40) return json({ error: '一次读 1 到 40 张视图' }, 400, cors);
+        const list: [string, [string, string][]][] = [];
+        for (const x of specs) {
+          const v = Array.isArray(x) ? x[0] : null;
+          const f = Array.isArray(x) && x[1] && typeof x[1] === 'object' ? (x[1] as Record<string, unknown>) : {};
+          if (typeof v !== 'string' || !VIEWS.has(v)) return json({ error: `没有这个视图：${String(v).slice(0, 40)}` }, 404, cors);
+          list.push([v, Object.entries(f).filter(([k]) => /^[a-z_]+$/.test(k)).map(([k, val]): [string, string] => [k, String(val)])]);
+        }
+        const out = await withUser(env, uid, async (tx) => {
+          const res: ({ rows: unknown[] } | { error: string })[] = [];
+          for (const [v, filters] of list) {
+            const where = filters.map(([k], i) => `${k}::text = $${i + 1}`).join(' and ');
+            try {
+              const rows = await tx.savepoint((sp) => sp.unsafe(`select * from api.${v}${where ? ' where ' + where : ''} limit 2000`, filters.map(([, val]) => val) as any));
+              res.push({ rows: fixArrays(rows as any) });
+            } catch (e: any) {
+              console.error('batch', v, e?.message);
+              res.push({ error: '服务器错误' });
+            }
+          }
+          return res;
+        });
+        return json(out, 200, cors);
+      }
+
       const fn = url.pathname.match(/^\/api\/rpc\/([a-z_]+)$/)?.[1];
       if (fn && req.method === 'POST') {
         const spec = RPC[fn];
