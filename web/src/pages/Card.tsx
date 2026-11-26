@@ -189,7 +189,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
         { nm: '支出申请', ds: '先申请、后支出，批准后占用额度', v: `${open.length} 笔在途`, f: `已承诺 ${money(c.commit)}` },
         { nm: '执行', ds: '以学校明细账的入账为准', v: money(c.actual), f: ledgerN > 0 ? `学校明细账 ${ledgerN} 笔` : '尚未导入学校明细账' },
         { nm: '到期', ds: '单据截止日后不得再提交支出', v: day(c.cutoff_date), f: c.status === 'settled' ? '' : expired ? '已到期，待结清' : `剩余 ${daysLeft} 天` },
-        { nm: '结清', ds: `结余${END_RULE[c.end_rule] ?? ''}`, v: c.status === 'settled' ? '已结清' : '未结清', f: c.status === 'settled' ? (num(c.carried_out) > 0 ? `结转 ${money(c.carried_out)}` : `回收 ${money(c.recalled ?? 0)}，回到项目额度剩余`) : c.settle_date ? `结清日 ${day(c.settle_date)}` : '尚未设结清日' },
+        { nm: '结清', ds: `到期处理：${END_RULE[c.end_rule] ?? '—'}`, v: c.status === 'settled' ? '已结清' : '未结清', f: c.status === 'settled' ? (num(c.carried_out) > 0 ? `结转 ${money(c.carried_out)}` : `回收 ${money(c.recalled ?? 0)}，回到项目额度剩余`) : c.settle_date ? `结清日 ${day(c.settle_date)}` : '尚未设结清日' },
       ]} />
 
       <section className="card">

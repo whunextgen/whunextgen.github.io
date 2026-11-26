@@ -24,7 +24,9 @@ export const cardGap = (c: { cur: string; assigned?: string; pooled?: boolean })
 export const cardGranted = (c: { granted: string | null; carried_in: string; orig: string }) => (c.granted != null ? Number(c.granted) : Number(c.orig) - Number(c.carried_in));
 export const FUND_SOURCE: Record<string, string> = { school: '学校', national: '国家', provincial: '省部', enterprise: '企业', other: '其他' };
 // 经费卡到期后结余的去向
-export const END_RULE: Record<string, string> = { recall: '到期回收', return: '到期退回', carry: '结转' };
+// 经费卡到期处理：新建、修改只能选到期回收或结转（0047 起结余上缴按项目办）；return 只出现在早年的旧卡上，仅供显示
+export const END_RULE: Record<string, string> = { recall: '到期回收', return: '结余上缴（旧规则）', carry: '结转' };
+export const END_RULE_CHOICES: [string, string][] = [['recall', '到期回收'], ['carry', '结转']];
 // 项目结束时结余的处理：结余上缴按项目办（如财政项目）
 export const CLOSE_RULE: Record<string, string> = { none: '无须上缴', return: '结余上缴' };
 export const REQ: Record<ReqStatus, [string, string]> = {

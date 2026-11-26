@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Track, execSegs, type Seg } from '../tree';
 import { rpc, useViews, type Card, type FundProject, type Me, type Template, type User } from '../api';
-import { ActionDialog, Badge, CLOSE_RULE, Empty, END_RULE, FUND_KIND, FUND_SOURCE, Loading, ROLE, Tile, can, cardGap, cardGranted, day, money, num, pct, today, type Field } from '../ui';
+import { ActionDialog, Badge, CLOSE_RULE, Empty, END_RULE, END_RULE_CHOICES, FUND_KIND, FUND_SOURCE, Loading, ROLE, Tile, can, cardGap, cardGranted, day, money, num, pct, today, type Field } from '../ui';
 
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
@@ -46,7 +46,7 @@ export function Funds({ me, only }: { me: Me; only?: string }) {
       { name: 'period_start', label: '期限开始（选填）', type: 'date', required: false, value: p?.period_start ? day(p.period_start) : '' },
       { name: 'period_end', label: '期限结束（选填）', type: 'date', required: false, value: p?.period_end ? day(p.period_end) : '' },
       { name: 'template_id', label: '科目模板', options: tplOpts, value: p?.template_id },
-      { name: 'end_rule', label: '经费卡到期处理（经费卡到期后结余的去向，各经费卡默认按此）', options: Object.entries(END_RULE), value: p?.end_rule ?? 'recall' },
+      { name: 'end_rule', label: '经费卡到期处理（经费卡到期后结余的去向，各经费卡默认按此）', options: END_RULE_CHOICES, value: p?.end_rule ?? 'recall' },
       { name: 'close_rule', label: '项目结束处理（项目结束时结余的处理）', options: Object.entries(CLOSE_RULE), value: p?.close_rule ?? 'none' },
       { name: 'note', label: '备注（选填）', required: false, value: p?.note ?? '' },
     ],
@@ -230,7 +230,7 @@ export function Funds({ me, only }: { me: Me; only?: string }) {
   return (
     <>
       <div className="top"><h2>项目管理</h2>{staff && <button onClick={() => setAct(projectAct())}>新建项目</button>}</div>
-      <p className="lede">项目指学校、国家等渠道批复下来的经费来源，记额度和期限。额度不是可直接使用的钱：每次下达的经费记在项目下的经费卡上，经费卡可以跨年度使用，支出只与有效期内的经费卡核对；经费卡到期后，结余按到期处理回收、上缴或结转。</p>
+      <p className="lede">项目指学校、国家等渠道批复下来的经费来源，记额度和期限。额度不是可直接使用的钱：每次下达的经费记在项目下的经费卡上，经费卡可以跨年度使用，支出只与有效期内的经费卡核对；经费卡到期后，结余按到期处理回收或结转；结余上缴按项目办理。</p>
       <div className="tiles">
         <Tile k="在执行的项目" v={String(active.length)} f={loose.length > 0 ? `另有 ${loose.length} 张经费卡尚未归入项目` : `${nowCards.length} 张有效期内的经费卡`} tone={loose.length > 0 ? 'warn' : ''} />
         <Tile k="额度合计" v={money(sum((p) => num(p.quota), withQuota))} f={withQuota.length < active.length ? `${active.length - withQuota.length} 个项目尚未填写额度` : '各项目批复总数'} />
