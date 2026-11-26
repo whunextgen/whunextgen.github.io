@@ -37,7 +37,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_p
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
   'arr_cycle', 'arr_sponsor', 'arr_claim', 'path_tracker', 'path_person', 'rank_change',
   'seminar', 'snapshot', 'snapshot_pitch', 'query', 'person_attr', 'daily_mine', 'attend_event', 'assessment', 'merit', 'path_alert',
-  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order', 'meeting_transcript', 'council_motion', 'council_ballot', 'council_speech', 'council_info', 'council_rep', 'council_rep_pick', 'council_meeting', 'fixed_change', 'period_report', 'path_council', 'council_targets', 'council_people', 'recruit', 'recruit_interest', 'trial', 'trial_filing', 'feedback',
+  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order', 'meeting_transcript', 'council_motion', 'council_ballot', 'council_speech', 'council_info', 'council_rep', 'council_rep_pick', 'council_meeting', 'fixed_change', 'period_report', 'path_council', 'council_targets', 'council_people', 'recruit', 'recruit_interest', 'trial', 'trial_filing', 'feedback', 'admission_quota', 'admission', 'newcomer', 'term_review', 'term_record',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -165,6 +165,19 @@ export const RPC: Record<string, [string, string][]> = {
   trial_feedback: [['id', 'uuid'], ['note', 'text']],
   conclude_trial: [['id', 'uuid'], ['conclusion', 'text'], ['note', 'text'], ['new_end', 'date'], ['new_task', 'text']],
   appeal_trial: [['id', 'uuid'], ['reason', 'text']],
+  set_admission_quota: [['year', 'int'], ['kind', 'text'], ['quota', 'int']],
+  submit_admission: [['name', 'text'], ['kind', 'text'], ['school', 'text'], ['direction', 'text'], ['intro', 'text'], ['link', 'text']],
+  withdraw_admission: [['id', 'uuid']],
+  confirm_admission: [['id', 'uuid'], ['accept', 'boolean'], ['note', 'text']],
+  decide_admission: [['id', 'uuid'], ['accept', 'boolean'], ['note', 'text']],
+  open_term_review: [],
+  set_term_reviewers: [['id', 'uuid'], ['users', 'uuid[]'], ['no_conflict', 'boolean']],
+  write_term_comment: [['id', 'uuid'], ['body', 'text']],
+  draft_term_review: [['id', 'uuid'], ['conclusion', 'text'], ['opinion', 'text'], ['goals', 'text'], ['goals_due', 'date']],
+  sign_term_review: [['id', 'uuid']],
+  defend_term_review: [['id', 'uuid'], ['text', 'text']],
+  check_term_goals: [['id', 'uuid'], ['met', 'boolean'], ['note', 'text']],
+  decide_term_leave: [['id', 'uuid'], ['accept', 'boolean'], ['note', 'text']],
   record_turn: [['pitch', 'uuid'], ['user', 'uuid'], ['result', 'text']],
   add_query: [['pitch', 'uuid'], ['axis', 'text'], ['body', 'text'], ['raised_by', 'uuid'], ['parent', 'uuid']],
   remove_query: [['query', 'uuid']],
@@ -297,12 +310,26 @@ async function hmac(secret: string, msg: string) {
   return b64u(await crypto.subtle.sign('HMAC', key, enc.encode(msg)));
 }
 // ---------- GitHub 事件 ----------
-// 只发中台分支上的 PR：开出（草稿转为待审也算）、重新打开、提交审查、合并或关闭。其余事件不发
+// 只发中台分支上的 PR：开出（草稿转为待审也算）、重新打开、提交审查、合并或关闭；以及反馈议题的关闭和重新打开。其余事件不发
 export const GITHUB_BASE = 'finance-portal';
 // 一个 PR 一个话题：thread 是话题的键，同一个 PR 的通报都回复在它第一条通报的话题里
 export function githubText(event: string, p: any): { text: string; url: string; btn: string; thread: string } | null {
+  if (event === 'issues') return issueBody(p);
   const n = githubBody(event, p);
   return n ? { ...n, thread: `pr:${Number(p.pull_request.number)}` } : null;
+}
+// 议题：只认带「反馈」标签的（反馈按钮转成的）。新建的由正则转议题时直接通报，这里只发关闭和重新打开
+function issueBody(p: any): { text: string; url: string; btn: string; thread: string } | null {
+  const is = p?.issue;
+  if (!is || is.pull_request || !Number.isInteger(is.number) || is.number <= 0) return null;
+  if (!(Array.isArray(is.labels) && is.labels.some((l: any) => l?.name === '反馈'))) return null;
+  const url = String(is.html_url ?? '');
+  if (!/^https:\/\/github\.com\//.test(url)) return null;
+  const head = `#${is.number} ${String(is.title ?? '').slice(0, 120)}`, who = String(p.sender?.login ?? '—');
+  const thread = `issue:${is.number}`;
+  if (p.action === 'closed') return { text: `${is.state_reason === 'not_planned' ? '反馈不予处理' : '反馈已处理'}：${head}\n关闭人 ${who}`, url, btn: '查看议题', thread };
+  if (p.action === 'reopened') return { text: `反馈重新打开：${head}\n操作人 ${who}`, url, btn: '查看议题', thread };
+  return null;
 }
 function githubBody(event: string, p: any): { text: string; url: string; btn: string } | null {
   const pr = p?.pull_request;
@@ -1179,6 +1206,7 @@ export default {
     await withUser(env, null, (sql) => sql`select public.unit_stall_tick()`).catch((e) => console.error('研究单元停滞', e));
     await withUser(env, null, (sql) => sql`select public.council_tick()`).catch((e) => console.error('联席会议表决与生效', e));
     await withUser(env, null, (sql) => sql`select public.trial_tick()`).catch((e) => console.error('试做期提醒', e));
+    await withUser(env, null, (sql) => sql`select public.join_tick()`).catch((e) => console.error('新人与改进目标提醒', e));
     await feedbackSync(env).catch((e) => console.error('反馈转议题', e));
     await meetingSync(env).catch((e) => console.error('飞书会议同步', e));
     // 录音补漏每天跑一次：北京时间凌晨 4 点那一轮
@@ -1225,7 +1253,7 @@ export default {
       }).catch((e) => ({ code: -1, msg: String(e?.message ?? e) }));
       // 协助群的 PR 通报：这个 PR 已有话题的，回复在话题里；还没有的，直接发到群里，这一条就是话题的根。
       // 根消息被撤回、删除的，清掉后把这一条当新的根
-      const key = m.target_id === 'assist' && typeof body.thread === 'string' && /^pr:\d{1,7}$/.test(body.thread) ? body.thread : null;
+      const key = m.target_id === 'assist' && typeof body.thread === 'string' && /^(pr|issue):\d{1,7}$/.test(body.thread) ? body.thread : null;
       const send = async (msg_type: string, content: unknown) => {
         if (!key) return direct(msg_type, content);
         const root = await rootOf(key);

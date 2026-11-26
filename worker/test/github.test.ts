@@ -34,4 +34,13 @@ ok(await githubSigned('k-test', raw, sig), '签名对的收');
 ok(!(await githubSigned('k-other', raw, sig)), '密钥不对的不收');
 ok(!(await githubSigned('k-test', raw + ' ', sig)), '内容被改的不收');
 ok(!(await githubSigned('k-test', raw, null)) && !(await githubSigned('k-test', raw, 'sha1=abc')), '没有签名或不是 sha256 的不收');
+// 反馈议题：只认带「反馈」标签的，只发关闭和重新打开
+{
+  const issue = (x = {}) => ({ number: 46, title: '[反馈 #2] 双选页筛选', html_url: 'https://github.com/o/r/issues/46', labels: [{ name: '反馈' }], state_reason: 'completed', ...x });
+  const c = githubText('issues', { action: 'closed', issue: issue(), sender: { login: 'someone' } });
+  ok(c !== null && c.text.startsWith('反馈已处理') && c.thread === 'issue:46', '反馈议题关闭发到协助群，回在议题话题里');
+  ok(githubText('issues', { action: 'closed', issue: issue({ labels: [] }) }) === null, '不带反馈标签的议题不发');
+  ok(githubText('issues', { action: 'opened', issue: issue() }) === null, '新建的由正则直接通报，这里不重复');
+  ok(githubText('issues', { action: 'closed', issue: issue({ state_reason: 'not_planned' }) })?.text.startsWith('反馈不予处理') === true, '不予处理的写明');
+}
 console.log(bad ? `${bad} failed` : `github: all passed (${n})`); process.exit(bad ? 1 : 0);
