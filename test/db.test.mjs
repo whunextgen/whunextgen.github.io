@@ -3879,6 +3879,17 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`);
 }
 
+// ---------- 我的事项的支出申请只含在办和本人的（0140） ----------
+{
+  await as(U.dir);
+  const all = await q(`select id, status, requested_by from api.request`);
+  const live = await q(`select id from api.request_live`);
+  const want = all.filter((r) => ['pending','committed','at_school','returned'].includes(r.status) || r.requested_by === U.dir).length;
+  ok(live.length === want && live.length < all.length, 'request_live 只含在办的和本人提交的', `${live.length}/${want}/${all.length}`);
+  await as(U.mem);
+  ok((await q(`select 1 from api.request_live`)).length <= (await q(`select 1 from api.request`)).length, '成员看到的不超过原视图');
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {
