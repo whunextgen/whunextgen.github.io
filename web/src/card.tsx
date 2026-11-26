@@ -169,7 +169,7 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
           <p className="ir-hint">副本就是本人所在队伍里还没有回应的质疑：下一期无人再提即为已回应，记 16 名义币，队伍平分，进入研究单元的池子。</p>
         </section>
         <section className="ir-t ir-chainv">
-          <div className="ir-mono"><span>主线 · {p?.rank_label ?? '—'}</span><span>{p?.rank === 'director' ? '' : `第 ${Math.min(doneN + 1, tasks.length)} 步 / 共 ${tasks.length} 步`}</span></div>
+          <div className="ir-mono"><span>主线 · {p?.rank_label ?? '—'}</span><span>{p?.rank === 'director' ? '' : (cur ? `第 ${cur.seq} 步 / 共 ${tasks.length} 步` : `已完成 ${tasks.length} 步`)}</span></div>
           {p?.rank === 'director' ? <p className="ir-hint">Director 是这条路的终点。</p> : <ol>
             {tasks.map((t) => <li key={t.code} className={t.status === 'done' ? 'd' : t === cur ? 'c' : ''}><b>{String(t.seq).padStart(2, '0')}</b><div>{t.title}<small>{t.status === 'waiting' ? '待中台开通' : t.progress ?? t.verify_label}</small></div></li>)}
             <li className={cur ? '' : 'c'}><b>考核</b><div>{p ? ({ intern: 'RA 考核：小任务', assistant: 'Researcher 考核：课题提案', researcher: 'Rising Star 考核', rising_star: 'PI 认定', pi: 'Director 认定' } as Record<string, string>)[p.rank] ?? '' : ''}<small>全部完成后在「<a href="#/path">成长主线</a>」申请</small></div></li>
