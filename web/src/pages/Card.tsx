@@ -176,7 +176,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
         label={c.status === 'settled' ? (num(c.carried_out) > 0 ? '结清时结转' : '结清时回收') : '可用'} value={c.status === 'settled' ? num(num(c.carried_out) > 0 ? c.carried_out : c.recalled ?? 0) : num(c.avail)} neg={c.status !== 'settled' && num(c.avail) < 0}
         actions={(canSettle || editable) ? <>
         {canSettle && <button className="ghost" onClick={() => setAct({ label: '结清', title: '结清经费卡',
-          hint: `${c.name}。结清后按科目固定预算、决算和结余，该经费卡不得再提交支出，结清不可撤销。存在在途支出、在途变更或未入账人员费时不得结清。`,
+          hint: `${c.name}。结清后按科目固定预算、决算和结余，该经费卡不得再提交支出。结清后学校仍有出账的，可在「经费结清」页改回未结清（须写明原因；结余已结转到后续经费卡或所属项目已结题的，不能改回）。存在在途支出、在途变更或未入账人员费时不得结清。`,
           danger: true, fields: [], run: () => rpc('settle_card', { card_id: c.card_id }) })}>结清</button>}
         {editable && <button className="ghost" onClick={() => setAct({ label: '保存', title: '修改经费卡', hint: '负责人、经费性质和科目模板以所属项目为准，请在「项目管理」中修改。',
           fields: cardFields(c), run: (v) => saveCard(c, v) })}>修改</button>}
