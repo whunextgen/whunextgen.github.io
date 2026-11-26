@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { rpc, useViews, type Me, type PeoplePick } from './api';
 import { ActionDialog, Badge, Empty, Loading, day, type Field } from './ui';
+import { SelectionRoster } from './SelectionRoster';
 import { ResearchIntro } from './ResearchIntro';
 
 // 项目双选与试做期：成员找可以参与的研究、表达意向；负责人维护招募信息、加人并开试做期；指导人给反馈和期满结论
@@ -95,6 +96,7 @@ export function SelectPage({ me }: { me: Me }) {
       </section>
       {data.ints.some((i) => i.mine && i.status === 'open') && <section className="wb-sec"><h3>我的意向</h3>
         <ul className="path-hist">{data.ints.filter((i) => i.mine && i.status === 'open').map((i) => <li key={i.id}>{i.project_name}：{i.note} <button className="sm ghost" onClick={() => rpc('withdraw_interest', { id: i.id }).then(reload)}>撤回</button></li>)}</ul></section>}
+      <SelectionRoster me={me} />
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.label} danger={act.danger} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
     </div>
   );

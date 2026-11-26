@@ -687,3 +687,18 @@ tr.sel td{background:var(--raise)}
 .guide-books li span{color:var(--mute);font-size:13px}
 .guide-more{font-size:13px;color:var(--mute)}
 @media (max-width:600px){.guide-books li{grid-template-columns:1fr;gap:2px}}
+
+.selection-counts{display:flex;flex-wrap:wrap;gap:10px 24px;padding:14px 0;border-bottom:1px solid var(--line)}
+.selection-counts b{font-size:20px;margin-left:6px}
+.selection-filters{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px}
+.selection-filters label{display:grid;gap:6px;min-width:180px;flex:1;font-size:13px}
+.selection-filters input,.selection-filters select{width:100%;min-height:44px;box-sizing:border-box}
+.selection-people{list-style:none;padding:0}.selection-people>li{padding:16px 0;border-top:1px solid var(--line);overflow-wrap:anywhere}
+.selection-person-title{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.selection-people ul{padding-left:20px;margin-top:10px}.selection-people ul li{margin:8px 0}
+@media(max-width:600px){.selection-filters{display:grid;grid-template-columns:minmax(0,1fr)}.selection-filters label{min-width:0}.selection-roster .top{flex-wrap:wrap}}
+
+.selection-roster>summary{cursor:pointer;min-height:44px;padding:8px 0;list-style:none;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.selection-roster>summary::-webkit-details-marker{display:none}.selection-roster>summary h3{margin:0;display:inline}
+.selection-roster>summary:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
+.selection-expand,.selection-collapse{font-size:13px;color:var(--brand);text-decoration:underline}.selection-collapse{display:none}
+.selection-roster[open]>summary .selection-expand{display:none}.selection-roster[open]>summary .selection-collapse{display:inline}
