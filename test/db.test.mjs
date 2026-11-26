@@ -3795,6 +3795,18 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// ---------- 人事岗在人员经费页看得到经费卡（#58） ----------
+{
+  await db.exec(`reset role`);
+  const HR = await id(`insert into app_user (name, role, feishu_open_id) values ('人事乙', 'member', 'ou_hr_b')`);
+  await q(`insert into rbac_grant (user_id, role_id, from_date) select $1, id, current_date - 1 from rbac_role where code = 'hr'`, [HR]);
+  await db.exec(`set role app_api`);
+  await as(HR);
+  ok((await q(`select 1 from api.card_pick`)).length > 0, '人事劳务看得到经费卡，可以排布人员经费');
+  await as(U.mem);
+  ok((await q(`select 1 from api.card_pick`)).length === 0, '普通成员仍看不到经费卡');
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {
