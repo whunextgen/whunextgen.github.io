@@ -64,13 +64,13 @@ button,.btn{border:1px solid var(--ink);background:var(--ink);color:#fff;border-
   transition:background .2s,color .2s,border-color .2s,transform .2s}
 button:hover:not(:disabled),.btn:hover{background:var(--brand);border-color:var(--brand);color:#fff}
 button:active:not(:disabled),.btn:active{transform:scale(.98)}
-button.ghost{background:var(--paper);color:var(--ink);border-color:var(--line)}
-button.ghost:hover:not(:disabled){background:var(--raise);border-color:#c9c9c4;color:var(--ink)}
+button.ghost,.btn.ghost{background:var(--paper);color:var(--ink);border-color:var(--line)}
+button.ghost:hover:not(:disabled),.btn.ghost:hover{background:var(--raise);border-color:#c9c9c4;color:var(--ink)}
 button.danger{background:var(--bad);border-color:var(--bad);color:#fff}
 button.danger:hover:not(:disabled){background:#8f1a11;border-color:#8f1a11;color:#fff}
 button.ghost.danger{background:var(--paper);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
 button.ghost.danger:hover:not(:disabled){background:var(--bad);border-color:var(--bad);color:#fff}
-button.sm{padding:2px 10px;font-size:12px}
+button.sm,.btn.sm{padding:2px 10px;font-size:12px}
 button:disabled{opacity:.4;cursor:not-allowed}
 select,input,textarea{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--paper);transition:border-color .2s,box-shadow .2s}
 select:hover,input:hover,textarea:hover{border-color:#c9c9c4}
@@ -549,6 +549,8 @@ tr.sel td{background:var(--raise)}
 .ir{--i-bg:#f1ece2;--i-ink:#17130f;--i-mut:#7d7468;--i-line:#17130f;--i-soft:#e4dccd;--i-red:#c2351b;--i-paper:#f8f4ec;--i-serif:"Songti SC","Noto Serif SC","Source Han Serif SC",serif;
   --i-mono:ui-monospace,"SF Mono",Menlo,monospace;background:var(--i-bg);color:var(--i-ink);margin:0 calc(-1 * clamp(16px,2.4vw,32px));padding:0 clamp(16px,2.4vw,32px) 32px}
 .ir a{color:inherit}
+/* 卡片里做成链接的按钮：不随 .ir a 继承墨色，否则黑底黑字（issue #46） */
+.ir a.btn,.ir a.btn:hover{color:#fff}.ir a.btn.ghost,.ir a.btn.ghost:hover{color:var(--ink)}
 .ir-tick{border-bottom:1px solid var(--i-line);overflow:hidden;white-space:nowrap;background:var(--i-ink);color:var(--i-bg);margin:0 calc(-1 * clamp(16px,2.4vw,32px))}
 .ir-tick div{display:inline-block;padding:7px 0;font:500 12px/1 var(--i-mono);letter-spacing:.14em;animation:irmq 60s linear infinite}
 @keyframes irmq{to{transform:translateX(-50%)}}
