@@ -42,6 +42,8 @@ export function IteratePage({ me }: { me: Me }) {
   const units = data.projects.filter((p) => p.layer === 'paper' && p.active && !waiting.has(p.id));
   const myUnits = units.filter((p) => p.owner_id === me.id || p.member).sort((a, b) => a.code.localeCompare(b.code));
   const people = [...data.people].sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((p): [string, string] => [p.id, p.name]);
+  // 组织者由 Researcher、Rising Star、PI 担任，Director 不参与组织（#76）
+  const organizerPick = [...data.people].filter((p) => ['researcher', 'rising_star', 'pi'].includes(p.rank ?? '')).sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((p): [string, string] => [p.id, p.name]);
   const roster = (u: Project): [string, string][] => {
     const m = data.members.filter((x) => x.project_id === u.id && !x.left_on).map((x): [string, string] => [x.user_id, x.user_name]);
     return u.owner_id && !m.some(([id]) => id === u.owner_id) ? [[u.owner_id, u.owner_name ?? '负责人'], ...m] : m;
@@ -136,7 +138,7 @@ export function IteratePage({ me }: { me: Me }) {
               ? <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><a className="btn sm" href={`#/live/${om.id}`}>进入现场 · 签到 {om.present}</a></div>
               : s.mine && <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><OpenMeeting kind="seminar" seminar={s.code} label="开会" /></div>; })()}
             {s.can_set && <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><button className="ghost sm" onClick={() => setAct({ title: `指定组织者：${s.name}`, label: '保存',
-              hint: '每个研讨会至少两位组织者，由 Researcher、Rising Star 和 PI 担任（Director 不参与组织），一起接收投稿、决定口头报告或海报、开会并记入质疑，记入各自的「亨」。', fields: [{ name: 'users', label: '组织者（至少两位）', type: 'multi', options: people, value: (s.organizers ?? []).map((o) => o.id).join(',') }],
+              hint: '每个研讨会至少两位组织者，由 Researcher、Rising Star 和 PI 担任（Director 不参与组织），一起接收投稿、决定口头报告或海报、开会并记入质疑，记入各自的「亨」。', fields: [{ name: 'users', label: '组织者（至少两位）', type: 'multi', options: organizerPick, value: (s.organizers ?? []).map((o) => o.id).join(',') }],
               run: (v) => rpc('set_seminar_organizers', { seminar: s.code, users: ids(v.users) }) })}>指定组织者</button></div>}
             {s.mine && <div className="acts" style={{ justifyContent: 'flex-start', marginTop: 6 }}><button className="ghost sm" onClick={() => setAct({ title: `形式与目标：${s.name}`, label: '保存',
               hint: '口头报告和海报的讨论时长，以及每份希望收获的质疑条数。', fields: [{ name: 'om', label: '口头报告（分钟）', type: 'number', value: String(s.oral_minutes ?? 10) }, { name: 'pm', label: '海报（分钟）', type: 'number', value: String(s.poster_minutes ?? 5) },
