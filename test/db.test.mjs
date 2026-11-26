@@ -3727,6 +3727,31 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
     await db.exec(`reset role`);
     ok((await q(`select 1 from feishu_outbox where target = 'group' and payload->>'text' like '中心负责人特批（第 ' || $1 || ' 号）%'`, [sq])).length === 1, '特批在全员群通报');
     await db.exec(`set role app_api`);
+    // 年度已核定后特批的课题：负责人补填、提交明细，提交即核定
+    await db.exec(`reset role`);
+    const stage0 = (await one(`select stage from budget_year where year = $1`, [Y27.year])).stage;
+    await q(`update budget_year set stage = 'fixed' where year = $1`, [Y27.year]);
+    await q(`update project_budget set status = 'draft' where year = $1 and project_id = $2`, [Y27.year, TP.id]);
+    await q(`delete from project_budget_line l using project_budget b where b.id = l.budget_id and b.year = $1 and b.project_id = $2`, [Y27.year, TP.id]);
+    const CAT = (await one(`select id from budget_category where active order by sort limit 1`)).id;
+    await db.exec(`set role app_api`);
+    await as(TP.owner_id);
+    const LN = await val(`select save_budget_line(null, $1, $2, $3, '基线复现的 API 调用', 0, 0, 2000, 0) v`, [Y27.year, TP.id, CAT]);
+    ok(!!LN, '特批的课题在核定后可以补填明细');
+    await q(`select set_project_budget($1, $2, 'submit')`, [Y27.year, TP.id]);
+    await db.exec(`reset role`);
+    ok(Number((await one(`select fixed from project_budget_line where id = $1`, [LN])).fixed) === 2000, '提交即按明细核定');
+    const OT = await one(`select p.id, p.owner_id from project p where p.layer = 'big' and p.active and p.kind <> 'public' and p.id <> $1 and p.owner_id is not null
+      and not exists (select 1 from special_approval s where s.project_id = p.id) order by p.code limit 1`, [TP.id]);
+    await db.exec(`set role app_api`);
+    if (OT) { await as(OT.owner_id); await raises('没有特批的课题核定后仍不能填', /申报已截止/, `select save_budget_line(null, $1, $2, $3, '用途', 1, 0, 0, 0)`, [Y27.year, OT.id, CAT]); }
+    await as(TP.owner_id);
+    await q(`select set_project_budget($1, $2, 'withdraw')`, [Y27.year, TP.id]);
+    await db.exec(`reset role`);
+    ok((await one(`select fixed from project_budget_line where id = $1`, [LN])).fixed === null, '撤回即取消核定');
+    await q(`update budget_year set stage = $2 where year = $1`, [Y27.year, stage0]);
+    await db.exec(`set role app_api`);
+    await as(U.dir);
   }
   await as(U.dir, '2026-11-26');
   const sb = await val(`select special_biweekly($1, '本人有个人原因，已向中心负责人说明') v`, [UN.id]);

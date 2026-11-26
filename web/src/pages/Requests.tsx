@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { rpc, subjectsOf, type ProjectTag, useViews, type CardPick, type ExpenseType, type LinePick, type Me, type Project, type Req, type ReqStatus, type Subject, type User } from '../api';
+import { rpc, subjectsOf, type ProjectTag, useViews, type CardPick, type ExpenseType, type LinePick, type Me, type Project, type Req, type ReqStatus, type Subject, type User, type BudgetYear } from '../api';
+import { STAGE_TEXT } from './Budget';
 import { ActionDialog, Badge, Empty, Flow, Loading, can, REQ, reqBadge, day, money, num, today, type Field } from '../ui';
 
 export const PATHS = ['直采', '集采', '分散采购'];
@@ -210,10 +211,18 @@ function NewRequest({ cards, subjects, types, picks, units, canCard, onDone }: {
   );
 }
 
+// 没有可选的预算行时说明原因：当年没有已下达的年度预算，或本人不在已下达预算的研究单元名单里
+function noLineReason(years: BudgetYear[]) {
+  const now = Number(today().slice(0, 4));
+  if (years.some((y) => y.year === now && y.stage === 'issued')) return '本人当前不在任何已下达预算研究单元的成员名单内，无法提交支出申请。请研究单元负责人在「课题管理」页加入名单；加入后即可选择该研究单元的预算行。';
+  const next = [...years].sort((a, b) => a.year - b.year).find((y) => y.year >= now && y.stage !== 'closed');
+  return `${now} 年没有已下达的课题年度预算，暂不能按课题预算提交支出申请。${next ? `${next.year} 年度预算目前为「${STAGE_TEXT[next.stage]}」，下达到经费卡之后才能提交；` : ''}课题的额度在下达之前只是核定数。急需支出的，请联系财务岗。`;
+}
+
 export function Requests({ me, start = '' }: { me: Me; start?: string }) {
   const staff = can(me, 'read.finance'), adds = staff || can(me, 'request.process');
-  const { data, error, reload } = useViews<{ reqs: Req[]; cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; users: User[]; tags: ProjectTag[]; picks: LinePick[]; projects: Project[] }>({
-    reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], types: ['expense_type'], users: ['users'], tags: ['project_tag'], picks: ['line_pick'], projects: ['project'],
+  const { data, error, reload } = useViews<{ reqs: Req[]; cards: CardPick[]; subjects: Subject[]; types: ExpenseType[]; users: User[]; tags: ProjectTag[]; picks: LinePick[]; projects: Project[]; years: BudgetYear[] }>({
+    reqs: ['request'], cards: ['card_pick'], subjects: ['subject'], types: ['expense_type'], users: ['users'], tags: ['project_tag'], picks: ['line_pick'], projects: ['project'], years: ['budget_year'],
   });
   const [tab, setTab] = useState<'open' | 'mine' | 'self' | ReqStatus>(start in REQ || start === 'mine' ? (start as ReqStatus) : 'open');
   const [adding, setAdding] = useState(start === 'new');
@@ -261,7 +270,7 @@ export function Requests({ me, start = '' }: { me: Me; start?: string }) {
         onClose={() => setReg(false)} />}
       {done && <div className="msg ok" role="status">{done}</div>}
       {adding && (data.picks.length === 0 && !adds
-        ? <section className="card"><h3>提交支出申请</h3><Empty>本人当前不在任何已下达预算研究单元的成员名单内，无法提交支出申请。请研究单元负责人在「课题管理」页加入名单；加入后即可选择该研究单元的预算行。</Empty></section>
+        ? <section className="card"><h3>提交支出申请</h3><Empty>{noLineReason(data.years)}</Empty></section>
         : <NewRequest cards={data.cards} subjects={data.subjects} types={data.types} picks={data.picks} canCard={staff}
           units={data.projects.filter((p) => p.layer === 'paper' && p.active && (p.member || p.mine) && !data.tags.some((t) => t.id === p.id && t.proposed))}
             onDone={(msg) => { setAdding(false); setDone(msg); setTab('open'); reload(); }} />)}
