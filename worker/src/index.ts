@@ -836,7 +836,9 @@ export type NoticeBody = { text?: string; by?: string | null; at?: string | null
   img?: string | null; img_key?: string | null; img_note?: string | null };   // 通报带的图：img 是图的 base64（PNG），发出前换成 img_key；img_note 是图下的小字
 // 通知的内容：归类、标题、分项、正文、按钮。卡片和测试都从这里取
 export function noticeView(body: NoticeBody, origin: string, appId?: string) {
-  const own = typeof body.url === 'string' && /^https:\/\/[^\s]+$/.test(body.url) ? body.url : null;
+  // 通知自带的链接：https 链接原样用；站内路径（#/ 开头）接到站点地址后面，在飞书里直达那一页
+  const own = typeof body.url === 'string' && /^https:\/\/[^\s]+$/.test(body.url) ? body.url
+    : typeof body.url === 'string' && /^#\/[\w\-/]+$/.test(body.url) ? `${origin}/${body.url}` : null;
   const text = String(body.text ?? '').trim(), bare = text.replace(/「[^」]*」/g, '「」');
   const rule = NOTICE_RULES.find(([re]) => re.test(bare));
   const head = text.match(/^([^：「」，。]{2,16})：/);
@@ -858,12 +860,18 @@ export function noticeView(body: NoticeBody, origin: string, appId?: string) {
     : /已成立|已同意|已通过|已批准|已认定/.test(title) ? 'pass' : /待同意|待核对|待审|待确认|待办|待答复|派了任务/.test(bare) ? 'todo' : 'fyi');
   const act = kind === 'todo' || kind === 'remind' || kind === 'back';
   const tag = typeof body.tag === 'string' && body.tag.trim() ? body.tag.trim().slice(0, 12) : KIND[kind].tag;
-  const sub = [rule && rule[1] !== title ? rule[1] : '', body.at ?? ''].filter(Boolean).join(' · ') || '正则';
+  // 时间按北京时间记，标明时区：飞书会话按各人客户端的时区显示，两处可能对不上（#128）
+  const sub = [rule && rule[1] !== title ? rule[1] : '', body.at ? `${body.at} 北京时间` : ''].filter(Boolean).join(' · ') || '正则';
   return { kind, title, tag, sub, fields, text: rest || undefined, all: body.all === true, done,
     act: !done && kind === 'todo' && body.act?.kind === 'unit_consent' ? 'unit_consent' : null,
     btn: { text: own && body.btn ? String(body.btn).slice(0, 12) : act ? '前往办理' : '前往查看', type: KIND[kind].btn, url: inFeishu(own ?? `${origin}/#${rule ? rule[2] : '/'}`, origin, appId) },
     note: ['正则', body.by ? `经办：${body.by}` : ''].filter(Boolean).join(' · ') };
 }
+// 卡片摘要：会话列表和系统通知里显示的那一行。旧版飞书网页显示不了卡片，至少摘要里看得到要点（#138）
+const cardSummary = (v: ReturnType<typeof noticeView>) => {
+  const s = [v.title, ...v.fields.map(([k, x]) => `${k} ${x}`), v.text ?? ''].filter(Boolean).join('；').replace(/\s+/g, ' ');
+  return s.length > 120 ? s.slice(0, 119) + '…' : s;
+};
 // 卡片：不用飞书自带的标题栏（只有固定颜色），顶上一条自定义底色的分栏当顶栏。来自业务的文字一律按纯文本放，不当作标记解析
 // actToken：这条通知的办理凭据。有它、且通知带着能办的动作时，卡片上放「同意」按钮；没有时只放去页面的按钮
 export function noticeCard(body: NoticeBody, origin: string, appId?: string, marks?: { red?: string; white?: string }, actToken?: string) {
@@ -935,7 +943,7 @@ export function noticeCard(body: NoticeBody, origin: string, appId?: string, mar
     col([button('退回', 'danger_text', open)]) ]));
   else main.push(button(v.done ? '查看' : v.btn.text, v.done ? 'text' : v.btn.type, open));
   main.push(plain(v.note, 'zz-mute', 'notation'));
-  return { title: v.title, view: v, card: { schema: '2.0', config: { update_multi: true, style: { color: CARD_COLORS }, summary: { content: v.title } },
+  return { title: v.title, view: v, card: { schema: '2.0', config: { update_multi: true, style: { color: CARD_COLORS }, summary: { content: cardSummary(v) } },
     body: { padding: '0px 0px 0px 0px', vertical_spacing: '0px', elements: [bar, row([col(main, { padding: '14px 16px 14px 16px', vertical_spacing: '12px' })])] } } };
 }
 
