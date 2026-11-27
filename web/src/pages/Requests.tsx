@@ -119,6 +119,9 @@ function NewRequest({ cards, subjects, types, picks, units, canCard, onDone }: {
   // 系统内部用的类型不给申请人选：在途补登、学校明细账、旧门户导入由财务岗在各自的页面上记
   const choosable = types.filter((t) => !SYSTEM_TYPES.has(t.name));
   const type = types.find((t) => t.id === v.expense_type_id);
+  // API 类支出分两种（#163）：用中心已充值的额度走资源申领，不动经费卡；只有重新充值、采购额度才是经费卡支出
+  const isApi = !!type && /^api$|接口|api\s*充值/i.test(type.name);
+  const [apiMode, setApiMode] = useState<'' | 'use' | 'buy'>('');
   const set = (patch: Partial<typeof v>) => setV({ ...v, ...patch });
   const setPart = (i: number, patch: Partial<Part>) => setParts(parts.map((p, j) => (j === i ? { ...p, ...patch } : p)));
   const total = parts.reduce((s, p) => s + num(p.amount), 0);
@@ -178,6 +181,10 @@ function NewRequest({ cards, subjects, types, picks, units, canCard, onDone }: {
           <select required value={v.expense_type_id} onChange={(e) => set({ expense_type_id: e.target.value })}>
             <option value="">请选择</option>{choosable.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>{choosable.length === 0 && <span className="sub2">财务岗还没有登记支出类型（如 API 充值、国内差旅），请联系财务岗在「采购与报销要求」中登记。</span>}</label>
+        {isApi && <div className="field" style={{ gridColumn: '1 / -1' }}><span>API 费用是哪一种</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0', fontWeight: 400 }}><input type="radio" name="apimode" style={{ width: 'auto', margin: 0 }} checked={apiMode === 'use'} onChange={() => setApiMode('use')} /> 使用中心已充值的额度（不动经费卡，走资源申领）</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0', fontWeight: 400 }}><input type="radio" name="apimode" style={{ width: 'auto', margin: 0 }} checked={apiMode === 'buy'} onChange={() => setApiMode('buy')} /> 重新充值、采购额度（经费卡支出，到账后由财务岗入库为额度）</label>
+          {apiMode === 'use' && <div className="msg warn" role="status" style={{ marginTop: 6 }}>用已充值的额度不是经费卡支出，不在这里申请：请到「资源申领」点「申请接口额度」，选计入的预算行即可，计入课题预算、不动经费卡。 <a href="#/resource">去资源申领</a></div>}</div>}
         <label className="field"><span>事项</span><input required maxLength={200} value={v.title} onChange={(e) => set({ title: e.target.value })} /></label>
         {!split && <label className="field"><span>金额（元）</span><input required type="number" min="0.01" step="0.01" value={v.amount} onChange={(e) => set({ amount: e.target.value })} /></label>}
         <label className="field"><span>预计学校入账日</span><input required type="date" min={today()} max={byLine ? undefined : cutoff}
@@ -209,7 +216,7 @@ function NewRequest({ cards, subjects, types, picks, units, canCard, onDone }: {
         </div>
       )}
       {error && <div className="msg bad" role="alert">{error}</div>}
-      <div className="actions"><button type="submit" disabled={busy}>{busy ? '提交中…' : '提交申请'}</button></div>
+      <div className="actions"><button type="submit" disabled={busy || (isApi && apiMode !== 'buy')} title={isApi && apiMode !== 'buy' ? '先选 API 费用是哪一种；用已充值的额度请到资源申领' : undefined}>{busy ? '提交中…' : '提交申请'}</button></div>
     </form>
   );
 }
