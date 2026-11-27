@@ -116,7 +116,7 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
         <section className="ir-t ir-hero">
           <div>
             <div className="ir-eyebrow">我的事项 · {me.name}{p ? ` · ${p.rank_label}` : ''}</div>
-            <h1>{me.name}</h1>
+            <h1>{me.avatar_url && <img className="ir-avatar" src={me.avatar_url} alt="" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}{me.name}</h1>
             {attr?.title && <span className="ir-title">称号　{attr.title}</span>}
             <div className="ir-facts">
               <div><span>本人发起、进行中</span><b>{initiated} 项</b></div>

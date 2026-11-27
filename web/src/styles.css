@@ -731,3 +731,7 @@ details.fold[open] > summary { color: var(--mute, #6a6e75); }
 .palette-opt{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--paper)}
 .palette-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px clamp(16px,2.4vw,32px);background:var(--brand-soft);color:var(--ink);font-size:13px;border-bottom:1px solid var(--line)}
 .palette-bar a{color:var(--brand);font-weight:600}
+
+/* 头像：取自中心网站人员页（0151） */
+.who .avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;flex:none;border:1px solid var(--line)}
+.ir-avatar{width:.78em;height:.78em;border-radius:50%;object-fit:cover;vertical-align:-.04em;margin-right:.18em;border:2px solid var(--i-line)}

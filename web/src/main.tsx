@@ -283,6 +283,7 @@ function App() {
           ))}
         </nav>
         <div className="who">
+          {me.avatar_url && <img className="avatar" src={me.avatar_url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
           <span><b>{me.name}</b><span>{me.rank_label ?? ROLE[me.role]}</span></span>
           <button className="ghost sm" onClick={() => setScholar(true)} title={me.scholar_url ?? '填写本人的谷歌学术主页'}>学术主页</button>
           <button className="ghost sm" onClick={() => logout().finally(() => location.reload())}>退出</button>
