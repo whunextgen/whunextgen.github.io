@@ -3995,6 +3995,27 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// ---------- 妙记取不到时提醒组织者、每小时重试（0157） ----------
+{
+  await db.exec(`reset role`);
+  const ME = await one(`select e.id, e.recorded_by from attend_event e where e.kind = 'seminar' and e.recorded_by is not null limit 1`);
+  if (ME) {
+    await q(`update app_user set feishu_open_id = coalesce(feishu_open_id, 'ou_minutes_org') where id = $1`, [ME.recorded_by]);
+    await q(`update attend_event set ended_at = now() - interval '2 hours', minutes_link = 'https://example.feishu.cn/minutes/obcnexample' where id = $1`, [ME.id]);
+    await q(`delete from meeting_transcript where event_id = $1`, [ME.id]);
+    await q(`select set_config('app.uid', '', false)`);
+    await q(`select transcript_save($1, 'feishu', null, '飞书返回 2091005：permission deny')`, [ME.id]);
+    ok((await q(`select 1 from feishu_outbox where user_id = $1 and payload->>'text' like '妙记取不到：%'`, [ME.recorded_by])).length === 1, '第一次被拒时提醒开会的人');
+    await q(`update meeting_transcript set tried_at = now() - interval '61 minutes' where event_id = $1`, [ME.id]);
+    ok((await q(`select 1 from transcript_todo() where event_id = $1`, [ME.id])).length === 1, '被拒的妙记一小时后再试');
+    await q(`select transcript_save($1, 'feishu', null, '飞书返回 2091005：permission deny')`, [ME.id]);
+    ok((await q(`select 1 from feishu_outbox where user_id = $1 and payload->>'text' like '妙记取不到：%'`, [ME.recorded_by])).length === 1, '再被拒不重复提醒');
+    await q(`delete from meeting_transcript where event_id = $1`, [ME.id]);
+  } else ok(false, '测试数据里找不到有开会人的研讨会');
+  await db.exec(`set role app_api`);
+  await as(U.dir);
+}
+
 // ---------- 快照草稿打不开时提醒作者（#167） ----------
 {
   await db.exec(`reset role`);
