@@ -4163,6 +4163,29 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// 经费卡逐笔明细：已入账的支出可以修改、冲销，留痕不删除（#174）
+{ await db.exec(`reset role`);
+  const E = (await one(`insert into expense_request (card_id, subject_id, expense_type_id, title, amount, eta_date, status, requested_by)
+    select card_id, subject_id, expense_type_id, '重复录入的一笔', 480, eta_date, 'posted', requested_by from expense_request where status = 'posted' and card_id is not null limit 1 returning id`)).id;
+  const evNote = async () => { await db.exec(`reset role`); const r = await one(`select note from request_event where request_id = $1 and kind = 'edit'`, [E]); await db.exec(`set role app_api`); return r?.note ?? ''; };
+  await db.exec(`set role app_api`);
+  await as(U.mem2);
+  await raises('成员不能冲销', /无权冲销|需要权限|当前角色/, `select void_posted($1, '重复')`, [E]);
+  await as(U.fin);
+  ok('school_name' in (await one(`select * from api.request where id = $1`, [E])), '支出视图带学校科目，逐笔明细按学校科目归');
+  await raises('修改要写原因', /请写明修改原因/, `select edit_posted($1, '更正后的摘要', 450, ' ')`, [E]);
+  await raises('没有改动不能保存', /没有改动/, `select edit_posted($1, '重复录入的一笔', 480, '核对')`, [E]);
+  await q(`select edit_posted($1, '更正后的摘要', 450, '按学校凭证更正金额')`, [E]);
+  const ed = await one(`select title, amount, status from api.request where id = $1`, [E]);
+  ok(ed.title === '更正后的摘要' && Number(ed.amount) === 450 && ed.status === 'posted', '已入账的支出可以改摘要和金额');
+  ok(/金额 480\.00 改为 450.*按学校凭证更正金额/.test(await evNote()), '修改的原值、新值和原因记入经办记录');
+  await raises('冲销要写原因', /请写明冲销原因/, `select void_posted($1, '')`, [E]);
+  await q(`select void_posted($1, '与学校明细账另一笔重复')`, [E]);
+  ok((await one(`select status from api.request where id = $1`, [E])).status === 'released', '冲销后不再计入已入账，记录保留');
+  await raises('冲销过的不能再冲销', /只有已入账的支出可以冲销/, `select void_posted($1, '再来')`, [E]);
+  await as(U.dir);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {

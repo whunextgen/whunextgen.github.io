@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { ObjHead, Stages, Track, execSegs } from '../tree';
 import { rpc, useViews, type Cap, type Card, type CardIncome, type CardSchoolSubject, type CardSubjectMap, type Cell, type Change, type Me, type Node, type Req, type SettleLine, type Template, type User } from '../api';
-import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, can, cardGap, cardGranted, cardTotal, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
+import { ActionDialog, Badge, Bar, CHANGE, Empty, END_RULE, Loading, REQ, can, cardGap, cardGranted, cardTotal, ROLE, Tile, day, money, num, pct, today, type Field } from '../ui';
 import { cardFields, saveCard } from './Admin';
 import { LedgerImport } from './Ledger';
 import { nodeState } from './Overview';
@@ -111,6 +111,7 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   const [act, setAct] = useState<Act | null>(null);
   const [adding, setAdding] = useState(false);
   const [budgeting, setBudgeting] = useState(false);
+  const [shown, setShown] = useState<Set<string>>(new Set());   // 展开了逐笔明细的科目（#174）
   const { data, error, reload } = useViews<{ card: Card[]; cells: Cell[]; nodes: Node[]; caps: Cap[]; changes: Change[]; reqs: Req[]; settle: SettleLine[]; templates: Template[]; users: User[]; school: CardSchoolSubject[]; incomes: CardIncome[]; maps: CardSubjectMap[] }>({
     maps: ['card_subject_map', f], incomes: ['card_income', f], school: ['card_school_subject', f], templates: ['template'], users: ['users'], card: ['card', f], cells: ['cell', f], nodes: ['node', f], caps: ['cap', f], changes: ['budget_change', f], reqs: ['request', f], settle: ['settlement', f],
   }, id);
@@ -160,6 +161,23 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
   for (const r of data.school) { const o = bySchool.get(r.school_name) ?? { school_name: r.school_name, school_code: r.school_code, n: 0, amount: 0 }; o.n += r.n; o.amount += num(r.amount); bySchool.set(r.school_name, o); }
   const schoolRows = [...bySchool.values()].sort((a, b) => b.amount - a.amount);
   const otherRows = cells.map((x) => ({ ...x, rest: num(x.actual) - data.school.filter((r) => r.subject_id === x.subject_id).reduce((t, r) => t + num(r.amount), 0) })).filter((x) => x.rest >= 0.005 || num(x.commit) >= 0.005);
+  // 逐笔明细（#174）：每个科目下列出每一笔支出；已入账的可以修改、冲销，冲销不删除、留痕（黄济民 2026-11-28 定的财务原则）
+  const canPost = can(me, 'ledger.post') || staff;
+  const when = (r: Req) => day(r.posted_on ?? r.created_at);
+  const listed = (pred: (r: Req) => boolean) => data.reqs.filter((r) => r.status !== 'rejected' && pred(r)).sort((a, b) => when(b).localeCompare(when(a)) || b.created_at.localeCompare(a.created_at));
+  const subIds = (x: Cell) => [x.subject_id, ...(isOwn(x) ? data.maps.filter((m) => m.subject_id === x.subject_id).map((m) => m.ledger_subject_id) : [])];
+  const toggle = (k: string) => setShown((o) => { const n = new Set(o); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const more = (k: string, n: number) => n > 0 ? <button className="sm ghost" style={{ marginLeft: 6 }} onClick={() => toggle(k)}>{shown.has(k) ? '收起' : `逐笔 ${n}`}</button> : null;
+  const postActs = (r: Req) => canPost && r.status === 'posted' ? <span className="acts" style={{ marginLeft: 8 }}>
+    <button className="sm ghost" onClick={() => setAct({ label: '保存', title: `修改已入账的支出：${r.title}`, hint: '录错了的摘要或金额在这里更正，金额以学校凭证为准。原值、新值和原因记入这笔支出的经办记录。',
+      fields: [{ name: 'title', label: '摘要', value: r.title }, { name: 'amount', label: '金额（元）', type: 'number', value: String(num(r.posted_amount ?? r.amount)) }, { name: 'reason', label: '修改原因' }],
+      run: (v) => rpc('edit_posted', { id: r.id, title: v.title, amount: v.amount, reason: v.reason }) })}>修改</button>
+    <button className="sm ghost danger" onClick={() => setAct({ label: '冲销', title: `冲销：${r.title} ${money(r.posted_amount ?? r.amount)}`, danger: true,
+      hint: '重复录入、录错卡等情况冲销这一笔：冲销后不再计入已入账和可用额，记录保留，并在经办记录里注明原因。不会真的删除。',
+      fields: [{ name: 'reason', label: '冲销原因（如「与学校明细账某笔重复」）' }], run: (v) => rpc('void_posted', { id: r.id, reason: v.reason }) })}>冲销</button></span> : null;
+  const lineCell = (r: Req) => <td style={{ paddingLeft: 24 }} className="wrap"><span className="sub2" style={{ marginLeft: 0 }}>{when(r)}</span> <a href={`#/req/${r.id}`} style={r.status === 'released' ? { textDecoration: 'line-through' } : undefined}>{r.title}</a>
+    {r.school_name && <span className="sub2"> {r.school_name}</span>} {r.status !== 'posted' && <Badge tone={r.status === 'released' ? undefined : REQ[r.status][1]}>{r.status === 'released' ? '已冲销' : REQ[r.status][0]}</Badge>}{postActs(r)}</td>;
+  const amt = (r: Req) => money(r.posted_amount ?? r.amount);
 
   // 流程：下达 → 支出申请 → 学校入账 → 到期 → 结清
   const total = cardTotal(c), expired = c.status === 'active' && day(c.cutoff_date) < now;
@@ -240,8 +258,11 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
               <div className="scroll"><table>
                 <thead><tr><th>学校科目</th><th>科目编号</th><th className="r">笔数</th><th className="r">已入账</th><th className="r">已承诺</th></tr></thead>
                 <tbody>
-                  {schoolRows.map((r) => <tr key={r.school_name}><td>{r.school_name}</td><td className="code">{r.school_code ?? '—'}</td><td className="r">{r.n}</td><td className="r">{money(r.amount)}</td><td className="r">—</td></tr>)}
-                  {otherRows.map((x) => <tr key={x.subject_id}><td>{x.subject_name}<span className="sub2"> 未注明学校科目</span></td><td className="code">—</td><td className="r">—</td><td className="r">{money(x.rest)}</td><td className="r">{money(x.commit)}</td></tr>)}
+                  {schoolRows.flatMap((r) => { const k = `s:${r.school_name}`, ls = listed((q) => q.school_name === r.school_name); return [
+                    <tr key={r.school_name}><td>{r.school_name}{more(k, ls.length)}</td><td className="code">{r.school_code ?? '—'}</td><td className="r">{r.n}</td><td className="r">{money(r.amount)}</td><td className="r">—</td></tr>,
+                    ...(shown.has(k) ? ls.map((q) => <tr key={q.id}>{lineCell(q)}<td /><td /><td className="r"><span className="sub2">{q.status === 'posted' || q.status === 'released' ? amt(q) : ''}</span></td><td className="r"><span className="sub2">{q.status !== 'posted' && q.status !== 'released' ? amt(q) : ''}</span></td></tr>) : [])]; })}
+                  {otherRows.flatMap((x) => { const k = `o:${x.subject_id}`, ls = listed((q) => !q.school_name && q.subject_id === x.subject_id); return [<tr key={x.subject_id}><td>{x.subject_name}<span className="sub2"> 未注明学校科目</span>{more(k, ls.length)}</td><td className="code">—</td><td className="r">—</td><td className="r">{money(x.rest)}</td><td className="r">{money(x.commit)}</td></tr>,
+                    ...(shown.has(k) ? ls.map((q) => <tr key={q.id}>{lineCell(q)}<td /><td /><td className="r"><span className="sub2">{q.status === 'posted' || q.status === 'released' ? amt(q) : ''}</span></td><td className="r"><span className="sub2">{q.status !== 'posted' && q.status !== 'released' ? amt(q) : ''}</span></td></tr>) : [])]; })}
                   <tr className="sum"><td>合计</td><td /><td className="r">{schoolRows.reduce((t, r) => t + r.n, 0) || '—'}</td><td className="r">{money(c.actual)}</td><td className="r">{money(c.commit)}</td></tr>
                 </tbody>
               </table></div>
@@ -264,8 +285,9 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
                 <tbody>
                   {used.flatMap((x) => {
                     const sch = data.school.filter((r) => r.subject_id === x.subject_id);
+                    const ls = listed((q) => subIds(x).includes(q.subject_id));
                     return [
-                      <tr key={x.subject_id}><td>{x.subject_name}{isSchool(x) && <span className="sub2"> 学校科目 {x.subject_code}{own.length > 0 ? '，尚未对应预算科目' : ''}</span>}</td><td className="r">{money(x.orig)}</td><td className="r">{num(x.adj) ? money(x.adj) : '—'}</td>
+                      <tr key={x.subject_id}><td>{x.subject_name}{isSchool(x) && <span className="sub2"> 学校科目 {x.subject_code}{own.length > 0 ? '，尚未对应预算科目' : ''}</span>}{more(`c:${x.subject_id}`, ls.length)}</td><td className="r">{money(x.orig)}</td><td className="r">{num(x.adj) ? money(x.adj) : '—'}</td>
                         <td className="r">{money(x.cur)}</td><td className="r">{money(x.actual)}</td><td className="r">{money(x.commit)}</td>
                         <td className={`r ${num(x.avail) < 0 ? 'neg' : ''}`}>{money(x.avail)}</td>
                         <td><Bar cur={num(x.cur)} actual={num(x.actual)} commit={num(x.commit)} /></td>
@@ -275,6 +297,9 @@ export function CardPage({ me, id }: { me: Me; id: string }) {
                         <tr key={`${x.subject_id}-${m.ledger_subject_id}`}><td style={{ paddingLeft: 24 }}><span className="sub2">学校科目 {m.ledger_name} {m.ledger_code}{rs.length > 0 ? ` · ${rs.reduce((t, r) => t + r.n, 0)} 笔` : ''}</span></td><td /><td /><td />
                           <td className="r"><span className="sub2">{rs.length > 0 ? money(rs.reduce((t, r) => t + num(r.amount), 0)) : '—'}</span></td><td /><td /><td />
                           {editable && <td className="r"><button className="sm ghost" onClick={() => setAct({ label: '取消对应', title: `取消对应：${m.ledger_name}`, fields: [], hint: `取消后，学校科目「${m.ledger_name}」下已入账的支出不再记在「${x.subject_name}」下，改回按学校科目单列。`, run: () => rpc('map_school_subject', { card_id: c.card_id, ledger: m.ledger_subject_id, subject: null }) })}>取消对应</button></td>}</tr>); }) : []),
+                      // 逐笔明细
+                      ...(shown.has(`c:${x.subject_id}`) ? ls.map((q) => <tr key={q.id}>{lineCell(q)}<td /><td /><td />
+                        <td className="r"><span className="sub2">{q.status === 'posted' || q.status === 'released' ? amt(q) : ''}</span></td><td className="r"><span className="sub2">{q.status !== 'posted' && q.status !== 'released' ? amt(q) : ''}</span></td><td /><td />{editable && <td />}</tr>) : []),
                       ...(x.subject_code === 'school' ? [...sch].sort((a, b) => num(b.amount) - num(a.amount)).map((r) => (
                         <tr key={`${x.subject_id}-${r.school_name}`}><td style={{ paddingLeft: 24 }}><span className="sub2">{r.school_name} · {r.n} 笔</span></td><td /><td /><td /><td className="r"><span className="sub2">{money(r.amount)}</span></td><td /><td /><td />{editable && <td />}</tr>)) : []),
                     ];

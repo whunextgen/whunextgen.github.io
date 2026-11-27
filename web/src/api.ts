@@ -173,6 +173,7 @@ export interface Req {
   // 待批的申请停在哪一步；空的是老路（公共开支、按卡直接提的），由中心负责人直接批准
   step: 'confirm' | 'director' | 'check' | null; over_amount: string | null; self_confirmed: boolean | null; return_note: string | null;
   project_name: string | null; line_purpose: string | null; requester_name: string | null; confirmed_by_name: string | null; checked_by_name: string | null; can_confirm: boolean;
+  school_name?: string | null; school_code?: string | null;
 }
 export interface Change { id: string; card_id: string; reason: string; status: 'pending' | 'filed' | 'approved' | 'rejected';
   approved_on: string | null; created_at: string; lines: { subject_id: string; delta: number }[] | null }

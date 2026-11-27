@@ -119,6 +119,8 @@ export const RPC: Record<string, [string, string][]> = {
     ['edu', 'text'], ['school', 'text'], ['direction', 'text'], ['mentor', 'text'], ['note', 'text']],
   link_person: [['person', 'uuid'], ['user', 'uuid']],
   ignore_person: [['person', 'uuid'], ['note', 'text']],
+  void_posted: [['id', 'uuid'], ['reason', 'text']],
+  edit_posted: [['id', 'uuid'], ['title', 'text'], ['amount', 'numeric'], ['reason', 'text']],
   unignore_person: [['person', 'uuid']],
   open_arr_cycle: [['name', 'text']],
   save_arr_sponsor: [['user', 'uuid'], ['qualified', 'boolean'], ['quota', 'int'], ['note', 'text'], ['offline', 'int']],
