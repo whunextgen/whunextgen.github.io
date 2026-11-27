@@ -117,7 +117,7 @@ function NewRequest({ cards, subjects, types, picks, units, canCard, onDone }: {
   const card = usable.find((c) => c.id === v.card_id);
   const subsOf = (cardId: string) => { const c = usable.find((x) => x.id === cardId); return subjectsOf(subjects, c); };
   // 系统内部用的类型不给申请人选：在途补登、学校明细账、旧门户导入由财务岗在各自的页面上记
-  const choosable = types.filter((t) => !SYSTEM_TYPES.has(t.name));
+  const choosable = types.filter((t) => !SYSTEM_TYPES.has(t.name) && (canCard || !t.finance_only));   // 仅财务岗办理的类型不给课题看
   const type = types.find((t) => t.id === v.expense_type_id);
   // 仅财务岗办理的支出类型（如 API 充值）：中心统一充值，课题不提交；使用接口额度走资源申领，计入课题预算、不动经费卡
   const financeOnly = !!type?.finance_only;
