@@ -52,7 +52,7 @@ export function Projects({ me, focus }: { me: Me; focus?: string }) {
               <tr key={r.id} style={r.active ? undefined : { opacity: .55 }}>
                 <td style={r.layer === 'paper' ? { paddingLeft: 28 } : undefined}>{r.seen ? <a href={`#/project/${r.id}`}>{r.name}</a> : r.name}{data.tags.some((t) => t.id === r.id && t.proposed) && (() => { const ua = r.layer === 'paper' ? data.uapps.find((x) => x.id === r.id) : undefined; const [lb, tn] = ua ? unitStage(ua) : ['待立项', 'warn'] as const;
                   return <> <Badge tone={tn}>{ua ? <a href={`#/projects/${r.id}`}>{lb}</a> : lb}</Badge></>; })()}{tagged.has(r.id) && <> <Badge>晨星</Badge></>}<span className="sub2">{r.code}{r.active ? '' : ' · 已停用'}{r.layer === 'paper' && !bigs.some((b) => b.id === r.parent_id) ? ` · 隶属 ${r.parent_name}` : ''}</span>
-                  {r.kind !== 'public' && <div className="sub2" style={{ marginLeft: 0 }}>成员 {r.members} 人{r.member && r.owner_id !== me.id ? ' · 本人在名单中' : ''}</div>}</td><td>{typeText(r)}</td>
+                  {r.kind !== 'public' && <div className="sub2" style={{ marginLeft: 0 }}>成员 {r.members} 人{r.layer === 'big' && `（含下属研究单元，已去重；直属 ${r.direct_members} 人）`}{r.member && r.owner_id !== me.id ? ' · 本人在名单中' : ''}</div>}</td><td>{typeText(r)}</td>
                 <td>{r.owner_name ?? '—'}{r.owner_id === me.id && <span className="sub2">本人</span>}<Scholar url={r.owner_scholar_url} /></td>
                 {years.map((y) => { const b = data.budgets.find((x) => x.project_id === r.id && x.year === y.year);
                   const d = sum(r, y.year, 'declared'), a = sum(r, y.year, 'applied'), f = sum(r, y.year, 'fixed');

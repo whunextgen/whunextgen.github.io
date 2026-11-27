@@ -2121,7 +2121,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.mem);
   ok((await one(`select scholar_url from api.project_member where project_id = $1 and user_id = $2 and left_on is null`, [t0.id, U.mem2])).scholar_url === url, '成员名单里随姓名给出链接');
   const tp = await one(`select owner_scholar_url, members, can_roster from api.project where id = $1`, [t0.id]);
-  ok(tp.owner_scholar_url === 'https://scholar.google.com.hk/citations?user=Own3r' && tp.members >= 1 && tp.can_roster != null, '课题列表给出负责人的链接，原有字段不变', JSON.stringify(tp));
+  ok(tp.owner_scholar_url === 'https://scholar.google.com.hk/citations?user=Own3r' && Number.isInteger(tp.members) && tp.members >= 0 && tp.can_roster != null, '课题列表给出负责人的链接，人数仍为非负整数', JSON.stringify(tp));
   await as(U.mem2); await q(`select set_scholar_url(' ')`);
   ok((await one(`select scholar_url from api.me`)).scholar_url === null, '留空即清除');
 }

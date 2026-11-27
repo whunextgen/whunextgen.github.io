@@ -1,0 +1,35 @@
+// 全部为虚构账号：同人跨单元、直属重叠、有效日期和权限不扩张。
+import { PGlite } from '@electric-sql/pglite';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const db=new PGlite();
+for(const f of readdirSync('supabase/migrations').sort())await db.exec(readFileSync('supabase/migrations/'+f,'utf8'));
+const q=async(s,p=[])=>(await db.query(s,p)).rows;
+const user=async(name)=>(await q('insert into app_user(name) values($1) returning id',[name]))[0].id;
+const owner=await user('虚构负责人'), a=await user('虚构成员甲'), b=await user('虚构成员乙'), c=await user('虚构成员丙'), d=await user('虚构历史成员'), e=await user('虚构未来成员'), disabled=await user('虚构停用成员');
+await q('update app_user set active=false where id=$1',[disabled]);
+const project=async(code,parent=null,active=true,proposed=false,kind='project')=>(await q('insert into project(code,name,owner_id,layer,parent_id,active,proposed,kind) values($1,$1,$2,$3,$4,$5,$6,$7) returning id',[code,owner,parent?'paper':'big',parent,active,proposed,kind]))[0].id;
+const root=await project('DEMO-T'), u1=await project('DEMO-T-1',root), u2=await project('DEMO-T-2',root), u3=await project('DEMO-T-3',root), closed=await project('DEMO-T-CLOSED',root,false), draft=await project('DEMO-T-DRAFT',root,true,true), other=await project('DEMO-OTHER');
+for(const [pid,uid,start,end] of [[root,a,0,null],[u1,a,0,null],[u1,b,0,null],[u2,b,0,null],[u2,c,0,null],[u3,c,0,null],[u1,d,-5,-1],[u1,e,2,null],[u1,disabled,0,null],[closed,d,0,null],[draft,d,0,null],[other,d,0,null]])await q('insert into project_member(project_id,user_id,joined_on,left_on) values($1,$2,app_today()+$3::int,case when $4::int is null then null else app_today()+$4::int end)',[pid,uid,start,end]);
+await q("select set_config('app.uid',$1,false)",[b]);await db.exec('set role app_api');
+const recruit=await q('select id,members,direct_members from api.recruit');
+const projects=await q('select id,members,direct_members from api.project');
+assert.equal(recruit.find(x=>x.id===root).members,3);
+assert.equal(recruit.find(x=>x.id===root).direct_members,1);
+assert.equal(recruit.find(x=>x.id===u1).members,2);
+assert.equal(recruit.find(x=>x.id===u2).members,2);
+assert.equal(recruit.find(x=>x.id===u3).members,1);
+assert.equal(projects.find(x=>x.id===root).members,3);
+assert.equal(projects.find(x=>x.id===root).direct_members,1);
+assert.equal(projects.find(x=>x.id===u1).members,2);
+assert.equal((await q('select is_on_project($1) member',[root]))[0].member,false);
+assert.equal((await q("select has_perm('budget.project',$1) allowed",[root]))[0].allowed,false);
+await db.exec('reset role');
+assert.equal((await q('select count(*)::int n from project_member where project_id=$1',[root]))[0].n,1);
+await q('update project_member set left_on=app_today() where project_id=$1 and user_id=$2',[u2,c]);
+await q('update project_member set left_on=app_today() where project_id=$1 and user_id=$2',[u3,c]);
+await db.exec('set role app_api');assert.equal((await q('select members from api.recruit where id=$1',[root]))[0].members,2);
+await db.exec('reset role');await q("select set_config('app.uid','',false)");await db.exec('set role app_api');assert.equal((await q('select * from api.recruit')).length,0);
+await db.exec('reset role');
+if(process.env.TOPIC_DEMO_OUT){const blob=await db.dumpDataDir('gzip');writeFileSync(process.env.TOPIC_DEMO_OUT,Buffer.from(await blob.arrayBuffer()));}
+console.log('topic member counts: 13 assertions passed');await db.close();
