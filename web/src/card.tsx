@@ -124,7 +124,7 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
               <div><span>所属课题</span><b>{topics.join('、') || '—'}</b></div>
             </div>
           </div>
-          <div className="ir-lvl">{RANKS.map(([k, n], i) => <span key={k} className={i === rankAt ? 'me' : i < rankAt ? 'past' : ''}>{n}</span>)}</div>
+          <div className="ir-lvl" style={{ ['--lvl-n' as string]: RANKS.filter((_, i) => Math.abs(i - rankAt) <= 1).length }}>{RANKS.map(([k, n], i) => <span key={k} className={[i === rankAt ? 'me' : i < rankAt ? 'past' : '', Math.abs(i - rankAt) > 1 ? 'far' : ''].filter(Boolean).join(' ') || undefined}>{n}</span>)}</div>
         </section>
         <section className="ir-t ir-turn">
           <div className="ir-mono"><span>本回合</span><span>{md(per)} — {md(addDays(per, 13))}</span></div>
@@ -133,7 +133,7 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
         </section>
         <section className="ir-t ir-full" style={{ paddingTop: 14, paddingBottom: 14 }}><div className="ir-mono" style={{ margin: 0 }}><span>签到、请假、补看回放、自建会议 · 周日讲座、主题研讨会、联席会议、训练课程都在这里</span></div><SignIn onDone={reload} /></section>
         <nav className="ir-nav">{[['ir-today', '当日'], ['ir-attr', '属性'], ['ir-todo', '待办'], ['ir-reg', '本期登记'], ['ir-tasks', '任务列表'], ['ir-req', '本人的支出申请'], ['ir-petty', '本人的备用金和资源申领'], ['ir-share', '份额']]
-          .map(([id, n]) => <a key={id} href={`#/`} onClick={(e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); }}>{n}</a>)}</nav>
+          .map(([id, n]) => <a key={id} href={`#/`} onClick={(e) => { e.preventDefault(); const el = document.getElementById(id); if (!el) return; el.scrollIntoView({ behavior: 'smooth' }); if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1'); el.focus({ preventScroll: true }); }}>{n}</a>)}</nav>
 
         <section className="ir-t ir-full" id="ir-today">
           <div className="ir-mono"><span>当日 · {md(today())} {WEEK[new Date(`${today()}T00:00:00Z`).getUTCDay()]} · 本回合第 {td?.day_no ?? '—'} 日</span><span>每日 0 时更新</span></div>
@@ -219,9 +219,9 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
 
         <section className="ir-t ir-past">
           <div className="ir-mono"><span>各期记录</span><span>斜线为请假补看</span></div>
-          <table className="ir-rec"><thead><tr><th />{[...data.rec].sort((a, b) => a.period_start.localeCompare(b.period_start)).map((r) => <th key={r.period_start}>{md(r.period_start)}</th>)}</tr></thead>
+          <div className="ir-scroll"><table className="ir-rec"><thead><tr><th />{[...data.rec].sort((a, b) => a.period_start.localeCompare(b.period_start)).map((r) => <th key={r.period_start}>{md(r.period_start)}</th>)}</tr></thead>
             <tbody>{([['周日讲座', 'lecture'], ['主题研讨会', 'seminar'], ['双周表已登记', 'biweekly'], ['快照收录', 'snapshot']] as [string, keyof PeriodRec][]).map(([n, k]) => (
-              <tr key={k}><td>{n}</td>{[...data.rec].sort((a, b) => a.period_start.localeCompare(b.period_start)).map((r) => { const v = r[k] as number | null; return <td key={r.period_start}><i className={v === 2 ? 'c2' : v === 1 ? 'c1' : v == null ? 'na' : ''} title={v == null ? '不适用或未登记' : v === 2 ? '完成' : v === 1 ? '请假补看' : '未完成'} /></td>; })}</tr>))}</tbody></table>
+              <tr key={k}><td>{n}</td>{[...data.rec].sort((a, b) => a.period_start.localeCompare(b.period_start)).map((r) => { const v = r[k] as number | null; return <td key={r.period_start}><i className={v === 2 ? 'c2' : v === 1 ? 'c1' : v == null ? 'na' : ''} title={v == null ? '不适用或未登记' : v === 2 ? '完成' : v === 1 ? '请假补看' : '未完成'} /></td>; })}</tr>))}</tbody></table></div>
         </section>
         <section className="ir-t ir-third">
           <div className="ir-mono"><span>称号</span><span>按记录取得，不收回</span></div>
