@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ObjHead, Stages, Track, execSegs } from '../tree';
-import { rpc, useViews, type ProjectTag, type UnitExec, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember } from '../api';
+import { unitStage } from './Apply';
+import { rpc, useViews, type ProjectTag, type UnitExec, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember, type UnitApply } from '../api';
 import { ActionDialog, Badge, Empty, Loading, Scholar, Tile, can, day, money, num, pct, today } from '../ui';
 import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
@@ -18,8 +19,8 @@ export const typeText = (r: Project) => r.layer === 'paper' ? '研究单元' : r
 export function ProjectPage({ me, id, start }: { me: Me; id: string; start: string }) {
   const director = can(me, 'budget.approve');
   const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; lines: BudgetLine[]; exec: LineExec[]; cats: BudgetCategory[]; shifts: BudgetShift[];
-    members: ProjectMember[]; people: PeoplePick[]; shares: UnitShare[]; ustatus: { project_id: string; status: 'active' | 'stalled' | 'terminate' }[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; uexec: UnitExec[]; reqs: Req[]; resreqs: ResourceRequest[] }>({
-    reqs: ['request'], resreqs: ['resource_request'],
+    members: ProjectMember[]; people: PeoplePick[]; shares: UnitShare[]; ustatus: { project_id: string; status: 'active' | 'stalled' | 'terminate' }[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; uexec: UnitExec[]; reqs: Req[]; resreqs: ResourceRequest[]; uapps: UnitApply[] }>({
+    reqs: ['request'], resreqs: ['resource_request'], uapps: ['unit_apply'],
     tags: ['project_tag'], uexec: ['unit_exec'],
     projects: ['project'], years: ['budget_year'], lines: ['budget_line'], exec: ['line_exec'], cats: ['budget_category'], shifts: ['budget_shift'],
     members: ['project_member'], people: ['people_pick'], shares: ['unit_share'], ustatus: ['unit_status'], caps: ['project_cap'], capreqs: ['cap_request'], assets: ['project_asset'], pallocs: ['project_allocation'],
@@ -191,7 +192,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
             <thead><tr><th>研究单元</th><th>负责人</th><th className="r">成员</th><th className="r">支出申请</th><th style={{ minWidth: 180 }}>执行</th><th className="r">已用（含在途）</th><th className="r">已入账</th><th className="r">占课题已用</th></tr></thead>
             <tbody>
               {kids.map((k) => (
-                <tr key={k.id} style={k.active ? undefined : { opacity: .55 }}><td>{k.seen ? <a href={`#/project/${k.id}/${year}`}>{k.name}</a> : k.name}<span className="sub2">{k.code}{k.active ? '' : ' · 已停用'}</span>{waiting.has(k.id) && <> <Badge tone="warn">待立项</Badge></>}</td>
+                <tr key={k.id} style={k.active ? undefined : { opacity: .55 }}><td>{k.seen ? <a href={`#/project/${k.id}/${year}`}>{k.name}</a> : k.name}<span className="sub2">{k.code}{k.active ? '' : ' · 已停用'}</span>{waiting.has(k.id) && (() => { const ua = data.uapps.find((x) => x.id === k.id); const [lb, tn] = ua ? unitStage(ua) : ['待立项', 'warn'] as const; return <> <Badge tone={tn}><a href={`#/projects/${k.id}`}>{lb}</a></Badge></>; })()}</td>
                   <td>{k.owner_name ?? '—'}</td><td className="r">{k.members}</td>{cells(of(k.id))}</tr>))}
               <tr><td>记在课题名下</td><td>{r.owner_name ?? '—'}</td><td className="r">{r.members}</td>{cells(of(r.id))}</tr>
             </tbody>

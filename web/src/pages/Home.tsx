@@ -129,10 +129,15 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
     count(resOf('reviewed').length, 'warn', '资源待批准', '资源申请研究单元负责人已批示，待批准', '审批', '#/pool');
     count(resOf('approved').length, 'warn', '资源待分发', '资源申请已批准，待分发', '分发', '#/pool');
   }
-  count(data.uapps.filter((u) => u.can_ok && u.proposed && !u.return_note && !u.parent_ok_at).length, 'warn', '待同意', '研究单元申请挂在本人负责的课题之下，待同意', '办理', '#/projects');
-  if (can(me, 'budget.evaluate')) count(data.uapps.filter((u) => u.proposed && !u.return_note && !!u.parent_ok_at).length, 'warn', '待核对', '研究单元申请，待按联席会议纪要核对', '核对', '#/projects');
+  // 研究单元申请的待办直达那一笔（#131 #136）
+  const ua = (xs: UnitApply[]) => (xs.length ? `#/projects/${xs[0].id}` : '#/projects');
+  const uOk = data.uapps.filter((u) => u.can_ok && u.proposed && !u.return_note && !u.parent_ok_at);
+  count(uOk.length, 'warn', '待课题负责人同意', '研究单元申请挂在本人负责的课题之下，待课题负责人同意', '办理', ua(uOk));
+  const uChk = data.uapps.filter((u) => u.proposed && !u.return_note && !!u.parent_ok_at);
+  if (can(me, 'budget.evaluate')) count(uChk.length, 'warn', '待核对', '研究单元申请，待按联席会议纪要核对', '核对', ua(uChk));
   for (const c of data.arrs.filter((x) => x.can_answer)) todo.push({ tone: 'warn', tag: 'ARR 担保', text: `${c.asked_by_name ?? ''} 请本人为研究单元「${c.unit_name}」在「${c.cycle}」一轮担保，待答复`, go: '答复', href: `#/project/${c.project_id}` });
-  count(data.uapps.filter((u) => u.mine && u.proposed && !!u.return_note).length, 'bad', '已退回', '研究单元申请已退回，待修改后重新提交', '查看', '#/projects');
+  const uBack = data.uapps.filter((u) => u.mine && u.proposed && !!u.return_note);
+  count(uBack.length, 'bad', '已退回', '研究单元申请已退回，待修改后重新提交', '查看', ua(uBack));
   count(resOf('pending').filter((r) => r.my_project && r.requested_by !== me.id).length, 'warn', '待批示', '资源申请属本人负责的研究单元，待批示', '批示', '#/resource');
   // 双周表：只在登记日（每期第一天）登记。当天未登记的列为待办；过了当天未登记的提示逾期和下一个登记日
   for (const s of data.bws.filter((x) => x.can_fill && !x.filled)) {

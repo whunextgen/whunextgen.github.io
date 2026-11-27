@@ -702,3 +702,13 @@ tr.sel td{background:var(--raise)}
 .selection-roster>summary:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
 .selection-expand,.selection-collapse{font-size:13px;color:var(--brand);text-decoration:underline}.selection-collapse{display:none}
 .selection-roster[open]>summary .selection-expand{display:none}.selection-roster[open]>summary .selection-collapse{display:inline}
+
+/* 从待办或通知点进来的那一行：高亮（#136） */
+tr.hl > td { background: color-mix(in srgb, var(--brand, #bc442b) 10%, transparent); }
+/* 长介绍折叠，表格行不被撑高 */
+details.fold > summary { cursor: pointer; list-style: none; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold[open] > summary { color: var(--mute, #6a6e75); }
+/* 研究单元申请的办理按钮竖排，窄屏时不被挤进横向滚动区（#136） */
+.unit-acts { flex-wrap: wrap; justify-content: flex-start; margin-top: 8px; }
+.unit-apply td.wrap:first-child { max-width: 260px; }

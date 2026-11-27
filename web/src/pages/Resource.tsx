@@ -100,7 +100,10 @@ export function ResourcePage({ me }: { me: Me }) {
   return (
     <>
       <div className="top"><h2>资源申领</h2>
-        <div className="acts"><button onClick={() => setAct(reqAct('api'))}>申请接口额度</button><button className="ghost" onClick={() => setAct(reqAct('asset'))}>申领资产</button></div></div>
+        {/* 没有可选的资源计划时不打开表单，入口处说明缺什么（#119） */}
+        <div className="acts"><button disabled={!lineOpts('api').length} title={none('api') || undefined} onClick={() => setAct(reqAct('api'))}>申请接口额度</button>
+          <button className="ghost" disabled={!lineOpts('asset').length} title={none('asset') || undefined} onClick={() => setAct(reqAct('asset'))}>申领资产</button></div></div>
+      {(() => { const miss = (['api', 'asset'] as const).filter((k) => !lineOpts(k).length).map((k) => KIND[k]); return miss.length > 0 && <div className="msg warn" role="status">本年度预算中暂无{miss.join('和')}的资源计划，暂不能提交{miss.length === 2 ? '资源' : ''}申请。如需使用，请研究单元负责人在年度预算中补充；年中追加的，由财务岗在复盘时调整。</div>; })()}
       <div className="tiles">
         <Tile k="名下接口" v={mine.filter((a) => a.kind === 'api').length} f="正在生效的额度" />
         <Tile k="名下资产" v={mine.filter((a) => a.kind === 'asset').length} f="本人名下的设备和耗材" />

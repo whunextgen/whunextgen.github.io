@@ -864,7 +864,9 @@ export function noticeView(body: NoticeBody, origin: string, appId?: string) {
   const sub = [rule && rule[1] !== title ? rule[1] : '', body.at ? `${body.at} 北京时间` : ''].filter(Boolean).join(' · ') || '正则';
   return { kind, title, tag, sub, fields, text: rest || undefined, all: body.all === true, done,
     act: !done && kind === 'todo' && body.act?.kind === 'unit_consent' ? 'unit_consent' : null,
-    btn: { text: own && body.btn ? String(body.btn).slice(0, 12) : act ? '前往办理' : '前往查看', type: KIND[kind].btn, url: inFeishu(own ?? `${origin}/#${rule ? rule[2] : '/'}`, origin, appId) },
+    // 能在卡片上办的研究单元申请：按钮直达课题管理页里那一笔（#136）
+    btn: { text: own && body.btn ? String(body.btn).slice(0, 12) : act ? '前往办理' : '前往查看', type: KIND[kind].btn,
+      url: inFeishu(own ?? (body.act?.unit && /^[0-9a-f-]{36}$/.test(body.act.unit) ? `${origin}/#/projects/${body.act.unit}` : `${origin}/#${rule ? rule[2] : '/'}`), origin, appId) },
     note: ['正则', body.by ? `经办：${body.by}` : ''].filter(Boolean).join(' · ') };
 }
 // 卡片摘要：会话列表和系统通知里显示的那一行。旧版飞书网页显示不了卡片，至少摘要里看得到要点（#138）

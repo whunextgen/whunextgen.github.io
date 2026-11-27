@@ -17,7 +17,8 @@ export const MANUALS: Record<string, [string, string, string]> = {
   assistant: ['中心助理手册', '联席会议主持、会外表决、备案、学期考核发起、研究单元确认、训练课程', 'NXoCw5w2wi7F52ko0SCc7bTGnHg'],
   director: ['中心负责人手册', '否决与决定、特批、加入名额、身份认定、年度预算批准与控制、超预算审批、权限管理', 'JfEgwuv9Vi0fWukcVvAcZfwMnJc'],
 };
-type Topic = { id: string; title: string; who: string; entry?: [string, string]; steps: string[]; note: string; more: string[] };
+// entry：本主题的办理入口；一个主题涉及几类申请的，用 entries 分别列出（#121）
+type Topic = { id: string; title: string; who: string; entry?: [string, string]; entries?: [string, string][]; steps: string[]; note: string; more: string[] };
 export const GUIDE_TOPICS: Topic[] = [
   { id: 'start', more: ['intern', 'member'], title: '第一次使用：从哪里开始', who: '所有成员', entry: ['/', '我的事项'],
     steps: ['用本人的飞书账号登录中台。若提示账号尚未启用，请联系人事确认档案；GitHub 身份不会自动变成中台权限。',
@@ -55,7 +56,7 @@ export const GUIDE_TOPICS: Topic[] = [
       'RA 考核按现有规则由两名 Researcher 担任考核人、布置和认定两周小任务；指导关系和私人关系须遵守回避要求。',
       '学期考核在「加入与考核 → 学期考核」，根据本人是成员、考核人或经办显示不同操作。'],
     note: '项目试做结论、正式身份晋级和学期考核是三件不同的事。需要改进或建议退组的，按页面列出的正式程序处理。' },
-  { id: 'spend', more: ['member', 'topic', 'finance'], title: '提交支出、备用金或资源申请', who: '项目成员及相关经办', entry: ['/projects', '课题管理'],
+  { id: 'spend', more: ['member', 'topic', 'finance'], title: '提交支出、备用金或资源申请', who: '项目成员及相关经办', entries: [['/requests', '支出申请'], ['/petty', '备用金管理'], ['/resource', '资源申领']],
     steps: ['先确认自己在对应课题或研究单元的有效成员名单中。',
       '支出从对应年度可用的预算行发起，阅读页面给出的可用额度、办理条件及不可提交原因。',
       '提交后在「我的事项」或对应申请页跟进状态。备用金和资源申领使用各自入口，不能用代币余额代替预算。'],
@@ -94,6 +95,7 @@ export function GuidePage() {
       <p className="guide-note">{t.note}</p>
       <p className="guide-more">详见：{t.more.map((k, i) => <span key={k}>{i ? '、' : ''}<a href={`${WIKI}${MANUALS[k][2]}`} target="_blank" rel="noreferrer">《{MANUALS[k][0]}》</a></span>)}</p>
       {t.entry && <a className="btn sm" href={`#${t.entry[0]}`}>打开{t.entry[1]}</a>}
+      {t.entries?.map(([to, label]) => <a key={to} className="btn sm" href={`#${to}`} style={{ marginRight: 6 }}>打开{label}</a>)}
     </details>)}
   </div>;
 }

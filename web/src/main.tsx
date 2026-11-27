@@ -208,7 +208,7 @@ function App() {
     : current === '/caps' ? <CapsPage me={me} start={arg} />
     : current === '/ask' ? <Ask me={me} />
     : current === '/tasks' ? <Tasks me={me} only={arg || undefined} />
-    : current === '/projects' ? <Projects me={me} />
+    : current === '/projects' ? <Projects me={me} focus={arg || undefined} />
     : current === '/apply' ? <ApplyPage me={me} />
     : current === '/biweekly' ? <Biweekly />
     : current === '/people' ? <People me={me} />

@@ -3963,6 +3963,13 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// ---------- 不填会议日期的研究单元申请不让列表卡死（0144） ----------
+{
+  await db.exec(`reset role`);
+  ok((await one(`select add_workdays(null, 3) d`)).d === null, '空日期加工作日得空，不死循环');
+  await db.exec(`set role app_api`);
+}
+
 // ---------- 飞书通知：去重、合并、顺序、直达（#126 #127 #139 #140） ----------
 {
   await db.exec(`reset role`);
