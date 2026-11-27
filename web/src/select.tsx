@@ -7,7 +7,7 @@ import { ResearchIntro } from './ResearchIntro';
 // 项目双选与试做期：成员找可以参与的研究、表达意向；负责人维护招募信息、加人并开试做期；指导人给反馈和期满结论
 interface Recruit { id: string; code: string; name: string; layer: 'big' | 'paper'; parent_id: string | null; parent_name: string | null; owner_id: string | null; owner_name: string | null; owner_scholar_url: string | null;
   intro: string | null; snapshot: { id: string; seq: number; link: string; period_start: string } | null; open_queries: number; queries: { id: string; axis: string; body: string }[];
-  members: number; can_manage: boolean; am_member: boolean; my_interest: boolean }
+  members: number; direct_members: number; can_manage: boolean; am_member: boolean; my_interest: boolean }
 interface Interest { id: string; project_id: string; project_name: string; user_id: string; user_name: string; rank_label: string; note: string; link: string | null; status: string; created_at: string; mine: boolean }
 interface Trial { id: string; project_id: string; project_name: string; user_id: string; user_name: string; rank_label: string; mentor_id: string; mentor_name: string; start_on: string; end_on: string; extended: boolean;
   task_title: string; task_detail: string; task_due: string; status: 'running' | 'done'; mid_note: string | null; mid_link: string | null; mid_at: string | null; mid_feedback: string | null;
@@ -65,7 +65,7 @@ export function SelectPage({ me }: { me: Me }) {
       </div></li>);
   const Card = ({ r }: { r: Recruit }) => (
     <div style={{ padding: '10px 0', borderTop: '1px solid var(--line)' }}>
-      <div><b>{r.layer === 'big' ? '课题' : '研究单元'}「{r.name}」</b> <span className="sub2">{r.code} · 负责人 {r.owner_name ?? '—'}{r.owner_scholar_url && <> <a href={r.owner_scholar_url} target="_blank" rel="noreferrer">学术主页</a></>} · 成员 {r.members} 人</span></div>
+      <div><b>{r.layer === 'big' ? '课题' : '研究单元'}「{r.name}」</b> <span className="sub2">{r.code} · 负责人 {r.owner_name ?? '—'}{r.owner_scholar_url && <> <a href={r.owner_scholar_url} target="_blank" rel="noreferrer">学术主页</a></>} · 成员 {r.members} 人{r.layer === 'big' && `（含下属研究单元，已去重；直属 ${r.direct_members} 人）`}</span></div>
       {r.intro && <ResearchIntro text={r.intro} />}
       {r.snapshot && <div className="sub2" style={{ marginLeft: 0 }}>最新快照：<a href={r.snapshot.link} target="_blank" rel="noreferrer">第 {r.snapshot.seq} 次（{day(r.snapshot.period_start)} 起一期）</a></div>}
       {r.queries.length > 0 && <div style={{ marginTop: 4 }}>还没回应的质疑 {r.open_queries} 条，回应它们可以加入质疑小队：
@@ -82,7 +82,7 @@ export function SelectPage({ me }: { me: Me }) {
       {mine.length > 0 && <section className="wb-sec"><h3>我负责的招募与成员 <span className="h3sub">{mine.length} 个课题或研究单元</span></h3>
         {mine.map((r) => { const ints = data.ints.filter((i) => i.project_id === r.id && i.status === 'open'); const trs = data.trials.filter((t) => t.project_id === r.id && !t.mine && !t.am_mentor); return (
           <div key={r.id} style={{ padding: '10px 0', borderTop: '1px solid var(--line)' }}>
-            <div><b>{r.name}</b> <span className="sub2">{r.code} · 成员 {r.members} 人</span>
+            <div><b>{r.name}</b> <span className="sub2">{r.code} · 成员 {r.members} 人{r.layer === 'big' && `（含下属研究单元，已去重；直属 ${r.direct_members} 人）`}</span>
               <span className="ir-acts" style={{ display: 'inline-flex', marginLeft: 8 }}><button className="sm ghost" onClick={() => setAct(trialAct(r))}>加入并开始试做</button></span></div>
             {ints.length > 0 && <ul className="path-hist">{ints.map((i) => <li key={i.id}>{i.user_name}（{i.rank_label}）：{i.note}{i.link && <> <a href={i.link} target="_blank" rel="noreferrer">资料</a></>} <span className="sub2">{day(i.created_at)}</span>
               <button className="sm ghost" style={{ marginLeft: 8 }} onClick={() => setAct(trialAct(r, i.user_id))}>加入并开始试做</button></li>)}</ul>}
