@@ -3995,6 +3995,23 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// ---------- 新反馈按页面分派负责人（0153） ----------
+{
+  await db.exec(`reset role`);
+  ok((await one(`select feedback_owner('#/budget/2027') a, feedback_owner('#/resource') b, feedback_owner('#/select') c, feedback_owner('#/') d`)).a === '况紫嫣', '预算编制归况紫嫣');
+  const fo = await one(`select feedback_owner('#/resource') b, feedback_owner('#/select') c, feedback_owner('#/') d`);
+  ok(fo.b === '张睿宇' && fo.c === '肖梦溪' && fo.d === null, '资源归张睿宇、双选归肖梦溪、其他不分派', JSON.stringify(fo));
+  const FU = await id(`insert into app_user (name, role, feishu_open_id) values ('反馈戊', 'member', 'ou_fb_e')`);
+  const FB = await one(`insert into feedback (user_id, body, page) values ($1, '资源申领按钮灰了', '#/resource') returning id, seq`, [FU]);
+  await q(`select set_config('app.uid', '', false)`);
+  ok((await q(`select owner from feedback_todo() where id = $1`, [FB.id]))[0]?.owner === '张睿宇', '转议题的待办带上负责人');
+  await q(`select feedback_issue_save($1, 301, 'https://github.com/x/y/issues/301', null)`, [FB.id]);
+  const nt = await one(`select payload from feishu_outbox where target = 'assist' and payload->>'thread' = 'issue:301'`);
+  ok(nt && nt.payload.plain === true && JSON.stringify(nt.payload.mention) === '["张睿宇"]' && nt.payload.text.includes('负责：张睿宇'), '协助群通报纯文字并 @ 负责人', JSON.stringify(nt?.payload));
+  await db.exec(`set role app_api`);
+  await as(U.dir);
+}
+
 // ---------- 头像：网站照片优先，飞书头像补齐（0151 0152） ----------
 {
   await db.exec(`reset role`);
