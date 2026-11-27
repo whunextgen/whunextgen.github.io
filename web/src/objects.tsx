@@ -19,6 +19,7 @@ const Head = ({ crumb, title, eyebrow }: { crumb: React.ReactNode; title: string
 
 // ---------- 快照 ----------
 export function SnapshotPage({ id }: { id: string }) {
+  const [asked, setAsked] = useState<string | false>(false);
   const { data, error } = useViews<{ s: SnapX[]; pitches: Pitch[]; queries: QueryX[]; reviews: ReviewNote[] }>({ s: ['snapshot', { id }], pitches: ['snapshot_pitch', { snapshot_id: id }], queries: ['query'], reviews: ['review_note', { snapshot_id: id }] }, id);
   if (!data) return <Loading error={error} />;
   const s = data.s[0];
@@ -32,7 +33,10 @@ export function SnapshotPage({ id }: { id: string }) {
         title={`第 ${s.seq} 次快照`} eyebrow={`${whose(s)} · ${day(s.period_start)} 起一期 · ${s.submitted_by_name ?? ''} 提交`} />
       <section className="wb-sec">
         <h3>写作草稿</h3>
-        <p><a className="btn sm" href={s.link} target="_blank" rel="noreferrer">打开草稿</a></p>
+        <p><a className="btn sm" href={s.link} target="_blank" rel="noreferrer">打开草稿</a>{' '}
+          {/* 草稿是作者自己的飞书文档，打不开时一键提醒作者开放阅读（#167） */}
+          <button className="sm ghost" disabled={!!asked} onClick={() => rpc('ask_snapshot_access', { snapshot: s.id }).then((n) => setAsked(`已提醒 ${n} 位作者开放阅读权限`)).catch((e) => setAsked((e as Error).message))}>{asked ? '已提醒作者' : '打不开？提醒作者开放'}</button></p>
+        <p className="hint">草稿是作者自己的飞书文档，打不开说明作者还没把分享设为「组织内获得链接的人可阅读」，点上面的按钮提醒作者。{asked && typeof asked === 'string' ? `（${asked}）` : ''}</p>
         {s.note && <p className="hint" style={{ whiteSpace: 'pre-wrap' }}>本期改了什么：{s.note}</p>}
         <p className="hint">本期有改动的成员：{s.authors.map((a) => a.name).join('、') || '—'}</p>
       </section>

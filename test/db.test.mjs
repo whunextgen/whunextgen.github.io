@@ -3995,6 +3995,23 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// ---------- 快照草稿打不开时提醒作者（#167） ----------
+{
+  await db.exec(`reset role`);
+  const SN = await one(`select s.id, a.user_id from snapshot s join snapshot_author a on a.snapshot_id = s.id join app_user u on u.id = a.user_id where u.active and (u.feishu_union_id is not null or u.feishu_open_id is not null) limit 1`);
+  const RD = await id(`insert into app_user (name, role, feishu_open_id) values ('读者己', 'member', 'ou_reader_f')`);
+  ok((await one(`select feedback_owner('#/seminar/med') o`)).o === '曲保杰', '主题研讨会页的反馈归曲保杰');
+  if (SN) {
+    await db.exec(`set role app_api`);
+    await as(RD);
+    const n = (await one(`select ask_snapshot_access($1) n`, [SN.id])).n;
+    await db.exec(`reset role`);
+    ok(n >= 1 && (await q(`select 1 from feishu_outbox where user_id = $1 and payload->>'text' like '快照草稿打不开：读者己%' and payload->>'url' = $2`, [SN.user_id, '#/snapshot/' + SN.id])).length === 1, '读者一键提醒作者开放草稿，通知直达快照页', String(n));
+  } else ok(false, '测试数据里找不到有作者的快照');
+  await db.exec(`set role app_api`);
+  await as(U.dir);
+}
+
 // ---------- 新反馈按页面分派负责人（0153） ----------
 {
   await db.exec(`reset role`);

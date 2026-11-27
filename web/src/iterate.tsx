@@ -57,8 +57,8 @@ export function IteratePage({ me }: { me: Me }) {
   const snapAct = (u: Project, s?: Snapshot): Act => ({ title: `${s ? '更新' : '提交'}本期快照：${u.name}`, label: s ? '更新' : '提交',
     hint: '快照就是这一期写作草稿的样子：整篇都在，理、据、体、用四问都有回答。填写可以打开的链接，并勾选本期在草稿里有改动的成员（日常任务按此判定）。快照不打分。',
     fields: [{ name: 'link', label: '写作草稿的链接', value: s?.link ?? '' }, { name: 'note', label: '本期改了什么（选填）', type: 'area', required: false, value: s?.note ?? '' },
-      { name: 'authors', label: '本期有改动的成员', type: 'multi', options: roster(u), value: (s?.authors.map((a) => a.id) ?? [me.id]).join(',') }],
-    run: (v) => rpc('save_snapshot', { project: u.id, link: v.link, note: v.note || null, authors: ids(v.authors) }) });
+      { name: 'authors', label: '本期有改动的成员', type: 'multi', options: roster(u), value: (s?.authors.map((a) => a.id) ?? [me.id]).join(',') }, { name: 'shared', label: '已把这份文档的分享设为「组织内获得链接的人可阅读」（否则别人打不开，没法读稿提质疑）', type: 'check', value: 'false' }],
+    run: async (v) => { if (v.shared !== 'true') throw new Error('请先在飞书里把草稿文档的分享设为「组织内获得链接的人可阅读」，再勾选确认'); return rpc('save_snapshot', { project: u.id, link: v.link, note: v.note || null, authors: ids(v.authors) }); } });
   const pitchAct = (s: Snapshot): Act => ({ title: `提交研讨会：第 ${s.seq} 次快照`, label: '提交',
     hint: '四个研讨会都可以提交，同一期也可以交给不止一个，由所提交研讨会的组织者决定是否接收讨论。未接收的，可在下一期重新提交。',
     fields: [{ name: 'seminars', label: '研讨会', type: 'multi', options: semOpts, value: '' }], run: (v) => rpc('pitch_snapshot', { snapshot: s.id, seminars: ids(v.seminars) }) });
@@ -125,8 +125,8 @@ export function IteratePage({ me }: { me: Me }) {
             <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="sm ghost" onClick={() => setAct({ title: '交本人主线草稿的快照', label: '提交',
               hint: `本期每个课题之下一份，再交即更新${curP.length ? `；本期已交 ${curP.map((x) => `「${x.title}」`).join('')}` : ''}。回应这份草稿上的质疑同样记名义币。`,
               fields: [{ name: 'topic', label: '挂在哪个课题之下', options: topics.map((p): [string, string] => [p.id, `${p.code} ${p.name}`]) }, { name: 'title', label: '哪一项成果（如开题稿、综述、方案报告、立场论文）' },
-                { name: 'link', label: '写作草稿的链接' }, { name: 'note', label: '本期改了什么（选填）', type: 'area', required: false }],
-              run: (v) => rpc('save_personal_snapshot', { topic: v.topic, title: v.title, link: v.link, note: v.note || null }) })}>交主线草稿的快照</button></div>
+                { name: 'link', label: '写作草稿的链接' }, { name: 'note', label: '本期改了什么（选填）', type: 'area', required: false }, { name: 'shared', label: '已把这份文档的分享设为「组织内获得链接的人可阅读」（否则别人打不开，没法读稿提质疑）', type: 'check', value: 'false' }],
+              run: async (v) => { if (v.shared !== 'true') throw new Error('请先在飞书里把草稿文档的分享设为「组织内获得链接的人可阅读」，再勾选确认'); return rpc('save_personal_snapshot', { topic: v.topic, title: v.title, link: v.link, note: v.note || null }); } })}>交主线草稿的快照</button></div>
           </>; })()}
       </section>
 
