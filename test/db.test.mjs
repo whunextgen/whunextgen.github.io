@@ -3757,18 +3757,28 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
     ok((await q(`select 1 from api.line_pick where id = $1`, [LN])).length === 0, '下达前选不到这行预算');
     await as(U.fin);
     ok((await one(`select can_issue from api.topic_issue where year = $1 and project_id = $2`, [Y27.year, TP.id])).can_issue === true, '财务岗可以审核下达');
-    let issued = true;
-    try { await q(`select issue_topic($1, $2, '明细核对无误')`, [Y27.year, TP.id]); } catch (e) { issued = false; ok(/可用余额不够/.test(e.message), '经费卡分不够时说明哪一科目', e.message); }
-    if (!issued) {
-      // 财务岗先手工分配到经费卡，再审核下达
+    // 经费卡由财务岗手动匹配，系统只推荐（0142）：未分配的行不能下达，推荐不写入
+    await raises('未分配到经费卡的课题不能审核下达', /尚未分配到经费卡/, `select issue_topic($1, $2, '明细核对无误')`, [Y27.year, TP.id]);
+    const SG = (await one(`select suggest_allocation($1) v`, [LN])).v;
+    ok(Array.isArray(SG.parts), '财务岗可以取到推荐分配', JSON.stringify(SG));
+    await db.exec(`reset role`);
+    ok((await q(`select 1 from budget_allocation where line_id = $1`, [LN])).length === 0, '推荐不写入分配');
+    await db.exec(`set role app_api`);
+    await as(TP.owner_id);
+    await raises('课题负责人取不到推荐分配', /./, `select suggest_allocation($1)`, [LN]);
+    await as(U.fin);
+    let parts = SG.parts.map((x) => ({ card_id: x.card_id, subject_id: x.subject_id, amount: Number(x.amount) }));
+    if (!parts.length || Number(SG.short) > 0) {
       await db.exec(`reset role`);
       const CS = await one(`select k.id card_id, s.id subject_id from fund_card k join template_subject s on s.template_id = k.template_id where k.status = 'active' order by k.card_no, s.sort limit 1`);
       await q(`insert into budget_allocation (line_id, card_id, subject_id, amount) values ($1, $2, $3, 2000)`, [LN, CS.card_id, CS.subject_id]);
       await db.exec(`set role app_api`);
       await as(U.fin);
-      await q(`select issue_topic($1, $2, '明细核对无误')`, [Y27.year, TP.id]);
-      issued = true;
+      parts = null;
     }
+    if (parts) await q(`select allocate_line($1, $2::jsonb)`, [LN, JSON.stringify(parts)]);
+    await q(`select issue_topic($1, $2, '明细核对无误')`, [Y27.year, TP.id]);
+    const issued = true;
     if (issued) {
       await as(TP.owner_id);
       ok((await q(`select 1 from api.line_pick where id = $1`, [LN])).length === 1, '审核下达后课题可以选这行预算提交支出申请');
