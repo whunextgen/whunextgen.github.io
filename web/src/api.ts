@@ -98,7 +98,7 @@ export type Role = 'finance' | 'director' | 'leader' | 'member';
 export type Kind = 'teacher' | 'postdoc' | 'phd' | 'master' | 'ra' | 'ri' | 'visitor';
 // 数组列万一回来是 {a,b} 这样的字符串，也还原成数组
 export const list = (v: unknown): string[] => Array.isArray(v) ? v : typeof v === 'string' && v.length > 2 && v[0] === '{' ? v.slice(1, -1).split(',').map((x) => x.replace(/^"|"$/g, '')) : [];
-export interface Me { id: string; name: string; role: Role; kind?: Kind | null; perms: string[]; scoped: string[]; scholar_url?: string | null }
+export interface Me { id: string; name: string; role: Role; kind?: Kind | null; perms: string[]; scoped: string[]; scholar_url?: string | null; rank_label?: string | null }
 export interface Perm { code: string; name: string; grp: string; scope: 'global' | 'project' | 'card'; sort: number }
 export interface RoleDef { id: string; code: string | null; name: string; note: string | null; builtin: boolean; locked: boolean; implicit: boolean; sort: number; perms: string[]; holders: number }
 export interface RoleGrant { id: string; user_id: string; user_name: string; role_id: string; role_name: string; project_id: string | null; project_name: string | null;

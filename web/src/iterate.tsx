@@ -244,7 +244,7 @@ export function UnitIterate({ unit, me }: { unit: Project; me: Me }) {
   const lead = unit.owner_id === me.id || me.role === 'director';
   const people = [...data.people].sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((p): [string, string] => [p.id, p.name]);
   const teamAct = (q: Query): Act => ({ title: `组队：${q.axis_label} · ${q.body.slice(0, 24)}`, label: '加入队伍',
-    hint: '本研究单元的人和其他研究单元的人都可以入队，由负责人加人。新入队的自下一期起参与分配。入队回应质疑的其他研究单元人员不进名单。',
+    hint: '本研究单元的人和其他研究单元的人都可以入队，由负责人加人。新入队的自下一期起参与分配，并同时进入本研究单元的成员名单（已在名单里的不重复加）。',
     fields: [{ name: 'user', label: '成员', options: people.filter(([id]) => !q.team.some((m) => m.id === id)) }], run: (v) => rpc('add_query_member', { query: q.id, user: v.user }) });
   const pending = data.reviews.filter((r) => !r.adopted_at);
   return (

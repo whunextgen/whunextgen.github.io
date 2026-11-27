@@ -299,8 +299,12 @@ eq((await q(`select * from api.fund_event`)).length, 0, '成员看不到学校�
 await as(U.lead, '2026-09-05');
 await raises('项目负责人不能维护人员', /当前角色/, `select save_person(null, '新人甲')`);
 await as(U.fin, '2026-09-05');
-const np = (await one(`select save_person(null, ' 新人甲 ') as id`)).id;
-await raises('人员不能重名', /」的人员，同名请加备注区分/, `select save_person(null, '新人甲')`);
+// 人员经费只从已有人员档案中选人，这里不能建档或改名（#79）
+await raises('人员经费页不能新建人员档案', /人员档案由人事在「人员档案」页登记/, `select save_person(null, '新人甲')`);
+await db.exec(`reset role`);
+const np = (await one(`insert into person (name) values ('新人甲') returning id`)).id;
+await db.exec(`set role app_api`);
+await as(U.fin, '2026-09-05');
 await raises('发放类型要对应已有科目', /对应的科目/, `select save_pay_type(null, '专家咨询费', 'nope')`);
 const npt = (await one(`select save_pay_type(null, '专家咨询费', 'consult', 3000) as id`)).id;
 await raises('排布不能超过每月上限', /每月上限/, `select set_staff($1,$2,'2026-09-01','2026-10-01',$3,3500)`, [np, npt, C.A]);
@@ -2705,10 +2709,20 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok((await q(`select 1 from api.query where project_id = $1 and status = 'open'`, [UU])).length === 2, '未回应的质疑全中心公开');
   await raises('本人不能自行入队', /负责人加人/, `select add_query_member($1, $2)`, [Q1, U.mem]);
   await q(`select ask_join_query($1, '做过相关工作')`, [Q1]);
+  await db.exec(`reset role`);
+  const rosterBefore = (await q(`select id from project_member where project_id = $1`, [UU])).map((r) => r.id);
+  await db.exec(`set role app_api`);
   await as(own, A1);
   await q(`select add_query_member($1, $2)`, [Q1, U.mem]);
   await q(`select add_query_member($1, $2)`, [Q1, U.mem2]);
   await raises('不能重复入队', /已在队里/, `select add_query_member($1, $2)`, [Q1, U.mem2]);
+  // 入队经负责人同意即进入该研究单元的成员名单（#60）
+  await db.exec(`reset role`);
+  ok((await q(`select 1 from project_member where project_id = $1 and user_id = $2 and left_on is null`, [UU, U.mem])).length === 1, '入队的人进入该研究单元的成员名单');
+  // 以下沿用原来的场景（两人仍是其他研究单元的人），把这次加进名单的撤掉
+  await q(`delete from project_member where project_id = $1 and not (id = any($2::uuid[]))`, [UU, rosterBefore]);
+  await db.exec(`set role app_api`);
+  await as(own, A1);
   // 第二期：Q1 无人再提、队员已有分配资格，结算；Q2 被再次提出
   const S2 = await val(`select save_snapshot($1, 'https://example.org/d2', null, $2) v`, [UU, [own, U.mem2]]).catch(() => null);
   ok(S2 === null, '往期的快照不再改（本期是第一期之后才能交第二期）');
@@ -3968,6 +3982,15 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`reset role`);
   ok((await one(`select add_workdays(null, 3) d`)).d === null, '空日期加工作日得空，不死循环');
   await db.exec(`set role app_api`);
+}
+
+// ---------- 学期考核：合作者只看可写短评的；侧栏身份（#59 #65） ----------
+{
+  await db.exec(`reset role`);
+  ok(/status = 'open'(::text)?\)? AND collaborates/i.test((await one(`select pg_get_viewdef('api.term_review'::regclass) d`)).d), '合作者只看到还在考核、可写短评的条目');
+  ok((await q(`select column_name from information_schema.columns where table_schema = 'api' and table_name = 'me' and column_name = 'rank_label'`)).length === 1, '本人信息带中心身份');
+  await db.exec(`set role app_api`);
+  await as(U.dir);
 }
 
 // ---------- 飞书通知：去重、合并、顺序、直达（#126 #127 #139 #140） ----------

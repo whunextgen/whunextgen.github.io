@@ -65,9 +65,6 @@ export function StaffPage({ me }: { me: Me }) {
     hint: '按发放类型和经费卡分表，仅纳入发放日（当月 20 日）在经费卡有效期内的排布。列入发放表后，相应月份的排布锁定。',
     fields: [{ name: 'month', label: '月份', type: 'month', value: now }],
     run: (v) => rpc('build_payroll', { month: first(v.month) }) };
-  const person = (p?: Person): Act => ({ title: p ? '修改人员' : '新增人员', label: '保存',
-    fields: [{ name: 'name', label: '姓名', value: p?.name ?? '' }],
-    run: (v) => rpc('save_person', { id: p?.id ?? null, name: v.name }) });
   const payType = (t?: PayType): Act => ({ title: t ? '修改发放类型' : '新增发放类型', label: '保存',
     hint: '发放类型决定该笔款项计入的科目。例如：外聘人员劳务费、学生三兼费、编外人员工资、专家咨询费。',
     fields: [{ name: 'name', label: '名称', value: t?.name ?? '' }, { name: 'subject_code', label: '对应科目', options: codes, value: t?.subject_code ?? '' },
@@ -88,7 +85,7 @@ export function StaffPage({ me }: { me: Me }) {
       <section className="card">
         <h3>人员 × 月份</h3>
         <p className="hint">每格为当月发放额及列支的经费卡。红格表示发放日（当月 20 日）不在该经费卡有效期内，该笔款项无法发放，需变更经费卡。</p>
-        {list.length === 0 ? <Empty>{ready ? '暂无排布。点击右上角「排布」，将每人每月的发放额列支到经费卡。' : '请先在下方新增人员和发放类型，再进行排布。'}</Empty> : (
+        {list.length === 0 ? <Empty>{ready ? '暂无排布。点击右上角「排布」，将每人每月的发放额列支到经费卡。' : '请先确认人员档案里有要排布的人，并在下方新增发放类型，再进行排布。'}</Empty> : (
           <div className="scroll"><table className="staff">
             <thead><tr><th>人员</th><th>发放类型</th>{months.map((m) => <th key={m} className="r">{m.slice(2)}</th>)}</tr></thead>
             <tbody>{list.map((r) => (
@@ -128,11 +125,10 @@ export function StaffPage({ me }: { me: Me }) {
       </section>
 
       <section className="card">
-        <h3>人员</h3>
-        <div className="tabs">
-          {data.people.map((p) => <button key={p.id} className="sm" title="修改" onClick={() => setAct(person(p))}>{p.name}</button>)}
-          <button className="sm" aria-pressed="true" onClick={() => setAct(person())}>新增人员</button>
-        </div>
+        <h3>人员 <span className="h3sub">{data.people.length} 人，取自人员档案</span></h3>
+        {/* 人员经费只从已有人员档案中选人；新人和改名由人事在人员档案页办（#79） */}
+        <p className="hint">排布时从人员档案中选人。名单里没有的新人，请人事先在「<a href="#/people">人员档案</a>」中登记；姓名有误的也在那里修改。</p>
+        <div className="tabs">{data.people.map((p) => <span key={p.id} className="sm tag">{p.name}</span>)}</div>
       </section>
 
       <section className="card">

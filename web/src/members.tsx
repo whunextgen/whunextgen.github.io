@@ -127,7 +127,7 @@ export function MembersPage({ me }: { me: Me }) {
         {rows.length === 0 ? <Empty>本学期的成员考核尚未发起。</Empty> : <>
           {mineRev.length > 0 && <section className="wb-sec"><h3>我的考核 <span className="h3sub">{curTerm} 学期</span></h3><ul className="path-hist">{mineRev.map((r) => <RevCard key={r.id} r={r} />)}</ul></section>}
           {todo.length > 0 && <section className="wb-sec"><h3>待我办理 <span className="h3sub">出具意见、写匿名短评或决定</span></h3><ul className="path-hist">{todo.map((r) => <RevCard key={r.id} r={r} />)}</ul></section>}
-          <section className="wb-sec"><h3>{curTerm} 学期全部 <span className="h3sub">{rows.length} 人；有表决权的成员和主持人看得到全部</span></h3>
+          <section className="wb-sec"><h3>{curTerm} 学期全部 <span className="h3sub">{rows.length} 人；有表决权的成员和主持人看得到全部；合作者只看到可写短评的</span></h3>
             <ul className="path-hist">{[...rows].filter((r) => !mineRev.includes(r) && !todo.includes(r)).sort((a, b) => a.user_name.localeCompare(b.user_name, 'zh')).map((r) => <RevCard key={r.id} r={r} />)}</ul></section>
         </>}
       </>}
