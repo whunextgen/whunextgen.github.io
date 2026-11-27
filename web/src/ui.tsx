@@ -107,7 +107,7 @@ export function ActionDialog({ title, hint, fields, submitLabel = '确认', dang
         try { await onSubmit(values); onClose(); } catch (err) { setError((err as Error).message); setBusy(false); }
       }}>
         <h3>{title}</h3>
-        {hint && <p className="hint">{hint}</p>}
+        {hint && <div className="hint">{hint}</div>}
         {fields.map((f) => f.type === 'check' ? (
           <label key={f.name} className="field check">
             <input type="checkbox" checked={values[f.name] === 'true'} onChange={(e) => setValues({ ...values, [f.name]: String(e.target.checked) })} /><span>{f.label}</span>
