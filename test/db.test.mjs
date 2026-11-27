@@ -3890,6 +3890,69 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok((await q(`select 1 from api.request_live`)).length <= (await q(`select 1 from api.request`)).length, '成员看到的不超过原视图');
 }
 
+// ---------- 财务岗补填公共课题、核定后调整核定数（#111） ----------
+{
+  await db.exec(`reset role`);
+  const YR = (await one(`select year, stage from budget_year order by year desc limit 1`));
+  const PUB = await one(`select p.id, p.owner_id from project p where p.layer = 'big' and p.active and p.kind = 'public' order by p.code limit 1`);
+  const CAT3 = (await one(`select id from budget_category where active order by sort limit 1`)).id;
+  await q(`update budget_year set stage = 'fixed', fixed_at = coalesce(fixed_at, now() - interval '1 day') where year = $1`, [YR.year]);
+  await q(`delete from project_budget_line l using project_budget b where b.id = l.budget_id and b.year = $1 and b.project_id = $2`, [YR.year, PUB.id]);
+  await q(`delete from project_budget where year = $1 and project_id = $2`, [YR.year, PUB.id]);
+  await db.exec(`set role app_api`);
+  if (PUB.owner_id && PUB.owner_id !== U.fin) {
+    await as(PUB.owner_id);
+    await raises('公共课题负责人截止后不能自己补填', /申报已截止|仅课题负责人/, `select save_budget_line(null, $1, $2, $3, '公共用途', 100, 0, 0, 0)`, [YR.year, PUB.id, CAT3]);
+  }
+  await as(U.fin);
+  ok((await q(`select 1 from api.special_budget_open where year = $1 and project_id = $2`, [YR.year, PUB.id])).length === 1, '财务岗看到公共课题可补填');
+  const LP = await val(`select save_budget_line(null, $1, $2, $3, '公共平台算力', 3000, 0, 0, 0) v`, [YR.year, PUB.id, CAT3]);
+  await q(`select set_project_budget($1, $2, 'submit')`, [YR.year, PUB.id]);
+  await db.exec(`reset role`);
+  ok(Number((await one(`select fixed from project_budget_line where id = $1`, [LP])).fixed) === 3000, '财务岗补交公共课题明细，提交即核定');
+  await db.exec(`set role app_api`);
+  await as(U.fin);
+  await raises('调整核定数须写原因', /请填写调整原因/, `select adjust_fixed($1, 2500, '')`, [LP]);
+  await q(`select adjust_fixed($1, 2500, '平台合并采购')`, [LP]);
+  await db.exec(`reset role`);
+  ok(Number((await one(`select fixed from project_budget_line where id = $1`, [LP])).fixed) === 2500, '财务岗下达前可以调整核定数');
+  ok((await q(`select 1 from budget_revision where line_id = $1 and new_amount = 2500`, [LP])).length === 1, '调整核定数记入预算调剂记录');
+  // 有档次的课题：调整后合计不得超过档次金额
+  const KT = await one(`select k.project_id, topic_fixed_cap(k.year, k.project_id) cap from tier_pick k where k.year = $1 and k.decided_tier_id is not null and not coalesce(k.rejected, false) limit 1`, [YR.year]);
+  let TK = null, made = null;
+  if (KT) {
+    await q(`insert into project_budget (year, project_id, status) values ($1, $2, 'draft') on conflict (year, project_id) do nothing`, [YR.year, KT.project_id]);
+    const BB = await one(`select id, status, issued_at from project_budget where year = $1 and project_id = $2`, [YR.year, KT.project_id]);
+    const used = Number((await one(`select coalesce(sum(fixed), 0) s from project_budget_line where budget_id = $1`, [BB.id])).s);
+    made = await id(`insert into project_budget_line (budget_id, category_id, purpose, q1, q2, q3, q4, fixed) values ($1, $2, '调整测试', 1, 0, 0, 0, 1)`, [BB.id, CAT3]);
+    await q(`update project_budget set status = 'submitted', issued_at = null where id = $1`, [BB.id]);
+    TK = { line_id: made, budget_id: BB.id, cap: Number(KT.cap) - used, prev: BB };
+  }
+  ok(!!TK, '测试数据里有已评定档次的课题，可以测档次上限');
+  if (TK) {
+    await db.exec(`set role app_api`);
+    await as(U.fin);
+    await raises('调整后不得超过档次金额', /超过档次金额/, `select adjust_fixed($1, $2, '加一点')`, [TK.line_id, Number(TK.cap) + 1]);
+    await db.exec(`reset role`);
+    await q(`update project_budget set issued_at = now() where id = $1`, [TK.budget_id]);
+    await db.exec(`set role app_api`);
+    await as(U.fin);
+    await raises('已下达的课题先撤销下达再调整', /先在「按课题审核下达」中撤销下达/, `select adjust_fixed($1, 1, '减一点')`, [TK.line_id]);
+    await db.exec(`reset role`);
+    await q(`delete from project_budget_line where id = $1`, [made]);
+    await q(`update project_budget set status = $2, issued_at = $3 where id = $1`, [TK.budget_id, TK.prev.status, TK.prev.issued_at]);
+  }
+  await db.exec(`set role app_api`);
+  await as(U.mem);
+  await raises('普通成员不能调整核定数', /./, `select adjust_fixed($1, 1, '想改')`, [LP]);
+  await db.exec(`reset role`);
+  await q(`delete from budget_revision where line_id = $1`, [LP]);
+  await q(`delete from project_budget_line where id = $1`, [LP]);
+  await q(`update budget_year set stage = $2 where year = $1`, [YR.year, YR.stage]);
+  await db.exec(`set role app_api`);
+  await as(U.dir);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {

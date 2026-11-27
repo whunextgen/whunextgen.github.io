@@ -252,6 +252,7 @@ export const RPC: Record<string, [string, string][]> = {
   set_request_line: [['id', 'uuid'], ['line_id', 'uuid']],
   review_project: [['year', 'int'], ['quarter', 'int'], ['project_id', 'uuid'], ['note', 'text']],
   revise_fixed: [['id', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
+  adjust_fixed: [['id', 'uuid'], ['amount', 'numeric'], ['note', 'text']],
   submit_split: [['expense_type_id', 'uuid'], ['title', 'text'], ['eta_date', 'date'], ['path', 'text'], ['parts', 'jsonb']],
   save_resource: [['id', 'uuid'], ['kind', 'text'], ['name', 'text'], ['ref', 'text'], ['total', 'numeric'], ['unit', 'text'], ['note', 'text'], ['active', 'boolean']],
   allocate_resource: [['resource_id', 'uuid'], ['user_id', 'uuid'], ['quota', 'numeric'], ['from_date', 'date'], ['to_date', 'date'], ['note', 'text']],
