@@ -145,7 +145,6 @@ function App() {
   }, []);
   // 本人是否在已立项的课题或研究单元里（负责人或成员）：支出申请、备用金、资源申领的入口据此显示。待立项的不算
   const [inTopic, setInTopic] = useState(false);
-  const [owns, setOwns] = useState(false);   // 本人是否负责某个已立项的课题或研究单元
   const [scholar, setScholar] = useState(false);   // 填写本人的谷歌学术主页
   const uid = me?.id;
   useEffect(() => {
@@ -153,7 +152,6 @@ function App() {
     Promise.all([view<Project>('project'), view<ProjectTag>('project_tag')]).then(([ps, tags]) => {
       const waiting = new Set(tags.filter((t) => t.proposed).map((t) => t.id));
       setInTopic(ps.some((p) => p.active && !waiting.has(p.id) && (p.mine || p.member)));
-      setOwns(ps.some((p) => p.active && !waiting.has(p.id) && p.owner_id === uid));
     }).catch(() => setInTopic(false));
   }, [uid, route === '/plan']);
   if (me === undefined) return <p className="empty">加载中…</p>;
@@ -282,7 +280,7 @@ function App() {
           ))}
         </nav>
         <div className="who">
-          <span><b>{me.name}</b><span>{owns && ROLE[me.role] === '成员' ? '负责人' : ROLE[me.role]}</span></span>
+          <span><b>{me.name}</b><span>{me.rank_label ?? ROLE[me.role]}</span></span>
           <button className="ghost sm" onClick={() => setScholar(true)} title={me.scholar_url ?? '填写本人的谷歌学术主页'}>学术主页</button>
           <button className="ghost sm" onClick={() => logout().finally(() => location.reload())}>退出</button>
         </div>
