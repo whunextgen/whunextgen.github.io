@@ -647,11 +647,11 @@ async function extractQueries(env: Env) {
 }
 
 // ---------- 反馈转 GitHub issue ----------
-export function feedbackIssue(f: { seq: number; body: string; page: string | null; page_title: string | null; user_name: string; created_at: string | Date }, origin = 'https://clain-finance.pages.dev') {
+export function feedbackIssue(f: { seq: number; body: string; page: string | null; page_title: string | null; user_name: string; created_at: string | Date; owner?: string | null }, origin = 'https://clain-finance.pages.dev') {
   const first = f.body.trim().split('\n')[0].slice(0, 50);
   const at = new Date(new Date(f.created_at).getTime() + 8 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
   const page = f.page ? `${f.page_title ? `${f.page_title}（${origin}/${f.page.replace(/^\/+/, '')}）` : `${origin}/${f.page.replace(/^\/+/, '')}`}` : '未记录';
-  return { title: `[反馈 #${f.seq}] ${first}`, body: `**提交人**：${f.user_name}\n**时间**：${at}（北京时间）\n**页面**：${page}\n\n---\n\n${f.body.trim()}\n\n<sub>由正则的反馈按钮提交</sub>`, labels: ['反馈'] };
+  return { title: `[反馈 #${f.seq}] ${first}`, body: `**提交人**：${f.user_name}\n**时间**：${at}（北京时间）\n**页面**：${page}\n**负责**：${f.owner || '济民（中台程序）'}（按页面所属岗位自动分派）\n\n---\n\n${f.body.trim()}\n\n<sub>由正则的反馈按钮提交</sub>`, labels: ['反馈'] };
 }
 // 飞书头像补齐：没登录过的成员，经通讯录接口按 union_id 取头像；取不到的（无权限、不在通讯录范围）记下时间，7 天后再试
 async function avatarSync(env: Env) {
@@ -669,7 +669,7 @@ async function avatarSync(env: Env) {
   }
 }
 async function feedbackSync(env: Env) {
-  const todo = await withUser(env, null, (sql) => sql`select id, seq, body, page, page_title, user_name, created_at from public.feedback_todo()`).catch(() => []);
+  const todo = await withUser(env, null, (sql) => sql`select id, seq, body, page, page_title, user_name, created_at, owner from public.feedback_todo()`).catch(() => []);
   if (!todo.length) return;
   for (const f of todo) {
     let num: number | null = null; let url: string | null = null; let err: string | null = null;
@@ -1399,7 +1399,11 @@ export default {
         const up = await feishu('/im/v1/images', { method: 'POST', headers: { authorization: `Bearer ${tok.tenant_access_token}` }, body: fd }).catch(() => null);
         if (up?.code === 0 && up.data?.image_key) body.img_key = String(up.data.image_key); else markNote = `通报的图未传上去，卡片不带图。飞书返回 ${up?.code}：${String(up?.msg ?? '').slice(0, 120)}`;
       }
-      let r = await send('interactive', noticeCard({ ...body, group }, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev', env.FEISHU_APP_ID, markKeys, actToken).card);
+      // 协助群里分派给人的消息（带 @ 的）发纯文字：各家的 agent 读不了卡片
+      const plain = group && (body.plain === true || (m.target_id === 'assist' && ((body.mention ?? []).length > 0 || (body.mention_ids ?? []).length > 0)));
+      let r = plain
+        ? await send('text', { text: `${(body.mention_ids ?? []).filter((x: { id: string }) => /^ou_[0-9a-z]{10,64}$/.test(x.id)).map((x: { id: string; name: string }) => `<at user_id="${x.id}">${x.name}</at> `).join('')}${body.text}${typeof body.url === 'string' && /^https:\/\/\S+$/.test(body.url) ? `\n${body.url}` : ''}` })
+        : await send('interactive', noticeCard({ ...body, group }, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev', env.FEISHU_APP_ID, markKeys, actToken).card);
       const why = (x: any) => `飞书返回 ${x?.code}：${String(x?.msg ?? '').slice(0, 200)}`;
       let note: string | null = [markNote, mentionNote].filter(Boolean).join('；') || null;
       if (r?.code !== 0) { note = `卡片未发出，已改发文字。${why(r)}`; r = await send('text', { text: `${group && body.all === true ? '<at user_id="all">所有人</at> ' : ''}${(body.mention_ids ?? []).map((x: { id: string; name: string }) => `<at user_id="${x.id}">${x.name}</at> `).join('')}【正则】${body.text}` }); }
