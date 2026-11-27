@@ -87,7 +87,7 @@ export function Rules({ me }: { me: Me }) {
           <h3>支出类型</h3>
           <p className="hint">提交支出申请时须选择类型，规则按类型记录。类型仅可新增和修改，不可删除。</p>
           <div className="tabs">
-            {types.map((t) => <button key={t.id} className="sm" onClick={() => setEdit(t)} title="修改">{t.name}{t.required_path ? ` · ${t.required_path}` : ''}</button>)}
+            {types.map((t) => <button key={t.id} className="sm" onClick={() => setEdit(t)} title="修改">{t.name}{t.required_path ? ` · ${t.required_path}` : ''}{t.finance_only ? ' · 仅财务岗' : ''}</button>)}
             <button className="sm" aria-pressed="true" onClick={() => setEdit('new')}>新增类型</button>
           </div>
         </section>
@@ -95,8 +95,9 @@ export function Rules({ me }: { me: Me }) {
       {edit && <ActionDialog title={edit === 'new' ? '新增支出类型' : '修改支出类型'} submitLabel="保存"
         hint={edit === 'new' ? '例如：电脑、差旅、会议、劳务、云服务。' : '更名将同步变更已有答复和申请中显示的名称。'}
         fields={[{ name: 'name', label: '名称', value: edit === 'new' ? '' : edit.name },
-          { name: 'required_path', label: '须采用的采购路径（无要求的留空）', required: false, options: PATH_OPTS, value: edit === 'new' ? '' : edit.required_path ?? '' }]}
-        onSubmit={async (v) => { await rpc('save_expense_type', { id: edit === 'new' ? null : edit.id, name: v.name, required_path: v.required_path || null }); reload(); }}
+          { name: 'required_path', label: '须采用的采购路径（无要求的留空）', required: false, options: PATH_OPTS, value: edit === 'new' ? '' : edit.required_path ?? '' },
+          { name: 'finance_only', label: '仅由财务岗办理（如 API 充值：课题不提交，使用额度走资源申领）', type: 'check', value: edit !== 'new' && edit.finance_only ? 'true' : 'false' }]}
+        onSubmit={async (v) => { const tid = await rpc('save_expense_type', { id: edit === 'new' ? null : edit.id, name: v.name, required_path: v.required_path || null }) as string; await rpc('set_type_finance_only', { id: edit === 'new' ? tid : edit.id, on: v.finance_only === 'true' }); reload(); }}
         onClose={() => setEdit(null)} />}
 
       <section className="card">

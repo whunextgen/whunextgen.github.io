@@ -163,7 +163,7 @@ export function subjectsOf(all: Subject[], card: { id: string; template_id: stri
   return (own.length > 0 ? own : all.filter((x) => x.template_id === card.template_id && !x.card_id)).sort((a, b) => a.sort - b.sort);
 }
 export interface CardSubjectMap { card_id: string; ledger_subject_id: string; ledger_code: string; ledger_name: string; subject_id: string }
-export interface ExpenseType { id: string; name: string; required_path: string | null }
+export interface ExpenseType { id: string; name: string; required_path: string | null; finance_only?: boolean }
 export type ReqStatus = 'pending' | 'committed' | 'at_school' | 'posted' | 'returned' | 'released' | 'rejected';
 export interface Req {
   id: string; code: string | null; card_id: string | null; subject_id: string; expense_type_id: string; title: string; amount: string;

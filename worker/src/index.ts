@@ -120,6 +120,7 @@ export const RPC: Record<string, [string, string][]> = {
   link_person: [['person', 'uuid'], ['user', 'uuid']],
   ignore_person: [['person', 'uuid'], ['note', 'text']],
   void_posted: [['id', 'uuid'], ['reason', 'text']],
+  set_type_finance_only: [['id', 'uuid'], ['on', 'boolean']],
   edit_posted: [['id', 'uuid'], ['title', 'text'], ['amount', 'numeric'], ['reason', 'text']],
   unignore_person: [['person', 'uuid']],
   open_arr_cycle: [['name', 'text']],

@@ -761,6 +761,16 @@ await as(U.fin, D7);
 ok((await one(`select card_id from api.request where id = $1`, [pr2])).card_id === C.C, '回收卡上这一行剩的不够时自动落到下一张卡');
 await as(U.mem2, D7);
 await raises('超出预算的支出不能走紧急通道', /拦截：超出预算的支出不得使用紧急通道/, `select submit_project_request($1, $2, '超预算', 50000, '2027-06-30', true)`, [L1, TY['服务器与 GPU']]);
+// 仅财务岗办理的支出类型（API 充值）：课题不提交，使用额度走资源申领
+await as(U.mem2, D7);
+await raises('成员不能标记支出类型', /需要权限|当前角色/, `select set_type_finance_only($1, true)`, [TY['API 充值']]);
+await as(U.fin, D7);
+await q(`select set_type_finance_only($1, true)`, [TY['API 充值']]);
+await as(U.mem2, D7);
+await raises('成员不能从预算行提交 API 充值', /由财务岗统一办理.*资源申领/, sp, [L1, TY['API 充值'], '充值', 100, '2027-06-30']);
+await as(U.lead, D7);
+await raises('课题负责人也不能提交 API 充值', /由财务岗统一办理/, sp, [L1, TY['API 充值'], '充值', 100, '2027-06-30']);
+ok((await one(`select finance_only from api.expense_type where id = $1`, [TY['API 充值']])).finance_only === true, 'API 充值标为仅财务岗办理');
 // 没有答复的不再拦截（#173）；明确答复不能列支的仍拦截
 await as(U.fin, D7);
 await q(`select add_ruling($1, $2, '2027-06-01', '财务岗', 'no', '该卡不列支会员订阅')`, [G, TY['会员订阅']]);
