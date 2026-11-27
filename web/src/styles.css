@@ -24,7 +24,7 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:1px}
 .brand b{display:block;font-size:14px;font-weight:600;line-height:1.3}
 .brand span span{display:block;font-size:11px;color:var(--mute);line-height:1.3}
 .sb nav{flex:1;overflow-y:auto;padding:4px 10px 16px}
-.sb nav a{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;text-decoration:none;color:#3d4046;font-size:13.5px;transition:background .2s,color .2s}
+.sb nav a{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;text-decoration:none;color:var(--nav-ink,#3d4046);font-size:13.5px;transition:background .2s,color .2s}
 .sb nav a:hover{background:var(--raise);color:var(--ink)}
 .sb nav a.on{background:var(--brand-soft);color:var(--brand);font-weight:600}
 .sb nav a.home{margin-bottom:2px}
@@ -60,9 +60,9 @@ main{flex:1;width:100%;max-width:1480px;margin:0 auto;padding:0 clamp(16px,2.4vw
 
 /* 按钮与表单 */
 select,input,button,textarea{font:inherit;color:inherit}
-button,.btn{border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:500;cursor:pointer;text-decoration:none;display:inline-block;line-height:1.5;
+button,.btn{border:1px solid var(--btn,var(--ink));background:var(--btn,var(--ink));color:var(--btn-ink,#fff);border-radius:8px;padding:6px 14px;font-size:13px;font-weight:500;cursor:pointer;text-decoration:none;display:inline-block;line-height:1.5;
   transition:background .2s,color .2s,border-color .2s,transform .2s}
-button:hover:not(:disabled),.btn:hover{background:var(--brand);border-color:var(--brand);color:#fff}
+button:hover:not(:disabled),.btn:hover{background:var(--btn-hover,var(--brand));border-color:var(--btn-hover,var(--brand));color:var(--btn-ink,#fff)}
 button:active:not(:disabled),.btn:active{transform:scale(.98)}
 button.ghost,.btn.ghost{background:var(--paper);color:var(--ink);border-color:var(--line)}
 button.ghost:hover:not(:disabled),.btn.ghost:hover{background:var(--raise);border-color:#c9c9c4;color:var(--ink)}
@@ -725,3 +725,9 @@ details.fold[open] > summary { color: var(--mute, #6a6e75); }
 @media (max-width:600px){.body{padding-bottom:56px}}
 /* 各期记录在窄屏局部横滑，不撑宽整页（#124） */
 .ir-scroll{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+
+/* 配色投票（#49） */
+.palette-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.palette-opt{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--paper)}
+.palette-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px clamp(16px,2.4vw,32px);background:var(--brand-soft);color:var(--ink);font-size:13px;border-bottom:1px solid var(--line)}
+.palette-bar a{color:var(--brand);font-weight:600}

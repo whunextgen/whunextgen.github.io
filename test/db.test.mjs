@@ -3993,6 +3993,27 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// ---------- 配色投票（#49） ----------
+{
+  await as(U.mem);
+  ok((await q(`select code from api.palette_option`)).length === 4, '四套候选配色');
+  await db.exec(`reset role`);
+  const was = (await one(`select closes_at from palette_poll`)).closes_at;
+  await q(`update palette_poll set closes_at = now() + interval '1 day'`);
+  await db.exec(`set role app_api`);
+  await as(U.mem);
+  await q(`select vote_palette('azure')`); await q(`select vote_palette('jade')`);
+  const mine = await q(`select code, votes, mine from api.palette_option where mine`);
+  ok(mine.length === 1 && mine[0].code === 'jade', '每人一票，可以改投', JSON.stringify(mine));
+  await raises('没有的配色不能投', /没有这套配色/, `select vote_palette('pink')`);
+  await q(`select vote_palette(null)`);
+  ok((await q(`select 1 from api.palette_option where mine`)).length === 0, '可以撤回');
+  await db.exec(`reset role`);
+  await q(`update palette_poll set closes_at = $1`, [was]);
+  await db.exec(`set role app_api`);
+  await as(U.dir);
+}
+
 // ---------- 飞书通知：去重、合并、顺序、直达（#126 #127 #139 #140） ----------
 {
   await db.exec(`reset role`);
