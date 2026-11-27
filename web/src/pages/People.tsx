@@ -5,7 +5,7 @@ import { ActionDialog, Badge, Empty, Loading, PERSON, Tile, can, day, type Field
 
 const KIND: Record<string, string> = { ...PERSON, external: '外部人员' };
 const KINDS = Object.entries(KIND);
-const STATUS: Record<Person['status'], [string, string]> = { active: ['在岗', 'ok'], offroll: ['非编', ''], left: ['已离开', ''], pending: ['待确认', 'warn'] };
+const STATUS: Record<Person['status'], [string, string]> = { active: ['在岗', 'ok'], offroll: ['非编', ''], left: ['已离开', ''], pending: ['待确认', 'warn'], ignored: ['已忽略', ''] };
 const SETTABLE: [string, string][] = [['active', '在岗'], ['offroll', '非编'], ['left', '已离开']];
 interface Act { title: string; hint?: string; label: string; fields: Field[]; run: (v: Record<string, string>) => Promise<unknown> }
 
@@ -20,11 +20,12 @@ export function People({ me }: { me: Me }) {
   const all = data.people;
   const linked = new Set(all.filter((p) => p.user_id).map((p) => p.user_id));
   const pending = all.filter((p) => p.status === 'pending');
+  const ignored = all.filter((p) => p.status === 'ignored');
   const orphans = data.users.filter((u) => u.active && !linked.has(u.id));           // 启用的账号，没有档案
-  const free = all.filter((p) => !p.user_id && p.status !== 'pending');             // 还没有对应账号的档案
+  const free = all.filter((p) => !p.user_id && p.status !== 'pending' && p.status !== 'ignored');   // 还没有对应账号的档案
   const unlogged = free.filter((p) => p.status === 'active' || p.status === 'offroll');
   const on = all.filter((p) => p.status === 'active' || p.status === 'offroll');
-  const rows = all.filter((p) => p.status !== 'pending')
+  const rows = all.filter((p) => p.status !== 'pending' && p.status !== 'ignored')
     .filter((p) => (show === 'all' ? true : show === 'left' ? p.status === 'left' : p.status !== 'left'))
     .filter((p) => !kind || (kind === 'none' ? !p.kind : p.kind === kind))
     .sort((a, b) => (a.no ? 0 : 1) - (b.no ? 0 : 1) || (a.no ?? '').localeCompare(b.no ?? '', 'en', { numeric: true }) || a.name.localeCompare(b.name, 'zh'));
@@ -51,6 +52,11 @@ export function People({ me }: { me: Me }) {
     hint: '此人已有档案（比如名单里登记过，但飞书上的名字不同）时，选出那条档案，这个账号就对到它上面，待确认的这一条删掉。',
     fields: [{ name: 'person', label: '已有档案（尚未对应账号的）', options: free.map((x): [string, string] => [x.id, `${x.no ? x.no + ' ' : ''}${x.name}${x.kind ? '（' + KIND[x.kind] + '）' : ''}${x.status === 'left' ? ' · 已离开' : ''}`]) }],
     run: (v) => rpc('link_person', { person: v.person, user: p.user_id }) });
+  const ignoreAct = (p: Person): Act => ({ title: `忽略：${p.name}`, label: '忽略',
+    hint: '不是本中心人员、或不该开通账号的，可以忽略：账号保持停用，此人再登录也不会再提醒。忽略后列在本页「已忽略」里，可以恢复。',
+    fields: [{ name: 'note', label: '理由（比如「不是本中心人员」「重复的飞书账号」）', type: 'area', value: '' }],
+    run: (v) => rpc('ignore_person', { person: p.id, note: v.note }) });
+  const unignore = (p: Person) => { if (confirm(`把 ${p.name} 恢复为待确认？恢复后在「待处理」里确认在岗或并入。`)) rpc('unignore_person', { person: p.id }).then(reload).catch((e) => alert(e?.message ?? String(e))); };
   const fillAct = (u: User): Act => ({ title: `补档案：${u.name}`, label: '保存',
     hint: '这个账号在用，但没有人员档案。可以新建一条，也可以在下面选一条已有的档案对上（选了已有档案，其余各项不用填）。',
     fields: [{ name: 'person', label: '对到已有档案（可不选）', options: free.map((x): [string, string] => [x.id, `${x.no ? x.no + ' ' : ''}${x.name}`]), required: false }, ...fields({ name: u.name, kind: u.kind ?? undefined })],
@@ -77,7 +83,7 @@ export function People({ me }: { me: Me }) {
             <tbody>
               {pending.map((p) => (
                 <tr key={p.id}><td><b>{p.name}</b></td><td><Badge tone="warn">待确认</Badge><span className="sub2">已用飞书登录，没有对应的档案，账号未启用</span></td>
-                  <td className="r">{edit && <div className="acts">{btn(confirmAct(p))}{free.length > 0 && btn(mergeAct(p), 'sm ghost')}</div>}</td></tr>))}
+                  <td className="r">{edit && <div className="acts">{btn(confirmAct(p))}{free.length > 0 && btn(mergeAct(p), 'sm ghost')}{btn(ignoreAct(p), 'sm ghost')}</div>}</td></tr>))}
               {orphans.map((u) => (
                 <tr key={u.id}><td><b>{u.name}</b></td><td><Badge>无档案</Badge><span className="sub2">账号在用，尚未建档{u.kind ? `；账号上登记的身份是${PERSON[u.kind] ?? u.kind}` : ''}</span></td>
                   <td className="r">{edit && <div className="acts">{btn(fillAct(u))}</div>}</td></tr>))}
@@ -112,6 +118,19 @@ export function People({ me }: { me: Me }) {
           </table></div>
         )}
       </section>
+      {ignored.length > 0 && (
+        <details className="card">
+          <summary><h3 style={{ display: 'inline' }}>已忽略 <span className="h3sub">{ignored.length} 人</span></h3></summary>
+          <p className="sub2" style={{ marginLeft: 0 }}>用飞书登录过、经人事忽略的人，账号保持停用，再登录也不提醒。</p>
+          <div className="scroll"><table>
+            <thead><tr><th>姓名</th><th>理由</th><th>忽略</th><th /></tr></thead>
+            <tbody>{ignored.map((p) => (
+              <tr key={p.id}><td><b>{p.name}</b></td><td className="wrap">{p.ignore_note ?? '—'}</td>
+                <td>{p.ignored_by_name ?? '—'}{p.ignored_at && <div className="sub2" style={{ marginLeft: 0 }}>{day(p.ignored_at)}</div>}</td>
+                <td className="r">{edit && <button className="sm ghost" onClick={() => unignore(p)}>恢复</button>}</td></tr>))}</tbody>
+          </table></div>
+        </details>
+      )}
       <ArrAdmin me={me} users={data.users} />
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.label} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
     </>

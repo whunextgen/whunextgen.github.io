@@ -2195,6 +2195,30 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const merged = await one(`select user_id, has_feishu, account_active from api.person where id = $1`, [po]);
   ok(merged.user_id === n2.id && merged.has_feishu === true && merged.account_active === true && (await acct(n2.id)).kind === 'phd', '待确认的账号并入已有档案后启用，身份随档案');
   eq((await q(`select 1 from api.person where name = '老成员的飞书名'`)).length, 0, '原来那条待确认的档案并掉');
+  // 忽略待确认的人（#175）：写明理由，账号保持停用，再登录不重复提醒；可以恢复
+  await as(null, D);
+  const ig = await one(`select id from login_feishu('ou_outsider', '外人', null, 'on_outsider')`);
+  await as(U.fin, D);
+  const igp = await val(`select id v from api.person where user_id = $1`, [ig.id]);
+  await raises('忽略要写理由', /请写明忽略的理由/, `select ignore_person($1, ' ')`, [igp]);
+  await raises('只有待确认的可以忽略', /只有待确认的人可以忽略/, `select ignore_person($1, '不是本中心人员')`, [po]);
+  await as(U.mem2, D);
+  await raises('成员不能忽略', /需要权限|当前角色/, `select ignore_person($1, '不是本中心人员')`, [igp]);
+  await as(U.fin, D);
+  await q(`select ignore_person($1, '不是本中心人员')`, [igp]);
+  const igr = await one(`select status, ignore_note, ignored_by_name, account_active from api.person where id = $1`, [igp]);
+  ok(igr.status === 'ignored' && igr.ignore_note === '不是本中心人员' && !!igr.ignored_by_name && igr.account_active === false, '忽略后档案记为已忽略，留理由和经办人，账号保持停用');
+  const ob = (await (async () => { await db.exec(`reset role`); const r = await one(`select count(*)::int n from feishu_outbox`); await db.exec(`set role app_api`); return r; })()).n;
+  await as(null, D);
+  ok((await one(`select id, active from login_feishu('ou_outsider', '外人', null, 'on_outsider')`)).active === false, '被忽略的人再登录仍进不来');
+  await db.exec(`reset role`); eq((await one(`select count(*)::int n from feishu_outbox`)).n, ob, '被忽略的人再登录不再提醒人事'); await db.exec(`set role app_api`);
+  await as(U.fin, D);
+  await raises('没被忽略的不能恢复', /没有被忽略/, `select unignore_person($1)`, [po]);
+  await q(`select unignore_person($1)`, [igp]);
+  ok((await one(`select status, ignore_note from api.person where id = $1`, [igp])).status === 'pending', '恢复为待确认');
+  await q(`select ignore_person($1, '再忽略一次')`, [igp]);
+  await q(save, rec(igp, '外人', 'visitor', 'offroll'));
+  ok((await acct(ig.id)).active === true, '已忽略的改为在岗或非编，账号启用');
   // 档案已离开的，预先登记了飞书身份也进不来
   const pl = await val(save, rec(null, '已走的人', 'ri', 'left'));
   await db.exec(`reset role`); await db.query(`update person set feishu_union_id = 'on_left' where id = $1`, [pl]); await db.exec(`set role app_api`);

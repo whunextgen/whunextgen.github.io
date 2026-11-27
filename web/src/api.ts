@@ -180,8 +180,9 @@ export interface Rule { card_id: string; expense_type_id: string; ruled_on: stri
 export interface Ruling extends Rule { id: string; source: string | null }
 export interface FundEvent { id: string; card_id: string; kind: string; event_date: string; amount: string; todo: string | null; done: boolean; created_at: string }
 export interface ReqEvent { id: string; request_id: string; at: string; kind: string; note: string | null }
-// 人员档案：独立于账号。status：active 在岗，offroll 非编，left 已离开，pending 待人事确认（已登录、没有档案）
-export interface Person { id: string; name: string; no: string | null; kind: Kind | 'external' | null; status: 'active' | 'offroll' | 'left' | 'pending';
+// 人员档案：独立于账号。status：active 在岗，offroll 非编，left 已离开，pending 待人事确认（已登录、没有档案），ignored 人事已忽略（不是本中心人员等）
+export interface Person { id: string; name: string; no: string | null; kind: Kind | 'external' | null; status: 'active' | 'offroll' | 'left' | 'pending' | 'ignored';
+  ignore_note?: string | null; ignored_at?: string | null; ignored_by_name?: string | null;
   joined_on: string | null; left_on: string | null; edu: string | null; school: string | null; direction: string | null; mentor: string | null; note: string | null;
   user_id: string | null; account_name: string | null; account_active: boolean | null; has_feishu: boolean; has_pay: boolean; updated_at: string }
 export interface PayType { id: string; name: string; subject_code: string; monthly_cap: string | null }

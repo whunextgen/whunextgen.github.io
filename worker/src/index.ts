@@ -118,6 +118,8 @@ export const RPC: Record<string, [string, string][]> = {
   save_person_record: [['id', 'uuid'], ['no', 'text'], ['name', 'text'], ['kind', 'text'], ['status', 'text'], ['joined', 'date'], ['left', 'date'],
     ['edu', 'text'], ['school', 'text'], ['direction', 'text'], ['mentor', 'text'], ['note', 'text']],
   link_person: [['person', 'uuid'], ['user', 'uuid']],
+  ignore_person: [['person', 'uuid'], ['note', 'text']],
+  unignore_person: [['person', 'uuid']],
   open_arr_cycle: [['name', 'text']],
   save_arr_sponsor: [['user', 'uuid'], ['qualified', 'boolean'], ['quota', 'int'], ['note', 'text'], ['offline', 'int']],
   ask_arr: [['project', 'uuid'], ['sponsor', 'uuid']],
