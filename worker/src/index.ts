@@ -653,6 +653,21 @@ export function feedbackIssue(f: { seq: number; body: string; page: string | nul
   const page = f.page ? `${f.page_title ? `${f.page_title}（${origin}/${f.page.replace(/^\/+/, '')}）` : `${origin}/${f.page.replace(/^\/+/, '')}`}` : '未记录';
   return { title: `[反馈 #${f.seq}] ${first}`, body: `**提交人**：${f.user_name}\n**时间**：${at}（北京时间）\n**页面**：${page}\n\n---\n\n${f.body.trim()}\n\n<sub>由正则的反馈按钮提交</sub>`, labels: ['反馈'] };
 }
+// 飞书头像补齐：没登录过的成员，经通讯录接口按 union_id 取头像；取不到的（无权限、不在通讯录范围）记下时间，7 天后再试
+async function avatarSync(env: Env) {
+  const todo = await withUser(env, null, (sql) => sql`select user_id, union_id from public.feishu_avatar_todo(30)`).catch(() => []);
+  if (!todo.length) return;
+  const tok = await feishu('/auth/v3/tenant_access_token/internal', { method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ app_id: env.FEISHU_BOT_APP_ID || env.FEISHU_APP_ID, app_secret: env.FEISHU_BOT_APP_SECRET || env.FEISHU_APP_SECRET }) }).catch(() => null);
+  if (!tok?.tenant_access_token) return;
+  for (const t of todo as { user_id: string; union_id: string }[]) {
+    const r = await feishu(`/contact/v3/users/${encodeURIComponent(t.union_id)}?user_id_type=union_id`, { headers: { authorization: `Bearer ${tok.tenant_access_token}` } }).catch(() => null);
+    const a = r?.data?.user?.avatar ?? {};
+    const url = String(a.avatar_240 || a.avatar_640 || a.avatar_origin || a.avatar_72 || '');
+    if (r?.code !== 0) console.error('取飞书头像', r?.code, String(r?.msg ?? '').slice(0, 120));
+    await withUser(env, null, (sql) => sql`select public.feishu_avatar_save(${t.user_id}::uuid, ${/^https:\/\/\S+$/.test(url) ? url : null})`).catch((e) => console.error('存飞书头像', e));
+  }
+}
 async function feedbackSync(env: Env) {
   const todo = await withUser(env, null, (sql) => sql`select id, seq, body, page, page_title, user_name, created_at from public.feedback_todo()`).catch(() => []);
   if (!todo.length) return;
@@ -1099,6 +1114,9 @@ export default {
         if (env.FEISHU_TENANT_KEY && u.tenant_key !== env.FEISHU_TENANT_KEY) return json({ error: '仅限本单位飞书账号登录' }, 403);
         const [row] = await withUser(env, null, (sql) =>
           sql`select id, active from login_feishu(${u.open_id}, ${u.name ?? ''}, ${u.enterprise_email || u.email || null}, ${u.union_id ?? null})`);
+        // 飞书头像：登录时顺带记下（中心网站有照片的仍以网站为准，见 api.me）
+        const av = String(u.avatar_big || u.avatar_middle || u.avatar_url || '');
+        if (/^https:\/\/\S+$/.test(av)) await withUser(env, null, (sql) => sql`select public.feishu_avatar_save(${row.id}::uuid, ${av})`).catch((e) => console.error('存飞书头像', e));
         // 账号未启用：没有人员档案的新面孔待人事确认，或者已停用。不发会话，回到登录页说明
         if (!row.active) return new Response(null, { status: 302, headers: { location: `${appOrigin}/?wait=1`, 'set-cookie': setCookie('fp_state', '', 0) } });
         const back = safeTo(await verify(env.SESSION_SECRET, 'to', jar.fp_to));
@@ -1287,6 +1305,8 @@ export default {
     // 录音整理每轮（5 分钟）都查：会议结束满 1 小时后取逐字稿、提取质疑草稿；没取到的 20 小时后重试，最多 3 次。
     // 待办查询很轻，没有待办时不调飞书和模型。原来每天只在凌晨 4 点跑，凌晨 3 点后自动结束的会要多等一天（2026-11-26 医疗研讨会）
     await transcriptSync(env).catch((e) => console.error('录音整理', e));
+    // 飞书头像补齐每小时一轮（每小时头 5 分钟）
+    if (new Date().getUTCMinutes() < 5) await avatarSync(env).catch((e) => console.error('飞书头像', e));
     const batch = await withUser(env, null, (sql) => sql`select msg_id, target_id, body from public.outbox_take(20)`);
     if (!batch.length) return;
     const tok = await feishu('/auth/v3/tenant_access_token/internal', {
