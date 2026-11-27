@@ -3776,7 +3776,13 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
     await as(TP.owner_id);
     const LN = await val(`select save_budget_line(null, $1, $2, $3, '基线复现的 API 调用', 0, 0, 2000, 0) v`, [Y27.year, TP.id, CAT]);
     ok(!!LN, '特批的课题在核定后可以补填明细');
+    await q(`select set_line_resource($1, $2, 500)`, [LN, rs]);
+    await db.exec(`reset role`);
+    ok(Number((await one(`select plan_qty from project_budget_line where id = $1`, [LN])).plan_qty) === 500, '补报预算时也能填资源计划（#166）');
+    await db.exec(`set role app_api`);
+    await as(TP.owner_id);
     await q(`select set_project_budget($1, $2, 'submit')`, [Y27.year, TP.id]);
+    await raises('补报的预算提交后，资源计划由财务岗调整', /预算提交后，资源计划由财务岗在复盘时调整/, `select set_line_resource($1, $2, 600)`, [LN, rs]);
     await db.exec(`reset role`);
     ok(Number((await one(`select fixed from project_budget_line where id = $1`, [LN])).fixed) === 2000, '提交即按明细核定');
     const OT = await one(`select p.id, p.owner_id from project p where p.layer = 'big' and p.active and p.kind <> 'public' and p.id <> $1 and p.owner_id is not null
