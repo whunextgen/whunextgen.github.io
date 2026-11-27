@@ -1346,7 +1346,8 @@ export default {
     for (const m of batch) {
       if (!tok?.tenant_access_token) { results.push([String(m.msg_id), false, '无法获取应用凭证']); continue; }
       const body = typeof m.body === 'string' ? JSON.parse(m.body) : m.body;
-      const group = m.target_id === 'group' || m.target_id === 'assist';
+      // 发到其他群（如办公群）：target 直接写群编号 oc_…，正则须已在群里
+      const group = m.target_id === 'group' || m.target_id === 'assist' || /^oc_[0-9a-z]{10,64}$/.test(String(m.target_id));
       const to = m.target_id === 'group' ? env.NOTICE_CHAT_ID : m.target_id === 'assist' ? env.ASSIST_CHAT_ID : String(m.target_id);
       if (!to) { results.push([String(m.msg_id), false, m.target_id === 'assist' ? '未配置协助群' : '未配置全员群']); continue; }
       const direct = (msg_type: string, content: unknown) => feishu(`/im/v1/messages?receive_id_type=${group ? 'chat_id' : to.startsWith('on_') ? 'union_id' : 'open_id'}`, {
