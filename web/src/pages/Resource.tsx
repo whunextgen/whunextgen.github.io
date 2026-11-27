@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { rpc, secretGet, secretSet, useViews, type Allocation, type Me, type Project, type ProjectTag, type Req, type Resource, type ResourcePick, type ResourcePlan, type ResourceRequest, type ResourceStock, type YearCheck, type ResReqStatus,
-  type SecretAccess, type User } from '../api';
+  type SecretAccess, type User, type LinePick } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, PERSON, Tile, canPublic, day, money, num, today, type Field } from '../ui';
 
 export interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
@@ -46,8 +46,8 @@ const keyAct = (kind: 'resource' | 'allocation', id: string, name: string, has: 
 // ---------- 申请与名下：所有人 ----------
 export function ResourcePage({ me }: { me: Me }) {
   const staff = can(me, 'read.resource');
-  const { data, error, reload } = useViews<{ allocs: Allocation[]; plans: ResourcePlan[]; reqs: ResourceRequest[]; projects: Project[]; tags: ProjectTag[] }>({
-    allocs: ['allocation'], plans: ['resource_plan'], reqs: ['resource_request'], projects: ['project'], tags: ['project_tag'],
+  const { data, error, reload } = useViews<{ allocs: Allocation[]; plans: ResourcePlan[]; reqs: ResourceRequest[]; projects: Project[]; tags: ProjectTag[]; lines: LinePick[]; picks: ResourcePick[] }>({
+    allocs: ['allocation'], plans: ['resource_plan'], reqs: ['resource_request'], projects: ['project'], tags: ['project_tag'], lines: ['line_pick'], picks: ['resource_pick'],
   });
   const [act, setAct] = useState<Act | null>(null);
   const [key, setKey] = useState<Allocation | null>(null);
@@ -62,23 +62,35 @@ export function ResourcePage({ me }: { me: Me }) {
   // 公共资源只有一种：中心公共开支里给博士后、博士、硕士、研究助理个人申领的设备。其余资源都在各研究单元自己的预算里，跟研究单元负责人走
   const pub = plans.filter((p) => p.project_kind === 'public'), own = plans.filter((p) => p.project_kind !== 'public');
   const eligible = canPublic(me.kind);
-  const lineOpts = (kind: 'api' | 'asset') => plans.filter((p) => p.kind === kind && (p.project_kind !== 'public' || eligible)).map((p): [string, string] =>
-    [p.id, `${p.project_code} ${p.purpose} · ${p.resource_name}，计划 ${qty(p.plan_qty, p.unit)}，剩余 ${qty(rest(p), p.unit)}`]);
-  const none = (kind: 'api' | 'asset') => (lineOpts(kind).length ? '' : `本年度预算中暂无${KIND[kind]}的资源计划，暂不能提交申请。如需使用，请研究单元负责人在年度预算中补充；年中追加的，由财务岗在复盘时调整。`);
+  // 接口额度还可以挂在本人课题已下达、尚未编资源计划的预算行上，财务岗批准时追加资源计划（#158）；中心公共开支不列支接口额度
+  const planned = new Set(data.plans.map((p) => p.id));
+  const pubIds = new Set(data.projects.filter((p) => p.kind === 'public').map((p) => p.id));
+  const bare = data.lines.filter((l) => !planned.has(l.id) && !pubIds.has(l.project_id))
+    .sort((a, b) => a.project_code.localeCompare(b.project_code) || a.purpose.localeCompare(b.purpose, 'zh'));
+  const apis = data.picks.filter((r) => r.kind === 'api');
+  const lineOpts = (kind: 'api' | 'asset') => [
+    ...plans.filter((p) => p.kind === kind && (p.project_kind !== 'public' || eligible)).map((p): [string, string] =>
+      [p.id, `${p.project_code} ${p.purpose} · ${p.resource_name}，计划 ${qty(p.plan_qty, p.unit)}，剩余 ${qty(rest(p), p.unit)}${kind === 'api' ? '（超出部分批准时追加）' : ''}`]),
+    ...(kind === 'api' && apis.length ? bare.map((l): [string, string] => [l.id, `${l.project_code} ${l.purpose}（${l.category_name}）· 未编资源计划，批准时追加`]) : []),
+  ];
+  const none = (kind: 'api' | 'asset') => (lineOpts(kind).length ? '' : kind === 'api'
+    ? '本人所在课题还没有已下达的预算行，暂不能申请接口额度。课题预算下达后即可申请。'
+    : `本年度预算中暂无${KIND[kind]}的资源计划，暂不能提交申请。如需使用，请研究单元负责人在年度预算中补充；年中追加的，由财务岗在复盘时调整。`);
   // 研究单元都用课题的钱：选课题的预算行，申请记在本人所在的研究单元名下，由该研究单元的负责人批示
   // 只列挂在可选预算行所属课题下的研究单元，名称后注明课题，方便与所选预算行对上（#63）
-  const lineTopics = new Set(plans.map((x) => x.project_id));
+  const lineTopics = new Set([...plans.map((x) => x.project_id), ...bare.map((x) => x.project_id)]);
   const myUnits = data.projects.filter((p) => p.layer === 'paper' && p.active && (p.member || p.mine) && !!p.parent_id && lineTopics.has(p.parent_id) && !data.tags.some((t) => t.id === p.id && t.proposed))
     .map((p): [string, string] => [p.id, `${p.code} ${p.name}（课题：${p.parent_name ?? '—'}）`]);
   const unitField: Field[] = myUnits.length > 0 ? [{ name: 'unit_id', label: '所属研究单元（选填；须与所选预算行属同一课题；本人在该课题下多个研究单元名单内时须选）', required: false, options: myUnits }] : [];
   const reqAct = (kind: 'api' | 'asset'): Act => kind === 'api' ? {
     label: '提交申请', title: '申请接口额度',
-    hint: `资源均由年度预算列支：选择一条已编制资源计划的预算行，累计申请不得超过计划数量。先由研究单元负责人批示，再由财务岗批准并分发；本人负责的研究单元直接提交财务岗。申请中不得填写任何密钥。${none(kind)}`,
-    fields: [{ name: 'line_id', label: '支出预算行', options: lineOpts(kind) }, ...unitField,
+    hint: `接口额度从中心已充值的额度里分配，不动经费卡，计入所选预算行：本行支出加额度申请不得超过核定数。预算行没有资源计划或计划不够的也可以申请，财务岗批准时追加资源计划。先由研究单元负责人批示，再由财务岗批准并分发；本人负责的研究单元直接提交财务岗。申请中不得填写任何密钥。${none(kind)}`,
+    fields: [{ name: 'line_id', label: '计入的预算行', options: lineOpts(kind) }, ...unitField,
+      ...(apis.length ? [{ name: 'resource_id', label: '接口资源（所选预算行已有资源计划的，按计划，不必选）', options: apis.map((r): [string, string] => [r.id, r.name]), required: false }] : []),
       { name: 'amount', label: '额度', type: 'number' }, { name: 'period', label: '使用月份', type: 'month', value: today().slice(0, 7) },
       { name: 'purpose', label: '用途' }, { name: 'usage_note', label: '用量估算（模型、调用量；加急申请必填）', required: false },
       { name: 'urgent', label: '加急', type: 'check', value: 'false' }],
-    run: (v) => rpc('save_resource_request', { id: null, kind, resource_id: null, line_id: v.line_id, amount: v.amount, period: `${v.period}-01`,
+    run: (v) => rpc('save_resource_request', { id: null, kind, resource_id: planned.has(v.line_id) ? null : (v.resource_id || (apis.length === 1 ? apis[0].id : null)), line_id: v.line_id, amount: v.amount, period: `${v.period}-01`,
       purpose: v.purpose, usage_note: v.usage_note, urgent: v.urgent === 'true', unit_id: v.unit_id || null }),
   } : {
     label: '提交申请', title: '申领资产',
@@ -103,7 +115,7 @@ export function ResourcePage({ me }: { me: Me }) {
         {/* 没有可选的资源计划时不打开表单，入口处说明缺什么（#119） */}
         <div className="acts"><button disabled={!lineOpts('api').length} title={none('api') || undefined} onClick={() => setAct(reqAct('api'))}>申请接口额度</button>
           <button className="ghost" disabled={!lineOpts('asset').length} title={none('asset') || undefined} onClick={() => setAct(reqAct('asset'))}>申领资产</button></div></div>
-      {(() => { const miss = (['api', 'asset'] as const).filter((k) => !lineOpts(k).length).map((k) => KIND[k]); return miss.length > 0 && <div className="msg warn" role="status">本年度预算中暂无{miss.join('和')}的资源计划，暂不能提交{miss.length === 2 ? '资源' : ''}申请。如需使用，请研究单元负责人在年度预算中补充；年中追加的，由财务岗在复盘时调整。</div>; })()}
+      {(['api', 'asset'] as const).filter((k) => !lineOpts(k).length).map((k) => <div key={k} className="msg warn" role="status">{none(k)}</div>)}
       <div className="tiles">
         <Tile k="名下接口" v={mine.filter((a) => a.kind === 'api').length} f="正在生效的额度" />
         <Tile k="名下资产" v={mine.filter((a) => a.kind === 'asset').length} f="本人名下的设备和耗材" />
@@ -117,7 +129,7 @@ export function ResourcePage({ me }: { me: Me }) {
           <div className="scroll"><table>
             <thead><tr><th>提交日期</th><th>申请人</th><th>研究单元 · 预算行</th><th>资源</th><th className="r">数量</th><th>使用月份</th><th>用途</th><th /></tr></thead>
             <tbody>{toReview.map((r) => (
-              <tr key={r.id}><td>{day(r.created_at)}</td><td>{r.requester_name}{r.urgent && <> <Badge tone="bad">加急</Badge></>}{r.priority && <> <Badge tone="ok">优先</Badge><div className="sub2">出资研究单元成员</div></>}</td><td>{r.project_code} {r.project_name}<div className="sub2">{r.line_purpose}，计划 {qty(r.plan_qty, r.unit)}</div></td>
+              <tr key={r.id}><td>{day(r.created_at)}</td><td>{r.requester_name}{r.urgent && <> <Badge tone="bad">加急</Badge></>}{r.priority && <> <Badge tone="ok">优先</Badge><div className="sub2">出资研究单元成员</div></>}</td><td>{r.project_code} {r.project_name}<div className="sub2">{r.line_purpose}，计划 {r.plan_qty == null ? '未编' : qty(r.plan_qty, r.unit)}{num(r.plan_add) > 0 && r.status !== 'approved' && r.status !== 'fulfilled' && <>；<b>批准时追加 {qty(r.plan_add ?? null, r.unit)}</b></>}</div></td>
                 <td>{r.resource_name ?? `${KIND[r.kind]}（未指定）`}</td><td className="r">{qty(r.amount, r.unit)}</td><td>{r.period ? r.period.slice(0, 7) : '—'}</td>
                 <td className="wrap">{r.purpose}{r.usage_note && <div className="sub2">{r.usage_note}</div>}</td>
                 <td><div className="acts"><button className="sm" onClick={() => setAct(decide(r, 'review'))}>同意</button>
@@ -277,7 +289,7 @@ export function PoolPage({ me }: { me: Me }) {
             <thead><tr><th>提交日期</th><th>申请人</th><th>研究单元 · 预算行</th><th>资源</th><th className="r">申请</th><th className="r">批准</th><th>使用月份</th><th>用途</th><th>状态</th><th /></tr></thead>
             <tbody>{shown.map((r) => (
               <tr key={r.id}><td>{day(r.created_at)}</td><td>{r.requester_name}{r.urgent && <> <Badge tone="bad">加急</Badge></>}{r.priority && <> <Badge tone="ok">优先</Badge><div className="sub2">出资研究单元成员</div></>}</td>
-                <td>{r.project_code}<div className="sub2">{r.line_purpose}，计划 {qty(r.plan_qty, r.unit)}</div></td>
+                <td>{r.project_code}<div className="sub2">{r.line_purpose}，计划 {r.plan_qty == null ? '未编' : qty(r.plan_qty, r.unit)}{num(r.plan_add) > 0 && r.status !== 'approved' && r.status !== 'fulfilled' && <>；<b>批准时追加 {qty(r.plan_add ?? null, r.unit)}</b></>}</div></td>
                 <td>{r.resource_name ?? '未指定'}<div className="sub2">{KIND[r.kind]}</div></td><td className="r">{qty(r.amount, r.unit)}</td>
                 <td className="r">{r.approved_amount != null ? qty(r.approved_amount, r.unit) : '—'}</td><td>{r.period ? r.period.slice(0, 7) : '—'}</td>
                 <td className="wrap">{r.purpose}{r.usage_note && <div className="sub2">{r.usage_note}</div>}{r.decide_note && <div className="sub2">{r.decided_by_name ?? r.reviewed_by_name}：{r.decide_note}</div>}</td>

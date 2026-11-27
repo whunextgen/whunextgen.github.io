@@ -824,14 +824,27 @@ await as(U.mem2, D7);
 const plans = await q(`select * from api.resource_plan where open`);
 ok(plans.length === 2 && !('fixed' in plans[0]) && !('q1' in plans[0]), '成员能看到当年可以申请的资源计划，看不到金额');
 await raises('资源申请必须选预算行', /请选择预算行/, srq, ['api', null, null, 50, '2027-06-01', '赶稿', null, false]);
-await raises('没有资源计划的预算行不能挂资源申请', /拦截：该预算行未编制资源计划。请先在年度预算中填写所需资源及数量，再提交申请/, srq, ['api', null, L0, 50, '2027-06-01', '赶稿', null, false]);
+await raises('没有资源计划的预算行不能申领资产', /拦截：该预算行未编制资源计划。请先在年度预算中填写所需资源及数量，再提交申请/, srq, ['asset', stock, L0, 1, null, '办公', null, false]);
+await raises('没有资源计划的预算行申请接口额度要选资源（#158）', /请选择要申请的接口资源/, srq, ['api', null, L0, 50, '2027-06-01', '赶稿', null, false]);
 await raises('类型和计划的资源对不上', /所选资源不存在，或类型不一致/, srq, ['asset', null, L2, 1, null, '办公', null, false]);
 await raises('不能换成计划以外的资源', /所选资源与该预算行计划的资源不一致/, srq, ['asset', asset, L1, 1, null, '办公', null, false]);
-await raises('超过计划的量拦截', /计划 500.*剩余 500.*不足 600/, srq, ['api', null, L2, 600, '2027-06-01', '评测', null, false]);
+await raises('接口额度超出核定数拦截（#158）', /将超出核定数/, srq, ['api', null, L2, 999999999, '2027-06-01', '评测', null, false]);
 await raises('月份要在预算年度以内', /2027 年度以内/, srq, ['api', null, L2, 50, '2028-01-01', '评测', null, false]);
 await raises('紧急申请要说明原因', /紧急申请须在用量说明中写明紧急原因/, srq, ['api', null, L2, 50, '2027-06-01', '赶稿', null, true]);
 await raises('申请里拒绝密钥', /申请中不得填写密钥/, srq, ['api', null, L2, 50, '2027-06-01', KEY, null, false]);
 const q1 = await val(srq, ['api', null, L2, 300, '2027-06-20', '评测实验调用', null, false]);
+// 计划不够的接口额度照样申请，注明需追加；财务岗批准时追加本行资源计划（#158）
+const q9 = await val(srq, ['api', null, L2, 300, '2027-06-20', '追加的评测调用', null, false]);
+ok(Number((await one(`select plan_add from api.resource_request where id = $1`, [q9])).plan_add) === 100, '超出资源计划的接口额度申请注明需追加的量');
+{ await as(U.lead, D7); await q(`select decide_resource_request($1, 'review')`, [q9]);
+  await as(U.fin, D7); await q(`select decide_resource_request($1, 'approve')`, [q9]);
+  await db.exec(`reset role`);
+  ok(Number((await one(`select plan_qty from project_budget_line where id = $1`, [L2])).plan_qty) === 600, '财务岗批准时追加资源计划');
+  ok(/资源计划由 500.* 追加至 600/.test((await one(`select decide_note from resource_request where id = $1`, [q9])).decide_note), '追加记在批准意见里');
+  await db.exec(`set role app_api`);
+  await as(U.mem2, D7); await q(`select decide_resource_request($1, 'withdraw')`, [q9]);
+  await as(U.fin, D7); await q(`select set_line_resource($1, $2, 500)`, [L2, rs]);
+  await as(U.mem2, D7); }
 let rq1 = await one(`select status, period::text p, my_project, project_id, resource_id, budget_line_id from api.resource_request where id = $1`, [q1]);
 ok(rq1.status === 'pending' && rq1.p === '2027-06-01' && rq1.my_project === false && rq1.project_id === P1 && rq1.resource_id === rs && rq1.budget_line_id === L2,
    '资源申请挂在预算行上，项目和资源跟着预算行走，先等项目负责人批示');
