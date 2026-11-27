@@ -8,7 +8,8 @@ export function FeedbackButton({ me, title }: { me: Me; title: string }) {
   const [open, setOpen] = useState(false);
   const [mine, setMine] = useState<Mine[]>([]);
   const [done, setDone] = useState('');
-  useEffect(() => { if (open) view('feedback').then((r) => setMine((r as Mine[]).filter((x) => x.mine).sort((a, b) => b.seq - a.seq).slice(0, 5))).catch(() => setMine([])); }, [open]);
+  const [all, setAll] = useState(false);
+  useEffect(() => { if (open) view('feedback').then((r) => setMine((r as Mine[]).filter((x) => x.mine).sort((a, b) => b.seq - a.seq))).catch(() => setMine([])); }, [open]);
   useEffect(() => { if (!done) return; const t = setTimeout(() => setDone(''), 6000); return () => clearTimeout(t); }, [done]);
   const page = location.hash || '#/';
   const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -17,7 +18,8 @@ export function FeedbackButton({ me, title }: { me: Me; title: string }) {
     {done && <div className="feedback-toast" role="status">{done}</div>}
     {open && <ActionDialog title="反馈问题或建议" submitLabel="提交"
       hint={<>自动记下：提交人 {me.name} · {now} · 页面「{title}」（{page}）。提交后转成 GitHub 议题，转好后正则通知你。
-        {mine.length > 0 && <span style={{ display: 'block', marginTop: 8 }}>我最近的反馈：{mine.map((f) => <span key={f.id} style={{ display: 'block' }}>第 {f.seq} 号 · {f.body.slice(0, 30)}{f.body.length > 30 ? '…' : ''} · {f.issue_url ? <a href={f.issue_url} target="_blank" rel="noreferrer">议题 #{f.issue_number}</a> : '待转议题'}</span>)}</span>}</>}
+        {mine.length > 0 && <span style={{ display: 'block', marginTop: 8 }}>我的反馈（{mine.length} 条）：{(all ? mine : mine.slice(0, 5)).map((f) => <span key={f.id} style={{ display: 'block' }}>第 {f.seq} 号 · {f.body.slice(0, 30)}{f.body.length > 30 ? '…' : ''} · {f.issue_url ? <a href={f.issue_url} target="_blank" rel="noreferrer">议题 #{f.issue_number}</a> : '待转议题'}</span>)}
+          {mine.length > 5 && <button type="button" className="sm ghost" onClick={() => setAll(!all)}>{all ? '只看最近 5 条' : `显示全部 ${mine.length} 条`}</button>}</span>}</>}
       fields={[{ name: 'body', label: '遇到什么问题，或有什么建议（越具体越好：做了什么、看到什么、期望什么）', type: 'area' }]}
       onSubmit={(v) => rpc('submit_feedback', { body: v.body, page, title }).then((seq) => setDone(`已提交第 ${seq} 号反馈，转成 GitHub 议题后会通知你`))}
       onClose={() => setOpen(false)} />}

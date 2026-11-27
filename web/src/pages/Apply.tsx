@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { rpc, useViews, type BudgetCategory, type BudgetPlan, type BudgetTier, type BudgetYear, type Me, type ModuleTopic, type Project, type ProjectTag, type TierPick, type UnitApply, type User } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, day, money, num, pct, today, type Field } from '../ui';
 
@@ -76,10 +76,20 @@ export function ApplyPage({ me }: { me: Me }) {
   );
 }
 
+// 研究单元申请的情况：首页待办、课题管理、课题页都用这一套叫法（#136）
+export function unitStage(u: UnitApply, today0 = today()): [string, 'ok' | 'bad' | 'warn' | 'pri'] {
+  if (!u.proposed) return ['已成立', 'ok'];
+  if (u.return_note) return ['已退回', 'bad'];
+  if (!u.parent_ok_at) return ['待课题负责人同意', 'warn'];
+  if (!u.meeting_on) return ['联席会议在线表决中', 'warn'];
+  return !!u.veto_until && today0 > day(u.veto_until) ? ['待核对', 'pri'] : [`否决期至 ${day(u.veto_until)}`, 'warn'];
+}
 // ---------- 研究单元申请：随时提交，同意、退回、核对只在每期第一天（登记日）办。先经联席会议通过，再在这里申请；所挂课题的负责人同意后，助理对照纪要核对成立 ----------
-export function UnitApplyCard({ me, onChange }: { me: Me; onChange?: () => void }) {
+export function UnitApplyCard({ me, onChange, focus }: { me: Me; onChange?: () => void; focus?: string }) {
   const { data, error, reload } = useViews<{ units: UnitApply[]; tags: ProjectTag[]; projects: Project[]; users: User[] }>({ units: ['unit_apply'], tags: ['project_tag'], projects: ['project'], users: ['users'] });
   const [act, setAct] = useState<Act | null>(null);
+  // 从待办或飞书卡片点进来（#/projects/<申请>）：滚到这一行并高亮
+  useEffect(() => { if (!data || !focus) return; const el = document.getElementById(`unit-apply-${focus}`); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, [data, focus]);
   if (!data) return <section className="card"><h3>研究单元申请</h3><Loading error={error} /></section>;
   const finance = can(me, 'budget.setup'), recorder = can(me, 'budget.evaluate'), director = me.role === 'director';
   const waiting = new Set(data.tags.filter((t) => t.proposed).map((t) => t.id));
@@ -103,19 +113,21 @@ export function UnitApplyCard({ me, onChange }: { me: Me; onChange?: () => void 
       <h3>研究单元申请 <span className="h3sub">随时提交，每期第一天办理 · {recorder ? '按联席会议纪要核对' : '本人提交的申请，以及本人所负责课题之下的申请'}</span></h3>
       <p className="hint">研究单元一律独立申请，挂在一个已立项的课题下面，随时可以提交，不必等年度预算；所挂课题负责人的同意、退回和助理的核对，只在每两周一期的第一天（登记日）办理，其余日子不办。课题负责人同意后，正则在联席会议发起在线表决，赞成人数超过可以投票的有表决权成员一半的即刻成立，不经否决期，成立后申请人即为负责人。已在会上表决通过、填了会议日期的，由助理对照纪要核对成立。研究单元不参加评定，使用所挂课题的预算。</p>
       {unitRows.length === 0 ? <Empty>暂无研究单元申请。</Empty> : (
-        <div className="scroll"><table>
-          <thead><tr><th>研究单元</th><th>所挂课题</th><th>申请人</th><th>联席会议 · 纪要</th><th>情况</th><th /></tr></thead>
+        <div className="scroll"><table className="unit-apply">
+          <thead><tr><th>研究单元</th><th>所挂课题</th><th>申请人</th><th>联席会议 · 纪要</th><th>情况与办理</th></tr></thead>
           <tbody>{unitRows.map((u) => (
-            <tr key={u.id}><td className="wrap">{u.proposed ? u.name : <a href={`#/project/${u.id}`}>{u.name}</a>}<span className="sub2">{u.code}</span>{u.apply_note && <div className="sub2" style={{ marginLeft: 0 }}>{u.apply_note}</div>}
+            <tr key={u.id} id={`unit-apply-${u.id}`} className={focus === u.id ? 'hl' : undefined}><td className="wrap">{u.proposed ? u.name : <a href={`#/project/${u.id}`}>{u.name}</a>}<span className="sub2">{u.code}</span>{u.apply_note && (u.apply_note.length > 60
+                  ? <details className="sub2 fold" style={{ marginLeft: 0 }}><summary>{u.apply_note.slice(0, 60)}…（展开）</summary>{u.apply_note}</details>
+                  : <div className="sub2" style={{ marginLeft: 0 }}>{u.apply_note}</div>)}
                 {u.member_names && <div className="sub2" style={{ marginLeft: 0 }}>成员：{u.member_names}</div>}</td>
               <td><a href={`#/project/${u.parent_id}`}>{u.parent_name}</a></td><td>{u.owner_name ?? '—'}</td>
               <td>{u.meeting_on ? <>{day(u.meeting_on)} 通过<div className="sub2" style={{ marginLeft: 0 }}>{day(u.minutes_on)} 发出纪要</div></> : <a href="#/council">在线表决</a>}</td>
               <td className="wrap">{!u.proposed ? <><Badge tone="ok">已成立</Badge>{u.checked_by_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.checked_by_name} 核对</div>}</>
                 : u.return_note ? <><Badge tone="bad">已退回</Badge><div className="sub2" style={{ marginLeft: 0 }}>{u.return_note}</div></>
-                : !u.parent_ok_at ? <><Badge tone="warn">待课题负责人同意</Badge>{u.parent_owner_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.parent_owner_name}</div>}</>
+                : !u.parent_ok_at ? <><Badge tone="warn">{unitStage(u)[0]}</Badge>{u.parent_owner_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.parent_owner_name}</div>}</>
                 : !u.meeting_on ? <><Badge tone="warn">联席会议在线表决中</Badge>{u.parent_ok_by_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.parent_ok_by_name} 已同意</div>}</>
-                : <>{vetoOver(u) ? <Badge tone="pri">待核对</Badge> : <Badge tone="warn">否决期至 {day(u.veto_until)}</Badge>}{u.parent_ok_by_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.parent_ok_by_name} 已同意</div>}</>}</td>
-              <td className="r"><div className="acts">
+                : <>{vetoOver(u) ? <Badge tone="pri">待核对</Badge> : <Badge tone="warn">否决期至 {day(u.veto_until)}</Badge>}{u.parent_ok_by_name && <div className="sub2" style={{ marginLeft: 0 }}>{u.parent_ok_by_name} 已同意</div>}</>}
+                <div className="acts unit-acts">
                 {u.can_ok && u.proposed && !u.return_note && !u.parent_ok_at && btn('同意', { title: `同意成立研究单元：${u.name}`, label: '同意', fields: [],
                   hint: `${u.owner_name ?? '申请人'}申请在「${u.parent_name}」之下成立该研究单元。成立后，研究单元名单里的人使用本课题的预算提交支出申请、申领资源。同意后正则在联席会议发起在线表决，赞成人数超过有表决权成员一半的即刻成立；已在会上表决通过的，由助理对照纪要核对成立。`, run: () => rpc('approve_unit', { unit: u.id }) }, 'sm')}
                 {recorder && u.proposed && !u.return_note && <button className="sm" disabled={!u.meeting_on || !(vetoOver(u) || director) || !u.parent_ok_at} title={!u.meeting_on ? '联席会议决议生效后方可确认成立' : !u.parent_ok_at ? '所挂课题的负责人同意后方可确认成立' : vetoOver(u) || director ? undefined : '否决期届满后方可确认成立'} onClick={() => setAct({ title: `确认成立：${u.name}`, label: '确认成立', fields: [],

@@ -1,17 +1,17 @@
 import { useState } from 'react';
-import { rpc, useViews, type ProjectTag, type BudgetLine, type BudgetYear, type LineExec, type Me, type Project, type ProjectBudget, type ProjectCap, type User } from '../api';
+import { rpc, useViews, type ProjectTag, type BudgetLine, type BudgetYear, type LineExec, type Me, type Project, type ProjectBudget, type ProjectCap, type UnitApply, type User } from '../api';
 import { ActionDialog, Badge, Empty, Loading, Scholar, can, money, num, type Field } from '../ui';
 import { KIND, STAGE_TEXT } from './Budget';
 import { capped } from './Caps';
 import { typeText } from './Project';
-import { UnitApplyCard } from './Apply';
+import { UnitApplyCard, unitStage } from './Apply';
 
 // 课题和研究单元：预算按它们管。研究单元挂在课题下面。每个一行，看它各年度的预算走到哪一步。
 // 点名称进详情页，预算、成员、上限、调剂、设备、接口额度都在那一页。
-export function Projects({ me }: { me: Me }) {
+export function Projects({ me, focus }: { me: Me; focus?: string }) {
   const staff = can(me, 'budget.setup');
-  const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; users: User[]; caps: ProjectCap[]; tags: ProjectTag[] }>({
-    tags: ['project_tag'],
+  const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; users: User[]; caps: ProjectCap[]; tags: ProjectTag[]; uapps: UnitApply[] }>({
+    tags: ['project_tag'], uapps: ['unit_apply'],
     projects: ['project'], years: ['budget_year'], budgets: ['project_budget'], lines: ['budget_line'], exec: ['line_exec'], users: ['users'], caps: ['project_cap'],
   });
   const [edit, setEdit] = useState<Project | 'new' | { under: Project } | null>(null);
@@ -50,7 +50,8 @@ export function Projects({ me }: { me: Me }) {
             <thead><tr><th>课题 / 研究单元</th><th>类型</th><th>负责人</th>{years.map((y) => <th key={y.year} className="r">{y.year} 年度<span className="sub2">{STAGE_TEXT[y.stage]}</span></th>)}{staff && <th />}</tr></thead>
             <tbody>{rows.map((r) => (
               <tr key={r.id} style={r.active ? undefined : { opacity: .55 }}>
-                <td style={r.layer === 'paper' ? { paddingLeft: 28 } : undefined}>{r.seen ? <a href={`#/project/${r.id}`}>{r.name}</a> : r.name}{data.tags.some((t) => t.id === r.id && t.proposed) && <> <Badge tone="warn">待立项</Badge></>}{tagged.has(r.id) && <> <Badge>晨星</Badge></>}<span className="sub2">{r.code}{r.active ? '' : ' · 已停用'}{r.layer === 'paper' && !bigs.some((b) => b.id === r.parent_id) ? ` · 隶属 ${r.parent_name}` : ''}</span>
+                <td style={r.layer === 'paper' ? { paddingLeft: 28 } : undefined}>{r.seen ? <a href={`#/project/${r.id}`}>{r.name}</a> : r.name}{data.tags.some((t) => t.id === r.id && t.proposed) && (() => { const ua = r.layer === 'paper' ? data.uapps.find((x) => x.id === r.id) : undefined; const [lb, tn] = ua ? unitStage(ua) : ['待立项', 'warn'] as const;
+                  return <> <Badge tone={tn}>{ua ? <a href={`#/projects/${r.id}`}>{lb}</a> : lb}</Badge></>; })()}{tagged.has(r.id) && <> <Badge>晨星</Badge></>}<span className="sub2">{r.code}{r.active ? '' : ' · 已停用'}{r.layer === 'paper' && !bigs.some((b) => b.id === r.parent_id) ? ` · 隶属 ${r.parent_name}` : ''}</span>
                   {r.kind !== 'public' && <div className="sub2" style={{ marginLeft: 0 }}>成员 {r.members} 人{r.member && r.owner_id !== me.id ? ' · 本人在名单中' : ''}</div>}</td><td>{typeText(r)}</td>
                 <td>{r.owner_name ?? '—'}{r.owner_id === me.id && <span className="sub2">本人</span>}<Scholar url={r.owner_scholar_url} /></td>
                 {years.map((y) => { const b = data.budgets.find((x) => x.project_id === r.id && x.year === y.year);
@@ -74,7 +75,7 @@ export function Projects({ me }: { me: Me }) {
         )}
         <p className="hint">已下达的年度显示核定数和执行情况，未下达的年度显示申报数、申请数或核定数。课题对全体成员公开：已立项的课题和研究单元，其预算、执行、成员、设备和接口额度所有人均可查看；逐笔的支出申请仅申请人、该课题负责人、财务岗和中心负责人可见。待立项的课题在评定通过前不公开金额。</p>
       </section>
-      <UnitApplyCard me={me} onChange={reload} />
+      <UnitApplyCard me={me} onChange={reload} focus={focus} />
       {edit && <ActionDialog title={p ? `修改${paper ? '研究单元' : '课题'}：${p.name}` : under ? `在「${under.name}」下新增研究单元` : '新立课题'} fields={fields} submitLabel="保存" onClose={() => setEdit(null)}
         onSubmit={(v) => rpc('save_project', { id: p?.id ?? null, code: v.code ?? '', name: v.name, kind: paper ? null : v.kind, owner_id: v.owner || null, active: p ? v.active === 'true' : true, parent_id: paper ? v.parent : null }).then(reload)} />}
     </>
