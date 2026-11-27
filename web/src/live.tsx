@@ -166,8 +166,8 @@ export function LivePage({ id }: { id: string; me: Me }) {
           {m.minutes_link ? <p><a className="btn sm ghost" href={m.minutes_link} target="_blank" rel="noreferrer">飞书妙记或录屏</a></p> : <p className="ir-hint">会后挂上飞书妙记或录屏的链接，请假的据此补看。</p>}
           {m.can_run && (data.sync[0]?.sync_unmatched ?? []).length > 0 && <div className="ir-hint">Zoom 参会名单里对不上中台账号的：{(data.sync[0]?.sync_unmatched ?? []).map((n) => <button key={n} className="ghost sm" style={{ margin: '2px 4px' }} onClick={() => setAct({ title: `认领：${n}`, label: '认领',
             hint: '选出这个名字对应的成员，即为其签到；以后 Zoom 上用这个名字的自动对上。', fields: [{ name: 'user', label: '成员', options: people.map((p): [string, string] => [p.id, p.name]) }], run: (v) => rpc('claim_name', { event: m.id, name: n, user: v.user }) })}>{n}</button>)}</div>}
-          {m.kind === 'seminar' && m.can_run && !m.open && <div className="ir-hint">录音补漏：{!tr ? '散会后的第二天凌晨，中台取飞书妙记或 Zoom 云录制的逐字稿（研讨会请开录制），从中找出会上提的质疑，交组织者核对记入。'
-            : !tr.body ? `还没取到逐字稿（已试 ${tr.tries} 次，每天凌晨再试，最多 3 次）。${tr.note ?? ''}`
+          {m.kind === 'seminar' && m.can_run && !m.open && <div className="ir-hint">录音补漏：{!tr ? '散会约 1–2 小时后，中台取飞书妙记或 Zoom 云录制的逐字稿（研讨会请开录制），从中找出会上提的质疑，交组织者核对记入。'
+            : !tr.body ? `还没取到逐字稿（已试 ${tr.tries} 次，20 小时后再试，最多 3 次）。${tr.note ?? ''}`
             : !tr.extracted_at ? `已取到逐字稿 ${tr.chars} 字，正在找会上提的质疑。`
             : `已从逐字稿里找到 ${tr.drafts ?? 0} 条质疑，在各份快照的「待记入」里核对。${tr.extract_note ?? ''}`}
             {tr?.body && <details style={{ marginTop: 6 }}><summary>看逐字稿</summary><pre style={{ whiteSpace: 'pre-wrap', maxHeight: 360, overflow: 'auto', fontSize: 12 }}>{tr.body}</pre></details>}</div>}
