@@ -1273,9 +1273,9 @@ export default {
     await withUser(env, null, (sql) => sql`select public.join_tick()`).catch((e) => console.error('新人与改进目标提醒', e));
     await feedbackSync(env).catch((e) => console.error('反馈转议题', e));
     await meetingSync(env).catch((e) => console.error('飞书会议同步', e));
-    // 录音整理每小时跑一轮（每小时头 5 分钟）：会议结束满 1 小时后取逐字稿、提取质疑草稿；没取到的 20 小时后重试，最多 3 次。
-    // 原来每天只在凌晨 4 点跑，凌晨 3 点后自动结束的会要多等一天（2026-11-26 医疗研讨会）
-    if (new Date().getUTCMinutes() < 5) await transcriptSync(env).catch((e) => console.error('录音整理', e));
+    // 录音整理每轮（5 分钟）都查：会议结束满 1 小时后取逐字稿、提取质疑草稿；没取到的 20 小时后重试，最多 3 次。
+    // 待办查询很轻，没有待办时不调飞书和模型。原来每天只在凌晨 4 点跑，凌晨 3 点后自动结束的会要多等一天（2026-11-26 医疗研讨会）
+    await transcriptSync(env).catch((e) => console.error('录音整理', e));
     const batch = await withUser(env, null, (sql) => sql`select msg_id, target_id, body from public.outbox_take(20)`);
     if (!batch.length) return;
     const tok = await feishu('/auth/v3/tenant_access_token/internal', {
