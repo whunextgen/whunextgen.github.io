@@ -2,6 +2,16 @@ import { useState } from 'react';
 import { useViews, type Me, type RuleLookup } from '../api';
 import { Badge, Empty, Loading, can, day } from '../ui';
 
+// 支出类型的别名：左边是成员常说的词，右边是支出类型名称里会出现的词
+const ALIAS: [string[], string[]][] = [
+  [['接口', '模型调用', '大模型', 'token', 'openai', 'claude', 'gpt'], ['api']],
+  [['出差', '机票', '火车', '住宿', '酒店'], ['差旅']],
+  [['显卡', 'gpu', '算力', '服务器'], ['服务器', 'gpu', '算力']],
+  [['笔记本', '电脑', '台式机'], ['电脑']],
+  [['注册费', '会议', '参会'], ['会议注册']],
+  [['订阅', '会员'], ['会员订阅']],
+];
+
 // 能不能报：提支出之前先查这一类支出能不能报。不带经费卡，所有人都能查；按卡的答复记录只有财务岗和中心负责人看。
 const answer = (r: RuleLookup): [string, string, string] =>
   r.disputed ? ['有争议', 'warn', '学校前后答复不一致，提交前请先咨询财务岗。']
@@ -15,7 +25,10 @@ export function Ask({ me }: { me: Me }) {
   const { data, error } = useViews<{ rows: RuleLookup[] }>({ rows: ['rule_lookup'] });
   const [kw, setKw] = useState('');
   if (!data) return <Loading error={error} />;
-  const rows = data.rows.filter((r) => r.name.includes(kw.trim())).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+  // 常用的叫法也能搜到（#120）：输入「接口」能找到「API 充值」，不分大小写
+  const q = kw.trim().toLowerCase();
+  const alias = (ALIAS.find(([words]) => words.some((w) => q && (w.includes(q) || q.includes(w))))?.[1] ?? []);
+  const rows = data.rows.filter((r) => { const n = r.name.toLowerCase(); return n.includes(q) || alias.some((a) => n.includes(a)); }).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
   return (
     <>
       <div className="top"><h2>报销咨询</h2>{can(me, 'read.finance') && <a className="btn ghost" href="#/rules">采购与报销要求</a>}</div>
