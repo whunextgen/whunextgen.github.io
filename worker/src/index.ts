@@ -1380,6 +1380,12 @@ export default {
           for (const it of (mr?.data?.items ?? []) as { member_id?: string; name?: string }[]) if (it.member_id && it.name) names.set(it.name, it.member_id);
           if (!mr?.data?.has_more || !mr?.data?.page_token) break; pt = String(mr.data.page_token);
         }
+        // 群成员名单读不到（应用没有读群成员的权限）或对不上的，用本人登录正则时记下的 open_id
+        const left = (body.mention as string[]).filter((n) => !names.has(n));
+        if (left.length) {
+          const rows = await withUser(env, null, (sql) => sql`select name, feishu_open_id from app_user where active and feishu_open_id like 'ou_%' and name = any(${left})`).catch(() => []);
+          for (const r of rows as { name: string; feishu_open_id: string }[]) if (!names.has(r.name)) names.set(r.name, r.feishu_open_id);
+        }
         body.mention_ids = (body.mention as string[]).filter((n) => names.has(n)).map((n) => ({ id: names.get(n)!, name: n }));
         const miss = (body.mention as string[]).filter((n) => !names.has(n));
         if (miss.length) mentionNote = `群里找不到，未能 @：${miss.join('、')}`;
