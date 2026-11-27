@@ -4002,9 +4002,9 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await q(`update palette_poll set closes_at = now() + interval '1 day'`);
   await db.exec(`set role app_api`);
   await as(U.mem);
-  await q(`select vote_palette('azure')`); await q(`select vote_palette('jade')`);
+  await q(`select vote_palette('vermilion')`); await q(`select vote_palette('inkside')`);
   const mine = await q(`select code, votes, mine from api.palette_option where mine`);
-  ok(mine.length === 1 && mine[0].code === 'jade', '每人一票，可以改投', JSON.stringify(mine));
+  ok(mine.length === 1 && mine[0].code === 'inkside', '每人一票，可以改投', JSON.stringify(mine));
   await raises('没有的配色不能投', /没有这套配色/, `select vote_palette('pink')`);
   await q(`select vote_palette(null)`);
   ok((await q(`select 1 from api.palette_option where mine`)).length === 0, '可以撤回');
