@@ -3989,6 +3989,8 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`reset role`);
   ok(/status = 'open'(::text)?\)? AND collaborates/i.test((await one(`select pg_get_viewdef('api.term_review'::regclass) d`)).d), '合作者只看到还在考核、可写短评的条目');
   ok((await q(`select column_name from information_schema.columns where table_schema = 'api' and table_name = 'me' and column_name = 'rank_label'`)).length === 1, '本人信息带中心身份');
+  ok((await q(`select column_name from information_schema.columns where table_schema = 'api' and table_name = 'me' and column_name = 'avatar_url'`)).length === 1, '本人信息带头像');
+  await raises('头像只收 https 地址', /avatar_url_check|check constraint/, `update person set avatar_url = 'javascript:alert(1)' where id = (select id from person limit 1)`);
   await db.exec(`set role app_api`);
   await as(U.dir);
 }
