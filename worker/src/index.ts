@@ -27,7 +27,7 @@ export interface Env {
   GITHUB_WEBHOOK_SECRET?: string;             // GitHub webhook 的签名密钥；不设时不收 GitHub 事件
 }
 
-export const VIEWS = new Set(['name_option', 'name_poll', 'me', 'users', 'card_pick', 'fund_project', 'card_school_subject', 'card_subject_map', 'card_income', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
+export const VIEWS = new Set(['name_option', 'name_poll', 'palette_option', 'me', 'users', 'card_pick', 'fund_project', 'card_school_subject', 'card_subject_map', 'card_income', 'subject', 'expense_type', 'card', 'cell', 'node', 'cap', 'rule', 'ruling',
   'request', 'request_event', 'procurement_event', 'budget_change', 'fund_event', 'person', 'pay_type', 'staff',
   'payroll_sheet', 'settlement', 'emergency', 'year_actual', 'settle_check',
   'template', 'template_cap', 'user_admin', 'outbox', 'project_tag', 'resource', 'allocation',
@@ -113,6 +113,7 @@ export const RPC: Record<string, [string, string][]> = {
   propose_unit: [['id', 'uuid'], ['parent', 'uuid'], ['name', 'text'], ['meeting_on', 'date'], ['minutes_on', 'date'], ['note', 'text'], ['members', 'text']],
   propose_name: [['name', 'text'], ['note', 'text']],
   vote_name: [['option', 'uuid']],
+  vote_palette: [['code', 'text']],
   set_scholar_url: [['url', 'text']],
   save_person_record: [['id', 'uuid'], ['no', 'text'], ['name', 'text'], ['kind', 'text'], ['status', 'text'], ['joined', 'date'], ['left', 'date'],
     ['edu', 'text'], ['school', 'text'], ['direction', 'text'], ['mentor', 'text'], ['note', 'text']],
