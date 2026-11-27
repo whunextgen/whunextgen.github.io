@@ -132,6 +132,11 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
         ...(fixing ? [] : [{ name: 'note', label: '调整原因', required: false, value: l.adjust_note ?? '' } as Field])],
       submitLabel: '保存', run: (v) => rpc('adjust_budget_line', { id: l.id, amount: v.amount, note: v.note ?? null }).then(reload) };
   };
+  // 核定之后、整体下达之前：财务岗调整未下达课题的核定数（#111）
+  const fixAct = (p: Project, l: BudgetLine): Act => ({ title: `调整核定数：${p.name} · ${l.purpose}`,
+    hint: `申报 ${money(l.declared)}，当前核定 ${opt(l.fixed)}。调整后课题连同研究单元的核定数合计不得超过档次金额；调减到低于已分配到经费卡的数额时，自动收回多出的分配。调整记入预算调剂记录，课题负责人可见。`,
+    fields: [{ name: 'amount', label: '核定数（元）', type: 'number', value: String(num(l.fixed ?? l.declared)) }, { name: 'note', label: '调整原因' }],
+    submitLabel: '保存', run: (v) => rpc('adjust_fixed', { id: l.id, amount: v.amount, note: v.note }).then(reload) });
   const setBudget = (p: Project, action: string, note: string | null = null) => rpc('set_project_budget', { year, project_id: p.id, action, note }).then(reload);
 
   // 经费来源核对：到期回收的卡必须花完；学校 4 月才批复，之前只能用可结转的卡
@@ -256,6 +261,8 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
         const special = !!so && (b?.status !== 'submitted' || so.can_withdraw);
         const editable = (y.stage === 'declare' || special) && b?.status !== 'submitted';
         const adjustable = staff && b?.status === 'submitted' && (y.stage === 'summary' || y.stage === 'granted');
+        const refixable = staff && y.stage === 'fixed' && b?.status === 'submitted' && !b.issued_at;
+        const isPublic = p.kind === 'public';
         const [st, tone] = PB[b?.status ?? 'none'];
         const ti = topicInfo(p), kt = tierOf(ti.k?.tier_id ?? null), dt = tierOf(ti.k?.decided_tier_id ?? null);
         return (
@@ -271,7 +278,10 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
                   ? <>该课题尚未申请档次。请先在「<a href="#/apply">立项与延续申请</a>」中选择档次，再提交明细。</>
                   : '预算方案尚未批准公布，批准后才能申请档次。明细可以先填，申请档次后再提交。'}</div> : null)}
             {b?.status === 'returned' && <div className="msg bad">财务岗退回：{b.return_note}</div>}
-            {special && <div className="msg warn" role="status">本课题的档次已评定（或由中心负责人特批），年度预算下达前可以补填明细；提交时按档次的金额和限制校验，通过即核定，下达时与其他课题一并分到经费卡上。</div>}
+            {special && (isPublic
+              ? <div className="msg warn" role="status">公共课题不评档次，申报截止后由财务岗补填明细；提交即按明细核定，下达前可以撤回修改。</div>
+              : <div className="msg warn" role="status">本课题的档次已评定（或由中心负责人特批），年度预算下达前可以补填明细；提交时按档次的金额和限制校验，通过即核定，下达时与其他课题一并分到经费卡上。</div>)}
+            {staff && y.stage === 'fixed' && b?.issued_at && <p className="hint">本课题已按课题下达。如需调整核定数，请先在下方「按课题审核下达」中撤销下达（尚无支出时可以撤销），调整后再审核下达。</p>}
             {rows.length === 0 ? <Empty>{y.stage === 'declare' ? '尚未填报明细。' : '未填报明细。'}</Empty> : (
               <div className="scroll"><table className="tight">
                 <thead><tr><th>科目</th><th>用途</th>{QN.map((n) => <th key={n} className="r">{n}</th>)}<th className="r">明细</th>{legacy && <th className="r">申请数</th>}<th className="r">核定数</th><th /></tr></thead>
@@ -286,6 +296,7 @@ export function BudgetPage({ me, start }: { me: Me; start: string }) {
                       {editable && <><button className="ghost sm" onClick={() => setAct(lineAct(p, l))}>修改</button>{' '}
                         <button className="ghost sm" onClick={() => setAct({ title: `删除预算行：${l.purpose}`, fields: [], danger: true, submitLabel: '删除', run: () => rpc('delete_budget_line', { id: l.id }).then(reload) })}>删除</button></>}
                       {adjustable && <button className="ghost sm" onClick={() => setAct(adjustAct(p, l))}>{y.stage === 'granted' ? '核定' : '调整'}</button>}
+                      {refixable && <button className="ghost sm" onClick={() => setAct(fixAct(p, l))}>调整核定数</button>}
                       {staff && !editable && b?.status === 'submitted' && y.stage !== 'closed' && <>{' '}<button className="ghost sm" onClick={() => setAct(planAct(p, l))}>资源计划</button></>}
                     </td></tr>
                 ))}</tbody>

@@ -255,7 +255,7 @@ export interface RuleLookup { expense_type_id: string; name: string; required_pa
 export interface BudgetCategory { id: string; code: string; name: string; labor: boolean; sort: number; active: boolean }
 export interface BudgetYear { year: number; due_date: string; stage: BudgetStage; applied_on: string | null; granted_on: string | null; approved_at: string | null; approved_by_name: string | null;
   granted_amount: string | null; fixed_total: string | null; issued_at: string | null; closed_at: string | null }
-export interface ProjectBudget { id: string; year: number; project_id: string; status: 'draft' | 'submitted' | 'returned'; return_note: string | null; submitted_at: string | null; submitted_by_name: string | null }
+export interface ProjectBudget { id: string; year: number; project_id: string; status: 'draft' | 'submitted' | 'returned'; return_note: string | null; submitted_at: string | null; submitted_by_name: string | null; issued_at?: string | null }
 export interface BudgetLine { id: string; budget_id: string; year: number; project_id: string; category_id: string; purpose: string; q1: string; q2: string; q3: string; q4: string;
   declared: string; applied: string | null; adjust_note: string | null; fixed: string | null;
   resource_id: string | null; resource_name: string | null; resource_kind: 'api' | 'asset' | null; resource_unit: string | null; plan_qty: string | null }
