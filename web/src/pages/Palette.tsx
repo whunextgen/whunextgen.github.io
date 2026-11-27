@@ -5,30 +5,35 @@ import { PALETTES, tryPalette, triedPalette, type Palette } from '../palettes';
 
 interface Opt { code: string; name: string; note: string; sort: number; votes: number; mine: boolean; closes_at: string; open: boolean; total_votes: number }
 
-// 小样：用这套配色画一块「我的事项」卡片和几样常用控件，变量只作用在小样里
+// 小样：用这套配色画一条侧栏（带红底「正」字标志）、一块「我的事项」卡片和几样常用控件，变量只作用在小样里
 function Swatch({ p }: { p: Palette }) {
   const v = (k: string, d: string) => `var(${k}, ${d})`;
-  const box: CSSProperties = { ...(p.root as CSSProperties), ...(p.card as CSSProperties), background: v('--bg', '#f3f3f0'), color: v('--ink', '#16171a'), borderRadius: 12, padding: 14, border: `1px solid ${v('--line', '#e6e6e2')}` };
+  const box: CSSProperties = { ...(p.root as CSSProperties), ...(p.card as CSSProperties), display: 'flex', background: v('--bg', '#f3f3f0'), color: v('--ink', '#16171a'), borderRadius: 12, overflow: 'hidden', border: `1px solid ${v('--line', '#e6e6e2')}` };
+  const side: CSSProperties = { ...((p.side ?? {}) as CSSProperties), width: 74, flex: 'none', background: v('--paper', '#fff'), borderRight: `1px solid ${v('--line', '#e6e6e2')}`, padding: '12px 8px', fontSize: 11 };
   return (
     <div style={box} aria-hidden="true">
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: v('--mute', '#6a6e75'), marginBottom: 10 }}><span>课题 / 课题管理</span><span>11-27</span></div>
-      <div style={{ background: v('--i-bg', '#f1ece2'), color: v('--i-ink', '#17130f'), border: `1px solid ${v('--i-line', '#17130f')}`, padding: '12px 14px', marginBottom: 10 }}>
-        <div style={{ fontSize: 11, color: v('--i-mut', '#635b50') }}>我的事项 · Researcher</div>
-        <div style={{ font: `700 28px/1.2 ${v('--i-serif', '"Songti SC", serif')}` }}>何静</div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 6, fontSize: 11 }}>
-          {['Intern', 'Assistant', 'Researcher'].map((x, i) => <span key={x} style={{ color: i === 2 ? v('--i-red', '#c2351b') : v('--i-mut', '#635b50'), fontWeight: i === 2 ? 700 : 500 }}>{x}</span>)}
-        </div>
+      <div style={side}>
+        <div style={{ width: 26, height: 26, borderRadius: 7, background: '#c8372d', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700, marginBottom: 12 }}>正</div>
+        {['我的事项', '课题管理', '支出申请'].map((x, i) => <div key={x} style={{ padding: '4px 5px', borderRadius: 5, marginBottom: 3, background: i === 0 ? v('--brand-soft', '#fbefeb') : 'transparent', color: i === 0 ? v('--brand', '#bc442b') : v('--nav-ink', '#3d4046'), fontWeight: i === 0 ? 600 : 400 }}>{x}</div>)}
       </div>
-      <div style={{ background: v('--paper', '#fff'), border: `1px solid ${v('--line', '#e6e6e2')}`, borderRadius: 10, padding: 12 }}>
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>本年度可用 <span style={{ color: v('--brand', '#bc442b') }}>34,999.00</span></div>
-        <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', background: v('--track', '#ebebe7'), marginBottom: 10 }}>
-          <i style={{ flex: 3, background: v('--ink', '#16171a') }} /><i style={{ flex: 2, background: v('--brand', '#bc442b') }} /><i style={{ flex: 5 }} />
+      <div style={{ flex: 1, minWidth: 0, padding: 12 }}>
+        <div style={{ background: v('--i-bg', '#f1ece2'), color: v('--i-ink', '#17130f'), border: `1px solid ${v('--i-line', '#17130f')}`, padding: '10px 12px', marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: v('--i-mut', '#635b50') }}>我的事项 · Researcher</div>
+          <div style={{ font: `700 26px/1.2 ${v('--i-serif', '"Songti SC", serif')}` }}>何静</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: 11 }}>
+            {['Intern', 'Assistant', 'Researcher'].map((x, i) => <span key={x} style={{ color: i === 2 ? v('--i-red', '#c2351b') : v('--i-mut', '#635b50'), fontWeight: i === 2 ? 700 : 500 }}>{x}</span>)}
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ background: v('--btn', v('--ink', '#16171a')), color: '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 13 }}>提交申请</span>
-          <span style={{ background: v('--paper', '#fff'), color: v('--ink', '#16171a'), border: `1px solid ${v('--line', '#e6e6e2')}`, borderRadius: 8, padding: '5px 12px', fontSize: 13 }}>取消</span>
-          <span style={{ background: v('--brand-soft', '#fbefeb'), color: v('--brand', '#bc442b'), borderRadius: 999, padding: '2px 9px', fontSize: 12 }}>待审核</span>
-          <span style={{ fontSize: 12, color: v('--mute', '#6a6e75') }}>辅助说明文字</span>
+        <div style={{ background: v('--paper', '#fff'), border: `1px solid ${v('--line', '#e6e6e2')}`, borderRadius: 10, padding: 10 }}>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>本年度可用 <span style={{ color: v('--brand', '#bc442b') }}>34,999.00</span></div>
+          <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: v('--track', '#ebebe7'), marginBottom: 10 }}>
+            <i style={{ flex: 3, background: v('--ink', '#16171a') }} /><i style={{ flex: 2, background: v('--brand', '#bc442b') }} /><i style={{ flex: 5 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ background: v('--btn', v('--ink', '#16171a')), color: '#fff', borderRadius: 8, padding: '4px 11px', fontSize: 12.5 }}>提交申请</span>
+            <span style={{ background: v('--paper', '#fff'), color: v('--ink', '#16171a'), border: `1px solid ${v('--line', '#e6e6e2')}`, borderRadius: 8, padding: '4px 11px', fontSize: 12.5 }}>取消</span>
+            <span style={{ background: v('--brand-soft', '#fbefeb'), color: v('--brand', '#bc442b'), borderRadius: 999, padding: '2px 8px', fontSize: 12 }}>待审核</span>
+          </div>
         </div>
       </div>
     </div>
@@ -54,7 +59,7 @@ export function PalettePoll() {
   return (
     <>
       <div className="top"><h2>配色投票</h2></div>
-      <p className="lede">中台换不换配色，由大家投票定。下面几套各画了一块小样；点「试用」可以把整个中台临时换成这套配色，到各页看看效果，只改你自己这台电脑的显示，随时可以恢复。每人一票，截止前可以改投；{open ? `北京时间 ${closes} 截止` : '投票已截止'}。</p>
+      <p className="lede">中台换不换配色，由大家投票定。四套都以红色为主色，与「正」字标志一致，区别在底色、按钮、侧栏和字体；下面各画了一块小样，点「试用」可以把整个中台临时换成这套配色，到各页看看效果，只改你自己这台电脑的显示，随时可以恢复。每人一票，截止前可以改投；{open ? `北京时间 ${closes} 截止` : '投票已截止'}。</p>
       <section className="card">
         <h3>候选配色 <span className="h3sub">{opts.length} 套 · 已投 {total} 票 · {open ? <Badge tone="pri">进行中</Badge> : <Badge>已截止</Badge>}</span></h3>
         <p className="hint">匿名：页面上不显示票是谁投的。系统只为保证每人一票记下账号，不对外展示。</p>
