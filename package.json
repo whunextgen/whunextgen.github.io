@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/db.test.mjs && node test/selection-roster.test.mjs"
+    "test": "node test/db.test.mjs && node test/selection-roster.test.mjs && node test/selection-reminders.test.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.16"

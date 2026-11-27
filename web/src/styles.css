@@ -735,3 +735,4 @@ details.fold[open] > summary { color: var(--mute, #6a6e75); }
 /* 头像：取自中心网站人员页（0151） */
 .who .avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;flex:none;border:1px solid var(--line)}
 .ir-avatar{width:.78em;height:.78em;border-radius:50%;object-fit:cover;vertical-align:-.04em;margin-right:.18em;border:2px solid var(--i-line)}
+.selection-reminder-preview{padding-left:20px;max-height:45vh;overflow:auto}.selection-reminder-preview li{padding:10px 0;border-top:1px solid var(--line)}.selection-reminder-preview p{white-space:normal;overflow-wrap:anywhere}
