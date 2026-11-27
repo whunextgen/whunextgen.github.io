@@ -3995,6 +3995,26 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// ---------- 头像：网站照片优先，飞书头像补齐（0151 0152） ----------
+{
+  await db.exec(`reset role`);
+  const AU = await id(`insert into app_user (name, role, feishu_open_id, feishu_union_id) values ('头像丁', 'member', 'ou_av_d', 'on_av_d')`);
+  await q(`select set_config('app.uid', '', false)`);
+  ok((await q(`select user_id from feishu_avatar_todo(50) where user_id = $1`, [AU])).length === 1, '没有头像的列入飞书补齐');
+  await q(`select feishu_avatar_save($1, 'https://example.feishu.cn/a.png')`, [AU]);
+  ok((await q(`select user_id from feishu_avatar_todo(50) where user_id = $1`, [AU])).length === 0, '取到后不再列入');
+  await db.exec(`set role app_api`);
+  await as(AU);
+  ok((await one(`select avatar_url from api.me`)).avatar_url === 'https://example.feishu.cn/a.png', '没有网站照片时用飞书头像');
+  await db.exec(`reset role`);
+  await q(`insert into person (name, user_id, avatar_url) values ('头像丁', $1, 'https://cdn.example/site.jpg')`, [AU]);
+  await db.exec(`set role app_api`);
+  await as(AU);
+  ok((await one(`select avatar_url from api.me`)).avatar_url === 'https://cdn.example/site.jpg', '有网站照片时以网站为准');
+  await raises('登录用户不能直接写头像', /当前角色/, `select feishu_avatar_save($1, 'https://x.example/b.png')`, [AU]);
+  await as(U.dir);
+}
+
 // ---------- 配色投票（#49） ----------
 {
   await as(U.mem);
