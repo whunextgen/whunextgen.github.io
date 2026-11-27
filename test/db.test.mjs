@@ -3963,6 +3963,35 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// ---------- 飞书通知：去重、合并、顺序、直达（#126 #127 #139 #140） ----------
+{
+  await db.exec(`reset role`);
+  const NU = await id(`insert into app_user (name, role, feishu_open_id) values ('通知丙', 'member', 'ou_notice_c')`);
+  await q(`delete from feishu_outbox where status = 'queued'`);
+  await q(`select set_config('app.uid', $1, false)`, [U.dir]);
+  await q(`select notify_user($1, '研究单元申请待同意：同一句话')`, [NU]);
+  await q(`select notify_user($1, '研究单元申请待同意：同一句话')`, [NU]);
+  ok(Number((await one(`select count(*) n from feishu_outbox where user_id = $1 and payload->>'text' = '研究单元申请待同意：同一句话'`, [NU])).n) === 1, '同一人 10 分钟内同样的话只发一次（#139）');
+  await q(`select notify_user_link($1, '研究单元「甲」已成立', '#/project/abc')`, [NU]);
+  ok((await one(`select payload->>'url' u from feishu_outbox where user_id = $1 and payload->>'text' = '研究单元「甲」已成立'`, [NU])).u === '#/project/abc', '通知可带站内链接（#127）');
+  ok(/notify_user_link\(u\.owner_id/.test((await one(`select pg_get_functiondef('public.confirm_unit(uuid)'::regprocedure) d`)).d), '研究单元成立的通知带上该研究单元的链接');
+  // 反馈：同一轮转好的合并成一张，编号从小到大，按钮直达议题
+  await q(`select set_config('app.uid', '', false)`);
+  const F = [];
+  for (const b of ['反馈一', '反馈二', '反馈三']) F.push(await one(`insert into feedback (user_id, body, page) values ($1, $2, '#/') returning id, seq`, [NU, b]));
+  await q(`select feedback_issue_save($1, 203, 'https://github.com/x/y/issues/203', null)`, [F[2].id]);
+  await q(`select feedback_issue_save($1, 201, 'https://github.com/x/y/issues/201', null)`, [F[0].id]);
+  await q(`select feedback_issue_save($1, 202, 'https://github.com/x/y/issues/202', null)`, [F[1].id]);
+  const fb = await q(`select payload from feishu_outbox where user_id = $1 and payload->>'merge' = 'feedback'`, [NU]);
+  ok(fb.length === 1, '同一轮的「反馈已收到」合并成一张（#140）', String(fb.length));
+  ok(fb[0] && fb[0].payload.text.includes(`第 ${F[0].seq}、${F[1].seq}、${F[2].seq} 号`) && fb[0].payload.text.includes('#201、#202、#203'), '编号从小到大', fb[0]?.payload.text);
+  ok(fb[0] && /^https:\/\/github\.com\//.test(fb[0].payload.url) && fb[0].payload.btn === '查看议题', '按钮直达议题（#126）', JSON.stringify(fb[0]?.payload));
+  const tk = await q(`select msg_id from outbox_take(50)`);
+  ok(tk.every((r, i) => i === 0 || Number(r.msg_id) > Number(tk[i - 1].msg_id)), '发送队列按入队顺序取（#140）');
+  await db.exec(`set role app_api`);
+  await as(U.dir);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {
