@@ -1,4 +1,4 @@
-import { Component, StrictMode, useEffect, useState, type ReactNode } from 'react';
+import { Component, StrictMode, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ApiError, logout, rpc, view, type Me, type Project, type ProjectTag } from './api';
 import { ActionDialog, ROLE, can, today } from './ui';
@@ -121,6 +121,20 @@ function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);   // undefined 加载中，null 未登录
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);   // 窄屏上的导航抽屉
+  // 窄屏抽屉的键盘焦点（#123）：收起时导航不可聚焦；展开时背景不可聚焦、焦点进导航；收起后回到「菜单」按钮；Esc 收起
+  const sbRef = useRef<HTMLElement>(null), bodyRef = useRef<HTMLDivElement>(null), menuRef = useRef<HTMLButtonElement>(null), wasOpen = useRef(false);
+  const [narrow, setNarrow] = useState(() => typeof matchMedia === 'function' && matchMedia('(max-width:960px)').matches);
+  useEffect(() => { const m = matchMedia('(max-width:960px)'); const f = () => setNarrow(m.matches); m.addEventListener('change', f); return () => m.removeEventListener('change', f); }, []);
+  useEffect(() => {
+    if (sbRef.current) sbRef.current.inert = narrow && !open;
+    if (bodyRef.current) bodyRef.current.inert = narrow && open;
+    if (narrow && open) sbRef.current?.querySelector<HTMLElement>('nav a, nav .sg-h')?.focus();
+    else if (narrow && wasOpen.current) menuRef.current?.focus();
+    wasOpen.current = open;
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    addEventListener('keydown', esc); return () => removeEventListener('keydown', esc);
+  }, [narrow, open]);
   // 会议现场页按会议类别高亮侧栏（#78）：现场页读到会议后发出 live-kind 事件
   const [liveKind, setLiveKind] = useState<string | null>(null);
   useEffect(() => { const f = (e: Event) => setLiveKind(String((e as CustomEvent).detail ?? '')); window.addEventListener('live-kind', f); return () => window.removeEventListener('live-kind', f); }, []);
@@ -255,7 +269,7 @@ function App() {
   const title = [...groups.flatMap((g) => g.pages), ...side].find(([to]) => to === current)?.[1] ?? '首页';
   return (
     <div className={`shell${open ? ' nav-open' : ''}`}>
-      <aside className="sb">
+      <aside className="sb" ref={sbRef}>
         <a className="brand" href="#/"><i aria-hidden="true"><Mark /></i><span><b>正则</b><span>CLAIN 中台</span></span></a>
         <nav aria-label="导航">
           {groups.map((g, gi) => (
@@ -280,9 +294,9 @@ function App() {
           onClose={() => setScholar(false)} />}
       </aside>
       <div className="scrim" onClick={() => setOpen(false)} />
-      <div className="body">
+      <div className="body" ref={bodyRef}>
         <header className="tb">
-          <button className="ghost sm menu" aria-expanded={open} onClick={() => setOpen(!open)}>菜单</button>
+          <button ref={menuRef} className="ghost sm menu" aria-expanded={open} onClick={() => setOpen(!open)}>菜单</button>
           <div className="bc">{group?.top && <>{group.top}<i>/</i></>}{group?.label && <>{group.label}<i>/</i></>}<b>{title}</b></div>
           <span>{today()}</span>
         </header>

@@ -97,8 +97,11 @@ export function ActionDialog({ title, hint, fields, submitLabel = '确认', dang
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { ref.current?.showModal(); }, []);
+  // 填了内容还没提交时，按 Esc 或「取消」先确认是否放弃（#122）
+  const dirty = fields.some((f) => (values[f.name] ?? '') !== (f.value ?? ''));
+  const keep = () => dirty && !busy && !window.confirm('填写的内容还没有提交，确定放弃吗？');
   return (
-    <dialog ref={ref} onClose={onClose}>
+    <dialog ref={ref} onClose={onClose} onCancel={(e) => { if (keep()) e.preventDefault(); }}>
       <form onSubmit={async (e) => {
         e.preventDefault(); setBusy(true); setError('');
         try { await onSubmit(values); onClose(); } catch (err) { setError((err as Error).message); setBusy(false); }
@@ -133,7 +136,7 @@ export function ActionDialog({ title, hint, fields, submitLabel = '确认', dang
         ))}
         {error && <div className="msg bad" role="alert">{error}</div>}
         <div className="actions">
-          <button type="button" className="ghost" onClick={onClose}>取消</button>
+          <button type="button" className="ghost" onClick={() => { if (!keep()) onClose(); }}>取消</button>
           <button type="submit" className={danger ? 'danger' : ''} disabled={busy}>{busy ? '处理中…' : submitLabel}</button>
         </div>
       </form>

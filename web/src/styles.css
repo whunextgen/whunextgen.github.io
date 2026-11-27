@@ -1,7 +1,7 @@
 :root{
   /* 中性的底和白色面板；赤陶红只用在强调和图表上 */
   --brand:#bc442b;--brand-soft:#fbefeb;--gold:#d99a2b;--gold-lt:#f3d9a4;--blue:#3b6fd4;
-  --bg:#f3f3f0;--paper:#fff;--raise:#f8f8f6;--ink:#16171a;--mute:#6a6e75;--faint:#a3a7ae;--line:#e6e6e2;--track:#ebebe7;
+  --bg:#f3f3f0;--paper:#fff;--raise:#f8f8f6;--ink:#16171a;--mute:#6a6e75;--faint:#6a6e75;--line:#e6e6e2;--track:#ebebe7;
   --ok:#1f7a4d;--warn:#8a5a00;--bad:#b42318;
   --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
   --serif:var(--sans);
@@ -33,10 +33,10 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:1px}
 .sg-h{display:flex;justify-content:space-between;align-items:baseline;padding:0 10px;font-size:12.5px;color:var(--ink);letter-spacing:.04em}
 .sg-h b{font-weight:600}
 .sg.cur .sg-h i{color:var(--brand)}
-.sg-n{padding:1px 10px 5px;font-size:11px;line-height:1.4;color:var(--faint)}
+.sg-n{padding:1px 10px 5px;font-size:12px;line-height:1.4;color:var(--faint)}
 .sg-h:last-child,.sg-h+a{margin-top:0}
 .sg-h+a{margin-top:4px}
-.sg-h i{font:500 10px var(--mono);font-style:normal;color:var(--faint)}
+.sg-h i{font:500 12px var(--mono);font-style:normal;color:var(--faint)}
 .who{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-top:1px solid var(--line);font-size:13px}
 .who b{display:block;font-weight:600;line-height:1.3}
 .who span span{display:block;color:var(--mute);font-size:11px}
@@ -280,7 +280,7 @@ fieldset.multi .field{margin-bottom:8px}
 .sg-top{padding:0 10px 8px;font-size:12.5px;font-weight:600;letter-spacing:.04em;color:var(--ink);border-top:1px solid var(--line);padding-top:14px;margin-bottom:2px}
 .sg.in{margin-left:8px;padding-left:8px;border-left:1px solid var(--line)}.sg.in .sg-top{margin-left:-17px;border-top:1px solid var(--line)}.sg.in+.sg.in{margin-top:12px}
 .sg.in+.sg:not(.in){border-top:1px solid var(--line);padding-top:14px}
-a.sg-h{text-decoration:none;color:inherit;border-radius:8px}a.sg-h:hover b{color:var(--brand)}a.sg-h.on b{color:var(--brand)}a.sg-h i{font:500 10px var(--mono);color:var(--brand);font-style:normal}
+a.sg-h{text-decoration:none;color:inherit;border-radius:8px}a.sg-h:hover b{color:var(--brand)}a.sg-h.on b{color:var(--brand)}a.sg-h i{font:500 12px var(--mono);color:var(--brand);font-style:normal}
 .wb-facts a:not(.btn){color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}.wb-facts a:not(.btn):hover{color:var(--brand)}
 .stage:hover{border-color:#c9c9c4;transform:translateY(-2px);box-shadow:var(--lift)}
 .stage:hover::after{color:var(--brand);transform:translateX(4px)}
@@ -547,7 +547,7 @@ tr.sel td{background:var(--raise)}
 .path-attrs .attr i{font-style:normal;font-size:11px;color:var(--mute)}
 
 /* 个人主页与研究单元页：按设计稿 ir-character-card、ir-unit-card */
-.ir{--i-bg:#f1ece2;--i-ink:#17130f;--i-mut:#7d7468;--i-line:#17130f;--i-soft:#e4dccd;--i-red:#c2351b;--i-paper:#f8f4ec;--i-serif:"Songti SC","Noto Serif SC","Source Han Serif SC",serif;
+.ir{--i-bg:#f1ece2;--i-ink:#17130f;--i-mut:#635b50;--i-line:#17130f;--i-soft:#e4dccd;--i-red:#c2351b;--i-paper:#f8f4ec;--i-serif:"Songti SC","Noto Serif SC","Source Han Serif SC",serif;
   --i-mono:ui-monospace,"SF Mono",Menlo,monospace;background:var(--i-bg);color:var(--i-ink);margin:0 calc(-1 * clamp(16px,2.4vw,32px));padding:0 clamp(16px,2.4vw,32px) 32px}
 .ir a{color:inherit}
 /* 卡片里做成链接的按钮：不随 .ir a 继承墨色，否则黑底黑字（issue #46） */
@@ -567,8 +567,8 @@ tr.sel td{background:var(--raise)}
 .ir-hero h1{font:700 clamp(64px,10vw,160px)/.9 var(--i-serif);letter-spacing:-.02em;margin:6px 0 0 -4px}
 .ir-title{display:inline-block;font:700 14px/1 var(--i-serif);border:1px solid var(--i-line);padding:6px 12px;margin-top:14px;letter-spacing:.2em}
 .ir-facts{display:flex;flex-wrap:wrap;gap:8px 30px;margin-top:16px}.ir-facts span{display:block;font-size:12px;color:var(--i-mut)}.ir-facts b{font:700 15px/1.4 var(--i-serif)}
-.ir-lvl{display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--i-line)}
-.ir-lvl span{padding:10px 0 0;font:500 12px/1.2 var(--i-mono);letter-spacing:.04em;color:var(--i-mut);position:relative}
+.ir-lvl{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-top:1px solid var(--i-line)}
+.ir-lvl span{padding:10px 6px 0 0;font:500 12px/1.2 var(--i-mono);letter-spacing:0;overflow-wrap:anywhere;color:var(--i-mut);position:relative}
 .ir-lvl span::before{content:"";position:absolute;top:-5px;left:0;width:9px;height:9px;background:var(--i-paper);border:1px solid var(--i-line)}
 .ir-lvl span.past{color:var(--i-ink)}.ir-lvl span.past::before{background:var(--i-ink)}
 .ir-lvl span.me{color:var(--i-red);font-weight:700}.ir-lvl span.me::before{background:var(--i-red);border-color:var(--i-red);width:13px;height:13px;top:-7px}
@@ -581,7 +581,7 @@ tr.sel td{background:var(--raise)}
 .ir-nav a{font:500 12.5px/1 var(--sans);border:1px solid var(--i-line);padding:7px 12px;text-decoration:none}.ir-nav a:hover{background:var(--i-ink);color:var(--i-bg)}
 .ir-cal{display:grid;grid-template-columns:repeat(14,1fr);gap:1px;background:var(--i-line);border:1px solid var(--i-line)}
 .ir-cal div{background:var(--i-paper);padding:8px 6px 10px;min-height:70px;display:flex;flex-direction:column}
-.ir-cal small{font:500 10px/1 var(--i-mono);color:var(--i-mut)}.ir-cal b{font:700 22px/1.3 var(--i-serif)}
+.ir-cal small{font:500 12px/1 var(--i-mono);color:var(--i-mut)}.ir-cal b{font:700 22px/1.3 var(--i-serif)}
 .ir-cal em{font:500 10.5px/1.2 var(--sans);font-style:normal;color:var(--i-red);margin-top:auto}
 .ir-cal .d{background:var(--i-soft)}.ir-cal .d b{color:var(--i-mut)}.ir-cal .me{background:var(--i-ink);color:var(--i-bg)}.ir-cal .me small{color:inherit;opacity:.7}
 .ir-td3{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--i-line);border:1px solid var(--i-line);border-top:0}
@@ -717,3 +717,11 @@ details.fold[open] > summary { color: var(--mute, #6a6e75); }
 /* 色条下的图例：色块里的字放不下时，这里完整列出（#130） */
 .wb-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:12px;color:var(--mute)}
 .wb-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* 成长阶梯：窄屏只留当前和相邻的级别，不挤在一起（#133） */
+@media (max-width:640px){.ir-lvl{grid-template-columns:repeat(var(--lvl-n,3),minmax(0,1fr))}.ir-lvl span.far{display:none}}
+/* 右下角「遇到问题？」不遮页脚和卡片末尾（#134） */
+.body{padding-bottom:64px}
+@media (max-width:600px){.body{padding-bottom:56px}}
+/* 各期记录在窄屏局部横滑，不撑宽整页（#124） */
+.ir-scroll{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
