@@ -271,7 +271,8 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
     );
   });
 
-  const planTotal = (k: 'requested' | 'applied' | 'fixed') => (planYear ? data.lines.filter((l) => l.year === planYear.year).reduce((x, l) => x + num((l as unknown as Record<string, string | null>)[k]), 0) : 0);
+  // 申报数取预算行的 declared（原来写成 requested，这个字段不存在，合计总是 0，#129）
+  const planTotal = (k: 'declared' | 'applied' | 'fixed') => (planYear ? data.lines.filter((l) => l.year === planYear.year).reduce((x, l) => x + num(l[k]), 0) : 0);
   const big = (x: number) => { const [i, d] = money(x).split('.'); return <>{i}<small>.{d}</small></>; };
 
   // ---------- 各页共用的几块 ----------
@@ -416,9 +417,11 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
     const resByTopic = data.res.filter((q) => q.project_id != null);
     return (
       <div className="wb">
-        {hero(`课题 · 汇总${execYear ? ` · ${execYear.year} 年度` : ''} · ${tops.length} 个课题`, execYear ? '本年度各课题可用合计' : '年度预算', execYear ? topicLeft : '未下达', execYear ? '元' : '', <>
-          {execTrack(topicAll.fixed, topicAll.actual, Math.max(topicAll.used - topicAll.actual, 0), '核定数') ?? <Empty>暂无已下达的年度预算。</Empty>}
-          <div className="wb-facts"><span>核定数<b>{money(topicAll.fixed)}</b></span><span>已入账<b>{money(topicAll.actual)}</b></span><span>已承诺<b>{money(Math.max(topicAll.used - topicAll.actual, 0))}</b></span>
+        {/* 页头的课题数按在用的课题算；还没有整体下达的年度时，数字取正在编制的年度并标明年度，与流程卡同一口径（#129） */}
+        {hero(`课题 · 汇总${execYear ? ` · ${execYear.year} 年度` : y ? ` · ${y.year} 年度（未整体下达）` : ''} · ${data.projects.filter((p) => p.layer !== 'paper' && p.active).length} 个课题`, execYear ? '本年度各课题可用合计' : '年度预算', execYear ? topicLeft : '未下达', execYear ? '元' : '', <>
+          {execTrack(topicAll.fixed, topicAll.actual, Math.max(topicAll.used - topicAll.actual, 0), '核定数') ?? <Empty>{y ? `${y.year} 年度预算尚未整体下达，执行情况按课题下达后在下方逐个课题显示。` : '暂无已下达的年度预算。'}</Empty>}
+          <div className="wb-facts">{execYear ? <><span>核定数<b>{money(topicAll.fixed)}</b></span><span>已入账<b>{money(topicAll.actual)}</b></span><span>已承诺<b>{money(Math.max(topicAll.used - topicAll.actual, 0))}</b></span></>
+            : y ? <><span>{y.year} 年度申报数<b>{money(sumOf('declared'))}</b></span><span>{y.year} 年度核定数<b>{money(sumOf('fixed'))}</b></span><span>已提交<b>{subs} 个</b></span></> : null}
             {data.pcaps.filter((c) => c.year === execYear?.year).length > 0 && <span>上限合计<b>{money(data.pcaps.filter((c) => c.year === execYear?.year).reduce((t, c) => t + num(c.amount), 0))}</b></span>}</div>
         </>, topicLeft < 0)}
         <section className="wb-sec">
@@ -437,7 +440,7 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
       {(topicNodes.length > 0 || orphans.length > 0 || planYear) && (
         <section className="wb-sec">
           <div className="wb-sh"><span className="no">03</span><h2>课题</h2><span className="path"><b>课题</b> › <b>研究单元</b> › <b>预算行</b>{execYear ? `　${execYear.year} 年度 · 点击逐级展开` : ''}</span></div>
-          {planYear && <p className="hint"><a href={`#/budget/${planYear.year}`}>{planYear.year} 年度预算</a>：{STAGE_TEXT[planYear.stage]}{planYear.stage === 'declare' ? `，${day(planYear.due_date)} 截止` : ''}。申报数合计 {money(planTotal('requested'))}{planTotal('applied') > 0 ? `，申请数 ${money(planTotal('applied'))}` : ''}{planTotal('fixed') > 0 ? `，核定数 ${money(planTotal('fixed'))}` : ''}。</p>}
+          {planYear && <p className="hint"><a href={`#/budget/${planYear.year}`}>{planYear.year} 年度预算</a>：{STAGE_TEXT[planYear.stage]}{planYear.stage === 'declare' ? `，${day(planYear.due_date)} 截止` : ''}。申报数合计 {money(planTotal('declared'))}{planTotal('applied') > 0 ? `，申请数 ${money(planTotal('applied'))}` : ''}{planTotal('fixed') > 0 ? `，核定数 ${money(planTotal('fixed'))}` : ''}。</p>}
           {topicNodes.length + orphans.length === 0 ? <Empty>暂无已下达的年度预算。年度预算下达后，此处按课题、研究单元、预算行显示核定数与执行情况。</Empty> : (
             <>
               <div className="wb-key"><span><i className="sy1" />各研究单元核定数</span><span><i className="hatch" />上限内未核定</span><span><i className="sa" />已入账</span><span><i className="sc" />已承诺</span><span><i className="sr" />可用</span></div>

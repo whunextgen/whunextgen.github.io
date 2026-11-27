@@ -106,7 +106,7 @@ export function PlanPage({ me, start }: { me: Me; start: string }) {
         badge={y.stage === 'declare' ? <Badge tone={published ? 'pri' : 'warn'}>{published ? '课题申请与评定中' : '方案编制中'}</Badge> : <Badge tone="ok">{y.stage === 'closed' ? '已决算' : y.stage === 'issued' ? '已下达，执行中' : '评定完成，待下达'}</Badge>}
         label={staff ? '年度总预算' : '档次合计'} value={staff ? total : tierSum}
         chart={staff ? (segs.length > 0 ? <Track cap="总预算的去向 · 直接确定金额的课题、各档次与未分配" segs={segs} /> : <Empty>尚未测算总预算。</Empty>)
-          : tiers.length > 0 ? <Track cap="各档次 · 金额 × 名额" segs={tiers.map((t, i): Seg => ({ cls: `u${i % 3} big`, value: num(t.amount) * t.slots, text: `${t.name} ${t.slots} 个`, tip: `「${t.name}」每个课题 ${money(t.amount)}，名额 ${t.slots}` }))} /> : <Empty>档次方案尚未批准公布。</Empty>}
+          : tiers.length > 0 ? <Track cap="各档次 · 金额 × 名额" segs={tiers.map((t, i): Seg => ({ cls: `u${i % 3} big`, value: num(t.amount) * t.slots, text: `${t.name} ${t.slots} 个`, tip: `「${t.name}」每个课题 ${money(t.amount)}，名额 ${t.slots}` }))} legend /> : <Empty>档次方案尚未批准公布。</Empty>}
         facts={staff ? [['直接确定金额的课题', money(modSum)], ['可按档次分配', money(total - modSum)], ['档次合计', money(tierSum)], ['未分配', money(room), room < 0], ['已申请课题', `${picks.length} 个`]]
           : [['档次', `${tiers.length} 档`], ['名额', `${tiers.reduce((t, x) => t + x.slots, 0)} 个`], ['申报截止', day(y.due_date)]]}
         actions={director && y.stage === 'declare' ? (published
