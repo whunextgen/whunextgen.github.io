@@ -2121,7 +2121,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.mem);
   ok((await one(`select scholar_url from api.project_member where project_id = $1 and user_id = $2 and left_on is null`, [t0.id, U.mem2])).scholar_url === url, '成员名单里随姓名给出链接');
   const tp = await one(`select owner_scholar_url, members, can_roster from api.project where id = $1`, [t0.id]);
-  ok(tp.owner_scholar_url === 'https://scholar.google.com.hk/citations?user=Own3r' && tp.members >= 1 && tp.can_roster != null, '课题列表给出负责人的链接，原有字段不变', JSON.stringify(tp));
+  ok(tp.owner_scholar_url === 'https://scholar.google.com.hk/citations?user=Own3r' && Number.isInteger(tp.members) && tp.members >= 0 && tp.can_roster != null, '课题列表给出负责人的链接，人数仍为非负整数', JSON.stringify(tp));
   await as(U.mem2); await q(`select set_scholar_url(' ')`);
   ok((await one(`select scholar_url from api.me`)).scholar_url === null, '留空即清除');
 }
@@ -3991,6 +3991,23 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok((await q(`select column_name from information_schema.columns where table_schema = 'api' and table_name = 'me' and column_name = 'rank_label'`)).length === 1, '本人信息带中心身份');
   ok((await q(`select column_name from information_schema.columns where table_schema = 'api' and table_name = 'me' and column_name = 'avatar_url'`)).length === 1, '本人信息带头像');
   await raises('头像只收 https 地址', /avatar_url_check|check constraint/, `update person set avatar_url = 'javascript:alert(1)' where id = (select id from person limit 1)`);
+  await db.exec(`set role app_api`);
+  await as(U.dir);
+}
+
+// ---------- 新反馈按页面分派负责人（0153） ----------
+{
+  await db.exec(`reset role`);
+  ok((await one(`select feedback_owner('#/budget/2027') a, feedback_owner('#/resource') b, feedback_owner('#/select') c, feedback_owner('#/') d`)).a === '况紫嫣', '预算编制归况紫嫣');
+  const fo = await one(`select feedback_owner('#/resource') b, feedback_owner('#/select') c, feedback_owner('#/') d`);
+  ok(fo.b === '张睿宇' && fo.c === '肖梦溪' && fo.d === null, '资源归张睿宇、双选归肖梦溪、其他不分派', JSON.stringify(fo));
+  const FU = await id(`insert into app_user (name, role, feishu_open_id) values ('反馈戊', 'member', 'ou_fb_e')`);
+  const FB = await one(`insert into feedback (user_id, body, page) values ($1, '资源申领按钮灰了', '#/resource') returning id, seq`, [FU]);
+  await q(`select set_config('app.uid', '', false)`);
+  ok((await q(`select owner from feedback_todo() where id = $1`, [FB.id]))[0]?.owner === '张睿宇', '转议题的待办带上负责人');
+  await q(`select feedback_issue_save($1, 301, 'https://github.com/x/y/issues/301', null)`, [FB.id]);
+  const nt = await one(`select payload from feishu_outbox where target = 'assist' and payload->>'thread' = 'issue:301'`);
+  ok(nt && nt.payload.plain === true && JSON.stringify(nt.payload.mention) === '["张睿宇"]' && nt.payload.text.includes('负责：张睿宇'), '协助群通报纯文字并 @ 负责人', JSON.stringify(nt?.payload));
   await db.exec(`set role app_api`);
   await as(U.dir);
 }

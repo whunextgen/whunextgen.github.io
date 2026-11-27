@@ -25,6 +25,9 @@ ok(c.btn.url === O + '/#/', '不认的链接不用', c.btn.url);
   ok(sm.startsWith('研究单元申请待同意；') && sm.includes('研究单元 单元一'), '卡片摘要带上要点，旧版网页至少看得到摘要（#138）', sm); }
 c = parts('研究单元申请待同意：甲 申请在课题「课题一」之下成立「单元一」，使用该课题的预算。', '甲', { act: { kind: 'unit_consent', unit: '11111111-2222-3333-4444-555555555555' } });
 ok(c.btn.url === O + '/#/projects/11111111-2222-3333-4444-555555555555', '研究单元申请的卡片直达那一笔（#136）', c.btn.url);
+{ const m = els({ text: '议题分工：一句', group: true, kind: 'post', mention_ids: [{ id: 'ou_testuserxyzw', name: '甲' }, { id: 'bad"></at>', name: '乙' }] }).main;
+  const md = m.find((x: any) => x.tag === 'markdown' && String(x.content).includes('<at id=ou_'));
+  ok(md && md.content === '<at id=ou_testuserxyzw></at>', '群通知 @ 具体的人，编号不合法的不放', JSON.stringify(md)); }
 c = parts('乙 给你派了任务「整理双周表和预算」');
 ok(c.title === '任务' && c.btn.url.endsWith('/#/tasks') && c.text === '乙 给你派了任务「整理双周表和预算」' && c.kind === 'todo' && c.sub === '11-24 01:00 北京时间', '书名号里的字不参与归类；派任务归为待办', JSON.stringify(c));
 c = parts('2032 年度评定完成：课题「课题一」定为「甲档」，年度上限 100 元');

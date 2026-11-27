@@ -1,10 +1,10 @@
 {
   "name": "finance-portal",
-  "version": "1.16.54",
+  "version": "1.16.57",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/db.test.mjs && node test/selection-roster.test.mjs && node test/selection-reminders.test.mjs"
+    "test": "node test/db.test.mjs && node test/selection-roster.test.mjs && node test/topic-member-count.test.mjs && node test/selection-reminders.test.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.16"

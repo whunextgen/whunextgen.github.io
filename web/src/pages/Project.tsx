@@ -221,7 +221,8 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
         {isUnit && <UnitReviews unit={r} me={me} />}
 
         <section className="card" id="sec-members">
-          <h3>成员 <span className="h3sub">{members.length} 人</span></h3>
+          <h3>{isUnit ? '成员' : '直属成员'} <span className="h3sub">{members.length} 人</span></h3>
+          {!isUnit && <p className="hint">此处维护课题直属名单；双选页和课题列表的总人数另包含下属有效研究单元成员，并按账号去重。研究单元成员不会因此自动进入本课题的直属名单。</p>}
           <p className="hint">仅名单内人员可从本{un}的预算行提交支出申请、申领本{un}的接口额度。负责人可直接新增和移出成员，无需本人确认；负责人和副手默认在名单内。</p>
           {members.length === 0 ? <Empty>名单暂无成员。{r.can_roster ? `请先将参与本${un}的人员加入名单，加入后方可提交支出申请。` : ''}</Empty> : (
             <div className="scroll"><table>
