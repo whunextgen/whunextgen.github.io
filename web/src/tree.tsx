@@ -5,7 +5,7 @@ import { Badge, money, pct } from './ui';
 export interface Seg { cls: string; value: number; text?: string; tip: string }
 
 // 一条分段的图：各段宽度按金额；cap 是图上方的小标题，scale 给出时整条的长度按金额占 scale 的比例
-export function Track({ cap, segs, scale, total, mark }: { cap?: string; segs: Seg[]; scale?: number; total?: number; mark?: number }) {
+export function Track({ cap, segs, scale, total, mark, legend }: { cap?: string; segs: Seg[]; scale?: number; total?: number; mark?: number; legend?: boolean }) {
   const shown = segs.filter((s) => s.value > 0);
   const sum = total ?? shown.reduce((t, s) => t + s.value, 0);
   return (
@@ -15,6 +15,7 @@ export function Track({ cap, segs, scale, total, mark }: { cap?: string; segs: S
         <div className="wb-track" role="img" aria-label={shown.map((s) => s.tip).join('；')}>
           {shown.map((s, i) => <i key={i} className={s.cls} style={{ flex: `${s.value} ${s.value} 0` }} title={s.tip}>{s.text}</i>)}
         </div>
+        {legend && <div className="wb-legend">{shown.filter((s) => s.text).map((s, i) => <span key={i}><i className={s.cls} />{s.text}</span>)}</div>}
         {mark != null && <div className="wb-mark" style={{ left: `${Math.min(100, Math.max(0, mark * 100))}%` }}><span>时间进度 {(mark * 100).toFixed(0)}%</span></div>}
       </div>
     </div>
