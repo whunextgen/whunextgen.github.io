@@ -849,7 +849,9 @@ const KIND: Record<NoticeKind, { bar: string; title: string; sub: string; tagCol
 export type NoticeBody = { text?: string; by?: string | null; at?: string | null; url?: string | null; btn?: string | null; all?: boolean | null; group?: boolean | null; kind?: string | null; tag?: string | null;
   act?: { kind?: string; unit?: string } | null;   // 能在卡片上直接办的动作
   done?: string | null;                            // 已在卡片上办完：这句话替换掉按钮
-  img?: string | null; img_key?: string | null; img_note?: string | null };   // 通报带的图：img 是图的 base64（PNG），发出前换成 img_key；img_note 是图下的小字
+  img?: string | null; img_key?: string | null; img_note?: string | null;
+  mention?: string[] | null;                       // 群通知里要 @ 的人（姓名），发出前按群成员换成飞书编号
+  mention_ids?: { id: string; name: string }[] | null };   // 通报带的图：img 是图的 base64（PNG），发出前换成 img_key；img_note 是图下的小字
 // 通知的内容：归类、标题、分项、正文、按钮。卡片和测试都从这里取
 export function noticeView(body: NoticeBody, origin: string, appId?: string) {
   // 通知自带的链接：https 链接原样用；站内路径（#/ 开头）接到站点地址后面，在飞书里直达那一页
@@ -906,6 +908,9 @@ export function noticeCard(body: NoticeBody, origin: string, appId?: string, mar
   ], { background_style: k.bar, horizontal_spacing: '10px' });
   const main: unknown[] = [];
   if (v.all) main.push({ tag: 'markdown', content: '<at id=all></at>' });
+  // @ 具体的人：编号只收飞书的 open_id 形式，防止拼出别的标记
+  const ats = (body.mention_ids ?? []).filter((x) => /^ou_[0-9a-z]{10,64}$/.test(x.id));
+  if (ats.length) main.push({ tag: 'markdown', content: ats.map((x) => `<at id=${x.id}></at>`).join(' ') });
   const kv = ([name, value]: [string, string]) => col([plain(name, 'zz-mute', 'notation'), plain(value, 'zz-ink')], { vertical_spacing: '2px' });
   // 分项两个一行；长的独占一行
   for (let i = 0; i < v.fields.length;) {
@@ -1365,6 +1370,20 @@ export default {
         if (r?.code === 0 && r.data?.message_id) await setRoot(key, String(r.data.message_id));
         return r;
       };
+      // 群通知要 @ 的人：按群成员名单把姓名换成本应用的 open_id；对不上的记下来
+      let mentionNote: string | null = null;
+      if (group && Array.isArray(body.mention) && body.mention.length && !body.mention_ids) {
+        const names = new Map<string, string>();
+        let pt = '';
+        for (let i = 0; i < 10; i++) {
+          const mr = await feishu(`/im/v1/chats/${encodeURIComponent(to)}/members?member_id_type=open_id&page_size=100${pt ? `&page_token=${encodeURIComponent(pt)}` : ''}`, { headers: { authorization: `Bearer ${tok.tenant_access_token}` } }).catch(() => null);
+          for (const it of (mr?.data?.items ?? []) as { member_id?: string; name?: string }[]) if (it.member_id && it.name) names.set(it.name, it.member_id);
+          if (!mr?.data?.has_more || !mr?.data?.page_token) break; pt = String(mr.data.page_token);
+        }
+        body.mention_ids = (body.mention as string[]).filter((n) => names.has(n)).map((n) => ({ id: names.get(n)!, name: n }));
+        const miss = (body.mention as string[]).filter((n) => !names.has(n));
+        if (miss.length) mentionNote = `群里找不到，未能 @：${miss.join('、')}`;
+      }
       // 先发卡片；卡片被拒的，退回发纯文字，通知不能因为版式丢掉
       const actToken = env.CARD_ACTIONS === '1' && !group && body.act ? await sign(env.SESSION_SECRET, 'act', String(m.msg_id), ACT_TTL) : undefined;
       // 带图的通报：先把图传上去；传不上去的照发文字，并记下原因
@@ -1376,8 +1395,8 @@ export default {
       }
       let r = await send('interactive', noticeCard({ ...body, group }, env.NOTICE_ORIGIN || 'https://clain-finance.pages.dev', env.FEISHU_APP_ID, markKeys, actToken).card);
       const why = (x: any) => `飞书返回 ${x?.code}：${String(x?.msg ?? '').slice(0, 200)}`;
-      let note: string | null = markNote;
-      if (r?.code !== 0) { note = `卡片未发出，已改发文字。${why(r)}`; r = await send('text', { text: `${group && body.all === true ? '<at user_id="all">所有人</at> ' : ''}【正则】${body.text}` }); }
+      let note: string | null = [markNote, mentionNote].filter(Boolean).join('；') || null;
+      if (r?.code !== 0) { note = `卡片未发出，已改发文字。${why(r)}`; r = await send('text', { text: `${group && body.all === true ? '<at user_id="all">所有人</at> ' : ''}${(body.mention_ids ?? []).map((x: { id: string; name: string }) => `<at user_id="${x.id}">${x.name}</at> `).join('')}【正则】${body.text}` }); }
       results.push([String(m.msg_id), r?.code === 0, r?.code === 0 ? note : why(r)]);
     }
     await withUser(env, null, async (sql) => {
