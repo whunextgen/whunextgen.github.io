@@ -64,20 +64,22 @@ export function Rules({ me }: { me: Me }) {
         {staff && <button onClick={() => setAdding(!adding)} className={adding ? 'ghost' : ''}>{adding ? '收起' : '新增答复记录'}</button>}</div>
       {adding && <NewRuling cards={cards} types={types} onDone={() => { setAdding(false); reload(); }} />}
 
+      {/* 经费卡的报销科目和金额由财务岗在经费卡上设置，支出由财务岗核对、分配到卡（#173）：这里不再逐卡逐类列举，只留明确的限制和学校退单 */}
       <section className="card">
-        <h3>各经费卡可列支范围</h3>
-        <p className="hint">无答复的组合不得提交支出申请，须先咨询并记录。学校退单的原因自动记为不可报销。</p>
-        {cards.length === 0 || types.length === 0 ? <Empty>暂无在用的经费卡或支出类型。</Empty> : (
+        <h3>报销限制 <span className="h3sub">明确不能列支、有条件或学校退过单的</span></h3>
+        <p className="hint">经费卡的报销科目和金额在各经费卡上设置，支出由财务岗核对、分配到经费卡时把关。没有记录的支出类型可以正常提交；这里只记明确答复过的情况：不能列支的拦截，学校退过单的标为有争议，改挂经费卡时不能改到这类卡上。</p>
+        {(() => { const ruled = cards.filter((c) => types.some((t) => by.has(`${c.id}|${t.id}`))); const rtypes = types.filter((t) => cards.some((c) => by.has(`${c.id}|${t.id}`)));
+          return ruled.length === 0 ? <Empty>暂无明确的报销限制。</Empty> : (
+          <details><summary>按经费卡查看（{ruled.length} 张卡、{rtypes.length} 类支出有答复）</summary>
           <div className="scroll"><table className="matrix">
-            <thead><tr><th>支出类型</th>{cards.map((c) => <th key={c.id}>{c.name}</th>)}</tr></thead>
-            <tbody>{types.map((t) => (
+            <thead><tr><th>支出类型</th>{ruled.map((c) => <th key={c.id}>{c.name}</th>)}</tr></thead>
+            <tbody>{rtypes.map((t) => (
               <tr key={t.id}><th scope="row">{t.name}{t.required_path && <div className="sub2">须采用{t.required_path}</div>}</th>
-                {cards.map((c) => { const r = by.get(`${c.id}|${t.id}`); const v = r && VERDICT[r.verdict]; return (
-                  <td key={c.id} title={r?.note ?? undefined}>{v ? <Badge tone={v[1]}>{v[0]}</Badge> : <span className="none">未答复</span>}
+                {ruled.map((c) => { const r = by.get(`${c.id}|${t.id}`); const v = r && VERDICT[r.verdict]; return (
+                  <td key={c.id} title={r?.note ?? undefined}>{v ? <Badge tone={v[1]}>{v[0]}</Badge> : <span className="none">—</span>}
                     {r?.note && <div className="sub2 wrap">{r.note}</div>}</td>); })}</tr>
             ))}</tbody>
-          </table></div>
-        )}
+          </table></div></details>); })()}
       </section>
 
       {staff && (
