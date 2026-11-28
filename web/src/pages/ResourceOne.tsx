@@ -72,7 +72,7 @@ export function ResourceOne({ me, id }: { me: Me; id: string }) {
         <section className="card">
           <h3>入库记录 <span className="h3sub">{stock.length} 次</span></h3>
           {/* 期初余额（0170）：旧门户、往年充值剩下的，按平台后台余额录一次；外币计价的填折算汇率，申请和发放按该单位 */}
-          {can(me, 'resource.approve') && r.kind === 'api' && <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 0 }}>
+          {can(me, 'resource.manage') && r.kind === 'api' && <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 0 }}>
             {!stock.some((s) => s.source === 'opening') && <button className="sm" onClick={() => setAct({ title: `录入期初余额：${r.name}`, label: '录入',
               hint: '按平台后台显示的账户余额录一次，作为这项额度的期初库存，之后的充值按支出入库。平台按美元等外币计价的，计价单位填该外币并填折算汇率（1 单位合多少元，按市场汇率），之后的申请、批准、发放和密钥额度都按这个单位；和课题预算比时按汇率折人民币。已有在办申请或在用额度的，不能改计价单位。',
               fields: [{ name: 'qty', label: '平台账户余额', type: 'number' }, { name: 'unit', label: '计价单位（如 美元、元）', value: r.unit && r.unit !== 'CNY' ? r.unit : '美元' }, { name: 'fx', label: '折算汇率：1 单位合多少元（人民币计价的留空）', type: 'number', required: false },

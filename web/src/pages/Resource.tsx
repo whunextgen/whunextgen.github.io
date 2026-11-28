@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { rpc, secretGet, secretSet, useViews, type Allocation, type Me, type Project, type ProjectTag, type Req, type Resource, type ResourcePick, type ResourcePlan, type ResourceRequest, type ResourceStock, type YearCheck, type ResReqStatus,
-  type SecretAccess, type SecretKind, type User, type LinePick, type ApiQuarter, type UnitApiKey } from '../api';
+  type SecretAccess, type SecretKind, type PeoplePick, type LinePick, type ApiQuarter, type UnitApiKey } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, PERSON, Tile, canPublic, day, money, num, today, type Field } from '../ui';
 
 export interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
@@ -23,7 +23,7 @@ export function SecretDialog({ kind, id, title, onClose }: { kind: SecretKind; i
   return (
     <dialog ref={ref} onClose={onClose}>
       <h3>{title}</h3>
-      <p className="hint">{kind === 'unit' ? '研究单元的 API key 加密保存于中台，仅本研究单元名单内成员和财务岗可取用，每次取用均记录在案。不得转发名单外的人或写入代码仓库；有成员移出名单后，财务岗会更换 key，旧 key 作废。'
+      <p className="hint">{kind === 'unit' ? '研究单元的 API key 加密保存于中台，仅本研究单元名单内成员和财务岗可取用，每次取用均记录在案。不得转发名单外的人或写入代码仓库；有成员移出名单后，财务岗或资源管理员会更换 key，旧 key 作废。'
         : '密钥加密保存于中台，仅持有人和财务岗可取用，每次取用均记录在案。不得转发他人或写入代码仓库；归还或到期后，该密钥自本人名下撤销。'}</p>
       {plain ? <p className="secret"><code>{plain}</code></p> : <p className="empty">尚未显示。</p>}
       {msg && <div className={`msg ${msg === '已复制' ? '' : 'bad'}`} role="status">{msg}</div>}
@@ -311,10 +311,10 @@ export function PoolPage({ me }: { me: Me }) {
   );
 }
 
-// ---------- 资源池与库存：财务岗、中心负责人 ----------
-export function StockPage() {
-  const { data, error, reload } = useViews<{ resources: Resource[]; allocs: Allocation[]; users: User[]; stock: ResourceStock[]; access: SecretAccess[]; reqs: Req[]; checks: YearCheck[]; aq: ApiQuarter[]; ukeys: UnitApiKey[] }>({
-    resources: ['resource'], allocs: ['allocation'], users: ['users'], stock: ['resource_stock'], access: ['secret_access'], reqs: ['request'], checks: ['year_check'],
+// ---------- 资源池与库存：看得到全部资源的人；保存密钥、登记库存和汇率、分配收回按各自的权限 ----------
+export function StockPage({ me }: { me: Me }) {
+  const { data, error, reload } = useViews<{ resources: Resource[]; allocs: Allocation[]; users: PeoplePick[]; stock: ResourceStock[]; access: SecretAccess[]; reqs: Req[]; checks: YearCheck[]; aq: ApiQuarter[]; ukeys: UnitApiKey[] }>({
+    resources: ['resource'], allocs: ['allocation'], users: ['people_pick'], stock: ['resource_stock'], access: ['secret_access'], reqs: ['request'], checks: ['year_check'],
     aq: ['api_quarter'], ukeys: ['unit_api_key'],
   });
   const [act, setAct] = useState<Act | null>(null);
@@ -333,7 +333,9 @@ export function StockPage() {
     fields: [{ name: 'actual', label: `实盘${k.unit ? `（${k.unit}）` : ''}`, type: 'number', value: k.actual != null ? String(num(k.actual)) : String(num(k.book_now)) }, { name: 'note', label: '说明（有差异时必填）', required: false, value: k.note ?? '' }],
     run: (v) => rpc('save_year_check', { year: k.year, resource_id: k.resource_id, actual: v.actual, note: v.note || null }),
   });
-  const users = data.users.filter((u) => u.active).map((u): [string, string] => [u.id, u.name]);
+  // 选使用人用全中心的在职名单（people_pick），资源管理员看不到人员档案也能分配
+  const users = data.users.map((u): [string, string] => [u.id, u.name]);
+  const keyMgr = can(me, 'secret.manage'), keyView = can(me, 'secret.view'), resMgr = can(me, 'resource.manage');
   const list = data.resources.filter((r) => r.kind === tab).sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, 'zh'));
   const allocs = data.allocs.filter((a) => a.kind === tab && (past || a.current)).sort((a, b) => Number(b.current) - Number(a.current) || b.from_date.localeCompare(a.from_date));
   const apis = data.resources.filter((r) => r.kind === 'api' && r.active), assets = data.resources.filter((r) => r.kind === 'asset' && r.active);
@@ -425,7 +427,7 @@ export function StockPage() {
                   <td className={`r ${r.total != null && num(r.used) >= num(r.total) * 0.8 ? 'neg' : ''}`}>{qty(r.used, r.unit)}</td>
                   <td className="r">{r.balance != null ? <>{money(r.balance)}{r.currency ? ` ${r.currency}` : ''}<div className="sub2">{day(r.balance_on)}</div></> : '—'}</td>
                   <td className="r">{num(r.asked) > 0 ? qty(r.asked, r.unit) : '—'}</td>
-                  <td>{r.has_secret ? <div className="acts"><span className="code">{r.secret_hint ?? '已保存'}</span><button className="sm ghost" onClick={() => setKey({ kind: 'resource', id: r.id, name: r.name })}>查看</button></div> : <span className="sub2">未保存</span>}</td>
+                  <td>{r.has_secret ? <div className="acts"><span className="code">{r.secret_hint ?? '已保存'}</span>{keyView && <button className="sm ghost" onClick={() => setKey({ kind: 'resource', id: r.id, name: r.name })}>查看</button>}</div> : <span className="sub2">未保存</span>}</td>
                 </> : <>
                   <td className="r">{r.total == null ? '单件' : qty(r.total, r.unit)}</td><td className="r">{r.total == null ? (r.holders ? '在用' : '在库') : qty(r.allocated, r.unit)}</td>
                   <td className={`r ${left != null && left <= 0 ? 'neg' : ''}`}>{left == null ? '—' : qty(left, r.unit)}</td><td className="r">{r.unit_price != null ? money(r.unit_price) : '—'}</td>
@@ -433,7 +435,7 @@ export function StockPage() {
                 </>}
                 <td><div className="acts">{r.active && <button className="sm ghost" onClick={() => setAct(giveAct(r))}>分配</button>}
                   {r.active && (r.kind === 'api' || r.total != null) && <button className="sm ghost" onClick={() => setAct(stockAct(r))}>{r.kind === 'api' ? '充值' : '入库'}</button>}
-                  {r.kind === 'api' && <button className="sm ghost" onClick={() => setAct(keyAct('resource', r.id, r.name, r.has_secret))}>{r.has_secret ? '更换密钥' : '保存密钥'}</button>}
+                  {r.kind === 'api' && keyMgr && <button className="sm ghost" onClick={() => setAct(keyAct('resource', r.id, r.name, r.has_secret))}>{r.has_secret ? '更换密钥' : '保存密钥'}</button>}
                   <button className="sm ghost" onClick={() => setAct(resAct(r))}>修改</button></div></td></tr>); })}</tbody>
           </table></div>
         )}
@@ -459,7 +461,7 @@ export function StockPage() {
                 <td>{a.returned_on ? <Badge>{day(a.returned_on)} 收回</Badge> : a.current ? <Badge tone="ok">在用</Badge> : <Badge tone="warn">已到期</Badge>}</td>
                 <td><div className="acts">{!a.returned_on && <>
                   <button className="sm ghost" onClick={() => setAct(useAct(a))}>{tab === 'api' ? '回写用量' : '编号存放'}</button>
-                  {tab === 'api' && <button className="sm ghost" onClick={() => setAct(keyAct('allocation', a.id, `${a.user_name} · ${a.resource_name}`, a.has_secret))}>{a.has_secret ? '更换密钥' : '发放密钥'}</button>}
+                  {tab === 'api' && keyMgr && <button className="sm ghost" onClick={() => setAct(keyAct('allocation', a.id, `${a.user_name} · ${a.resource_name}`, a.has_secret))}>{a.has_secret ? '更换密钥' : '发放密钥'}</button>}
                   <button className="sm ghost danger" onClick={() => setAct({ label: '收回', title: `收回：${a.user_name} · ${a.resource_name}`, danger: true,
                     hint: `使用权至收回日终止${tab === 'api' ? '，发放给该持有人的密钥同时从中台删除。服务商侧的密钥须另行停用或轮换。' : '，成批资产的库存相应恢复。'}`,
                     fields: [{ name: 'returned_on', label: '收回日', type: 'date', value: today() }], run: (v) => rpc('return_allocation', { id: a.id, returned_on: v.returned_on }) })}>收回</button></>}</div></td></tr>); })}</tbody>
@@ -475,11 +477,11 @@ export function StockPage() {
           <p className="hint">研究单元负责人用名义币换得的额度计入这个研究单元的 key：请在服务商处为研究单元开 key 并把额度加上，在此加密保存，名单内成员在研究单元页取用，每次取用均有记录。成员移出名单后标「待换 key」：在服务商处作废旧 key，再在此保存新 key。</p>
           {aq ? <p>{aq.resource_id ? <>key 开在「{aq.resource_name}」，额度按{aq.unit}记{aq.fx_rate != null && `（1 ${aq.unit} = ${num(aq.fx_rate)} 元）`}。本季度全中心可换 {money(aq.cap)} {aq.unit}（总额 {money(aq.total)} 元{aq.fx_rate != null && '按汇率折算'}），已换 {money(aq.bought)}，剩余 <b>{money(aq.room)}</b>，换满即止；库存 {aq.api_stock != null ? `${money(aq.api_stock)} ${aq.unit}` : '未登记'}，只做对账，不计入可换额度。这是全中心的季度上限，不是给哪个研究单元的额度：研究单元负责人在研究单元页换了额度才列入下表，发放 key 之后名单内成员才能取用。</>
               : <Badge tone="warn">尚未指定研究单元的 key 开在哪个接口资源上，研究单元暂不能换 API 额度</Badge>}
-            <button className="sm ghost" style={{ marginLeft: 8 }} onClick={() => setAct({ label: '登记', title: '登记 key 所在的接口资源和本季度的 API 库存',
+            {resMgr && <button className="sm ghost" style={{ marginLeft: 8 }} onClick={() => setAct({ label: '登记', title: '登记 key 所在的接口资源和本季度的 API 库存',
               hint: `研究单元的 key 都开在这个接口资源上，换得的额度按它的计价单位记：额度 = 名义币 × 本季度比例（1 币兑 ${num(aq.api_rate)} 元）÷ 资源的折算汇率，人民币计价的不折算。库存按这个资源的计价单位填服务商账户里的余额。库存只做对账，不计入可换额度（可换额度是本季度公布的总额按汇率折算）。本季度已换过的，不能改到另一个资源。`,
               fields: [{ name: 'resource', label: '接口资源', value: aq.resource_id ?? '', options: apis.map((r): [string, string] => [r.id, `${r.name}（${r.unit ?? '元'}）`]) },
                 { name: 'stock', label: '库存（按该资源的计价单位）', type: 'number', value: aq.api_stock != null ? String(num(aq.api_stock)) : '0' }],
-              run: (v) => rpc('set_api_stock', { stock: v.stock, resource: v.resource }) })}>{aq.resource_id ? '登记库存' : '指定资源'}</button></p>
+              run: (v) => rpc('set_api_stock', { stock: v.stock, resource: v.resource }) })}>{aq.resource_id ? '登记库存' : '指定资源'}</button>}</p>
             : <Empty>本季度的兑换总额和比例尚未公布，研究单元暂不能换 API 额度。</Empty>}
           {ukeys.some((u) => !u.has_key) && <div className="msg warn" role="status">{ukeys.filter((u) => !u.has_key).length} 个研究单元已换额度、尚未发放 key，名单内成员暂时取不到：请在服务商处开 key 并加上额度，再点「发放 key」。</div>}
           {ukeys.length === 0 ? <Empty>还没有研究单元换 API 额度。</Empty> : (
@@ -489,8 +491,8 @@ export function StockPage() {
                 <tr key={u.project_id}><td>{u.project_code} {u.project_name}</td><td>{u.owner_name ?? '—'}</td><td className="r">{money(u.api_quota)} {u.api_unit ?? ''}</td><td>{u.last_bought_at ? day(u.last_bought_at) : '—'}</td>
                   <td>{u.has_key ? <span className="code">{u.key_hint ?? '已保存'}</span> : <Badge tone="warn">未发放</Badge>}
                     {u.rotate_since && <div><Badge tone="bad">待换 key</Badge><span className="sub2">{u.rotate_who} 已移出名单</span></div>}</td>
-                  <td><div className="acts">{u.has_key && <button className="sm ghost" onClick={() => setKey({ kind: 'unit', id: u.project_id, name: `${u.project_code} ${u.project_name}` })}>查看</button>}
-                    <button className="sm ghost" onClick={() => setAct(keyAct('unit', u.project_id, `${u.project_code} ${u.project_name}`, u.has_key))}>{u.has_key ? '更换 key' : '发放 key'}</button></div></td></tr>
+                  <td><div className="acts">{u.has_key && u.can_get && <button className="sm ghost" onClick={() => setKey({ kind: 'unit', id: u.project_id, name: `${u.project_code} ${u.project_name}` })}>查看</button>}
+                    {keyMgr && <button className="sm ghost" onClick={() => setAct(keyAct('unit', u.project_id, `${u.project_code} ${u.project_name}`, u.has_key))}>{u.has_key ? '更换 key' : '发放 key'}</button>}</div></td></tr>
               ))}</tbody>
             </table></div>
           )}

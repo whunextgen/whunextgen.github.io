@@ -266,7 +266,7 @@ function App() {
     : current === '/settle' ? <Settle me={me} />
     : current === '/resource' ? <ResourcePage me={me} />
     : current === '/pool' ? <PoolPage me={me} />
-    : current === '/stock' ? <StockPage />
+    : current === '/stock' ? <StockPage me={me} />
     : current === '/petty' ? <PettyPage me={me} only={arg || undefined} />
     : current === '/track' ? <TrackPage me={me} />
     : current === '/history' ? <History staff={can(me, 'read.legacy')} />

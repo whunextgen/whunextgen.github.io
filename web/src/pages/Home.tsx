@@ -20,6 +20,7 @@ export type HomeView = 'home' | 'mine' | 'center' | 'fund' | 'topic' | 'res';
 // canUse：本人在已立项的课题或研究单元里，能用支出申请、备用金和资源申领
 export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view?: HomeView; canUse?: boolean }) {
   const seesCards = can(me, 'read.finance') || me.scoped?.includes('card.read');
+  const seesRes = can(me, 'read.resource');
   type D = { reqs: Req[]; picks: CardPick[]; cards: Card[]; nodes: Node[]; events: FundEvent[];
     years: BudgetYear[]; projects: Project[]; budgets: ProjectBudget[]; lines: BudgetLine[]; exec: LineExec[]; petty: PettyCash[]; res: ResourceRequest[]; caps: CapRequest[]; shifts: BudgetShift[]; tasks: Task[];
     funds: FundProject[]; cells: Cell[]; allocs: BudgetAlloc[]; pcaps: ProjectCap[]; school: CardSchoolSubject[]; resources: Resource[]; uapps: UnitApply[]; bws: BiweeklyStatus[]; arrs: ArrClaim[] };
@@ -486,10 +487,10 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
           {head('01', '流程', '申领 › 批示 › 批准 › 分发 › 使用与盘点')}
           {strip([
             { nm: '申领', ds: '成员提出申领', v: `${st('pending')} 项`, f: '待研究单元负责人批示', href: '#/resource' },
-            { nm: '批示', ds: '研究单元负责人批示', v: `${st('reviewed')} 项`, f: '待批准', href: seesCards ? '#/pool' : '#/resource', warn: st('reviewed') > 0 },
-            { nm: '批准', ds: '批准后待分发', v: `${st('approved')} 项`, f: '待分发', href: seesCards ? '#/pool' : '#/resource', warn: st('approved') > 0 },
-            { nm: '分发', ds: '发放额度或交付设备', v: `${data.res.length - resAsk.length} 项`, f: '已办结', href: seesCards ? '#/pool' : '#/resource' },
-            { nm: '使用与盘点', ds: '定期盘点，到期回收', v: `${resLive.length} 项在用`, f: '资产盘点', href: seesCards ? '#/stock' : '#/resource' },
+            { nm: '批示', ds: '研究单元负责人批示', v: `${st('reviewed')} 项`, f: '待批准', href: seesRes ? '#/pool' : '#/resource', warn: st('reviewed') > 0 },
+            { nm: '批准', ds: '批准后待分发', v: `${st('approved')} 项`, f: '待分发', href: seesRes ? '#/pool' : '#/resource', warn: st('approved') > 0 },
+            { nm: '分发', ds: '发放额度或交付设备', v: `${data.res.length - resAsk.length} 项`, f: '已办结', href: seesRes ? '#/pool' : '#/resource' },
+            { nm: '使用与盘点', ds: '定期盘点，到期回收', v: `${resLive.length} 项在用`, f: '资产盘点', href: seesRes ? '#/stock' : '#/resource' },
           ], '资源流程')}
         </section>
         <section className="wb-sec">{head('02', '待办', '只列这一部分的事项')}{todoTable(todo.filter((t) => secOf(t) === 'res'), '这一部分暂无待办事项。')}</section>
