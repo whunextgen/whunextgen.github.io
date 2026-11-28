@@ -1,6 +1,6 @@
 {
   "name": "finance-portal",
-  "version": "1.16.69",
+  "version": "1.16.70",
   "private": true,
   "type": "module",
   "scripts": {
