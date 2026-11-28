@@ -5,7 +5,7 @@ import { OpenMeeting, type Meeting } from './live';
 
 // 快照与质疑：《The Path of an Independent Researcher》草案第五十三版第五、六节。
 // 研究单元每期交一次快照，提交给主题研讨会；组织者接收、在会上记入质疑、结束讨论；
-// 未回应的质疑全中心公开，负责人组队；下一期无人再提的即为已回应，发 16 名义币由队员平分，同时记入研究单元池子的份额。
+// 未回应的质疑全中心公开，负责人组队；下一期无人再提的即为已回应，发 16 名义币由队员平分。
 export interface Seminar { code: string; name: string; seq: number; organizer_id: string | null; organizer_name: string | null; mine: boolean; can_set: boolean;
   organizers?: { id: string; name: string }[]; oral_minutes?: number; poster_minutes?: number; oral_target?: number; poster_target?: number }
 export interface Snapshot { id: string; project_id: string; project_code: string; project_name: string; owner_id: string | null; owner_name: string | null; period_start: string; seq: number;
@@ -72,7 +72,7 @@ export function IteratePage({ me }: { me: Me }) {
     const again = new Set(data.queries.filter((q) => q.status === 'again' && q.pitch_id === x.id).map((q) => q.parent_id));
     const settle = earlier.filter((q) => !again.has(q.id) && q.team.some((m) => m.from <= x.period_start));
     return { title: `结束讨论：${x.project_name} 第 ${x.seq} 次快照`, label: '结束讨论',
-      hint: `结束后不能再记入。此前提出的 ${earlier.length} 条未回应质疑里，本次无人再提、且有可参与分配队员的 ${settle.length} 条即为已回应，每条 16 名义币由队员平分，同时记入研究单元池子的份额。${earlier.length - settle.length > 0 ? `其余 ${earlier.length - settle.length} 条继续留着。` : ''}`,
+      hint: `结束后不能再记入。此前提出的 ${earlier.length} 条未回应质疑里，本次无人再提、且有可参与分配队员的 ${settle.length} 条即为已回应，每条 16 名义币由队员平分。${earlier.length - settle.length > 0 ? `其余 ${earlier.length - settle.length} 条继续留着。` : ''}`,
       fields: [], run: () => rpc('close_pitch', { pitch: x.id }) }; };
   // 决定点错了可以撤回（#168）：改回投稿待定再重新决定；已接收的只在还没开始讨论时可以撤回
   const undoAct = (x: Pitch): Act => ({ title: `${x.status === 'accepted' ? '撤回接收' : '撤回不接收'}：${x.project_name} 第 ${x.seq} 次快照`, label: '撤回',
@@ -98,7 +98,7 @@ export function IteratePage({ me }: { me: Me }) {
     <div className="wb">
       <div className="top"><h2>快照与质疑</h2></div>
       <p className="lede">每两周是一次快照。研究单元把当期的写作草稿提交给主题研讨会，会上提出的质疑逐条记入，每条指明针对理、据、体、用中的哪一问。
-        任务就是还没有回应的质疑：几个人组队去回应，把回应写进草稿，随下一次快照展示；下一期的会上没有人再提的，即为已回应，发 16 名义币，由队员平分，同时记入研究单元池子的份额。本期 {per} 至 {day(new Date(Date.parse(`${per}T00:00:00Z`) + 13 * 864e5).toISOString())}。</p>
+        任务就是还没有回应的质疑：几个人组队去回应，把回应写进草稿，随下一次快照展示；下一期的会上没有人再提的，即为已回应，发 16 名义币，由队员平分。本期 {per} 至 {day(new Date(Date.parse(`${per}T00:00:00Z`) + 13 * 864e5).toISOString())}。</p>
 
       <section className="wb-sec">
         <h3>本期快照 <span className="h3sub">本人负责或在名单里的研究单元</span></h3>

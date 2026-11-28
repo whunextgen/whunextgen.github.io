@@ -175,7 +175,7 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
               <div><h4>{x.href ? <a href={x.href}>{x.title}</a> : x.title}</h4><p>{x.sub}</p></div>
               <em>{x.right}</em>
             </li>))}</ol>}
-          <p className="ir-hint">副本就是本人所在队伍里还没有回应的质疑：下一期无人再提即为已回应，发 16 名义币，队伍平分，同时记入研究单元池子的份额。</p>
+          <p className="ir-hint">副本就是本人所在队伍里还没有回应的质疑：下一期无人再提即为已回应，发 16 名义币，队伍平分。</p>
         </section>
         <section className="ir-t ir-chainv">
           <div className="ir-mono"><span>主线 · {p?.rank_label ?? '—'}</span><span>{p?.rank === 'director' ? '' : (cur ? `第 ${cur.seq} 步 / 共 ${tasks.length} 步` : `已完成 ${tasks.length} 步`)}</span></div>
@@ -194,14 +194,14 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
 
         <section className="ir-t ir-third" id="ir-share">
           <div className="ir-mono"><span>我在各研究单元的份额</span><span>{rate != null ? `铸造率 ${rate}` : '铸造率未挂牌'}</span></div>
-          {shares.length === 0 ? <p className="ir-hint">尚未在任何研究单元的池子里有份额。回应质疑后自动计入。</p> : <table className="ir-share"><tbody>
+          {shares.length === 0 ? <p className="ir-hint">尚未在任何研究单元的池子里有份额。把币投给研究单元后按投入数计入。</p> : <table className="ir-share"><tbody>
             {shares.map((s) => { const pool = data.pools.find((x) => x.project_id === s.project_id); const u = data.projects.find((x) => x.id === s.project_id);
               return <tr key={s.project_id}><td><a href={`#/project/${s.project_id}`}>{u?.name ?? '研究单元'}</a><small><span className={`ir-lock${(pool?.level ?? 0) >= 1 ? ' ok' : ''}`}>{(pool?.level ?? 0) >= 1 ? '已解锁' : '锁定中'}</span></small></td>
                 <td>{n1(s.coins)}</td><td>{Math.round(num(s.share) * 100)}%</td></tr>; })}</tbody></table>}
-          <div className="ir-conv"><div><small>累计入池</small><b>{n1(inPool)}</b><em>份额</em></div><i>→</i>
+          <div className="ir-conv"><div><small>累计投入</small><b>{n1(inPool)}</b><em>份额</em></div><i>→</i>
             <div><small>解锁后期望铸造</small><b>{rate != null ? n1(inPool * rate) : '—'}</b><em>实际币</em></div><i>→</i>
             <div><small>投入研究单元可换</small><b>{rate != null && price ? n1(inPool * rate / price) : '—'}</b><em>卡时</em></div></div>
-          <p className="ir-hint">池子份额来自回应质疑。研究单元取得第一个外部成果时池子解锁，按挂牌铸造率铸造实际币到个人，实际币不过期，以后可开放兑换绩效；二、三、四级成果按系数追加。</p>
+          <p className="ir-hint">池子份额按投给研究单元的币记，花掉不减。研究单元取得第一个外部成果时池子解锁，按挂牌铸造率铸造实际币到个人，实际币不过期，以后可开放兑换绩效；二、三、四级成果按系数追加。</p>
         </section>
         <section className="ir-t ir-third">
           <div className="ir-mono"><span>名义币 · 实际币</span><span>{coin?.salary != null ? `每期发放 ${n1(coin.salary)} 名义币` : '本身份的发放额度未定'}</span></div>

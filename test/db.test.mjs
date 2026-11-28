@@ -2811,7 +2811,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`);
   await as(U.mem, A2);
   const pool = await one(`select coins::float c, people, pending from api.unit_pool where project_id = $1`, [UU]);
-  ok(pool.c === 16 && pool.people === 2 && pool.pending === 1, '名义池子按回应计入，未回应的仍挂着', JSON.stringify(pool));
+  ok(pool.c === 0 && pool.people === 0 && pool.pending === 1, '回应质疑只是任务，不直接记池子份额（0182），未回应的仍挂着', JSON.stringify(pool));
   const at = await one(`select a_li::float li, d_li from api.person_attr where user_id = $1`, [U.mem]);
   ok(at.li === 8 && Number(at.d_li) === 12, '理加上回应所得；给别人的快照提质疑记 4、回应别的研究单元的质疑按所得名义币，都记入利', JSON.stringify(at));
   ok((await one(`select again from api.query where id = $1`, [Q2])).again === 1, '再次提出的挂在原来那一条下面');
@@ -2957,6 +2957,12 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
     const ex = await one(`select expires_on::text e, remain::float r from unit_coin where project_id = $1 and kind = 'invest' order by created_at limit 1`, [UU]);
     const pe = await one(`select expires_on::text e from coin_ledger where user_id = $1 and kind = 'salary' order by created_at limit 1`, [U.mem2]);
     ok(ex.e === pe.e && ex.r === 10, '投入的币按个人那笔的到期日记入研究单元，换卡时扣掉 20 剩 10', JSON.stringify([ex, pe]));
+    const sh = await one(`select (select sum(amount) from unit_coin where project_id = $1 and kind = 'invest')::float inv, (select sum(remain) from unit_coin where project_id = $1 and kind = 'invest')::float rem`, [UU]);
+    await db.exec(`set role app_api`); await as(U.mem2, D);
+    const pl = await one(`select coins::float c from api.unit_pool where project_id = $1`, [UU]);
+    const ms = await one(`select coins::float c from api.unit_share where project_id = $1 and user_id = $2`, [UU, U.mem2]);
+    ok(pl.c === sh.inv && sh.rem < sh.inv && ms.c > 0, '池子份额按投入数记，换卡时花掉只减余额不减份额（0182）', JSON.stringify([pl, sh, ms]));
+    await db.exec(`reset role`);
     await as(null, ex.e);
     eq(Number((await one(`select unit_coin_balance($1) v`, [UU])).v), 10, '到期日当天还能用');
     const after = new Date(Date.parse(ex.e) + 864e5).toISOString().slice(0, 10);

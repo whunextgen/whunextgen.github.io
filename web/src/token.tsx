@@ -3,7 +3,7 @@ import { rpc, useViews, type ApiQuarter, type BudgetCoinExchange, type CoinFlow,
 import { ActionDialog, Badge, Empty, Loading, Tile, can, day, money, num, type Field } from './ui';
 import { SecretDialog } from './pages/Resource';
 
-// 代币：名义币会过期——做任务、按期发放、回应质疑得的，以及研究单元账上的，都是名义币，当季作废；实际币不过期——成果解锁时按池子份额铸造，以后可开放兑换绩效。池子里记的是份额。
+// 代币：名义币会过期——做任务、按期发放、回应质疑得的，以及研究单元账上的，都是名义币，当季作废；实际币不过期——成果解锁时按池子份额铸造，以后可开放兑换绩效。池子份额按个人投入研究单元的币记（0182）。
 // 代币不另设页面，加在已有的对象上：首页的我的事项、研究单元页、档次表、预算参数。
 export interface TokenMe { user_id: string; kind: string | null; nominal: string | null; period_start: string; period_end: string; prev_open: boolean }
 export interface TimeLog { id: string; period_start: string; user_id: string; user_name: string; user_kind: string | null; project_id: string; percent: number; coins: string;
@@ -35,7 +35,7 @@ export const qLabel = (start: string) => { const y = Number(start.slice(0, 4)), 
   return `${qFY(start)} 年第 ${qNo(start)} 季度（${y} 年 ${m} 月–${ey === y ? '' : `${ey} 年 `}${em} 月）`; };
 
 // ---------- 首页 · 我的事项：我在各研究单元池子里的份额 ----------
-// 回应质疑记入研究单元池子的份额（不能花，成果解锁时按份额铸造实际币），同时按同样的数发可花的名义币
+// 研究单元就是池子：个人投入的币按投入数记份额（花掉不减），成果解锁时按份额铸造实际币；回应质疑只是任务，发名义币
 // 卡时有效期按参数 hours_days（默认 56 天）显示，整周的写周数
 export const hoursValid = (tp: { key: string; value: unknown }[]) => { const d = Number(tp.find((x) => x.key === 'hours_days')?.value ?? 56) || 56; return d % 7 === 0 ? `${d / 7} 周` : `${d} 天`; };
 
@@ -45,7 +45,7 @@ export function TokenMine({ me }: { me: Me }) {
   const myShares = data.shares.filter((s) => s.user_id === me.id);
   return (
     <>
-      <p className="hint" style={{ margin: '0 0 10px' }}>池子份额来自回应质疑：一条质疑在下一期无人再提即为已回应，记 16 份额，由当期有分配资格的队员平分，记入该研究单元的池子（同时按同样的数发可花的名义币）。研究单元取得第一个外部成果时池子解锁，按份额铸造实际币，不过期。未回应的质疑在「<a href="#/iterate">快照与质疑</a>」。</p>
+      <p className="hint" style={{ margin: '0 0 10px' }}>池子份额按投给研究单元的币记：投入多少记多少份额，花掉和季末作废只减余额，不减份额。研究单元取得第一个外部成果时池子解锁，按份额铸造实际币，不过期。回应质疑和其他任务一样发名义币，未回应的质疑在「<a href="#/iterate">快照与质疑</a>」。</p>
       {myShares.length === 0 ? <Empty>本人尚未在任何研究单元的池子里有份额。</Empty> : (
         <div className="scroll"><table className="wb-table">
           <thead><tr><th>研究单元</th><th>状态</th><th className="r">本人的份额</th><th className="r">占比</th></tr></thead>
@@ -86,7 +86,7 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
   return (
     <section className="card" id="sec-token">
       <h3>池子与成果 <span className="h3sub">{pool.level >= 1 ? '已解锁，铸造率挂牌后按份额铸造实际币' : '锁定中，取得第一个外部成果时解锁'}</span></h3>
-      <p className="hint">回应质疑记入本研究单元池子的份额：一条质疑在下一期无人再提即为已回应，记 16 份额，由当期有分配资格的队员平分（同时发同样数的名义币）。解锁后按份额铸造实际币，不过期。研究单元取得第一个经核对的外部成果时池子解锁。成果只认链接，由助理核对。</p>
+      <p className="hint">池子份额按投给研究单元的币记：投入多少记多少份额，花掉和季末作废只减余额，不减份额。研究单元取得第一个外部成果时池子解锁，按份额铸造实际币，不过期。成果只认链接，由助理核对。</p>
       <div className="tiles">
         {[1, 2, 3, 4].map((lv) => { const o = outs.find((x) => x.level === lv); return (
           <div className="tile" key={lv}><div className="k">{LEVEL[lv]}</div>
@@ -99,7 +99,7 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
       </div>
       {lead && next.length > 0 && <div className="actions" style={{ justifyContent: 'flex-start' }}>{next.map((lv) => <button key={lv} className="sm ghost" onClick={() => setAct(outAct(lv))}>提交{LEVEL[lv].slice(0, 2)}成果</button>)}</div>}
       <h3 style={{ marginTop: 18 }}>池子 <span className="h3sub">份额 {coin(pool.coins)}{cap != null ? `，核定上限 ${coin(cap)}${num(pool.coins) > cap ? '，超出部分不计' : ''}` : ''} · 未回应的质疑 {pool.pending} 条 · {levelBadge(pool.level)}</span></h3>
-      {shares.length === 0 ? <Empty>{pool.people > 0 ? '各人的份额仅本研究单元的成员可见。' : '尚无已回应的质疑。'}</Empty> : (
+      {shares.length === 0 ? <Empty>{pool.people > 0 ? '各人的份额仅本研究单元的成员可见。' : '还没有人投入。'}</Empty> : (
         <div className="scroll"><table>
           <thead><tr><th>成员</th><th className="r">份额</th><th className="r">占比</th></tr></thead>
           <tbody>{shares.map((s) => <tr key={s.user_id}><td>{s.user_name}</td><td className="r">{coin(s.coins)}</td><td className="r">{pctOf(s.share)}</td></tr>)}</tbody>
@@ -229,7 +229,7 @@ export function TokenSystem({ me }: { me: Me }) {
         const rules = [...data.trules].sort((a, b) => a.sort - b.sort);
         return <section className="card">
           <h3>做任务换币 <span className="h3sub">本季度已发 {total.toFixed(0)}，{people} 人；每人每季度合计最多 {num(rules[0]?.quarter_total_cap ?? 3000).toFixed(0)}</span></h3>
-          <p className="hint">按在正则上的操作自动发名义币到个人，当季有效、季末作废；只算上线之后的操作，同一件事只发一次。回应质疑同时记入研究单元池子的份额，成果解锁后按份额铸造实际币。</p>
+          <p className="hint">按在正则上的操作自动发名义币到个人，当季有效、季末作废；只算上线之后的操作，同一件事只发一次。投给研究单元的币记池子份额，成果解锁后按份额铸造实际币。</p>
           <div className="scroll"><table>
             <thead><tr><th>行为</th><th className="r">每次</th><th>上限</th><th className="r">本季度次数</th><th className="r">本季度发出</th></tr></thead>
             <tbody>{rules.map((r) => { const b = by.get(r.code); return <tr key={r.code}><td>{r.label}</td>
@@ -280,7 +280,7 @@ export function TokenParams({ me }: { me: Me }) {
   return (
     <section className="card">
       <h3>代币参数 <span className="h3sub">名义币会过期，实际币不过期</span></h3>
-      <p className="hint">名义币来自做任务、按期发放、回应质疑和课题预算兑换，当季作废；投给研究单元后由负责人换 API 额度和 GPU 卡时。实际币由成果按池子份额铸造，不过期，以后可开放兑换绩效；要换资源时先投给研究单元，投入后成为名义币。回应质疑另记池子份额，每条 16。代币只能单向兑换，不能兑回预算或人民币。下面与铸造有关的参数在转入市场经济时期后才起作用，现在先定下来供大家查看。</p>
+      <p className="hint">名义币来自做任务、按期发放、回应质疑和课题预算兑换，当季作废；投给研究单元后由负责人换 API 额度和 GPU 卡时。实际币由成果按池子份额铸造，不过期，以后可开放兑换绩效；要换资源时先投给研究单元，投入后成为名义币。投给研究单元的币按投入数记池子份额，花掉不减。代币只能单向兑换，不能兑回预算或人民币。下面与铸造有关的参数在转入市场经济时期后才起作用，现在先定下来供大家查看。</p>
       <div className="scroll"><table>
         <thead><tr><th style={{ width: '18%' }}>参数</th><th style={{ width: '34%' }}>现行</th><th>说明</th>{director && <th />}</tr></thead>
         <tbody>{rows.map(([name, val, note, a]) => <tr key={name}><td>{name}</td><td className="wrap">{val}</td><td className="wrap"><span className="sub2">{note}</span></td>
