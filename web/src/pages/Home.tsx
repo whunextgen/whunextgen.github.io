@@ -90,6 +90,11 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
         todo.push({ tone: day(y.due_date) <= now ? 'warn' : 'pri', tag: '年度预算', text: `${y.year} 年度预算申报 ${day(y.due_date)} 截止，${done} / ${all.length} 个课题（含公共开支）已提交`, go: day(y.due_date) <= now ? '截止申报' : '查看进度', href });
       }
     }
+    // 分课题审核下达（0129、0183）：年度核定后，已提交、尚未下达的课题列给财务岗
+    if ((y.stage === 'fixed' || y.stage === 'issued') && can(me, 'budget.issue')) {
+      const wait = data.budgets.filter((x) => x.year === y.year && x.status === 'submitted' && !x.issued_at);
+      if (wait.length > 0) todo.push({ tone: 'warn', tag: '待审核下达', text: `${y.year} 年度 ${wait.length} 个课题的预算已提交，待审核下达：${wait.map((x) => data.projects.find((p) => p.id === x.project_id)?.name ?? '课题').join('、')}`, go: '审核', href });
+    }
     const total = (k: 'applied' | 'fixed') => money(data.lines.filter((l) => l.year === y.year).reduce((s, l) => s + num(l[k]), 0));
     if (y.stage === 'summary') todo.push(can(me, 'budget.approve') ? { tone: 'warn', tag: '待审批', text: `${y.year} 年度预算申请数合计 ${total('applied')}，待审批后报学校`, go: '审批', href }
       : can(me, 'budget.compile') ? { tone: 'pri', tag: '年度预算', text: `${y.year} 年度预算汇总中，申请数合计 ${total('applied')}，调整后提请中心负责人批准`, go: '汇总', href } : null!);
@@ -234,9 +239,11 @@ export function Home({ me, view: asked = 'home', canUse = true }: { me: Me; view
   });
 
   // ---------- 课题 › 研究单元 › 预算行 ----------
-  const execYear = [...data.years].filter((y) => y.stage === 'issued').sort((a, b) => b.year - a.year)[0];
+  // 执行中的年度：整体已下达的；或年度已核定、已有课题由财务岗审核下达的（分课题下达，0129）——这时只列已下达课题的预算行
+  const topicOn = (pid: string, yr: number) => data.budgets.some((b) => b.project_id === pid && b.year === yr && !!b.issued_at);
+  const execYear = [...data.years].filter((y) => y.stage === 'issued' || (y.stage === 'fixed' && data.budgets.some((b) => b.year === y.year && !!b.issued_at))).sort((a, b) => b.year - a.year)[0];
   const planYear = [...data.years].filter((y) => STEP_OF[y.stage] <= 3).sort((a, b) => a.year - b.year)[0];
-  const rowsOf = (pid: string) => (execYear ? data.exec.filter((l) => l.year === execYear.year && l.project_id === pid && num(l.fixed) > 0) : []);
+  const rowsOf = (pid: string) => (execYear ? data.exec.filter((l) => l.year === execYear.year && l.project_id === pid && num(l.fixed) > 0 && (execYear.stage === 'issued' || topicOn(l.project_id, execYear.year))) : []);
   const tot = (rows: LineExec[]) => ({ fixed: rows.reduce((s, l) => s + num(l.fixed), 0), actual: rows.reduce((s, l) => s + num(l.actual), 0), used: rows.reduce((s, l) => s + num(l.used), 0) });
   const lineNode = (l: LineExec, scale: number) => <TreeNode key={l.id} level={3} lv="预算行" title={l.purpose}
     chart={<Track segs={execSegs(num(l.fixed), num(l.actual), num(l.used) - num(l.actual), '该预算行')} scale={scale} />} num={money(l.fixed)} sub={`可用 ${money(num(l.fixed) - num(l.used))}`}

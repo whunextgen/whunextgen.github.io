@@ -56,7 +56,7 @@ export function Projects({ me, focus }: { me: Me; focus?: string }) {
                 <td>{r.owner_name ?? '—'}{r.owner_id === me.id && <span className="sub2">本人</span>}<Scholar url={r.owner_scholar_url} /></td>
                 {years.map((y) => { const b = data.budgets.find((x) => x.project_id === r.id && x.year === y.year);
                   const d = sum(r, y.year, 'declared'), a = sum(r, y.year, 'applied'), f = sum(r, y.year, 'fixed');
-                  const ex = data.exec.filter((x) => x.project_id === r.id && x.year === y.year), run = y.stage === 'issued' || y.stage === 'closed';
+                  const ex = data.exec.filter((x) => x.project_id === r.id && x.year === y.year), run = y.stage === 'issued' || y.stage === 'closed' || (y.stage === 'fixed' && !!data.budgets.find((x) => x.project_id === (r.layer === 'paper' && r.parent_id ? r.parent_id : r.id) && x.year === y.year)?.issued_at);   // 分课题下达（0129）
                   const ks = r.layer === 'paper' ? [] : kids(r).filter((k) => k.active), kn = ks.map((k) => best(k, y.year)).filter((n): n is number => n != null);
                   const cp = capped(r) ? capOf(r, y.year) : undefined;
                   const capLine = cp && <div className="sub2" style={{ marginLeft: 0 }}>上限 {money(cp.amount)}，已编入 {money(cp.used)}</div>;

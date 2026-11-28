@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ObjHead, Stages, Track, execSegs } from '../tree';
 import { unitStage } from './Apply';
-import { rpc, useViews, type BudgetCoinExchange, type CoinQuarter, type ProjectTag, type UnitExec, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember, type UnitApply } from '../api';
+import { rpc, useViews, type BudgetCoinExchange, type CoinQuarter, type ProjectTag, type UnitExec, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember, type ProjectBudget, type UnitApply } from '../api';
 import { ActionDialog, Badge, Empty, Loading, Scholar, Tile, can, day, money, num, pct, today } from '../ui';
 import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
@@ -19,9 +19,9 @@ export const typeText = (r: Project) => r.layer === 'paper' ? '研究单元' : r
 export function ProjectPage({ me, id, start }: { me: Me; id: string; start: string }) {
   const director = can(me, 'budget.approve');
   const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; lines: BudgetLine[]; exec: LineExec[]; cats: BudgetCategory[]; shifts: BudgetShift[];
-    members: ProjectMember[]; people: PeoplePick[]; shares: UnitShare[]; ustatus: { project_id: string; status: 'active' | 'stalled' | 'terminate' }[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; uexec: UnitExec[]; reqs: Req[]; resreqs: ResourceRequest[]; uapps: UnitApply[]; cqs: CoinQuarter[]; cxs: BudgetCoinExchange[] }>({
+    members: ProjectMember[]; people: PeoplePick[]; shares: UnitShare[]; ustatus: { project_id: string; status: 'active' | 'stalled' | 'terminate' }[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; uexec: UnitExec[]; budgets: ProjectBudget[]; reqs: Req[]; resreqs: ResourceRequest[]; uapps: UnitApply[]; cqs: CoinQuarter[]; cxs: BudgetCoinExchange[] }>({
     reqs: ['request'], resreqs: ['resource_request'], uapps: ['unit_apply'], cqs: ['coin_quarter'], cxs: ['budget_coin_exchange'],
-    tags: ['project_tag'], uexec: ['unit_exec'],
+    tags: ['project_tag'], uexec: ['unit_exec'], budgets: ['project_budget'],
     projects: ['project'], years: ['budget_year'], lines: ['budget_line'], exec: ['line_exec'], cats: ['budget_category'], shifts: ['budget_shift'],
     members: ['project_member'], people: ['people_pick'], shares: ['unit_share'], ustatus: ['unit_status'], caps: ['project_cap'], capreqs: ['cap_request'], assets: ['project_asset'], pallocs: ['project_allocation'],
   });
@@ -47,7 +47,9 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
   const kids = data.projects.filter((x) => x.parent_id === r.id).sort((a, c) => Number(c.active) - Number(a.active) || a.code.localeCompare(c.code));
   const has = (pid: string, yr: number) => data.lines.some((l) => l.project_id === pid && l.year === yr) || data.exec.some((l) => l.project_id === pid && l.year === yr);
   const y = years.find((x) => x.year === Number(start)) ?? years.find((x) => x.stage !== 'closed' && (has(r.id, x.year) || kids.some((k) => has(k.id, x.year)))) ?? years.find((x) => x.stage !== 'closed') ?? years[0];
-  const year = y?.year ?? 0, run = y?.stage === 'issued' || y?.stage === 'closed';
+  // 分课题下达（0129）：年度还在「已核定」时，本课题已由财务岗审核下达的，也按执行中显示（预算执行、支出、兑换名义币）
+  const topicIssued = !!y && y.stage === 'fixed' && data.budgets.some((b) => b.project_id === (r.layer === 'paper' && r.parent_id ? r.parent_id : r.id) && b.year === y.year && !!b.issued_at);
+  const year = y?.year ?? 0, run = y?.stage === 'issued' || y?.stage === 'closed' || topicIssued;
   const execOf = (pid: string) => data.exec.filter((l) => l.project_id === pid && l.year === year);
   const linesOf = (pid: string) => data.lines.filter((l) => l.project_id === pid && l.year === year);
   const best = (l: BudgetLine) => num(l.fixed ?? l.applied ?? l.declared);
@@ -103,7 +105,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
   const jump = (k: string) => document.getElementById(`sec-${k}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   // 流程：申报 → 核定下达 → 支出申请 → 学校入账 → 年度决算
-  const stepNo = !y ? 1 : y.stage === 'closed' ? 7 : y.stage === 'issued' ? (all.actual > 0 ? 5 : 3) : y.stage === 'declare' ? 1 : 2;
+  const stepNo = !y ? 1 : y.stage === 'closed' ? 7 : run ? (all.actual > 0 ? 5 : 3) : y.stage === 'declare' ? 1 : 2;
   const pendingAmt = Math.max(all.used - all.actual, 0);
   // 本课题连同研究单元（或本研究单元）的支出申请：从申请到学校入账
   const mineReqs = data.reqs.filter((q) => q.project_id != null && fam.has(q.project_id)).sort((a, b) => b.created_at.localeCompare(a.created_at));

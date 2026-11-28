@@ -4493,6 +4493,27 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// 分课题审核下达的提醒（0183）：年度核定后课题提交明细，私信财务岗；年度核定时合并提醒
+{ await as(U.dir);
+  await db.exec(`reset role`);
+  await q(`update app_user set feishu_open_id = coalesce(feishu_open_id, 'ou_testfin0000000001') where id = $1`, [U.fin]);
+  const fr = (await one(`select role from app_user where id = $1`, [U.fin])).role;
+  const cnt = async (like) => Number((await one(`select count(*)::int n from feishu_outbox where user_id = $1 and payload->>'text' like $2`, [U.fin, like])).n);
+  const Y = await one(`select year from budget_year where stage = 'fixed' order by year desc limit 1`);
+  const B = await one(`select id from project_budget where year = $1 limit 1`, [Y.year]);
+  await q(`update project_budget set status = 'draft', issued_at = null where id = $1`, [B.id]);
+  const n0 = await cnt('%年度预算明细已提交，可以审核下达%');
+  await q(`select set_config('app.uid', $1, false)`, [U.dir]);
+  await q(`update project_budget set status = 'submitted' where id = $1`, [B.id]);
+  ok(fr !== 'finance' || (await cnt('%年度预算明细已提交，可以审核下达%')) === n0 + 1, '年度核定后课题提交明细，私信财务岗去审核下达', fr);
+  await q(`update budget_year set stage = 'granted' where year = $1`, [Y.year]);
+  const m0 = await cnt('%个课题的明细已提交，可以逐个审核下达%');
+  await q(`update budget_year set stage = 'fixed' where year = $1`, [Y.year]);
+  ok(fr !== 'finance' || (await cnt('%个课题的明细已提交，可以逐个审核下达%')) === m0 + 1, '年度核定时，已提交未下达的课题合并提醒财务岗');
+  await q(`select set_config('app.uid', '', false)`);
+  await db.exec(`set role app_api`); await as(U.dir);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {
