@@ -122,8 +122,8 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
           </div>
           {uk && <>
             <h3 style={{ marginTop: 18 }}>API key <span className="h3sub">本研究单元一个 key，名单内共用 · 已计入 {money(uk.api_quota)}{uk.api_unit ? ` ${uk.api_unit}` : ''}</span></h3>
-            {uk.rotate_since && <div className="msg warn" role="status">{uk.rotate_who} 已移出名单，财务岗将更换 key，旧 key 届时作废。</div>}
-            {!uk.has_key ? <Empty>财务岗尚未发放 key。发放后通知名单内成员，在这里取用。</Empty>
+            {uk.rotate_since && <div className="msg warn" role="status">{uk.rotate_who} 已移出名单，财务岗或资源管理员将更换 key，旧 key 届时作废。</div>}
+            {!uk.has_key ? <Empty>财务岗或资源管理员尚未发放 key。发放后通知名单内成员，在这里取用。</Empty>
               : <p>key <span className="code">{uk.key_hint ?? '已保存'}</span>{uk.key_set_at && <span className="sub2"> · {day(uk.key_set_at)} 发放</span>}
                 {uk.can_get && <button className="sm" style={{ marginLeft: 8 }} onClick={() => setShowKey(true)}>取用 key</button>}</p>}
             {data.kacc.length > 0 && <ul className="path-hist">{[...data.kacc].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8).map((x) => <li key={x.id}>{x.at.slice(0, 16).replace('T', ' ')} {x.user_name ?? '系统'} 取用</li>)}</ul>}

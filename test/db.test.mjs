@@ -4539,6 +4539,70 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`set role app_api`); await as(U.dir);
 }
 
+// API key 的分发和登记按权限办理（0186）：资源管理员（器械岗）能保存和更换密钥、登记期初库存和汇率、分配和收回；普通成员仍被拦下；财务岗照旧
+{ const D = '2027-09-10';
+  await db.exec(`reset role`);
+  const RA = await id(`insert into app_user (name, role, feishu_open_id) values ('器械岗甲', 'member', 'demo-res-admin')`);
+  await q(`insert into rbac_grant (user_id, role_id, from_date) select $1, id, '2026-01-01' from rbac_role where code = 'resource_admin'`, [RA]);
+  const perms = await q(`select r.code, array_agg(rp.perm) ps from rbac_role r join rbac_role_perm rp on rp.role_id = r.id where r.code in ('finance', 'director') group by r.code`);
+  ok(perms.length === 2 && perms.every((x) => ['secret.manage', 'resource.manage', 'resource.grant'].every((p) => x.ps.includes(p))), '财务岗和中心负责人都有保存密钥、维护资源、分发收回的权限', JSON.stringify(perms));
+  ok(!(await one(`select user_perm($1, 'secret.view') v`, [RA])).v, '资源管理员不因此拿到查看任何密钥的权限');
+  const TOP = (await one(`select parent_id v from project where code = 'COIN-UNIT'`)).v;
+  const UNIT = await id(`insert into project (code, name, kind, owner_id, active, layer, parent_id, proposed, applied_at)
+    select 'RA-UNIT', '器械岗测试研究单元', kind, $1, true, 'paper', id, false, now() from project where id = $2`, [U.mem2, TOP]);
+  await q(`insert into project_member (project_id, user_id, joined_on, added_by) values ($1, $2, '2027-09-01', $3)`, [UNIT, U.mem, U.mem2]);
+  const RS = await id(`insert into resource (kind, name, unit) values ('api', '器械岗测试平台', '元')`);
+  const RS2 = await id(`insert into resource (kind, name, unit) values ('api', '器械岗测试平台二', '元')`);
+  const memName = (await one(`select name v from app_user where id = $1`, [U.mem])).v;
+  const toRA = async (like) => { await db.exec(`reset role`); const n = Number((await one(`select count(*)::int n from feishu_outbox where user_id = $1 and payload->>'text' like $2`, [RA, like])).n); await db.exec(`set role app_api`); return n; };
+  const OPEN = `select stock_opening($1, $2, $3, $4, $5, $6) v`;
+  await db.exec(`set role app_api`);
+  // 普通成员：保存密钥、登记库存和汇率、分配一律拦下
+  await as(U.mem, D);
+  await raises('普通成员不能保存研究单元的 key', /需要权限：保存和更换密钥/, `select set_secret('unit', $1, 'v1.aaaa.bbbb', 'sk-…m1')`, [UNIT]);
+  await raises('普通成员不能保存账号密钥', /需要权限：保存和更换密钥/, `select set_secret('resource', $1, 'v1.aaaa.bbbb', '已保存')`, [RS]);
+  await raises('普通成员不能登记期初库存', /需要权限：维护资源目录/, OPEN, [RS, 100, D, '美元', 7, '平台后台余额']);
+  await raises('普通成员不能更新汇率', /需要权限：维护资源目录/, `select set_resource_fx($1, 7)`, [RS]);
+  await raises('普通成员不能分配接口额度', /需要权限：分发和收回资源/, `select allocate_resource($1, $2, 10)`, [RS, U.mem]);
+  // 资源管理员：登记期初库存和汇率，分配给个人并发放、更换个人 key，保存和更换研究单元的 key
+  await as(RA, D);
+  await q(OPEN, [RS, 500, D, '美元', 7, '平台后台余额，截至今日']);
+  await q(`select set_resource_fx($1, 7.1)`, [RS]);
+  ok(Number((await one(`select fx_rate from api.resource where id = $1`, [RS])).fx_rate) === 7.1, '资源管理员能登记期初库存和折算汇率');
+  const AL = await val(`select allocate_resource($1, $2, 20, $3, null, '器械岗分配') v`, [RS, U.mem, D]);
+  await q(`select set_secret('allocation', $1, 'v1.aaaa.bbbb', 'sk-…p1')`, [AL]);
+  await q(`select set_secret('allocation', $1, 'v1.cccc.dddd', 'sk-…p2')`, [AL]);
+  ok((await one(`select secret_hint from api.allocation where id = $1`, [AL])).secret_hint === 'sk-…p2', '资源管理员能分配给个人，保存和更换个人 key');
+  await q(`select set_secret('resource', $1, 'v1.aaaa.bbbb', '已保存')`, [RS]);
+  await q(`select set_secret('unit', $1, 'v1.aaaa.bbbb', 'sk-…r1')`, [UNIT]);
+  await q(`select set_secret('unit', $1, 'v1.cccc.dddd', 'sk-…r2')`, [UNIT]);
+  ok((await one(`select key_hint from api.unit_api_key where project_id = $1`, [UNIT])).key_hint === 'sk-…r2', '资源管理员能保存和更换研究单元的 key，资产盘点里看得到这一栏');
+  await raises('资源管理员不能取用密钥（查看密钥的权限不放宽）', /仅可查看分配至本人名下/, `select get_secret('resource', $1)`, [RS]);
+  await q(`select return_allocation($1, $2)`, [AL, D]);
+  ok((await one(`select returned_on from api.allocation where id = $1`, [AL])).returned_on !== null, '资源管理员能收回个人名下的接口额度');
+  // 成员移出名单：待换 key 的提醒发给有 secret.manage 的人，资源管理员收得到
+  await as(U.mem2, D);
+  await q(`select remove_project_member($1, $2)`, [UNIT, U.mem]);
+  ok(await toRA(`%研究单元「器械岗测试研究单元」的成员 ${memName} 已移出名单，请更换%`) === 1, '成员移出名单的换 key 提醒发给资源管理员');
+  await as(RA, D);
+  await q(`select set_secret('unit', $1, 'v1.eeee.ffff', 'sk-…r3')`, [UNIT]);
+  ok((await one(`select rotate_who from api.unit_api_key where project_id = $1`, [UNIT])).rotate_who === null, '资源管理员换了 key 后不再标注待换');
+  await q(`select set_secret('unit', $1, '')`, [UNIT]);
+  ok(!(await q(`select 1 from api.unit_api_key where project_id = $1 and has_key`, [UNIT])).length, '资源管理员能清除密钥');
+  // 财务岗照旧能办
+  await as(U.fin, D);
+  await q(OPEN, [RS2, 300, D, '美元', 7, '平台后台余额，截至今日']);
+  await q(`select set_resource_fx($1, 7.2)`, [RS2]);
+  await q(`select set_secret('unit', $1, 'v1.aaaa.bbbb', 'sk-…f1')`, [UNIT]);
+  const AF = await val(`select allocate_resource($1, $2, 5, $3, null, null) v`, [RS2, U.mem, D]);
+  await q(`select set_secret('allocation', $1, 'v1.aaaa.bbbb', 'sk-…f2')`, [AF]);
+  ok((await one(`select key_hint from api.unit_api_key where project_id = $1`, [UNIT])).key_hint === 'sk-…f1', '财务岗照旧能登记库存和汇率、分配、保存研究单元和个人的 key');
+  await db.exec(`reset role`);
+  ok(/notify_perm\('secret\.manage'/.test((await one(`select pg_get_functiondef('public.recall_project_allocation(uuid)'::regprocedure) d`)).d), '项目收回接口额度后停用密钥的提醒，发给有 secret.manage 的人');
+  await q(`update rbac_grant set revoked_at = now() where user_id = $1`, [RA]);
+  await db.exec(`set role app_api`); await as(U.dir);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {
