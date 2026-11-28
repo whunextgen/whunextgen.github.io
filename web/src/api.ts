@@ -219,9 +219,10 @@ export interface ResourceRequest { id: string; kind: 'api' | 'asset'; resource_i
 export interface ResourceStock { id: string; resource_id: string; kind: 'api' | 'asset'; resource_name: string; unit: string | null; qty: string; unit_price: string | null; supplier: string | null; note: string | null;
   received_on: string; expense_request_id: string | null; created_by_name: string | null; project_id: string | null; project_name: string | null; line_purpose: string | null }
 export interface SecretAccess { id: string; owner_kind: SecretKind; owner_id: string; at: string; user_name: string; resource_name: string; holder_name: string | null }
-// 实际币换 API 额度（0169）：本季度上限、研究单元的 key、key 的取用记录
-export interface ApiQuarter { q_start: string; total: string; api_rate: string; api_stock: string | null; bought: string; room: string }
-export interface UnitApiKey { project_id: string; project_code: string; project_name: string; owner_name: string | null; api_quota: string; last_bought_at: string | null;
+// 实际币换 API 额度（0171）：本季度上限、研究单元的 key、key 的取用记录。额度按 key 所在资源的计价单位（unit），total 是公布的充值额（元）
+export interface ApiQuarter { q_start: string; total: string; api_rate: string; api_stock: string | null; bought: string; room: string;
+  resource_id: string | null; resource_name: string | null; unit: string; fx_rate: string | null; total_fx: string }
+export interface UnitApiKey { project_id: string; project_code: string; project_name: string; owner_name: string | null; api_quota: string; api_unit: string | null; last_bought_at: string | null;
   has_key: boolean; key_hint: string | null; key_set_at: string | null; rotate_since: string | null; rotate_who: string | null; can_get: boolean }
 export interface UnitKeyAccess { id: string; project_id: string; at: string; user_name: string | null }
 export interface PettyCash { id: string; requested_by: string; requester_name: string; amount: string; purpose: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'settled';

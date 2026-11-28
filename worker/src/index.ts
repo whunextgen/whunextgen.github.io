@@ -231,7 +231,7 @@ export const RPC: Record<string, [string, string][]> = {
   ack_cluster_quota: [['project', 'uuid'], ['hours', 'numeric'], ['ok', 'boolean'], ['note', 'text']],
   buy_compute: [['project', 'uuid'], ['hours', 'numeric']],
   buy_api_quota: [['project', 'uuid'], ['coins', 'numeric']],
-  set_api_stock: [['stock', 'numeric']],
+  set_api_stock: [['stock', 'numeric'], ['resource', 'uuid']],
   rename_project: [['id', 'uuid'], ['name', 'text']],
   approve_unit: [['unit', 'uuid']],
   confirm_unit: [['unit', 'uuid']],

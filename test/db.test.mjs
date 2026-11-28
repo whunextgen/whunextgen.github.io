@@ -4250,10 +4250,15 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
-// 实际币兑换 API key：研究单元负责人按本季度比例用单元的实际币换 API 额度，全中心本季度换满即止；额度计入研究单元的 key，名单内共用（0169）
+// 实际币兑换 API key：研究单元负责人按本季度比例用单元的实际币换 API 额度，全中心本季度换满即止；额度计入研究单元的 key，名单内共用；额度按 key 所在资源的计价单位（美元）记（0171）
 { const DQ = '2027-08-15';
   await db.exec(`reset role`);
   const TOP = (await one(`select parent_id v from project where code = 'COIN-UNIT'`)).v;
+  // 研究单元的 key 开在按美元计价的平台上，1 美元合 5 元（虚构）；另备一个人民币计价的平台
+  const RX = await id(`insert into resource (kind, name, unit, fx_rate, fx_on) values ('api', '换额度测试平台', '美元', 5, '2027-08-01')`);
+  const RY = await id(`insert into resource (kind, name, unit) values ('api', '换额度测试人民币平台', '元')`);
+  ok(Number(await val(`select unit_key_fx(r) v from resource r where id = $1`, [RY])) === 1 && Number(await val(`select unit_key_fx(r) v from resource r where id = $1`, [RX])) === 5,
+    '人民币计价的不折算，美元按资源的折算汇率折');
   const UNIT = await id(`insert into project (code, name, kind, owner_id, active, layer, parent_id, proposed, applied_at)
     select 'KEY-UNIT', '换密钥测试研究单元', kind, $1, true, 'paper', id, false, now() from project where id = $2`, [U.mem2, TOP]);
   await q(`insert into project_member (project_id, user_id, joined_on, added_by) values ($1, $2, '2027-08-01', $3)`, [UNIT, U.mem, U.mem2]);
@@ -4262,41 +4267,50 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const outbox = async (like) => { await db.exec(`reset role`); const r = Number((await one(`select count(*)::int n from feishu_outbox where payload->>'text' like $1`, [like])).n); await db.exec(`set role app_api`); return r; };
   await db.exec(`set role app_api`);
   const BUY = `select buy_api_quota($1, $2) v`;
-  const ub = async () => one(`select balance, api_quota from api.unit_coin_balance where project_id = $1`, [UNIT]);
-  const aq = async () => one(`select total, api_stock, bought, room from api.api_quarter`);
-  const uk = async () => one(`select api_quota, has_key, key_hint, rotate_who, can_get from api.unit_api_key where project_id = $1`, [UNIT]);
+  const STOCK = `select set_api_stock($1, $2)`;
+  const ub = async () => one(`select balance, api_quota, api_unit from api.unit_coin_balance where project_id = $1`, [UNIT]);
+  const aq = async () => one(`select total, total_fx, api_stock, bought, room, unit, fx_rate, resource_id from api.api_quarter`);
+  const uk = async () => one(`select api_quota, api_unit, has_key, key_hint, rotate_who, can_get from api.unit_api_key where project_id = $1`, [UNIT]);
   await as(U.mem2, DQ);
   await raises('本季度比例没公布不能换 API 额度', /兑换比例尚未公布/, BUY, [UNIT, 10]);
   await as(U.fin, DQ);
-  await raises('本季度没公布不能登记 API 库存', /尚未公布/, `select set_api_stock(10)`);
+  await raises('本季度没公布不能登记 API 库存', /尚未公布/, STOCK, [10, RX]);
   await q(`select publish_coin_quarter(100, 1, 2, 1)`);
+  await as(U.mem2, DQ);
+  await raises('财务岗没指定 key 开在哪个接口资源上不能换', /尚未指定研究单元的 key/, BUY, [UNIT, 10]);
+  await as(U.fin, DQ);
+  await raises('key 只能开在在用的接口资源上', /请选择在用的接口资源/, STOCK, [0, TOP]);
+  await q(STOCK, [0, RX]);
   await as(U.mem, DQ);
   await raises('成员不能用研究单元的实际币换 API 额度', /由研究单元的负责人办理/, BUY, [UNIT, 10]);
   await as(U.mem2, DQ);
   await raises('研究单元的实际币不够不能换', /实际币不足/, BUY, [UNIT, 300]);
   await q(BUY, [UNIT, 30]);
   let b = await ub();
-  ok(Number(b.balance) === 170 && Number(b.api_quota) === 60, '按本季度比例换得 API 额度，从研究单元的账上扣实际币', JSON.stringify(b));
+  ok(Number(b.balance) === 170 && Number(b.api_quota) === 12 && b.api_unit === '美元', '额度 = 实际币 × 比例 ÷ 汇率，按美元记，从研究单元的账上扣实际币', JSON.stringify(b));
   ok((await one(`select kind, amount from api.unit_coin where project_id = $1 order by created_at desc limit 1`, [UNIT])).kind === 'api', '换 API 额度记在研究单元的实际币账上');
-  ok(Number((await one(`select quota from api.api_grant where project_id = $1`, [UNIT])).quota) === 60, '换得的 API 额度全中心看得到');
+  const g = await one(`select quota, unit, fx_rate, resource_id from api.api_grant where project_id = $1`, [UNIT]);
+  ok(Number(g.quota) === 12 && g.unit === '美元' && Number(g.fx_rate) === 5 && g.resource_id === RX, '换得的 API 额度全中心看得到，记美元额度和当时的汇率', JSON.stringify(g));
   let a = await aq();
-  ok(Number(a.bought) === 60 && Number(a.room) === 40 && a.api_stock === null, '本季度上限：充值额减已换，库存没登记按 0 算', JSON.stringify(a));
-  await raises('全中心本季度换满即止，提示剩余可换多少', /剩余 40\.00.*最多还能用 20/, BUY, [UNIT, 30]);
-  ok(await outbox('%研究单元「换密钥测试研究单元」用实际币换了 60.00 元 API 额度%还没有 key%') > 0, '换了 API 额度通知财务岗计入研究单元的 key');
-  await raises('研究单元负责人不能登记库存', /需要权限/, `select set_api_stock(50)`);
+  ok(Number(a.total_fx) === 20 && Number(a.bought) === 12 && Number(a.room) === 8 && Number(a.api_stock) === 0 && a.unit === '美元' && Number(a.fx_rate) === 5,
+    '本季度上限按美元：充值额 100 元折 20 美元，减已换', JSON.stringify(a));
+  await raises('全中心本季度换满即止，按美元提示剩余可换多少', /剩余 8\.00.*最多还能用 20/, BUY, [UNIT, 30]);
+  ok(await outbox('%研究单元「换密钥测试研究单元」用实际币换了 12.00 美元 API 额度（换额度测试平台）%还没有 key%') > 0, '换了 API 额度通知财务岗计入研究单元的 key');
+  await raises('研究单元负责人不能登记库存', /需要权限/, STOCK, [50, RX]);
   await as(U.fin, DQ);
-  await raises('库存不能为负', /库存不能为负/, `select set_api_stock(-1)`);
-  await q(`select set_api_stock(50)`);
-  eq((await aq()).room, 90, '登记库存后可换的加上库存');
+  await raises('库存不能为负', /库存不能为负/, STOCK, [-1, RX]);
+  await raises('本季度已在一个平台上换过额度的，不能改到另一个平台', /另一个接口资源/, STOCK, [50, RY]);
+  await q(STOCK, [50, RX]);
+  eq((await aq()).room, 58, '登记库存（美元）后可换的加上库存');
   await as(U.mem2, DQ);
   await q(BUY, [UNIT, 30]);
-  eq((await aq()).room, 30, '充值额加库存减去已换');
+  eq((await aq()).room, 46, '充值额折美元加库存减去已换');
   await as(U.fin, DQ);
-  await raises('库存不能低到已换出的以下', /已换出 120\.00/, `select set_api_stock(10)`);
+  await raises('库存不能低到已换出的以下', /已换出 24\.00 美元/, STOCK, [3, RX]);
   // 研究单元的 key：财务岗加密保存，名单内成员取用，每次取用留记录
   await as(U.mem, DQ);
   let k = await uk();
-  ok(k && Number(k.api_quota) === 120 && !k.has_key && k.can_get, '换得的额度计入研究单元的 key，名单内成员看得到', JSON.stringify(k));
+  ok(k && Number(k.api_quota) === 24 && k.api_unit === '美元' && !k.has_key && k.can_get, '换得的额度按美元计入研究单元的 key，名单内成员看得到', JSON.stringify(k));
   await raises('key 没发放时取不到', /尚未保存密钥/, `select get_secret('unit', $1)`, [UNIT]);
   await as(U.lead, DQ);
   ok((await q(`select 1 from api.unit_api_key where project_id = $1`, [UNIT])).length === 0, '名单外的人看不到研究单元的 key');
