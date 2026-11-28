@@ -16,7 +16,9 @@ interface Challenge { code: string; seq: number; title: string; detail: string |
 interface TitleMine { code: string; seq: number; name: string; rule: string; earned: boolean }
 interface PraiseRow { id: string; from_user: string; from_name: string; to_user: string; to_name: string; virtue: 'yuan' | 'heng' | 'li' | 'zhen'; period_start: string; note: string | null; created_at: string }
 interface CoinMine { balance: string; expiring: string; next_expiry: string | null; price: string | null; rate: string | null; salary: string | null }
-interface CoinRow { id: string; kind: 'salary' | 'mint' | 'invest' | 'expire' | 'adjust'; amount: string; expires_on: string | null; project_name: string | null; note: string | null; created_at: string }
+interface TaskRule { code: string; label: string; amount: string; quarter_cap: number | null; streak: Record<string, number> | null; unit: string | null; sort: number; quarter_total_cap: string }
+interface TaskAward { id: string; user_id: string; code: string; label: string; amount: string; q_start: string; note: string | null; created_at: string }
+interface CoinRow { id: string; kind: 'salary' | 'mint' | 'invest' | 'expire' | 'adjust' | 'task'; amount: string; expires_on: string | null; project_name: string | null; note: string | null; created_at: string }
 interface PeriodRec { period_start: string; lecture: number | null; seminar: number | null; biweekly: number | null; snapshot: number }
 interface Act { title: string; hint?: ReactNode; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
@@ -24,7 +26,7 @@ const RANKS: [string, string][] = [['intern', 'Intern'], ['assistant', 'Assistan
 const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 const AX: Record<string, string> = { li: '理', ju: '据', ti: '体', yong: '用' };
 const VIRTUE: [PraiseRow['virtue'], string, string][] = [['yuan', '元', '指导'], ['heng', '亨', '展示'], ['li', '利', '协助'], ['zhen', '贞', '守时']];
-const KIND: Record<CoinRow['kind'], string> = { salary: '按期发放', mint: '成果铸造', invest: '投给研究单元', expire: '到期作废', adjust: '调整' };
+const KIND: Record<CoinRow['kind'], string> = { salary: '按期发放', mint: '成果铸造', invest: '投给研究单元', expire: '到期作废', adjust: '调整', task: '做任务' };
 const n1 = (v: string | number | null | undefined) => num(v).toLocaleString('zh-CN', { maximumFractionDigits: 1 });
 const addDays = (d: string, k: number) => new Date(Date.parse(`${day(d)}T00:00:00Z`) + k * 864e5).toISOString().slice(0, 10);
 const md = (d: string) => day(d).slice(5);
@@ -35,12 +37,13 @@ export const cardViews = (uid: string) => ({
   people: v('path_person', { mine: 'true' }), tasks: v('path_tracker', { mine: 'true' }), attrs: v('person_attr', { user_id: uid }), td: v('today_mine'), daily: v('daily_mine'), rec: v('period_record'), queries: v('query'),
   ch: v('challenge_mine'), titles: v('title_mine'), praise: v('praise_mine'), coin: v('coin_mine'), ledger: v('coin_ledger'), shares: v('unit_share'), pools: v('unit_pool'),
   projects: v('project'), tags: v('project_tag'), pick: v('people_pick'), seminars: v('seminar'), tp: v('token_param'),
+  trules: v('coin_task_rule'), tawards: v('coin_task_award'),
 });
 
 export function MyCard({ me, todoCount, todo, register, requests, petty, initiated }: {
   me: Me; todoCount: number; todo: ReactNode; register: ReactNode; requests: ReactNode; petty: ReactNode; initiated: number }) {
   const { data, error, reload } = useViews<{ people: PathPerson[]; tasks: PathTask[]; attrs: PersonAttr[]; td: TodayMine[]; daily: DailyRow[]; rec: PeriodRec[]; queries: Query[];
-    ch: Challenge[]; titles: TitleMine[]; praise: PraiseRow[]; coin: CoinMine[]; ledger: CoinRow[]; shares: UnitShare[]; pools: UnitPool[]; projects: Project[]; tags: ProjectTag[]; pick: PeoplePick[]; seminars: Seminar[]; tp: { key: string; value: unknown }[] }>({
+    ch: Challenge[]; titles: TitleMine[]; praise: PraiseRow[]; coin: CoinMine[]; ledger: CoinRow[]; shares: UnitShare[]; pools: UnitPool[]; projects: Project[]; tags: ProjectTag[]; pick: PeoplePick[]; seminars: Seminar[]; tp: { key: string; value: unknown }[]; trules: TaskRule[]; tawards: TaskAward[] }>({
     ...cardViews(me.id) });
   const [act, setAct] = useState<Act | null>(null);
   const [tab, setTab] = useState('all');
@@ -206,8 +209,16 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
           <div className="ir-kv"><span>两个月内到期<b>{n1(coin?.expiring)}</b></span><span>最近到期日<b>{coin?.next_expiry ? day(coin.next_expiry) : '—'}</b></span><span>卡时标价<b>{price ? `${n1(price)} / 卡时` : '未定'}</b></span></div>
           {num(coin?.balance) > 0 ? <div className="ir-acts"><button className="sm" onClick={() => setAct(investAct())}>投给研究单元</button></div> : null}
           {data.ledger.length > 0 && <ul className="ir-sc">{[...data.ledger].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5).map((l) =>
-            <li key={l.id}><span>{KIND[l.kind]}{l.project_name ? ` · ${l.project_name}` : ''}</span><em>{num(l.amount) > 0 ? '+' : ''}{n1(l.amount)}</em></li>)}</ul>}
-          <p className="ir-hint">代币不是经费。按期发放的实际币只在当期和下一期有效，用不掉作废；成果铸造的 12 个月有效。实际币只能投给研究单元，由研究单元换 GPU 卡时（买后 {hoursValid(data.tp)}内有效），以后也可以换别的资源。投出时先扣先到期的。</p>
+            <li key={l.id}><span>{KIND[l.kind]}{l.kind === 'task' && l.note ? ` · ${l.note}` : l.project_name ? ` · ${l.project_name}` : ''}</span><em>{num(l.amount) > 0 ? '+' : ''}{n1(l.amount)}</em></li>)}</ul>}
+          {/* 做任务换币（0176）：本季度已得和上限，展开看每类行为发多少 */}
+          {(() => { const q = new Date().toISOString().slice(0, 4) + '-' + String(Math.floor(new Date().getMonth() / 3) * 3 + 1).padStart(2, '0') + '-01';
+            const mine = (data.tawards ?? []).filter((a) => a.user_id === me.id && a.q_start.slice(0, 10) === q);
+            const got = mine.reduce((t, a) => t + num(a.amount), 0), cap = num(data.trules?.[0]?.quarter_total_cap ?? 3000);
+            const rules = [...(data.trules ?? [])].sort((a, b) => a.sort - b.sort);
+            return rules.length > 0 && <details className="ir-hint" style={{ marginTop: 8 }}><summary>做任务换币：本季度已得 <b>{n1(got)}</b> / 上限 {n1(cap)}</summary>
+              <ul className="ir-sc">{rules.filter((r) => !r.streak).map((r) => <li key={r.code}><span>{r.label}{r.quarter_cap ? `（每季度最多 ${r.quarter_cap} 次）` : ''}</span><em>+{n1(r.amount)}</em></li>)}
+                {rules.filter((r) => r.streak).map((r) => <li key={r.code}><span>{r.label}：{Object.entries(r.streak ?? {}).map(([k, v]) => `${k}${r.unit === 'workday' ? ' 天' : ' 期'} +${v}`).join('，')}</span><em /></li>)}</ul></details>; })()}
+          <p className="ir-hint">代币不是经费。在正则上做事（组织研讨会、提质疑、签到、写点评、登记双周表和日常等）就发实际币，连续做还有奖励；按期发放的和做任务得的都在当期和下一期有效，用不掉作废；成果铸造的 12 个月有效。实际币只能投给研究单元，由研究单元换 GPU 卡时（买后 {hoursValid(data.tp)}内有效），以后也可以换别的资源。投出时先扣先到期的。</p>
         </section>
         <section className="ir-t ir-third">
           <div className="ir-mono"><span>嘉许 · 每期限两次</span><span>本期尚可给出 {Math.max(0, 2 - gaveNow)} 次</span></div>

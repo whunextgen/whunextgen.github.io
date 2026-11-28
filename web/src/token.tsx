@@ -169,13 +169,13 @@ export function CoinQuarterCard({ me }: { me: Me }) {
 // 流通量 = 个人账 + 研究单元账。可兑资源折合实际币 = 总额 ÷ 每币 API 额度 + 可供卡时 × 卡时标价（总额对应的 API 从库存出）。
 // 流通量超过可兑资源，就是币多于货：有通胀压力
 export function TokenSystem({ me }: { me: Me }) {
-  const { data, error } = useViews<{ flow: CoinFlow[]; now: CoinNow[]; qs: CoinQuarter[] }>({ flow: ['coin_flow'], now: ['coin_now'], qs: ['coin_quarter'] });
+  const { data, error } = useViews<{ flow: CoinFlow[]; now: CoinNow[]; qs: CoinQuarter[]; trules: { code: string; label: string; amount: string; quarter_cap: number | null; streak: Record<string, number> | null; unit: string | null; sort: number; quarter_total_cap: string }[]; tawards: { user_id: string; code: string; amount: string; q_start: string }[] }>({ flow: ['coin_flow'], now: ['coin_now'], qs: ['coin_quarter'], trules: ['coin_task_rule'], tawards: ['coin_task_award'] });
   if (!data) return <Loading error={error} />;
   const n = data.now[0];
   const out = n ? num(n.out_person) + num(n.out_unit) : 0;
   const flow = [...data.flow].sort((a, b) => b.q_start.localeCompare(a.q_start));
   const qOf = (d: string) => data.qs.find((q) => q.q_start === d);
-  const issued = (f: CoinFlow) => num(f.issued_salary) + num(f.issued_mint) + num(f.issued_budget) + num(f.adjusted);
+  const issued = (f: CoinFlow) => num(f.issued_salary) + num(f.issued_task) + num(f.issued_mint) + num(f.issued_budget) + num(f.adjusted);
   const burned = (f: CoinFlow) => num(f.spent_compute) + num(f.spent_api) + num(f.expired);
   const endOut = (f: CoinFlow) => num(f.out_person) + num(f.out_unit);
   const cur = data.qs.find((q) => q.current), fc = flow[0], prev = flow[1];
@@ -196,7 +196,7 @@ export function TokenSystem({ me }: { me: Me }) {
       <p className="lede">实际币的发行、兑换和流通。进：按期发放、成果铸造、课题预算兑换；出：研究单元换 GPU 卡时、换 API 额度、到期作废。投给研究单元只是从个人账转到单元账，总量不变。</p>
       <div className="tiles">
         <Tile k="流通量" v={out.toFixed(0)} f={n ? `个人 ${num(n.out_person).toFixed(0)} · 研究单元 ${num(n.out_unit).toFixed(0)}` : ''} />
-        <Tile k="本季度新发" v={fc ? issued(fc).toFixed(0) : '0'} f={fc ? `发放 ${num(fc.issued_salary).toFixed(0)} · 铸造 ${num(fc.issued_mint).toFixed(0)} · 预算兑换 ${num(fc.issued_budget).toFixed(0)}` : ''} />
+        <Tile k="本季度新发" v={fc ? issued(fc).toFixed(0) : '0'} f={fc ? `做任务 ${num(fc.issued_task).toFixed(0)} · 发放 ${num(fc.issued_salary).toFixed(0)} · 铸造 ${num(fc.issued_mint).toFixed(0)} · 预算兑换 ${num(fc.issued_budget).toFixed(0)}` : ''} />
         <Tile k="本季度用掉" v={fc ? burned(fc).toFixed(0) : '0'} f={fc ? `换卡时 ${num(fc.spent_compute).toFixed(0)} · 换 API ${num(fc.spent_api).toFixed(0)} · 过期 ${num(fc.expired).toFixed(0)}` : ''} />
         <Tile k="可兑资源覆盖率" v={cover != null ? pc(cover) : '—'} f="本季度可兑资源折合实际币 ÷ 流通量" tone={cover != null && cover < 1 ? 'warn' : undefined} />
         <Tile k="三个月内到期" v={n ? num(n.expiring_90d).toFixed(0) : '0'} f={n ? `持币 ${n.holders} 人 · ${n.unit_holders} 个研究单元` : ''} />
@@ -205,15 +205,29 @@ export function TokenSystem({ me }: { me: Me }) {
         <h3>通胀监控 <span className="h3sub">按季度</span></h3>
         {warn.length > 0 ? warn.map((w, i) => <div key={i} className="msg warn" role="status">{w}</div>) : <div className="msg" role="status">流通量在可兑资源之内，发行和消耗大致平衡。</div>}
         {flow.length === 0 ? <Empty>还没有实际币的流水。</Empty> : <div className="scroll"><table>
-          <thead><tr><th>季度</th><th className="r">按期发放</th><th className="r">铸造</th><th className="r">预算兑换</th><th className="r">换卡时</th><th className="r">换 API</th><th className="r">过期</th><th className="r">期末流通</th><th className="r">环比</th><th className="r">可兑资源</th><th className="r">覆盖率</th><th>比例（预算·API·卡时）</th></tr></thead>
+          <thead><tr><th>季度</th><th className="r">做任务</th><th className="r">按期发放</th><th className="r">铸造</th><th className="r">预算兑换</th><th className="r">换卡时</th><th className="r">换 API</th><th className="r">过期</th><th className="r">期末流通</th><th className="r">环比</th><th className="r">可兑资源</th><th className="r">覆盖率</th><th>比例（预算·API·卡时）</th></tr></thead>
           <tbody>{flow.map((f, i) => { const q = qOf(f.q_start), s = supply(q), o = endOut(f), p = flow[i + 1]; return (
-            <tr key={f.q_start}><td>{qname(f.q_start)}</td><td className="r">{num(f.issued_salary).toFixed(0)}</td><td className="r">{num(f.issued_mint).toFixed(0)}</td><td className="r">{num(f.issued_budget).toFixed(0)}</td>
+            <tr key={f.q_start}><td>{qname(f.q_start)}</td><td className="r">{num(f.issued_task).toFixed(0)}</td><td className="r">{num(f.issued_salary).toFixed(0)}</td><td className="r">{num(f.issued_mint).toFixed(0)}</td><td className="r">{num(f.issued_budget).toFixed(0)}</td>
               <td className="r">{num(f.spent_compute).toFixed(0)}</td><td className="r">{num(f.spent_api).toFixed(0)}</td><td className="r">{num(f.expired).toFixed(0)}</td><td className="r">{o.toFixed(0)}</td>
               <td className="r">{p && endOut(p) > 0 ? pc(o / endOut(p) - 1) : '—'}</td><td className="r">{s != null ? s.toFixed(0) : '—'}</td>
               <td className={`r ${s != null && o > 0 && s / o < 1 ? 'neg' : ''}`}>{s != null && o > 0 ? pc(s / o) : '—'}</td>
               <td>{q ? `${num(q.rate)} · ${num(q.api_rate)} · ${num(q.gpu_price)}` : '未公布'}</td></tr>); })}</tbody>
         </table></div>}
       </section>
+      {(() => { const q = cur?.q_start.slice(0, 10); const aw = data.tawards.filter((a) => a.q_start.slice(0, 10) === q);
+        const by = new Map<string, { n: number; s: number }>(); for (const a of aw) { const o = by.get(a.code) ?? { n: 0, s: 0 }; o.n += num(a.amount) > 0 ? 1 : 0; o.s += num(a.amount); by.set(a.code, o); }
+        const people = new Set(aw.filter((a) => num(a.amount) > 0).map((a) => a.user_id)).size, total = aw.reduce((t, a) => t + num(a.amount), 0);
+        const rules = [...data.trules].sort((a, b) => a.sort - b.sort);
+        return <section className="card">
+          <h3>做任务换币 <span className="h3sub">本季度已发 {total.toFixed(0)}，{people} 人；每人每季度合计最多 {num(rules[0]?.quarter_total_cap ?? 3000).toFixed(0)}</span></h3>
+          <p className="hint">按在正则上的操作自动发实际币到个人，当期和下一期有效；只算上线之后的操作，同一件事只发一次。回应质疑另记名义币进研究单元池子，成果解锁后铸造。</p>
+          <div className="scroll"><table>
+            <thead><tr><th>行为</th><th className="r">每次</th><th>上限</th><th className="r">本季度次数</th><th className="r">本季度发出</th></tr></thead>
+            <tbody>{rules.map((r) => { const b = by.get(r.code); return <tr key={r.code}><td>{r.label}</td>
+              <td className="r">{r.streak ? Object.entries(r.streak).map(([k, v]) => `${k}${r.unit === 'workday' ? '天' : '期'} +${v}`).join('，') : num(r.amount).toFixed(0)}</td>
+              <td>{r.quarter_cap ? `每季度 ${r.quarter_cap} 次` : '—'}</td><td className="r">{b?.n ?? 0}</td><td className="r">{(b?.s ?? 0).toFixed(0)}</td></tr>; })}</tbody>
+          </table></div>
+        </section>; })()}
       <CoinQuarterCard me={me} />
       <TokenParams me={me} />
     </>

@@ -81,6 +81,8 @@ const PEOPLE = [['P1', '校外 RA-01', '外聘人员劳务费', 3500], ['P2', '�
 const MONTHS = ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03', '2027-04'];
 
 const id = async (sql, p) => (await one(sql + ' returning id', p)).id;
+// 做任务换币（0176）只算上线之后的操作：先推到很远的将来，前面各节的操作不发任务币；最后一节单独测
+await db.exec(`update coin_task_setting set since = '2100-01-01'`);
 const U = {};
 for (const [k, n, r] of [['fin', '财务岗', 'finance'], ['dir', '负责人', 'director'], ['lead', '项目负责人', 'leader'], ['mem', '成员甲', 'member'], ['mem2', '成员乙', 'member']])
   U[k] = await id(`insert into app_user (name, role, feishu_open_id) values ($1, $2, $3)`, [n, r, 'ou_' + k]);
@@ -4413,6 +4415,52 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.fin, DQ);
   ok((await q(`select spent_api from api.coin_flow`)).some((f) => Number(f.spent_api) > 0), '代币系统的流量计入研究单元换 API 额度用掉的实际币');
   ok(Number((await one(`select unit_granted from api.resource where id = $1`, [RX])).unit_granted) > 0, '资源账把换给研究单元的额度算作已发出');
+  await as(U.dir);
+}
+
+// 做任务换实际币（0176）：按正则上的操作发币，连续奖励，同一件事只发一次，条数上限和每人每季度合计上限
+{ await db.exec(`reset role`);
+  await q(`update coin_task_setting set since = now() - interval '1 second', cap = 3000`);
+  const W = await one(`select pr.user_id u from person pr join app_user u on u.id = pr.user_id where pr.status in ('active','offroll') and u.active order by pr.created_at limit 1`);
+  const PJ = (await one(`select id from project where layer = 'paper' and active order by code limit 1`)).id;
+  // 连续 5 个工作日登记日常（2027-03-01 是周一）
+  for (const d of ['2027-03-01', '2027-03-02', '2027-03-03', '2027-03-04', '2027-03-05'])
+    await q(`insert into daily_rev (user_id, day, project_id) values ($1, $2, $3) on conflict do nothing`, [W.u, d, PJ]);
+  const FB = await id(`insert into feedback (user_id, body, page, issue_number) values ($1, '按钮看不清', '#/', 9001)`, [W.u]);
+  const got = async () => Number((await one(`select coalesce(sum(amount), 0) v from coin_task_award where user_id = $1`, [W.u])).v);
+  await as(null, '2027-03-05');
+  await q(`select coin_tick()`);
+  const aw = await q(`select code, amount from coin_task_award where user_id = $1 order by code`, [W.u]);
+  ok(aw.filter((a) => a.code === 'daily').length === 5 && aw.filter((a) => a.code === 'daily').every((a) => Number(a.amount) === 2), '日常登记每天 2 实际币', JSON.stringify(aw));
+  ok(aw.some((a) => a.code === 's_daily' && Number(a.amount) === 5), '连续 5 个工作日登记，连续奖励 +5');
+  ok(aw.some((a) => a.code === 'feedback' && Number(a.amount) === 6), '反馈转成议题 6 实际币');
+  const t1 = await got();
+  ok(Number((await one(`select coalesce(sum(amount), 0) v from coin_ledger where user_id = $1 and kind = 'task'`, [W.u])).v) === t1, '任务币进个人账，记为 task');
+  ok((await one(`select expires_on - token_period('2027-03-05') v from coin_ledger where user_id = $1 and kind = 'task' limit 1`, [W.u])).v === 27, '任务币和按期发放一样 4 周有效');
+  await q(`select coin_tick()`);
+  eq(await got(), t1, '同一件事只发一次');
+  // 周末不算断：下周一接着登记，连续第 6 天
+  await q(`insert into daily_rev (user_id, day, project_id) values ($1, '2027-03-08', $2)`, [W.u, PJ]);
+  await as(null, '2027-03-08');
+  await q(`select coin_tick()`);
+  ok((await one(`select count(*)::int n from coin_task_award where user_id = $1 and code = 's_daily'`, [W.u])).n === 1 && await got() === t1 + 2, '周末不断连续，第 6 天只发当天的日常');
+  // 季度合计上限
+  await q(`update coin_task_setting set cap = $1`, [t1 + 3]);
+  await q(`insert into daily_rev (user_id, day, project_id) values ($1, '2027-03-09', $2)`, [W.u, PJ]);
+  await q(`insert into daily_rev (user_id, day, project_id) values ($1, '2027-03-10', $2)`, [W.u, PJ]);
+  await as(null, '2027-03-10');
+  await q(`select coin_tick()`);
+  eq(await got(), t1 + 3, '每人每季度合计到上限为止，超出的记 0');
+  ok((await one(`select count(*)::int n from coin_task_award where user_id = $1 and amount = 0`, [W.u])).n >= 1, '到了上限的仍留一条 0 的记录');
+  // 条数上限：反馈每季度最多 10 条
+  await q(`update coin_task_setting set cap = 3000`);
+  for (let i = 0; i < 11; i++) await q(`insert into feedback (user_id, body, page, issue_number) values ($1, $2, '#/', $3)`, [W.u, '反馈' + i, 9100 + i]);
+  await q(`select coin_tick()`);
+  eq((await one(`select count(*)::int n from coin_task_award where user_id = $1 and code = 'feedback' and amount > 0`, [W.u])).n, 10, '反馈每季度最多发 10 条');
+  await db.exec(`set role app_api`);
+  await as(U.mem2);
+  ok((await q(`select 1 from api.coin_task_rule`)).length >= 30, '任务表全中心可见');
+  ok((await q(`select 1 from api.coin_task_award where user_id = $1`, [W.u])).length === 0 || W.u === U.mem2, '别人的任务币记录看不到');
   await as(U.dir);
 }
 
