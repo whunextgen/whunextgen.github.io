@@ -128,6 +128,10 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
                 {uk.can_get && <button className="sm" style={{ marginLeft: 8 }} onClick={() => setShowKey(true)}>取用 key</button>}</p>}
             {data.kacc.length > 0 && <ul className="path-hist">{[...data.kacc].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8).map((x) => <li key={x.id}>{x.at.slice(0, 16).replace('T', ' ')} {x.user_name ?? '系统'} 取用</li>)}</ul>}
           </>}
+          {!uk && <>
+            <h3 style={{ marginTop: 18 }}>API key <span className="h3sub">本研究单元一个 key，名单内共用</span></h3>
+            <Empty>{num(ub?.api_quota ?? 0) > 0 ? '本研究单元的 API key 仅名单内成员可见。' : '本研究单元还没有换 API 额度，没有可取用的 key。全中心本季度可换多少只是上限：由负责人点「换 API 额度」用研究单元账上的名义币换，财务岗随后为本研究单元发放 key，名单内成员收到通知后在这里取用。'}</Empty>
+          </>}
           {showKey && <SecretDialog kind="unit" id={unit.id} title={`API key：${unit.name}`} onClose={() => { setShowKey(false); reload(); }} />}
         </>; })()}
       {(recorder || setup) && <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="sm ghost" onClick={() => setAct({ title: `池子上限：${unit.name}`, label: '保存',

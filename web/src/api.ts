@@ -221,7 +221,7 @@ export interface ResourceStock { id: string; resource_id: string; kind: 'api' | 
 export interface SecretAccess { id: string; owner_kind: SecretKind; owner_id: string; at: string; user_name: string; resource_name: string; holder_name: string | null }
 // 实际币换 API 额度（0171）：本季度上限、研究单元的 key、key 的取用记录。额度按 key 所在资源的计价单位（unit），total 是公布的充值额（元）
 export interface ApiQuarter { q_start: string; total: string; api_rate: string; api_stock: string | null; bought: string; room: string;
-  resource_id: string | null; resource_name: string | null; unit: string; fx_rate: string | null; total_fx: string }
+  resource_id: string | null; resource_name: string | null; unit: string; fx_rate: string | null; total_fx: string; cap: string }
 export interface UnitApiKey { project_id: string; project_code: string; project_name: string; owner_name: string | null; api_quota: string; api_unit: string | null; last_bought_at: string | null;
   has_key: boolean; key_hint: string | null; key_set_at: string | null; rotate_since: string | null; rotate_who: string | null; can_get: boolean }
 export interface UnitKeyAccess { id: string; project_id: string; at: string; user_name: string | null }
