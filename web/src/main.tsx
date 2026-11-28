@@ -25,6 +25,7 @@ import { Projects } from './pages/Projects';
 import { ApplyPage } from './pages/Apply';
 import { Agent } from './pages/Agent';
 import { Naming } from './pages/Naming';
+import { CoinQuarterCard } from './token';
 import { PalettePoll, PaletteTrialBar } from './pages/Palette';
 import { restorePalette } from './palettes';
 import { Biweekly } from './pages/Biweekly';
@@ -165,6 +166,7 @@ function App() {
   const seesStaff = can(me, 'read.finance');
   const seesPeople = can(me, 'read.people'), seesRes = can(me, 'read.resource');
   const seesDesk = can(me, 'budget.setup', 'ledger.post');
+  const seesSettings = can(me, 'budget.issue', 'budget.approve');   // 系统设定：本季度预算兑换实际币的总额和比例
   const seesAdmin = can(me, 'read.admin', 'rbac.manage', 'user.manage', 'rule.manage', 'card.manage');
   const seesCaps = can(me, 'budget.approve', 'budget.setup'), seesReview = can(me, 'budget.review'), seesLegacy = can(me, 'read.legacy') || seesAdmin;
   // 导航按对象分组：项目（及其经费卡、入账、结清）、课题（及其研究单元、预算、决算）、支出、资源、系统。每组标题下一行说这一组管什么
@@ -183,7 +185,7 @@ function App() {
     { top: '财务', label: '年度预算', home: '', note: '总预算、档次、下达、决算', pages: keep(seesStaff && ['/plan', '总预算与档次'], seesStaff && ['/budget', '预算编制'], seesCaps && ['/caps', '预算控制'], seesReview && ['/review', '年度决算'], seesDesk && ['/desk', '预算参数']) },
     { top: '财务', label: '项目', home: seesCards ? '/s-fund' : '', note: '经费卡、采购、报销入账、结清', pages: keep(seesCards && ['/funds', '项目管理'], seesCards && ['/cards', '经费卡管理'], seesCards && ['/procure', '采购'], seesCards && ['/school', '报销与入账'], seesPeople && ['/staff', '人员经费'], seesCards && ['/ledger', '明细账校准'], seesCards && ['/settle', '经费结清']) },
     { top: '财务', label: '资源', home: '/s-res', note: '调配、盘点', pages: keep(seesRes && ['/pool', '资源调配'], seesRes && ['/stock', '资产盘点']) },
-    { top: '', label: '系统', home: '', note: '', pages: keep(seesPeople && ['/people', '人员档案'], seesAdmin && ['/admin', '权限管理'], seesCards && ['/rules', '采购与报销要求'], seesLegacy && ['/history', '历史数据'], ['/agent', '智能体接入'], ['/palette', '配色投票'], ['/naming', '中台征名']) },
+    { top: '', label: '系统', home: '', note: '', pages: keep(seesPeople && ['/people', '人员档案'], seesAdmin && ['/admin', '权限管理'], seesSettings && ['/settings', '系统设定'], seesCards && ['/rules', '采购与报销要求'], seesLegacy && ['/history', '历史数据'], ['/agent', '智能体接入'], ['/palette', '配色投票'], ['/naming', '中台征名']) },
   ].filter((g) => g.pages.length > 0);
   // 不在导航里、从别的页面点进去的页面
   const side = keep(['/track', '在途事项'], ['/center', '中心总览'], ['/s-spend', '课题汇总'], ['/s-res', '资源汇总'], ...groups.filter((g) => g.home).map((g): Page => [g.home, `${g.label}汇总`]), !seesReview && ['/review', '年度决算'], !seesLegacy && ['/history', '历史数据']);
@@ -237,6 +239,7 @@ function App() {
     : current === '/palette' ? <PalettePoll />
     : current === '/naming' ? <Naming />
     : current === '/desk' ? <Desk me={me} />
+    : current === '/settings' ? <><div className="top"><h2>系统设定</h2></div><CoinQuarterCard me={me} /></>
     : current === '/funds' ? <Funds me={me} />
     : current === '/center' ? <Home me={me} view="center" />
     : current === '/s-fund' ? <Home me={me} view="fund" />
