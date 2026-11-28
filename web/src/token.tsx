@@ -25,6 +25,12 @@ export const addDays = (d: string, n: number) => { const x = new Date(`${day(d)}
 
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
+// 中心季度：11–1 月、2–4 月、5–7 月、8–10 月（0178）。centerQ 给出所在季度第一天，qLabel 写成「2026 年 11 月–2027 年 1 月」
+export const centerQ = (d: Date = new Date()) => { const t = new Date(d.getFullYear(), d.getMonth() - 1, 1); const m = Math.floor(t.getMonth() / 3) * 3 + 1;
+  const s = new Date(t.getFullYear(), m, 1); return `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-01`; };
+export const qLabel = (start: string) => { const y = Number(start.slice(0, 4)), m = Number(start.slice(5, 7)); const em = (m + 1) % 12 + 1, ey = m + 2 > 12 ? y + 1 : y;
+  return `${y} 年 ${m} 月–${ey === y ? '' : `${ey} 年 `}${em} 月`; };
+
 // ---------- 首页 · 我的事项：我在各研究单元池子里的份额 ----------
 // 名义币不发到个人手里，也不需要本人去投：回应质疑所得直接进入研究单元的池子，记为本人的份额
 // 卡时有效期按参数 hours_days（默认 56 天）显示，整周的写周数
@@ -137,7 +143,7 @@ export function CoinQuarterCard({ me }: { me: Me }) {
   if (!data) return <Loading error={error} />;
   const fin = can(me, 'budget.issue');
   const cur = data.qs.find((q) => q.current);
-  const qname = (d: string) => `${d.slice(0, 4)} 年第 ${Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1} 季度`;
+  const qname = qLabel;
   const xs = cur ? data.xs.filter((x) => x.q_start === cur.q_start).sort((a, b) => b.at.localeCompare(a.at)) : [];
   const nf = (name: string, label: string, v?: string): Field => ({ name, label, type: 'number', value: v ?? '' });
   const pub: Act = { title: cur ? '修改本季度的兑换总额和比例' : '公布本季度的兑换总额和比例', label: '公布',
@@ -182,7 +188,7 @@ export function TokenSystem({ me }: { me: Me }) {
   const supply = (q?: CoinQuarter) => q ? num(q.total) / num(q.api_rate) + (q.gpu_hours != null ? num(q.gpu_hours) * num(q.gpu_price) : 0) : null;
   const cover = cur && out > 0 ? (supply(cur) ?? 0) / out : null;
   const growth = fc && prev && endOut(prev) > 0 ? endOut(fc) / endOut(prev) - 1 : null;
-  const qname = (d: string) => `${d.slice(0, 4)} Q${Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1}`;
+  const qname = qLabel;
   const pc = (v: number) => `${(v * 100).toFixed(0)}%`;
   const warn: string[] = [];
   if (cover != null && cover < 1) warn.push(`流通的实际币（${out.toFixed(0)}）多于本季度可兑的资源（折合 ${(supply(cur) ?? 0).toFixed(0)}），覆盖率 ${pc(cover)}：币多于货，有通胀压力。可以下季度提高标价、减少按期发放，或缩短有效期。`);

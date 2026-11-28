@@ -4423,6 +4423,8 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await q(`update coin_task_setting set since = now() - interval '1 second', cap = 3000`);
   const W = await one(`select pr.user_id u from person pr join app_user u on u.id = pr.user_id where pr.status in ('active','offroll') and u.active order by pr.created_at limit 1`);
   const PJ = (await one(`select id from project where layer = 'paper' and active order by code limit 1`)).id;
+  const CQ = await one(`select center_quarter('2026-11-28')::text a, center_quarter('2027-01-31')::text b, center_quarter('2027-02-01')::text c, center_quarter('2026-10-31')::text d, coin_quarter_end('2026-12-05')::text e`);
+  ok(CQ.a === '2026-11-01' && CQ.b === '2026-11-01' && CQ.c === '2027-02-01' && CQ.d === '2026-08-01' && CQ.e === '2027-01-31', '中心季度为 11–1、2–4、5–7、8–10 月（0178）', JSON.stringify(CQ));
   // 连续 5 个工作日登记日常（2027-03-01 是周一）
   for (const d of ['2027-03-01', '2027-03-02', '2027-03-03', '2027-03-04', '2027-03-05'])
     await q(`insert into daily_rev (user_id, day, project_id) values ($1, $2, $3) on conflict do nothing`, [W.u, d, PJ]);
@@ -4436,7 +4438,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok(aw.some((a) => a.code === 'feedback' && Number(a.amount) === 6), '反馈转成议题 6 实际币');
   const t1 = await got();
   ok(Number((await one(`select coalesce(sum(amount), 0) v from coin_ledger where user_id = $1 and kind = 'task'`, [W.u])).v) === t1, '任务币进个人账，记为 task');
-  ok((await one(`select expires_on::text v from coin_ledger where user_id = $1 and kind = 'task' limit 1`, [W.u])).v === '2027-03-31', '任务币和按期发放一样到当季最后一天作废（0177）');
+  ok((await one(`select expires_on::text v from coin_ledger where user_id = $1 and kind = 'task' limit 1`, [W.u])).v === '2027-04-30', '任务币和按期发放一样到当季最后一天作废，按中心季度 2–4 月（0177、0178）');
   await q(`select coin_tick()`);
   eq(await got(), t1, '同一件事只发一次');
   // 周末不算断：下周一接着登记，连续第 6 天

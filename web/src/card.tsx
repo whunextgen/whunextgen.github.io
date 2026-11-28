@@ -4,7 +4,7 @@ import { ActionDialog, day, num, today, type Field } from './ui';
 import type { PathPerson, PathTask } from './path';
 import type { Query, Seminar } from './iterate';
 import type { DailyRow, PersonAttr } from './growth';
-import { hoursValid, type UnitPool, type UnitShare } from './token';
+import { hoursValid, type UnitPool, type UnitShare, centerQ } from './token';
 import { SignIn } from './live';
 
 // 个人主页「我的事项」：按设计稿 ir-character-card。身份、本回合、当日、属性、任务列表、主线、份额、实际币、嘉许、各期记录；
@@ -211,14 +211,14 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
           {data.ledger.length > 0 && <ul className="ir-sc">{[...data.ledger].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5).map((l) =>
             <li key={l.id}><span>{KIND[l.kind]}{l.kind === 'task' && l.note ? ` · ${l.note}` : l.project_name ? ` · ${l.project_name}` : ''}</span><em>{num(l.amount) > 0 ? '+' : ''}{n1(l.amount)}</em></li>)}</ul>}
           {/* 做任务换币（0176）：本季度已得和上限，展开看每类行为发多少 */}
-          {(() => { const q = new Date().toISOString().slice(0, 4) + '-' + String(Math.floor(new Date().getMonth() / 3) * 3 + 1).padStart(2, '0') + '-01';
+          {(() => { const q = centerQ();
             const mine = (data.tawards ?? []).filter((a) => a.user_id === me.id && a.q_start.slice(0, 10) === q);
             const got = mine.reduce((t, a) => t + num(a.amount), 0), cap = num(data.trules?.[0]?.quarter_total_cap ?? 3000);
             const rules = [...(data.trules ?? [])].sort((a, b) => a.sort - b.sort);
             return rules.length > 0 && <details className="ir-hint" style={{ marginTop: 8 }}><summary>做任务换币：本季度已得 <b>{n1(got)}</b> / 上限 {n1(cap)}</summary>
               <ul className="ir-sc">{rules.filter((r) => !r.streak).map((r) => <li key={r.code}><span>{r.label}{r.quarter_cap ? `（每季度最多 ${r.quarter_cap} 次）` : ''}</span><em>+{n1(r.amount)}</em></li>)}
                 {rules.filter((r) => r.streak).map((r) => <li key={r.code}><span>{r.label}：{Object.entries(r.streak ?? {}).map(([k, v]) => `${k}${r.unit === 'workday' ? ' 天' : ' 期'} +${v}`).join('，')}</span><em /></li>)}</ul></details>; })()}
-          <p className="ir-hint">代币不是经费。在正则上做事（组织研讨会、提质疑、签到、写点评、登记双周表和日常等）就发实际币，连续做还有奖励；按期发放的和做任务得的当季有效，季末（3、6、9、12 月最后一天）作废；成果铸造的 12 个月有效。实际币只能投给研究单元，由研究单元换 GPU 卡时（买后 {hoursValid(data.tp)}内有效），以后也可以换别的资源。投出时先扣先到期的。</p>
+          <p className="ir-hint">代币不是经费。在正则上做事（组织研讨会、提质疑、签到、写点评、登记双周表和日常等）就发实际币，连续做还有奖励；按期发放的和做任务得的当季有效，季末（1、4、7、10 月最后一天）作废；成果铸造的 12 个月有效。实际币只能投给研究单元，由研究单元换 GPU 卡时（买后 {hoursValid(data.tp)}内有效），以后也可以换别的资源。投出时先扣先到期的。</p>
         </section>
         <section className="ir-t ir-third">
           <div className="ir-mono"><span>嘉许 · 每期限两次</span><span>本期尚可给出 {Math.max(0, 2 - gaveNow)} 次</span></div>
