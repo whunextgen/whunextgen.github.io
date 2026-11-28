@@ -121,6 +121,8 @@ export const RPC: Record<string, [string, string][]> = {
   ignore_person: [['person', 'uuid'], ['note', 'text']],
   void_posted: [['id', 'uuid'], ['reason', 'text']],
   set_type_finance_only: [['id', 'uuid'], ['on', 'boolean']],
+  stock_opening: [['resource', 'uuid'], ['qty', 'numeric'], ['on', 'date'], ['unit', 'text'], ['fx', 'numeric'], ['note', 'text']],
+  set_resource_fx: [['resource', 'uuid'], ['fx', 'numeric']],
   publish_coin_quarter: [['total', 'numeric'], ['rate', 'numeric'], ['api_rate', 'numeric'], ['gpu_price', 'numeric'], ['gpu_hours', 'numeric'], ['note', 'text']],
   exchange_budget: [['line_id', 'uuid'], ['unit_id', 'uuid'], ['amount', 'numeric']],
   edit_posted: [['id', 'uuid'], ['title', 'text'], ['amount', 'numeric'], ['reason', 'text']],

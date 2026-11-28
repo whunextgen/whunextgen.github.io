@@ -1,11 +1,13 @@
-import { useViews, type Allocation, type Me, type Resource, type ResourceRequest, type ResourceStock } from '../api';
-import { Badge, Empty, Loading, can, day, money, num } from '../ui';
+import { useState } from 'react';
+import { rpc, useViews, type Allocation, type Me, type Resource, type ResourceRequest, type ResourceStock } from '../api';
+import { ActionDialog, Badge, Empty, Loading, can, day, money, num, today, type Field } from '../ui';
 import { ObjHead, Stages, Track } from '../tree';
 import { KIND, RES_REQ, qty } from './Resource';
 
 // 资源页：一项接口额度或资产从入库、分配、使用到盘点回收的全过程。申领的批准和分发在「资源调配」，入库、直接分配、收回和盘点在「资产盘点」
 export function ResourceOne({ me, id }: { me: Me; id: string }) {
-  const { data, error } = useViews<{ res: Resource[]; allocs: Allocation[]; stock: ResourceStock[]; reqs: ResourceRequest[] }>({
+  const [act, setAct] = useState<{ title: string; hint: string; label: string; fields: Field[]; run: (v: Record<string, string>) => Promise<unknown> } | null>(null);
+  const { data, error, reload } = useViews<{ res: Resource[]; allocs: Allocation[]; stock: ResourceStock[]; reqs: ResourceRequest[] }>({
     res: ['resource', { id }], allocs: ['allocation', { resource_id: id }], stock: ['resource_stock', { resource_id: id }], reqs: ['resource_request', { resource_id: id }],
   }, id);
   if (!data) return <Loading error={error} />;
@@ -31,6 +33,7 @@ export function ResourceOne({ me, id }: { me: Me; id: string }) {
           : <Empty>该资源未设总量，按实际分配记录。</Empty>}
         facts={[['总量', total != null ? qty(total, r.unit) : '未设'], ['已分配', qty(given, r.unit)], ['当前持有', `${cur.length} 人`], ...(r.kind === 'api' ? [['已使用', qty(used, r.unit)] as [string, string]] : []),
           ...(r.balance != null ? [['账户余额', `${num(r.balance).toLocaleString('zh-CN')}${r.currency ? ` ${r.currency}` : ''}${r.balance_on ? `（${day(r.balance_on)}）` : ''}`] as [string, string]] : []),
+          ...(r.fx_rate != null ? [['折算汇率', `1 ${r.unit} = ${num(r.fx_rate)} 元${r.fx_on ? `（${day(r.fx_on)}）` : ''}`] as [string, string]] : []),
           ...(r.unit_price != null ? [['单价', money(r.unit_price)] as [string, string]] : []), ...(r.location ? [['存放地点', r.location] as [string, string]] : [])]} />
       <Stages path="入库 › 申领 › 分配 › 使用与盘点 › 回收" at={at} items={[
         { nm: '入库', ds: r.kind === 'api' ? '购置或充值后登记' : '购置验收后登记', v: `${stock.length} 次`, f: stock[0] ? `最近 ${day(stock[0].received_on)}` : '暂无入库记录' },
@@ -68,11 +71,21 @@ export function ResourceOne({ me, id }: { me: Me; id: string }) {
       {staff && (
         <section className="card">
           <h3>入库记录 <span className="h3sub">{stock.length} 次</span></h3>
+          {/* 期初余额（0170）：旧门户、往年充值剩下的，按平台后台余额录一次；外币计价的填折算汇率，申请和发放按该单位 */}
+          {can(me, 'resource.approve') && r.kind === 'api' && <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 0 }}>
+            {!stock.some((s) => s.source === 'opening') && <button className="sm" onClick={() => setAct({ title: `录入期初余额：${r.name}`, label: '录入',
+              hint: '按平台后台显示的账户余额录一次，作为这项额度的期初库存，之后的充值按支出入库。平台按美元等外币计价的，计价单位填该外币并填折算汇率（1 单位合多少元，按市场汇率），之后的申请、批准、发放和密钥额度都按这个单位；和课题预算比时按汇率折人民币。已有在办申请或在用额度的，不能改计价单位。',
+              fields: [{ name: 'qty', label: '平台账户余额', type: 'number' }, { name: 'unit', label: '计价单位（如 美元、元）', value: r.unit && r.unit !== 'CNY' ? r.unit : '美元' }, { name: 'fx', label: '折算汇率：1 单位合多少元（人民币计价的留空）', type: 'number', required: false },
+                { name: 'on', label: '截至日期', type: 'date', value: today() }, { name: 'note', label: '来源（如：旧门户充值和 11-26 入账的充值，截至平台后台余额）' }],
+              run: (v) => rpc('stock_opening', { resource: r.id, qty: v.qty, on: v.on, unit: v.unit, fx: v.fx || null, note: v.note }) })}>录入期初余额</button>}
+            {r.fx_rate != null && <button className="sm ghost" onClick={() => setAct({ title: `更新折算汇率：${r.name}`, label: '保存', hint: `现行 1 ${r.unit} = ${num(r.fx_rate)} 元。按市场汇率更新，只影响此后和课题预算的折算。`,
+              fields: [{ name: 'fx', label: `1 ${r.unit} 合多少元`, type: 'number', value: String(num(r.fx_rate)) }], run: (v) => rpc('set_resource_fx', { resource: r.id, fx: v.fx }) })}>更新汇率</button>}
+          </div>}
           {stock.length === 0 ? <Empty>暂无入库记录。</Empty> : (
             <div className="scroll"><table>
               <thead><tr><th>入库日期</th><th className="r">数量</th><th className="r">单价</th><th>供应方</th><th>出资</th><th>说明</th></tr></thead>
               <tbody>{stock.map((s) => <tr key={s.id}><td>{day(s.received_on)}</td><td className="r">{qty(s.qty, r.unit)}</td><td className="r">{s.unit_price != null ? money(s.unit_price) : '—'}</td><td>{s.supplier ?? '—'}</td>
-                <td>{s.expense_request_id ? <a href={`#/req/${s.expense_request_id}`}>{s.project_name ?? '支出申请'}{s.line_purpose ? ` · ${s.line_purpose}` : ''}</a> : s.project_name ?? '—'}</td><td className="wrap">{s.note ?? '—'}</td></tr>)}</tbody>
+                <td>{s.source === 'opening' ? <Badge>期初余额</Badge> : s.expense_request_id ? <a href={`#/req/${s.expense_request_id}`}>{s.project_name ?? '支出申请'}{s.line_purpose ? ` · ${s.line_purpose}` : ''}</a> : s.project_name ?? '—'}</td><td className="wrap">{s.note ?? '—'}</td></tr>)}</tbody>
             </table></div>
           )}
         </section>
@@ -87,6 +100,7 @@ export function ResourceOne({ me, id }: { me: Me; id: string }) {
           </table></div>
         </section>
       )}
+      {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.label} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
     </div>
   );
 }

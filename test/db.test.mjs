@@ -4281,6 +4281,29 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// API 额度按美元记，期初余额（0170）
+{ await as(U.fin);
+  const RX = await val(`select save_resource(null, 'api', '期初测试平台', null, null, '元') v`);
+  const OPEN = `select stock_opening($1, $2, $3, $4, $5, $6) v`;
+  await as(U.mem2);
+  await raises('成员不能录期初余额', /./, OPEN, [RX, 100, '2026-11-28', '美元', 6.66, '平台后台余额']);
+  await as(U.fin, '2026-11-28');
+  await raises('外币要填汇率', /请填折算汇率/, OPEN, [RX, 100, '2026-11-28', '美元', null, '平台后台余额']);
+  await raises('要写来源', /请写明来源/, OPEN, [RX, 100, '2026-11-28', '美元', 6.66, ' ']);
+  await raises('截至日期不能晚于今天', /不能晚于今天/, OPEN, [RX, 100, '2026-12-01', '美元', 6.66, '平台后台余额']);
+  await q(OPEN, [RX, 9911.55, '2026-11-28', '美元', 6.66, '旧门户充值和 11-26 入账的充值，截至平台后台余额']);
+  const r = await one(`select unit, total, balance, fx_rate from api.resource where id = $1`, [RX]);
+  ok(r.unit === '美元' && Number(r.total) === 9911.55 && Number(r.balance) === 9911.55 && Number(r.fx_rate) === 6.66, '期初余额入库：按美元记，带折算汇率', JSON.stringify(r));
+  ok((await one(`select source from api.resource_stock where resource_id = $1`, [RX])).source === 'opening', '期初余额不挂支出，标为期初');
+  await raises('期初余额只录一次', /已录过期初余额/, OPEN, [RX, 1, '2026-11-28', '美元', 6.66, '再录']);
+  await q(`select set_resource_fx($1, 6.70)`, [RX]);
+  ok(Number((await one(`select fx_rate from api.resource where id = $1`, [RX])).fx_rate) === 6.7, '汇率可以按市场更新');
+  await db.exec(`reset role`);
+  ok(/fx_rate/.test((await one(`select pg_get_functiondef('public.save_resource_request(uuid,text,uuid,uuid,numeric,date,text,text,boolean,uuid)'::regprocedure) d`)).d), '额度和预算行比较时按汇率折人民币');
+  await db.exec(`set role app_api`);
+  await as(U.dir);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {

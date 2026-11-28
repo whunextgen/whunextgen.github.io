@@ -202,7 +202,7 @@ export interface Quota { id: string; leader_id: string; leader_name: string; yea
 export interface QuotaPick { id: string; leader_name: string; year: number }
 export interface Resource { id: string; kind: 'api' | 'asset'; name: string; ref: string | null; total: string | null; unit: string | null; note: string | null; active: boolean; allocated: string; holders: number;
   provider: string | null; model: string | null; currency: string | null; balance: string | null; balance_on: string | null; category: string | null; spec: string | null;
-  unit_price: string | null; bundle: string | null; location: string | null; used: string; asked: string; has_secret: boolean; secret_hint: string | null }
+  unit_price: string | null; bundle: string | null; location: string | null; used: string; asked: string; has_secret: boolean; secret_hint: string | null ; fx_rate?: string | null; fx_on?: string | null }
 export interface Allocation { id: string; resource_id: string; kind: 'api' | 'asset'; resource_name: string; ref: string | null; unit: string | null; user_id: string; user_name: string;
   quota: string | null; from_date: string; to_date: string | null; note: string | null; returned_on: string | null; current: boolean;
   used: string | null; used_on: string | null; asset_no: string | null; location: string | null; request_id: string | null; spec: string | null; model: string | null; provider: string | null;
@@ -215,7 +215,7 @@ export interface ResourceRequest { id: string; kind: 'api' | 'asset'; resource_i
   reviewed_at: string | null; reviewed_by_name: string | null; approved_amount: string | null; decided_at: string | null; decided_by_name: string | null; decide_note: string | null; fulfilled_at: string | null; created_at: string; my_project: boolean;
   budget_line_id: string; line_purpose: string | null; plan_qty: string | null; priority: boolean ; plan_add?: string | null }
 export interface ResourceStock { id: string; resource_id: string; kind: 'api' | 'asset'; resource_name: string; unit: string | null; qty: string; unit_price: string | null; supplier: string | null; note: string | null;
-  received_on: string; expense_request_id: string | null; created_by_name: string | null; project_id: string | null; project_name: string | null; line_purpose: string | null }
+  received_on: string; expense_request_id: string | null; created_by_name: string | null; project_id: string | null; project_name: string | null; line_purpose: string | null ; source?: 'purchase' | 'opening' }
 export interface SecretAccess { id: string; owner_kind: 'resource' | 'allocation'; owner_id: string; at: string; user_name: string; resource_name: string; holder_name: string | null }
 export interface PettyCash { id: string; requested_by: string; requester_name: string; amount: string; purpose: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'settled';
   decided_at: string | null; decided_by_name: string | null; decide_note: string | null; spent: string | null; settled_on: string | null; settle_note: string | null; expense_request_id: string | null; created_at: string;
