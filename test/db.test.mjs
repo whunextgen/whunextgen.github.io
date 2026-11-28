@@ -4348,7 +4348,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('财务岗没指定 key 开在哪个接口资源上不能换', /尚未指定研究单元的 key/, BUY, [UNIT, 10]);
   await as(U.fin, DQ);
   await raises('key 只能开在在用的接口资源上', /请选择在用的接口资源/, STOCK, [0, TOP]);
-  await q(STOCK, [0, RX]);
+  await q(STOCK, [20, RX]);   // 本季度能换的只有现有库存（0174）
   await as(U.mem, DQ);
   await raises('成员不能用研究单元的实际币换 API 额度', /由研究单元的负责人办理/, BUY, [UNIT, 10]);
   await as(U.mem2, DQ);
@@ -4360,8 +4360,8 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const g = await one(`select quota, unit, fx_rate, resource_id from api.api_grant where project_id = $1`, [UNIT]);
   ok(Number(g.quota) === 12 && g.unit === '美元' && Number(g.fx_rate) === 5 && g.resource_id === RX, '换得的 API 额度全中心看得到，记美元额度和当时的汇率', JSON.stringify(g));
   let a = await aq();
-  ok(Number(a.total_fx) === 20 && Number(a.bought) === 12 && Number(a.room) === 8 && Number(a.api_stock) === 0 && a.unit === '美元' && Number(a.fx_rate) === 5,
-    '本季度上限按美元：充值额 100 元折 20 美元，减已换', JSON.stringify(a));
+  ok(Number(a.bought) === 12 && Number(a.room) === 8 && Number(a.api_stock) === 20 && a.unit === '美元' && Number(a.fx_rate) === 5,
+    '本季度上限只算现有库存（美元），减已换；公布的总额是预算可兑换的上限，下季度充值后才成库存', JSON.stringify(a));
   await raises('全中心本季度换满即止，按美元提示剩余可换多少', /剩余 8\.00.*最多还能用 20/, BUY, [UNIT, 30]);
   ok(await outbox('%研究单元「换密钥测试研究单元」用实际币换了 12.00 美元 API 额度（换额度测试平台）%还没有 key%') > 0, '换了 API 额度通知财务岗计入研究单元的 key');
   await raises('研究单元负责人不能登记库存', /需要权限/, STOCK, [50, RX]);
@@ -4369,10 +4369,10 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('库存不能为负', /库存不能为负/, STOCK, [-1, RX]);
   await raises('本季度已在一个平台上换过额度的，不能改到另一个平台', /另一个接口资源/, STOCK, [50, RY]);
   await q(STOCK, [50, RX]);
-  eq((await aq()).room, 58, '登记库存（美元）后可换的加上库存');
+  eq((await aq()).room, 38, '库存更新（美元）后，可换的是库存减已换');
   await as(U.mem2, DQ);
   await q(BUY, [UNIT, 30]);
-  eq((await aq()).room, 46, '充值额折美元加库存减去已换');
+  eq((await aq()).room, 26, '库存减去已换');
   await as(U.fin, DQ);
   await raises('库存不能低到已换出的以下', /已换出 24\.00 美元/, STOCK, [3, RX]);
   // 研究单元的 key：财务岗加密保存，名单内成员取用，每次取用留记录

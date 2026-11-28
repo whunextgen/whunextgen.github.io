@@ -264,7 +264,7 @@ export interface YearCheck { year: number; resource_id: string; kind: 'api' | 'a
 export interface RuleLookup { expense_type_id: string; name: string; required_path: string | null; can_yes: boolean; has_cond: boolean; has_no: boolean; disputed: boolean; notes: string | null; ruled_on: string | null }
 export interface BudgetCategory { id: string; code: string; name: string; labor: boolean; sort: number; active: boolean; coin?: boolean }
 // 课题预算兑换实际币（0164）：财务岗每季度公布全中心可兑换总额和兑换比例；兑满即止
-export interface CoinQuarter { q_start: string; total: string; rate: string; api_rate: string; gpu_price: string; note: string | null; published_at: string; published_by_name: string | null; exchanged: string; current: boolean; gpu_hours: string | null }
+export interface CoinQuarter { q_start: string; total: string; rate: string; api_rate: string; gpu_price: string; note: string | null; published_at: string; published_by_name: string | null; exchanged: string; current: boolean; gpu_hours: string | null; api_stock?: string | null; api_fx?: string | null }
 // 代币系统：按季度的流量与期末流通量；当前概况
 export interface CoinFlow { q_start: string; issued_salary: string; issued_mint: string; issued_budget: string; adjusted: string; spent_compute: string; expired: string; out_person: string; out_unit: string; spent_api?: string }
 export interface CoinNow { out_person: string; out_unit: string; expiring_90d: string; holders: number; unit_holders: number }

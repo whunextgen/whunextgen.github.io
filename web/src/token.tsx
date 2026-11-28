@@ -130,7 +130,7 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
 }
 
 // ---------- 预算参数页：本季度预算兑换实际币（0164） ----------
-// 财务岗每季度开始时公布：全中心可兑换总额（下季度 API 充值能经学校报销的金额）和兑换比例；有人兑换后比例不能改，总额可以追加
+// 财务岗每季度开始时公布：课题预算本季度全中心可兑换的总额和兑换比例；兑进来的预算下季度拿去充值，充到多少决定下一期。有人兑换后比例不能改，总额可以追加
 export function CoinQuarterCard({ me }: { me: Me }) {
   const { data, error, reload } = useViews<{ qs: CoinQuarter[]; xs: BudgetCoinExchange[] }>({ qs: ['coin_quarter'], xs: ['budget_coin_exchange'] });
   const [act, setAct] = useState<Act | null>(null);
@@ -141,7 +141,7 @@ export function CoinQuarterCard({ me }: { me: Me }) {
   const xs = cur ? data.xs.filter((x) => x.q_start === cur.q_start).sort((a, b) => b.at.localeCompare(a.at)) : [];
   const nf = (name: string, label: string, v?: string): Field => ({ name, label, type: 'number', value: v ?? '' });
   const pub: Act = { title: cur ? '修改本季度的兑换总额和比例' : '公布本季度的兑换总额和比例', label: '公布',
-    hint: '总额填下季度 API 充值中能经学校报销的金额，全中心兑满即止；财务岗照计划直接充值，没兑满的部分由谢倩倩老师兜底。本季度已有兑换的，比例不能再改，总额只能追加。卡时标价随之更新。',
+    hint: '总额是课题预算本季度全中心可兑换实际币的上限，兑满即止。兑进来的预算由财务岗下季度拿去充值 API，充到多少决定下一期的库存和总额；本季度能换的 API 额度只算现有库存（在资产盘点登记）。本季度已有兑换的，比例不能再改，总额只能追加。卡时标价随之更新',
     fields: [nf('total', '本季度全中心可兑换总额（元）', cur?.total), nf('rate', '1 元预算兑多少实际币', cur?.rate ?? '1'), nf('api_rate', '1 实际币兑多少元 API 额度', cur?.api_rate ?? '1'), nf('gpu_price', '1 卡时多少实际币', cur?.gpu_price ?? '1'), { ...nf('gpu_hours', '本季度集群可供 GPU 卡时（用于通胀监控，可不填）', cur?.gpu_hours ?? ''), required: false },
       { name: 'note', label: '说明（选填）', required: false, value: cur?.note ?? '' }],
     run: (v) => rpc('publish_coin_quarter', { total: v.total, rate: v.rate, api_rate: v.api_rate, gpu_price: v.gpu_price, gpu_hours: v.gpu_hours || null, note: v.note || null }) };
@@ -152,7 +152,7 @@ export function CoinQuarterCard({ me }: { me: Me }) {
       {cur ? <table><tbody>
         <tr><th scope="row">可兑换总额</th><td>{money(cur.total)}，已兑 {money(cur.exchanged)}，剩余 <b>{money(num(cur.total) - num(cur.exchanged))}</b></td></tr>
         <tr><th scope="row">兑换比例</th><td>1 元预算 = {num(cur.rate)} 实际币；1 实际币 = {num(cur.api_rate)} 元 API 额度；1 卡时 = {num(cur.gpu_price)} 实际币</td></tr>
-        <tr><th scope="row">可供资源</th><td>API：下季度充值 {money(cur.total)}；GPU：{cur.gpu_hours != null ? `${num(cur.gpu_hours)} 卡时` : '未填'}</td></tr>
+        <tr><th scope="row">可供资源</th><td>API：现有库存 {cur.api_stock != null ? `${num(cur.api_stock).toLocaleString('zh-CN')} 美元` : '未登记'}（本季度兑换的预算下季度充值，充到多少决定下一期）；GPU：{cur.gpu_hours != null ? `${num(cur.gpu_hours)} 卡时` : '未填'}</td></tr>
         <tr><th scope="row">公布</th><td>{cur.published_by_name ?? '—'} · {day(cur.published_at)}{cur.note && <div className="sub2" style={{ marginLeft: 0 }}>{cur.note}</div>}</td></tr>
       </tbody></table> : <Empty>本季度的兑换总额和比例尚未公布，课题暂不能兑换。</Empty>}
       {xs.length > 0 && <div className="scroll"><table>
@@ -166,7 +166,7 @@ export function CoinQuarterCard({ me }: { me: Me }) {
 }
 
 // ---------- 代币系统：发行、兑换、通胀监控（0165） ----------
-// 流通量 = 个人账 + 研究单元账。可兑资源折合实际币 = 下季度 API 充值 ÷ 每币 API 额度 + 可供卡时 × 卡时标价。
+// 流通量 = 个人账 + 研究单元账。可兑资源折合实际币 = API 现有库存 × 汇率 ÷ 每币 API 额度 + 可供卡时 × 卡时标价（本季度兑换的预算下季度才充值，不算本季度的货）。
 // 流通量超过可兑资源，就是币多于货：有通胀压力
 export function TokenSystem({ me }: { me: Me }) {
   const { data, error } = useViews<{ flow: CoinFlow[]; now: CoinNow[]; qs: CoinQuarter[] }>({ flow: ['coin_flow'], now: ['coin_now'], qs: ['coin_quarter'] });
@@ -179,7 +179,7 @@ export function TokenSystem({ me }: { me: Me }) {
   const burned = (f: CoinFlow) => num(f.spent_compute) + num(f.spent_api) + num(f.expired);
   const endOut = (f: CoinFlow) => num(f.out_person) + num(f.out_unit);
   const cur = data.qs.find((q) => q.current), fc = flow[0], prev = flow[1];
-  const supply = (q?: CoinQuarter) => q ? num(q.total) / num(q.api_rate) + (q.gpu_hours != null ? num(q.gpu_hours) * num(q.gpu_price) : 0) : null;
+  const supply = (q?: CoinQuarter) => q ? num(q.api_stock) * (q.api_fx != null ? num(q.api_fx) : 1) / num(q.api_rate) + (q.gpu_hours != null ? num(q.gpu_hours) * num(q.gpu_price) : 0) : null;
   const cover = cur && out > 0 ? (supply(cur) ?? 0) / out : null;
   const growth = fc && prev && endOut(prev) > 0 ? endOut(fc) / endOut(prev) - 1 : null;
   const qname = (d: string) => `${d.slice(0, 4)} Q${Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1}`;
