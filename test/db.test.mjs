@@ -2950,6 +2950,20 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await q(`select buy_compute($1, 10)`, [UU]);
   const ub = await one(`select balance::float b, hours::float h from api.unit_coin_balance where project_id = $1`, [UU]);
   ok(ub.b === 10 && ub.h >= 10, '负责人用研究单元的实际币按标价换卡时，集群一侧可读', JSON.stringify(ub));
+  // 个人投给研究单元的实际币保留原有效期（0173）
+  { await db.exec(`reset role`);
+    const ex = await one(`select expires_on::text e, remain::float r from unit_coin where project_id = $1 and kind = 'invest' order by created_at limit 1`, [UU]);
+    const pe = await one(`select expires_on::text e from coin_ledger where user_id = $1 and kind = 'salary' order by created_at limit 1`, [U.mem2]);
+    ok(ex.e === pe.e && ex.r === 10, '投入的币按个人那笔的到期日记入研究单元，换卡时扣掉 20 剩 10', JSON.stringify([ex, pe]));
+    await as(null, ex.e);
+    eq(Number((await one(`select unit_coin_balance($1) v`, [UU])).v), 10, '到期日当天还能用');
+    const after = new Date(Date.parse(ex.e) + 864e5).toISOString().slice(0, 10);
+    await as(null, after);
+    eq(Number((await one(`select unit_coin_balance($1) v`, [UU])).v), 0, '过了到期日，研究单元账上的这笔不再计入余额');
+    ok((await val(`select unit_coin_expire_tick() v`)) >= 1, '到期的作废');
+    ok(Number((await one(`select sum(amount) v from unit_coin where project_id = $1 and kind = 'expire'`, [UU])).v) === -10, '作废记一笔「过期」，计入代币系统的过期');
+    await raises('过期的不能再花', /研究单元的实际币不足/, `insert into unit_coin (project_id, kind, amount, user_id) values ($1, 'compute', -5, $2)`, [UU, own]);
+    await db.exec(`set role app_api`); await as(own, D); }
   await as(U.mem, D);
   ok((await q(`select 1 from api.unit_coin where project_id = $1`, [UU])).length >= 2, '研究单元的实际币账全中心看得到');
   // 与集群同步的接口
