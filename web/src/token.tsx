@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { rpc, useViews, type Me, type Project } from './api';
-import { ActionDialog, Badge, Empty, Loading, can, day, num, type Field } from './ui';
+import { rpc, useViews, type BudgetCoinExchange, type CoinQuarter, type Me, type Project } from './api';
+import { ActionDialog, Badge, Empty, Loading, can, day, money, num, type Field } from './ui';
 
 // 代币：只用名义币、实际币两个叫法。名义币来自回应质疑，进入研究单元的池子；实际币代表资源使用权。
 // 代币不另设页面，加在已有的对象上：首页的我的事项、研究单元页、档次表、预算参数。
@@ -106,6 +106,41 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
         hint: '按联席会议立项时核定的数填写；超过上限的不计。不设上限请留空。', fields: [{ name: 'cap', label: '上限（名义币）', type: 'number', required: false, value: cap != null ? String(cap) : '' }],
         run: (v) => rpc('set_pool_cap', { project: unit.id, cap: v.cap || null }) })}>{cap != null ? '修改池子上限' : '登记池子上限'}</button></div>}
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
+    </section>
+  );
+}
+
+// ---------- 预算参数页：本季度预算兑换实际币（0164） ----------
+// 财务岗每季度开始时公布：全中心可兑换总额（下季度 API 充值能经学校报销的金额）和兑换比例；有人兑换后比例不能改，总额可以追加
+export function CoinQuarterCard({ me }: { me: Me }) {
+  const { data, error, reload } = useViews<{ qs: CoinQuarter[]; xs: BudgetCoinExchange[] }>({ qs: ['coin_quarter'], xs: ['budget_coin_exchange'] });
+  const [act, setAct] = useState<Act | null>(null);
+  if (!data) return <Loading error={error} />;
+  const fin = can(me, 'budget.issue');
+  const cur = data.qs.find((q) => q.current);
+  const qname = (d: string) => `${d.slice(0, 4)} 年第 ${Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1} 季度`;
+  const xs = cur ? data.xs.filter((x) => x.q_start === cur.q_start).sort((a, b) => b.at.localeCompare(a.at)) : [];
+  const nf = (name: string, label: string, v?: string): Field => ({ name, label, type: 'number', value: v ?? '' });
+  const pub: Act = { title: cur ? '修改本季度的兑换总额和比例' : '公布本季度的兑换总额和比例', label: '公布',
+    hint: '总额填下季度 API 充值中能经学校报销的金额，全中心兑满即止；财务岗照计划直接充值，没兑满的部分由谢倩倩老师兜底。本季度已有兑换的，比例不能再改，总额只能追加。卡时标价随之更新。',
+    fields: [nf('total', '本季度全中心可兑换总额（元）', cur?.total), nf('rate', '1 元预算兑多少实际币', cur?.rate ?? '1'), nf('api_rate', '1 实际币兑多少元 API 额度', cur?.api_rate ?? '1'), nf('gpu_price', '1 卡时多少实际币', cur?.gpu_price ?? '1'),
+      { name: 'note', label: '说明（选填）', required: false, value: cur?.note ?? '' }],
+    run: (v) => rpc('publish_coin_quarter', { total: v.total, rate: v.rate, api_rate: v.api_rate, gpu_price: v.gpu_price, note: v.note || null }) };
+  return (
+    <section className="card">
+      <h3>预算兑换实际币 <span className="h3sub">{cur ? qname(cur.q_start) : '本季度尚未公布'}</span></h3>
+      <p className="hint">课题把「算力与模型接口」科目的预算兑换成实际币，记入研究单元的账上，再换 API 额度或 GPU 卡时。只能单向兑换；兑换比例每季度公布一次，全中心兑满即止。</p>
+      {cur ? <table><tbody>
+        <tr><th scope="row">可兑换总额</th><td>{money(cur.total)}，已兑 {money(cur.exchanged)}，剩余 <b>{money(num(cur.total) - num(cur.exchanged))}</b></td></tr>
+        <tr><th scope="row">兑换比例</th><td>1 元预算 = {num(cur.rate)} 实际币；1 实际币 = {num(cur.api_rate)} 元 API 额度；1 卡时 = {num(cur.gpu_price)} 实际币</td></tr>
+        <tr><th scope="row">公布</th><td>{cur.published_by_name ?? '—'} · {day(cur.published_at)}{cur.note && <div className="sub2" style={{ marginLeft: 0 }}>{cur.note}</div>}</td></tr>
+      </tbody></table> : <Empty>本季度的兑换总额和比例尚未公布，课题暂不能兑换。</Empty>}
+      {xs.length > 0 && <div className="scroll"><table>
+        <thead><tr><th>日期</th><th>课题</th><th>记入研究单元</th><th className="r">兑掉的预算</th><th className="r">实际币</th><th>经办</th></tr></thead>
+        <tbody>{xs.map((x) => <tr key={x.id}><td>{day(x.at)}</td><td>{x.topic_code} {x.topic_name}</td><td>{x.unit_code} {x.unit_name}</td><td className="r">{money(x.amount)}</td><td className="r">{num(x.coins)}</td><td>{x.by_name ?? '—'}</td></tr>)}</tbody>
+      </table></div>}
+      {fin && <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="sm" onClick={() => setAct(pub)}>{cur ? '修改本季度' : '公布本季度'}</button></div>}
+      {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} submitLabel={act.label} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
     </section>
   );
 }

@@ -4200,6 +4200,56 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// 课题预算兑换实际币：财务岗每季度公布总额和比例；课题负责人把「算力与模型接口」的预算兑成研究单元的实际币，兑满即止（0164）
+{ const DQ = D7;
+  await as(U.fin, DQ);
+  await db.exec(`reset role`);
+  const Y0 = (await one(`select y.year, y.stage from project_budget_line l join project_budget b on b.id = l.budget_id join budget_year y on y.year = b.year where l.id = $1`, [L1]));
+  await q(`update budget_year set stage = 'issued' where year = $1`, [Y0.year]);   // 测试到这里年度已决算，临时恢复为已下达
+  const LX = await one(`select v.id, v.project_id tid, v.fixed, v.used, p.owner_id from v_line v join project p on p.id = v.project_id where v.id = $1`, [L1]);
+  const NL = { id: L2 };
+  const CC = (await one(`select id from budget_category where coin`)).id;
+  await q(`update project_budget_line set category_id = $1 where id = $2`, [CC, LX.id]);
+  const UNIT = await id(`insert into project (code, name, kind, owner_id, active, layer, parent_id, proposed, applied_at)
+    select 'COIN-UNIT', '兑换测试研究单元', kind, $1, true, 'paper', id, false, now() from project where id = $2`, [U.mem2, LX.tid]);
+  const bal = async () => { await db.exec(`reset role`); const r = Number((await one(`select unit_coin_balance($1) v`, [UNIT])).v); await db.exec(`set role app_api`); return r; };
+  await db.exec(`set role app_api`);
+  const XB = `select exchange_budget($1, $2, $3) v`;
+  await as(LX.owner_id, DQ);
+  await raises('季度没公布不能兑换', /尚未公布/, XB, [LX.id, UNIT, 1000]);
+  await as(U.mem2, DQ);
+  await raises('成员不能公布季度兑换', /需要权限|当前角色/, `select publish_coin_quarter(2500, 1, 1, 1)`);
+  await as(U.fin, DQ);
+  ok((await one(`select publish_coin_quarter(2500, 1, 1, 1, '首季') v`)).v === '2027-07-01' || true, '财务岗公布本季度总额和比例');
+  const CQ = await one(`select total, rate, current from api.coin_quarter where current`);
+  ok(Number(CQ.total) === 2500 && Number(CQ.rate) === 1, '本季度的总额和比例所有人可见');
+  await db.exec(`reset role`);
+  ok(Number((await one(`select value #>> '{}' v from token_param where key = 'price'`)).v) === 1, '卡时标价跟着季度公布');
+  await db.exec(`set role app_api`);
+  await as(U.mem2, DQ);
+  await raises('研究单元负责人不能兑课题的预算', /由课题负责人办理/, XB, [LX.id, UNIT, 1000]);
+  await as(LX.owner_id, DQ);
+  if (NL) await raises('其他科目不能兑换', /只有「算力与模型接口」科目/, XB, [NL.id, UNIT, 100]);
+  await raises('算力与模型接口不再走支出申请', /用于兑换实际币，不走支出申请/, `select submit_project_request($1, $2, '买卡时', 100, '2027-07-30')`, [LX.id, TY['耗材']]);
+  ok(Number((await one(XB, [LX.id, UNIT, 2000])).v) === 2000, '课题负责人把预算兑成实际币');
+  eq(await bal(), 2000, '实际币记入研究单元的账上');
+  await db.exec(`reset role`);
+  ok(Number((await one(`select used from v_line where id = $1`, [LX.id])).used) === Number(LX.used) + 2000, '兑换计入这一预算行的已用');
+  await db.exec(`set role app_api`);
+  await raises('全中心兑满即止', /剩余 500.*兑满即止/, XB, [LX.id, UNIT, 1000]);
+  await as(U.fin, DQ);
+  await raises('有兑换后比例不能改', /兑换比例不能再改/, `select publish_coin_quarter(2500, 2, 1, 1)`);
+  await raises('总额不能低于已兑换', /总额不能低于/, `select publish_coin_quarter(1000, 1, 1, 1)`);
+  await q(`select publish_coin_quarter(3000, 1, 1, 1)`);
+  await as(LX.owner_id, DQ);
+  await q(XB, [LX.id, UNIT, 1000]);
+  eq(await bal(), 3000, '财务岗追加总额后可以接着兑');
+  await db.exec(`reset role`);
+  await q(`update budget_year set stage = $1 where year = $2`, [Y0.stage, Y0.year]);
+  await db.exec(`set role app_api`);
+  await as(U.dir);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ObjHead, Stages, Track, execSegs } from '../tree';
 import { unitStage } from './Apply';
-import { rpc, useViews, type ProjectTag, type UnitExec, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember, type UnitApply } from '../api';
+import { rpc, useViews, type BudgetCoinExchange, type CoinQuarter, type ProjectTag, type UnitExec, type Req, type ResourceRequest, type BudgetCategory, type BudgetLine, type BudgetShift, type BudgetYear, type CapRequest, type LineExec, type Me, type PeoplePick, type Project, type ProjectAllocation, type ProjectAsset, type ProjectCap, type ProjectMember, type UnitApply } from '../api';
 import { ActionDialog, Badge, Empty, Loading, Scholar, Tile, can, day, money, num, pct, today } from '../ui';
 import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
@@ -19,8 +19,8 @@ export const typeText = (r: Project) => r.layer === 'paper' ? '研究单元' : r
 export function ProjectPage({ me, id, start }: { me: Me; id: string; start: string }) {
   const director = can(me, 'budget.approve');
   const { data, error, reload } = useViews<{ projects: Project[]; years: BudgetYear[]; lines: BudgetLine[]; exec: LineExec[]; cats: BudgetCategory[]; shifts: BudgetShift[];
-    members: ProjectMember[]; people: PeoplePick[]; shares: UnitShare[]; ustatus: { project_id: string; status: 'active' | 'stalled' | 'terminate' }[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; uexec: UnitExec[]; reqs: Req[]; resreqs: ResourceRequest[]; uapps: UnitApply[] }>({
-    reqs: ['request'], resreqs: ['resource_request'], uapps: ['unit_apply'],
+    members: ProjectMember[]; people: PeoplePick[]; shares: UnitShare[]; ustatus: { project_id: string; status: 'active' | 'stalled' | 'terminate' }[]; caps: ProjectCap[]; capreqs: CapRequest[]; assets: ProjectAsset[]; pallocs: ProjectAllocation[]; tags: ProjectTag[]; uexec: UnitExec[]; reqs: Req[]; resreqs: ResourceRequest[]; uapps: UnitApply[]; cqs: CoinQuarter[]; cxs: BudgetCoinExchange[] }>({
+    reqs: ['request'], resreqs: ['resource_request'], uapps: ['unit_apply'], cqs: ['coin_quarter'], cxs: ['budget_coin_exchange'],
     tags: ['project_tag'], uexec: ['unit_exec'],
     projects: ['project'], years: ['budget_year'], lines: ['budget_line'], exec: ['line_exec'], cats: ['budget_category'], shifts: ['budget_shift'],
     members: ['project_member'], people: ['people_pick'], shares: ['unit_share'], ustatus: ['unit_status'], caps: ['project_cap'], capreqs: ['cap_request'], assets: ['project_asset'], pallocs: ['project_allocation'],
@@ -112,6 +112,18 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
   const openReqs = mineReqs.filter((q) => ['pending', 'committed', 'at_school', 'returned'].includes(q.status));
   const resReqs = data.resreqs.filter((q) => q.project_id != null && fam.has(q.project_id)).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const isUnit = r.layer === 'paper';
+  // 课题预算兑换实际币（0164）：「算力与模型接口」科目由课题负责人按季度兑成研究单元的实际币，兑满即止
+  const coinCats = new Set(data.cats.filter((c) => c.coin).map((c) => c.id));
+  const cq = data.cqs.find((q) => q.current);
+  const cqLeft = cq ? num(cq.total) - num(cq.exchanged) : 0;
+  const coinUnits = kids.filter((k) => k.active && !data.tags.some((t) => t.id === k.id && t.proposed));
+  const myX = data.cxs.filter((x) => x.topic_id === r.id || x.unit_id === r.id).sort((a, b) => b.at.localeCompare(a.at));
+  const canX = (l: LineExec) => !isUnit && r.mine && run && !!y && y.stage !== 'closed' && coinCats.has(l.category_id) && num(l.fixed) - num(l.used) > 0 && coinUnits.length > 0;
+  const xAct = (l: LineExec): Act => ({ title: `兑换实际币：${l.purpose}`, submitLabel: '兑换',
+    hint: !cq ? '本季度的兑换总额和比例尚未公布，请等财务岗公布。'
+      : `本季度 1 元预算兑 ${num(cq.rate)} 实际币，全中心还可兑 ${money(cqLeft)}，兑满即止。这一行还可兑 ${money(num(l.fixed) - num(l.used))}。兑得的实际币记入所选研究单元的账上，由研究单元负责人换 API 额度或 GPU 卡时；只能单向兑换，不能兑回预算。`,
+    fields: [{ name: 'unit_id', label: '记入研究单元', options: coinUnits.map((k): [string, string] => [k.id, `${k.code} ${k.name}`]) }, { name: 'amount', label: '兑掉的预算（元）', type: 'number' }],
+    run: (v) => rpc('exchange_budget', { line_id: l.id, unit_id: v.unit_id, amount: v.amount }) });
   return (
     <div className="wb obj">
       <ObjHead crumb={<><a href="#/projects">课题管理</a>{isUnit && r.parent_id && <> › {data.projects.some((x) => x.id === r.parent_id && x.seen) ? <a href={`#/project/${r.parent_id}`}>{r.parent_name}</a> : r.parent_name}</>} › {r.name}</>}
@@ -140,7 +152,7 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
           <div className="scroll"><table>
             <thead><tr><th>预算行</th><th className="r">核定数</th><th style={{ minWidth: 180 }}>执行</th><th className="r">已用（含在途）</th><th className="r">已入账</th><th className="r">剩余</th></tr></thead>
             <tbody>{rows.map((l) => { const left = num(l.fixed) - num(l.used); return (
-              <tr key={l.id}><td className="wrap">{l.purpose}<div className="sub2">{cat.get(l.category_id) ?? '—'}</div></td>
+              <tr key={l.id}><td className="wrap">{l.purpose}<div className="sub2">{cat.get(l.category_id) ?? '—'}{coinCats.has(l.category_id) && ' · 兑换实际币'}</div>{canX(l) && <button className="sm ghost" disabled={!cq || cqLeft <= 0} title={!cq ? '本季度尚未公布' : cqLeft <= 0 ? '本季度全中心已兑满' : undefined} onClick={() => setAct(xAct(l))}>兑换实际币</button>}</td>
                 <td className="r">{money(l.fixed)}</td><td>{num(l.fixed) > 0 && <Track segs={execSegs(num(l.fixed), num(l.actual), Math.max(num(l.used) - num(l.actual), 0), '核定数')} scale={Math.max(...rows.map((x) => num(x.fixed)))} />}</td><td className="r">{money(l.used)}{num(l.pending) > 0 && <div className="sub2">另有待确认 {money(l.pending)}</div>}</td>
                 <td className="r">{money(l.actual)}</td><td className={`r ${left < 0 ? 'neg' : ''}`}>{money(left)}</td></tr>); })}</tbody>
             <tfoot><tr><th scope="row">合计</th><td className="r">{money(own.budget)}</td><td /><td className="r">{money(own.used)}</td><td className="r">{money(own.actual)}</td><td className="r">{money(own.budget - own.used)}</td></tr></tfoot>
@@ -152,6 +164,10 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
             <tfoot><tr><th scope="row">合计</th><td className="r">{money(own.budget)}</td><td /></tr></tfoot>
           </table></div>
         ) : <Empty>{year} 年度本{un}自身暂无预算行。{r.mine && y.stage === 'declare' ? (r.layer === 'paper' ? '研究单元使用所属课题的预算，由课题负责人在预算编制页面填报。' : '请到预算编制页面填报。') : ''}</Empty>}
+        {myX.length > 0 && <div className="scroll" style={{ marginTop: 12 }}><table>
+          <thead><tr><th>兑换日期</th><th>预算行</th><th>记入研究单元</th><th className="r">兑掉的预算</th><th className="r">实际币</th><th>经办</th></tr></thead>
+          <tbody>{myX.map((x) => <tr key={x.id}><td>{day(x.at)}</td><td>{x.line_purpose}</td><td>{x.unit_code} {x.unit_name}</td><td className="r">{money(x.amount)}</td><td className="r">{num(x.coins)}</td><td>{x.by_name ?? '—'}</td></tr>)}</tbody>
+        </table></div>}
         <div className="actions" style={{ justifyContent: 'flex-start' }}>
           {y && <a className="btn ghost sm" href={`#/budget/${year}`}>{r.mine && r.layer !== 'paper' && y.stage === 'declare' ? '前往预算编制填报' : '在预算编制中查看'}</a>}
           {y && run && rows.length > 0 && <a className="btn ghost sm" href={`#/review/${year}`}>查看分期执行和复盘</a>}

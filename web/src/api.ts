@@ -254,7 +254,10 @@ export interface ProjectAllocation { id: string; project_id: string; resource_id
 export interface YearCheck { year: number; resource_id: string; kind: 'api' | 'asset'; resource_name: string; unit: string | null; book_now: string; book: string | null; actual: string | null; diff: string | null;
   note: string | null; checked_by_name: string | null; checked_at: string | null }
 export interface RuleLookup { expense_type_id: string; name: string; required_path: string | null; can_yes: boolean; has_cond: boolean; has_no: boolean; disputed: boolean; notes: string | null; ruled_on: string | null }
-export interface BudgetCategory { id: string; code: string; name: string; labor: boolean; sort: number; active: boolean }
+export interface BudgetCategory { id: string; code: string; name: string; labor: boolean; sort: number; active: boolean; coin?: boolean }
+// 课题预算兑换实际币（0164）：财务岗每季度公布全中心可兑换总额和兑换比例；兑满即止
+export interface CoinQuarter { q_start: string; total: string; rate: string; api_rate: string; gpu_price: string; note: string | null; published_at: string; published_by_name: string | null; exchanged: string; current: boolean }
+export interface BudgetCoinExchange { id: string; q_start: string; line_id: string; line_purpose: string; topic_id: string; topic_code: string; topic_name: string; unit_id: string; unit_code: string; unit_name: string; amount: string; coins: string; rate: string; by_name: string | null; at: string }
 export interface BudgetYear { year: number; due_date: string; stage: BudgetStage; applied_on: string | null; granted_on: string | null; approved_at: string | null; approved_by_name: string | null;
   granted_amount: string | null; fixed_total: string | null; issued_at: string | null; closed_at: string | null }
 export interface ProjectBudget { id: string; year: number; project_id: string; status: 'draft' | 'submitted' | 'returned'; return_note: string | null; submitted_at: string | null; submitted_by_name: string | null; issued_at?: string | null }
