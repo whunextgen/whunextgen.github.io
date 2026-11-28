@@ -213,7 +213,8 @@ export type ResReqStatus = 'pending' | 'reviewed' | 'approved' | 'fulfilled' | '
 export interface ResourceRequest { id: string; kind: 'api' | 'asset'; resource_id: string | null; resource_name: string | null; unit: string | null; project_id: string | null; project_code: string | null; project_name: string | null;
   requested_by: string; requester_name: string; amount: string; period: string | null; purpose: string; usage_note: string | null; urgent: boolean; status: ResReqStatus;
   reviewed_at: string | null; reviewed_by_name: string | null; approved_amount: string | null; decided_at: string | null; decided_by_name: string | null; decide_note: string | null; fulfilled_at: string | null; created_at: string; my_project: boolean;
-  budget_line_id: string; line_purpose: string | null; plan_qty: string | null; priority: boolean ; plan_add?: string | null }
+  budget_line_id: string | null; line_purpose: string | null; plan_qty: string | null; priority: boolean ; plan_add?: string | null;
+  via_coin?: boolean }   // 研究单元用实际币换来分给成员的 API 额度，不挂预算行（0167）
 export interface ResourceStock { id: string; resource_id: string; kind: 'api' | 'asset'; resource_name: string; unit: string | null; qty: string; unit_price: string | null; supplier: string | null; note: string | null;
   received_on: string; expense_request_id: string | null; created_by_name: string | null; project_id: string | null; project_name: string | null; line_purpose: string | null }
 export interface SecretAccess { id: string; owner_kind: 'resource' | 'allocation'; owner_id: string; at: string; user_name: string; resource_name: string; holder_name: string | null }

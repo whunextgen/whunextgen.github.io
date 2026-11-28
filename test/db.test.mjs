@@ -4250,6 +4250,67 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.dir);
 }
 
+// 实际币兑换 API key：研究单元负责人按本季度比例用单元的实际币换 API 额度，分给名单内成员，财务岗分发并发放密钥（0167）
+{ const DQ = '2027-08-15';
+  await db.exec(`reset role`);
+  const TOP = (await one(`select parent_id v from project where code = 'COIN-UNIT'`)).v;
+  const UNIT = await id(`insert into project (code, name, kind, owner_id, active, layer, parent_id, proposed, applied_at)
+    select 'KEY-UNIT', '换密钥测试研究单元', kind, $1, true, 'paper', id, false, now() from project where id = $2`, [U.mem2, TOP]);
+  await q(`insert into project_member (project_id, user_id, joined_on, added_by) values ($1, $2, '2027-08-01', $3)`, [UNIT, U.mem, U.mem2]);
+  await q(`insert into unit_coin (project_id, kind, amount, user_id, note) values ($1, 'budget', 100, $2, '课题预算兑换')`, [UNIT, U.fin]);
+  const RK = await id(`insert into resource (kind, name, total, unit) values ('api', '兑换用接口', 1000, '元')`);
+  await db.exec(`set role app_api`);
+  const BUY = `select buy_api_quota($1, $2) v`, GIVE = `select assign_api_quota($1, $2, $3, $4) v`;
+  const ub = async () => one(`select balance, api_quota, api_left from api.unit_coin_balance where project_id = $1`, [UNIT]);
+  await as(U.mem2, DQ);
+  await raises('本季度比例没公布不能换 API 额度', /兑换比例尚未公布/, BUY, [UNIT, 10]);
+  await as(U.fin, DQ);
+  await q(`select publish_coin_quarter(5000, 1, 2, 1)`);
+  await as(U.mem, DQ);
+  await raises('成员不能用研究单元的实际币换 API 额度', /由研究单元的负责人办理/, BUY, [UNIT, 10]);
+  await as(U.mem2, DQ);
+  await raises('研究单元的实际币不够不能换', /实际币不足/, BUY, [UNIT, 200]);
+  await q(BUY, [UNIT, 30]);
+  let b = await ub();
+  ok(Number(b.balance) === 70 && Number(b.api_quota) === 60 && Number(b.api_left) === 60, '按本季度比例换得 API 额度，从研究单元的账上扣实际币', JSON.stringify(b));
+  ok((await one(`select kind, amount from api.unit_coin where project_id = $1 order by created_at desc limit 1`, [UNIT])).kind === 'api', '换 API 额度记在研究单元的实际币账上');
+  ok(Number((await one(`select quota from api.api_grant where project_id = $1`, [UNIT])).quota) === 60, '换得的 API 额度全中心看得到');
+  await raises('只分给名单内的成员', /名单内/, GIVE, [UNIT, U.lead, 10, null]);
+  await raises('分出的额度不能超过换得的', /还剩 60/, GIVE, [UNIT, U.mem, 100, null]);
+  await as(U.mem, DQ);
+  await raises('成员不能分研究单元的额度', /由研究单元的负责人办理/, GIVE, [UNIT, U.mem, 10, null]);
+  await as(U.mem2, DQ);
+  const g1 = await val(GIVE, [UNIT, U.mem, 50, '跑评测']);
+  const r1 = await one(`select status, via_coin, budget_line_id, approved_amount from api.resource_request where id = $1`, [g1]);
+  ok(r1.status === 'approved' && r1.via_coin && r1.budget_line_id === null && Number(r1.approved_amount) === 50, '分给成员生成一笔已批准、不挂预算行的接口额度申请', JSON.stringify(r1));
+  eq((await ub()).api_left, 10, '分出去的额度从研究单元名下扣掉');
+  await as(U.mem, DQ);
+  await q(`select decide_resource_request($1, 'withdraw')`, [g1]);
+  await as(U.mem2, DQ);
+  eq((await ub()).api_left, 60, '成员撤回后额度回到研究单元名下');
+  const g2 = await val(GIVE, [UNIT, U.mem, 50, null]);
+  await as(U.fin, DQ);
+  const al = await val(`select fulfil_resource_request($1, $2) v`, [g2, RK]);
+  await q(`select set_secret('allocation', $1, 'v1.eeee.ffff', 'sk-…k1')`, [al]);
+  await as(U.mem, DQ);
+  const ma = await one(`select quota, current, has_secret from api.allocation where id = $1`, [al]);
+  ok(Number(ma.quota) === 50 && ma.current && ma.has_secret, '财务岗分发并发放密钥后记入成员名下', JSON.stringify(ma));
+  ok(await val(`select get_secret('allocation', $1) v`, [al]) === 'v1.eeee.ffff', '成员取用自己名下的密钥');
+  await as(U.mem2, DQ);
+  ok((await q(`select 1 from api.project_allocation where project_id = $1 and current`, [UNIT])).length === 1, '研究单元负责人看得到分给了谁');
+  await q(`select recall_project_allocation($1)`, [al]);
+  eq((await ub()).api_left, 10, '分发后收回的额度不退回');
+  const g3 = await val(GIVE, [UNIT, U.mem2, 10, null]);
+  eq((await ub()).api_left, 0, '负责人可以分给本人');
+  await as(U.fin, DQ);
+  await q(`select decide_resource_request($1, 'reject', null, '服务商暂停')`, [g3]);
+  await as(U.mem2, DQ);
+  eq((await ub()).api_left, 10, '分发前被驳回的额度回到研究单元名下');
+  await as(U.mem, DQ);
+  await raises('收回后密钥取不到', /仅可查看分配至本人名下且在有效期内的密钥|尚未保存密钥/, `select get_secret('allocation', $1)`, [al]);
+  await as(U.dir);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 // 演示环境：测试跑完的数据库导出给 scripts/demo（虚构数据，用于使用手册截图）
 if (process.env.DEMO_OUT && !fail) {

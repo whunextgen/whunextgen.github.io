@@ -172,7 +172,7 @@ export function ResourcePage({ me }: { me: Me }) {
 
       <section className="card wide">
         <h3>本人名下资源</h3>
-        <p className="hint">接口密钥加密保存于中台：财务岗分发后，可在此自行取用，每次取用均有记录；额度到期或收回后密钥随之撤销。用量由财务岗按服务商账单回写。</p>
+        <p className="hint">接口密钥加密保存于中台：财务岗分发后，可在此自行取用，每次取用均有记录；额度到期或收回后密钥随之撤销。研究单元负责人用单元的实际币换得 API 额度分给本人的，同样在此取用。用量由财务岗按服务商账单回写。</p>
         {mine.length === 0 ? <Empty>名下暂无资源。如需接口额度或设备，请按上方资源计划提交申请。</Empty> : (
           <div className="scroll"><table>
             <thead><tr><th>资源</th><th>类型</th><th className="r">额度 / 数量</th><th className="r">已用</th><th>编号 · 存放</th><th>起始</th><th>到期</th><th>密钥</th></tr></thead>
@@ -195,7 +195,7 @@ export function ResourcePage({ me }: { me: Me }) {
             <thead><tr><th>提交日期</th><th>类型</th><th>资源</th><th>研究单元 · 预算行</th><th className="r">申请</th><th className="r">批准</th><th>使用月份</th><th>用途</th><th>状态</th><th /></tr></thead>
             <tbody>{myReqs.map((r) => (
               <tr key={r.id}><td>{day(r.created_at)}</td><td>{KIND[r.kind]}{r.urgent && <> <Badge tone="bad">加急</Badge></>}</td><td>{r.resource_name ?? '未指定'}</td>
-                <td className="wrap">{r.project_code} {r.project_name}<div className="sub2">{r.line_purpose}</div></td><td className="r">{qty(r.amount, r.unit)}</td>
+                <td className="wrap">{r.project_code} {r.project_name}<div className="sub2">{r.via_coin ? '研究单元用实际币换，负责人分给本人' : r.line_purpose}</div></td><td className="r">{qty(r.amount, r.unit)}</td>
                 <td className="r">{r.approved_amount != null ? qty(r.approved_amount, r.unit) : '—'}</td><td>{r.period ? r.period.slice(0, 7) : '—'}</td>
                 <td className="wrap">{r.purpose}{r.decide_note && <div className="sub2">{r.decided_by_name ?? r.reviewed_by_name}：{r.decide_note}</div>}</td>
                 <td><Badge tone={RES_REQ[r.status][1]}>{RES_REQ[r.status][0]}</Badge></td>
@@ -289,7 +289,7 @@ export function PoolPage({ me }: { me: Me }) {
             <thead><tr><th>提交日期</th><th>申请人</th><th>研究单元 · 预算行</th><th>资源</th><th className="r">申请</th><th className="r">批准</th><th>使用月份</th><th>用途</th><th>状态</th><th /></tr></thead>
             <tbody>{shown.map((r) => (
               <tr key={r.id}><td>{day(r.created_at)}</td><td>{r.requester_name}{r.urgent && <> <Badge tone="bad">加急</Badge></>}{r.priority && <> <Badge tone="ok">优先</Badge><div className="sub2">出资研究单元成员</div></>}</td>
-                <td>{r.project_code}<div className="sub2">{r.line_purpose}，计划 {r.plan_qty == null ? '未编' : qty(r.plan_qty, r.unit)}{num(r.plan_add) > 0 && r.status !== 'approved' && r.status !== 'fulfilled' && <>；<b>批准时追加 {qty(r.plan_add ?? null, r.unit)}</b></>}</div></td>
+                <td>{r.project_code}<div className="sub2">{r.via_coin ? '研究单元用实际币换的额度，分给名单内成员' : <>{r.line_purpose}，计划 {r.plan_qty == null ? '未编' : qty(r.plan_qty, r.unit)}{num(r.plan_add) > 0 && r.status !== 'approved' && r.status !== 'fulfilled' && <>；<b>批准时追加 {qty(r.plan_add ?? null, r.unit)}</b></>}</>}</div></td>
                 <td>{r.resource_name ?? '未指定'}<div className="sub2">{KIND[r.kind]}</div></td><td className="r">{qty(r.amount, r.unit)}</td>
                 <td className="r">{r.approved_amount != null ? qty(r.approved_amount, r.unit) : '—'}</td><td>{r.period ? r.period.slice(0, 7) : '—'}</td>
                 <td className="wrap">{r.purpose}{r.usage_note && <div className="sub2">{r.usage_note}</div>}{r.decide_note && <div className="sub2">{r.decided_by_name ?? r.reviewed_by_name}：{r.decide_note}</div>}</td>
@@ -297,7 +297,7 @@ export function PoolPage({ me }: { me: Me }) {
                 <td><div className="acts">
                   {(r.status === 'reviewed' || (r.status === 'pending' && can(me, 'resource.fasttrack'))) && <button className="sm" onClick={() => setAct(approve(r))}>批准</button>}
                   {r.status === 'approved' && <button className="sm" onClick={() => setAct(fulfil(r))}>分发</button>}
-                  {['pending', 'reviewed'].includes(r.status) && <button className="sm ghost danger" onClick={() => setAct(reject(r))}>驳回</button>}</div></td></tr>
+                  {(['pending', 'reviewed'].includes(r.status) || (r.status === 'approved' && r.via_coin)) && <button className="sm ghost danger" onClick={() => setAct(reject(r))}>驳回</button>}</div></td></tr>
             ))}</tbody>
           </table></div>
         )}

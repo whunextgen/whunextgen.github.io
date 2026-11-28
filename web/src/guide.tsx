@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 // 使用指南：常用事项的简要步骤。带截图的完整手册在飞书 CLAIN 知识库「七、正则使用手册」，正文源文件在 docs/manual/。
 // 改动成员可见的流程时，同一个 PR 里更新这里的条目和 docs/manual 对应手册，见 docs/user-guide-maintenance.md。
-export const GUIDE_REVIEWED = '2026-11-27';
+export const GUIDE_REVIEWED = '2026-11-28';
 const WIKI = 'https://ucnbt9604qtb.feishu.cn/wiki/';
 export const MANUAL_HOME = `${WIKI}H1vgwKjqMixhUZkSSSAc0y8unEf`;
 // 按角色分册的完整手册：[书名, 适合谁、讲什么, 知识库节点]
@@ -61,6 +61,11 @@ export const GUIDE_TOPICS: Topic[] = [
       '支出从对应年度可用的预算行发起，阅读页面给出的可用额度、办理条件及不可提交原因。',
       '提交后在「我的事项」或对应申请页跟进状态。备用金和资源申领使用各自入口，不能用代币余额代替预算。'],
     note: '看到课题上限不代表经费已下达或本人可直接支出。实际币不是人民币，也不是经费卡余额。没有可用预算行时请联系负责人或财务，不要重复提交。' },
+  { id: 'coin-api', more: ['unit', 'member', 'resource'], title: '用实际币换 API 额度和 GPU 卡时', who: '研究单元负责人和成员', entries: [['/projects', '课题管理'], ['/resource', '资源申领']],
+    steps: ['研究单元负责人进入「课题管理 → 本研究单元 → 池子与成果」，在「实际币」一栏查看账上余额、已换卡时和 API 额度。',
+      '点「换 API 额度」，按财务岗本季度公布的比例用单元账上的实际币换额度，记在研究单元名下；点「换 GPU 卡时」按标价换卡时。',
+      '点「分 API 额度给成员」，选本研究单元名单内的成员、填额度。财务岗分发并发放密钥后，成员在「资源申领 → 本人名下资源」取用，每次取用均有记录。'],
+    note: '只能单向兑换，不能换回实际币、预算或人民币。本季度比例未公布时暂不能换 API 额度。分发前被撤回或驳回的额度回到研究单元名下，分发后收回的不退回。' },
   { id: 'attendance', more: ['member', 'hr'], title: '签到、请假与训练课程', who: '所有参与活动的成员', entry: ['/', '我的事项'],
     steps: ['在个人首页使用「签到」「请假」等入口，选择实际参加的会议或活动。',
       '训练要求和完成情况可在「训练课程」查看，按活动页面要求办理。',
