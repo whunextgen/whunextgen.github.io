@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 // 使用指南：常用事项的简要步骤。带截图的完整手册在飞书 CLAIN 知识库「七、正则使用手册」，正文源文件在 docs/manual/。
 // 改动成员可见的流程时，同一个 PR 里更新这里的条目和 docs/manual 对应手册，见 docs/user-guide-maintenance.md。
-export const GUIDE_REVIEWED = '2026-11-27';
+export const GUIDE_REVIEWED = '2026-11-28';
 const WIKI = 'https://ucnbt9604qtb.feishu.cn/wiki/';
 export const MANUAL_HOME = `${WIKI}H1vgwKjqMixhUZkSSSAc0y8unEf`;
 // 按角色分册的完整手册：[书名, 适合谁、讲什么, 知识库节点]
@@ -54,6 +54,7 @@ export const GUIDE_TOPICS: Topic[] = [
   { id: 'assessment', more: ['member', 'assistant', 'topic'], title: '身份晋级与学期考核', who: '成员、考核人及授权经办', entry: ['/path', '成长主线'],
     steps: ['在「成长主线」核对本级任务及完成记录，达到条件后从考核入口申请。',
       'RA 考核按现有规则由两名 Researcher 担任考核人、布置和认定两周小任务；指导关系和私人关系须遵守回避要求。',
+      'Assistant 的「接收过至少一名 RI，并带其通过 RA 考核」：「接收」指这名 RI 最早进入的研究单元由你担任负责人（在研究单元「成员」一节加入名单，或加入质疑小队进入名单）；此人通过 RA 考核时中台自动判定完成。',
       '学期考核在「加入与考核 → 学期考核」，根据本人是成员、考核人或经办显示不同操作。'],
     note: '项目试做结论、正式身份晋级和学期考核是三件不同的事。需要改进或建议退组的，按页面列出的正式程序处理。' },
   { id: 'spend', more: ['member', 'topic', 'finance'], title: '提交支出、备用金或资源申请', who: '项目成员及相关经办', entries: [['/requests', '支出申请'], ['/petty', '备用金管理'], ['/resource', '资源申领']],

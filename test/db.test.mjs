@@ -2853,6 +2853,9 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const mt = await val(`select first_mentor($1) v`, [U.mem2]);
   const Pmt = await PID(mt);
   ok((await one(`select done from path_auto($1, 'ra-mentor')`, [Pmt])).done === true && ar.mentor_name != null, '最早接收此人进入研究单元的负责人，「带其通过 RA 考核」自动完成');
+  const firstUnit = await one(`select p.owner_id from project_member m join project p on p.id = m.project_id where m.user_id = $1 and p.layer = 'paper' and not p.proposed order by m.joined_on, m.created_at limit 1`, [U.mem2]);
+  ok(mt === firstUnit.owner_id && mt !== own, '「接收」此人的，是此人最早进入的研究单元的负责人，不是后来进入的研究单元的负责人');
+  ok(/最早进入的研究单元由你担任负责人/.test((await one(`select detail from path_task where code = 'ra-mentor'`)).detail ?? ''), '「带其通过 RA 考核」一条写明「接收」的判定口径（#151）');
   await db.exec(`set role app_api`); await as(mt, A2);
   ok((await one(`select d_yuan from api.person_attr where user_id = $1`, [mt])).d_yuan >= 1, '带的人通过考核记入元');
   await db.exec(`reset role`);
