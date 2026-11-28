@@ -2998,7 +2998,8 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(null, '2040-01-01');
   ok((await val(`select coin_expire_tick() v`)) > 0, '到期的作废');
   await as(U.mem2, '2040-01-01');
-  ok(Number((await one(`select balance from api.coin_mine`)).balance) === 0, '作废后余额为零');
+  { const cm2 = await one(`select balance, nominal, real from api.coin_mine`);
+    ok(Number(cm2.nominal) === 0 && Number(cm2.real) > 0 && Number(cm2.balance) === Number(cm2.real), '名义币到期作废，成果铸造的实际币不过期（0180）', JSON.stringify(cm2)); }
   await as(U.mem2, D);
   ok((await q(`select kind from api.coin_ledger`)).some((l) => l.kind === 'expire'), '流水里看得到作废');
   await as(null);
@@ -4271,6 +4272,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('算力与模型接口不再走支出申请', /用于兑换实际币，不走支出申请/, `select submit_project_request($1, $2, '买卡时', 100, '2027-07-30')`, [LX.id, TY['耗材']]);
   ok(Number((await one(XB, [LX.id, UNIT, 2000])).v) === 2000, '课题负责人把预算兑成实际币');
   eq(await bal(), 2000, '实际币记入研究单元的账上');
+  { await db.exec(`reset role`); ok((await one(`select (expires_on = coin_quarter_end($2::date))::int v from unit_coin where project_id = $1 and kind = 'budget' limit 1`, [UNIT, DQ])).v === 1, '课题预算兑入研究单元的是名义币，当季最后一天作废（0180）'); await db.exec(`set role app_api`); await as(LX.owner_id, DQ); }
   await db.exec(`reset role`);
   ok(Number((await one(`select used from v_line where id = $1`, [LX.id])).used) === Number(LX.used) + 2000, '兑换计入这一预算行的已用');
   await db.exec(`set role app_api`);
@@ -4446,13 +4448,28 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(null, '2027-03-08');
   await q(`select coin_tick()`);
   ok((await one(`select count(*)::int n from coin_task_award where user_id = $1 and code = 's_daily'`, [W.u])).n === 1 && await got() === t1 + 2, '周末不断连续，第 6 天只发当天的日常');
+  // 回应质疑：记池子份额的同时发可花的名义币；实际币投入研究单元后成为当季作废的名义币（0180）
+  { const QQ = (await one(`select id, project_id from query limit 1`));
+    const NE = await id(`insert into nominal_entry (project_id, user_id, query_id, period_start, axis, coins) values ($1, $2, $3, token_period('2027-03-08'), 'li', 8)`, [QQ.project_id, W.u, QQ.id]);
+    await q(`select coin_tick()`);
+    ok(Number((await one(`select amount from coin_task_award where user_id = $1 and code = 'respond' and source_key = $2`, [W.u, NE])).amount) === 8, '回应质疑按记入份额的数发可花的名义币');
+    await q(`insert into coin_ledger (user_id, kind, amount, remain, expires_on, note) values ($1, 'mint', 50, 50, null, '测试铸造')`, [W.u]);
+    const UQ = (await one(`select p.id from project p join project_member m on m.project_id = p.id where p.layer = 'paper' and p.active and not p.proposed limit 1`)).id;
+    await db.exec(`set role app_api`); await as(W.u, '2027-03-08');
+    const before = Number((await one(`select nominal from api.coin_mine`)).nominal);
+    await q(`select invest_coins($1, $2, '测试投入')`, [UQ, before + 20]);
+    await db.exec(`reset role`);
+    const IR = await q(`select amount::float a, expires_on::text e from unit_coin where project_id = $1 and kind = 'invest' and user_id = $2 order by amount`, [UQ, W.u]);
+    ok(IR.some((r) => r.a === 20 && r.e === '2027-04-30'), '先投快过期的名义币，再投实际币；实际币投入后到当季最后一天作废', JSON.stringify(IR));
+    await as(null, '2027-03-08'); }
   // 季度合计上限
-  await q(`update coin_task_setting set cap = $1`, [t1 + 3]);
+  const t2 = await got();
+  await q(`update coin_task_setting set cap = $1`, [t2 + 1]);
   await q(`insert into daily_rev (user_id, day, project_id) values ($1, '2027-03-09', $2)`, [W.u, PJ]);
   await q(`insert into daily_rev (user_id, day, project_id) values ($1, '2027-03-10', $2)`, [W.u, PJ]);
   await as(null, '2027-03-10');
   await q(`select coin_tick()`);
-  eq(await got(), t1 + 3, '每人每季度合计到上限为止，超出的记 0');
+  eq(await got(), t2 + 1, '每人每季度合计到上限为止，超出的记 0');
   ok((await one(`select count(*)::int n from coin_task_award where user_id = $1 and amount = 0`, [W.u])).n >= 1, '到了上限的仍留一条 0 的记录');
   // 条数上限：反馈每季度最多 10 条
   await q(`update coin_task_setting set cap = 3000`);

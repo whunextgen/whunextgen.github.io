@@ -3,7 +3,7 @@ import { rpc, useViews, type ApiQuarter, type BudgetCoinExchange, type CoinFlow,
 import { ActionDialog, Badge, Empty, Loading, Tile, can, day, money, num, type Field } from './ui';
 import { SecretDialog } from './pages/Resource';
 
-// 代币：只用名义币、实际币两个叫法。名义币来自回应质疑，进入研究单元的池子；实际币代表资源使用权。
+// 代币：名义币会过期——做任务、按期发放、回应质疑得的，以及研究单元账上的，都是名义币，当季作废；实际币不过期——成果解锁时按池子份额铸造，以后可开放兑换绩效。池子里记的是份额。
 // 代币不另设页面，加在已有的对象上：首页的我的事项、研究单元页、档次表、预算参数。
 export interface TokenMe { user_id: string; kind: string | null; nominal: string | null; period_start: string; period_end: string; prev_open: boolean }
 export interface TimeLog { id: string; period_start: string; user_id: string; user_name: string; user_kind: string | null; project_id: string; percent: number; coins: string;
@@ -32,7 +32,7 @@ export const qLabel = (start: string) => { const y = Number(start.slice(0, 4)), 
   return `${y} 年 ${m} 月–${ey === y ? '' : `${ey} 年 `}${em} 月`; };
 
 // ---------- 首页 · 我的事项：我在各研究单元池子里的份额 ----------
-// 名义币不发到个人手里，也不需要本人去投：回应质疑所得直接进入研究单元的池子，记为本人的份额
+// 回应质疑记入研究单元池子的份额（不能花，成果解锁时按份额铸造实际币），同时按同样的数发可花的名义币
 // 卡时有效期按参数 hours_days（默认 56 天）显示，整周的写周数
 export const hoursValid = (tp: { key: string; value: unknown }[]) => { const d = Number(tp.find((x) => x.key === 'hours_days')?.value ?? 56) || 56; return d % 7 === 0 ? `${d / 7} 周` : `${d} 天`; };
 
@@ -42,10 +42,10 @@ export function TokenMine({ me }: { me: Me }) {
   const myShares = data.shares.filter((s) => s.user_id === me.id);
   return (
     <>
-      <p className="hint" style={{ margin: '0 0 10px' }}>名义币来自回应质疑：一条质疑在下一期无人再提即为已回应，记 16 名义币，由当期有分配资格的队员平分，直接进入该研究单元的名义池子，记为各人的份额。研究单元取得第一个外部成果时池子解锁，按份额铸造实际币。未回应的质疑在「<a href="#/iterate">快照与质疑</a>」。</p>
+      <p className="hint" style={{ margin: '0 0 10px' }}>池子份额来自回应质疑：一条质疑在下一期无人再提即为已回应，记 16 份额，由当期有分配资格的队员平分，记入该研究单元的池子（同时按同样的数发可花的名义币）。研究单元取得第一个外部成果时池子解锁，按份额铸造实际币，不过期。未回应的质疑在「<a href="#/iterate">快照与质疑</a>」。</p>
       {myShares.length === 0 ? <Empty>本人尚未在任何研究单元的池子里有份额。</Empty> : (
         <div className="scroll"><table className="wb-table">
-          <thead><tr><th>研究单元</th><th>状态</th><th className="r">本人的名义币</th><th className="r">我的份额</th></tr></thead>
+          <thead><tr><th>研究单元</th><th>状态</th><th className="r">本人的份额</th><th className="r">占比</th></tr></thead>
           <tbody>{myShares.map((s) => { const u = data.projects.find((p) => p.id === s.project_id); const pool = data.pools.find((p) => p.project_id === s.project_id); return (
             <tr key={s.project_id}><td><a href={`#/project/${s.project_id}`}>{u?.name ?? '研究单元'}</a></td><td>{levelBadge(pool?.level ?? 0)}{(pool?.level ?? 0) === 0 && <span className="sub2"> 尚未取得外部成果</span>}</td>
               <td className="r">{coin(s.coins)}</td><td className="r">{pctOf(s.share)}</td></tr>); })}</tbody>
@@ -83,7 +83,7 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
   return (
     <section className="card" id="sec-token">
       <h3>池子与成果 <span className="h3sub">{pool.level >= 1 ? '已解锁，铸造率挂牌后按份额铸造实际币' : '锁定中，取得第一个外部成果时解锁'}</span></h3>
-      <p className="hint">回应质疑所得的名义币直接进入本研究单元的池子，记为队员各自的份额：一条质疑在下一期无人再提即为已回应，记 16 名义币，由当期有分配资格的队员平分。研究单元取得第一个经核对的外部成果时池子解锁。成果只认链接，由助理核对。</p>
+      <p className="hint">回应质疑记入本研究单元池子的份额：一条质疑在下一期无人再提即为已回应，记 16 份额，由当期有分配资格的队员平分（同时发同样数的名义币）。解锁后按份额铸造实际币，不过期。研究单元取得第一个经核对的外部成果时池子解锁。成果只认链接，由助理核对。</p>
       <div className="tiles">
         {[1, 2, 3, 4].map((lv) => { const o = outs.find((x) => x.level === lv); return (
           <div className="tile" key={lv}><div className="k">{LEVEL[lv]}</div>
@@ -95,27 +95,27 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
           </div>); })}
       </div>
       {lead && next.length > 0 && <div className="actions" style={{ justifyContent: 'flex-start' }}>{next.map((lv) => <button key={lv} className="sm ghost" onClick={() => setAct(outAct(lv))}>提交{LEVEL[lv].slice(0, 2)}成果</button>)}</div>}
-      <h3 style={{ marginTop: 18 }}>池子 <span className="h3sub">名义币 {coin(pool.coins)}{cap != null ? `，核定上限 ${coin(cap)}${num(pool.coins) > cap ? '，超出部分不计' : ''}` : ''} · 未回应的质疑 {pool.pending} 条 · {levelBadge(pool.level)}</span></h3>
+      <h3 style={{ marginTop: 18 }}>池子 <span className="h3sub">份额 {coin(pool.coins)}{cap != null ? `，核定上限 ${coin(cap)}${num(pool.coins) > cap ? '，超出部分不计' : ''}` : ''} · 未回应的质疑 {pool.pending} 条 · {levelBadge(pool.level)}</span></h3>
       {shares.length === 0 ? <Empty>{pool.people > 0 ? '各人的份额仅本研究单元的成员可见。' : '尚无已回应的质疑。'}</Empty> : (
         <div className="scroll"><table>
-          <thead><tr><th>成员</th><th className="r">名义币</th><th className="r">份额</th></tr></thead>
+          <thead><tr><th>成员</th><th className="r">份额</th><th className="r">占比</th></tr></thead>
           <tbody>{shares.map((s) => <tr key={s.user_id}><td>{s.user_name}</td><td className="r">{coin(s.coins)}</td><td className="r">{pctOf(s.share)}</td></tr>)}</tbody>
         </table></div>)}
       {(() => { const ub = data.ubal[0]; const price = data.cm[0]?.price != null ? num(data.cm[0].price) : null; const mine = num(data.cm[0]?.balance);
-        // 实际币兑换 API key（0171）：按本季度公布的比例换 API 额度，折成 key 所在资源的计价单位（如美元），全中心本季度换满即止；额度计入研究单元的 key，名单内成员在这里取用
+        // 研究单元的名义币兑换 API key（0171、0180）：按本季度公布的比例换 API 额度，折成 key 所在资源的计价单位（如美元），全中心本季度换满即止；额度计入研究单元的 key，名单内成员在这里取用
         const aq = data.aq[0], uk = data.ukey[0], room = aq ? Math.max(num(aq.room), 0) : 0;
         const fx = aq?.fx_rate != null ? num(aq.fx_rate) : 1, perCoin = aq ? num(aq.api_rate) / fx : 0;
         const maxCoins = aq ? Math.min(num(ub?.balance ?? 0), Math.floor(room / perCoin * 100) / 100) : 0;
         return <>
-          <h3 style={{ marginTop: 18 }}>实际币 <span className="h3sub">账上 {coin(ub?.balance ?? 0)} · 已换 GPU 卡时 {coin(ub?.hours ?? 0)}{price ? ` · 标价每卡时 ${coin(price)}` : ' · 卡时标价未定'} · 已换 API 额度 {money(ub?.api_quota ?? 0)}{ub?.api_unit ? ` ${ub.api_unit}` : ''}</span></h3>
-          <p className="hint">代币不是经费。任何人都可以把自己的实际币投给研究单元（个人投入的按原有效期过期，到期作废；课题预算兑入的不过期），课题也可以把「算力与模型接口」的预算兑成实际币记入研究单元的账上；由负责人按标价换 GPU 卡时（买后 {hoursValid(data.tp)}内有效，集群按此设定额度）或 API 额度。API 额度计入本研究单元的 key，名单内成员共用，在这里取用。</p>
+          <h3 style={{ marginTop: 18 }}>名义币 <span className="h3sub">账上 {coin(ub?.balance ?? 0)}（当季作废） · 已换 GPU 卡时 {coin(ub?.hours ?? 0)}{price ? ` · 标价每卡时 ${coin(price)}` : ' · 卡时标价未定'} · 已换 API 额度 {money(ub?.api_quota ?? 0)}{ub?.api_unit ? ` ${ub.api_unit}` : ''}</span></h3>
+          <p className="hint">代币不是经费。研究单元账上的都是名义币，当季作废：任何人都可以把自己的名义币或实际币投给研究单元，投入后都成为名义币；课题也可以把「算力与模型接口」的预算兑成名义币记入研究单元的账上；由负责人按标价换 GPU 卡时（买后 {hoursValid(data.tp)}内有效，集群按此设定额度）或 API 额度。API 额度计入本研究单元的 key，名单内成员共用，在这里取用。</p>
           {data.ucoin.length > 0 && <ul className="path-hist">{[...data.ucoin].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8).map((c) => <li key={c.id}>{day(c.created_at)} {c.kind === 'invest' ? `${c.user_name ?? ''} 投入 ${coin(c.amount)}` : c.kind === 'budget' ? `课题预算兑入 ${coin(c.amount)}` : c.kind === 'expire' ? `到期作废 ${coin(-num(c.amount))}` : `${c.user_name ?? ''} ${c.note ?? '换卡时'}，用去 ${coin(-num(c.amount))}`}{c.kind === 'invest' && c.note ? `：${c.note}` : ''}</li>)}</ul>}
           <div className="actions" style={{ justifyContent: 'flex-start' }}>
-            {mine > 0 && <button className="sm ghost" onClick={() => setAct({ title: `投给研究单元：${unit.name}`, label: '投入', hint: `本人余额 ${coin(mine)} 实际币，先扣先到期的。`, fields: [{ name: 'amount', label: '实际币', type: 'number' }, { name: 'note', label: '说明（选填）', required: false }], run: (v) => rpc('invest_coins', { project: unit.id, amount: v.amount, note: v.note || null }) })}>投入实际币</button>}
-            {ub?.can_buy && price && num(ub.balance) >= price && <button className="sm" onClick={() => setAct({ title: `换 GPU 卡时：${unit.name}`, label: '换', hint: `按标价每卡时 ${coin(price)} 实际币，从研究单元的账上扣；账上 ${coin(ub.balance)}，最多可换 ${Math.floor(num(ub.balance) / price)} 卡时。`, fields: [{ name: 'hours', label: '卡时', type: 'number' }], run: (v) => rpc('buy_compute', { project: unit.id, hours: v.hours }) })}>换 GPU 卡时</button>}
+            {mine > 0 && <button className="sm ghost" onClick={() => setAct({ title: `投给研究单元：${unit.name}`, label: '投入', hint: `本人余额 ${coin(mine)}（名义币和实际币），先扣快过期的名义币；投入后都成为研究单元的名义币，当季作废。`, fields: [{ name: 'amount', label: '投入数',  type: 'number' }, { name: 'note', label: '说明（选填）', required: false }], run: (v) => rpc('invest_coins', { project: unit.id, amount: v.amount, note: v.note || null }) })}>投入代币</button>}
+            {ub?.can_buy && price && num(ub.balance) >= price && <button className="sm" onClick={() => setAct({ title: `换 GPU 卡时：${unit.name}`, label: '换', hint: `按标价每卡时 ${coin(price)} 币，从研究单元的名义币账上扣；账上 ${coin(ub.balance)}，最多可换 ${Math.floor(num(ub.balance) / price)} 卡时。`, fields: [{ name: 'hours', label: '卡时', type: 'number' }], run: (v) => rpc('buy_compute', { project: unit.id, hours: v.hours }) })}>换 GPU 卡时</button>}
             {ub?.can_buy && num(ub.balance) > 0 && <button className="sm" disabled={!aq || !aq.resource_id || room <= 0} title={!aq ? '本季度的兑换比例尚未公布' : !aq.resource_id ? '财务岗尚未指定研究单元的 key 开在哪个接口资源上' : room <= 0 ? '本季度全中心可换的 API 额度已换满' : undefined} onClick={() => aq && setAct({ title: `换 API 额度：${unit.name}`, label: '换',
-              hint: `本季度 1 实际币兑 ${num(aq.api_rate)} 元 API 额度${aq.fx_rate != null ? `，按 1 ${aq.unit} = ${num(aq.fx_rate)} 元折成 ${Math.round(perCoin * 10000) / 10000} ${aq.unit}` : ''}，从研究单元的账上扣，计入本研究单元的 key（${aq.resource_name}）。全中心本季度还可换 ${money(room)} ${aq.unit}，换满即止；账上 ${coin(ub.balance)}，这次最多用 ${coin(maxCoins)} 实际币。只能单向兑换。`,
-              fields: [{ name: 'coins', label: '换出的实际币', type: 'number' }], run: (v) => rpc('buy_api_quota', { project: unit.id, coins: v.coins }) })}>换 API 额度</button>}
+              hint: `本季度 1 币兑 ${num(aq.api_rate)} 元 API 额度${aq.fx_rate != null ? `，按 1 ${aq.unit} = ${num(aq.fx_rate)} 元折成 ${Math.round(perCoin * 10000) / 10000} ${aq.unit}` : ''}，从研究单元的账上扣，计入本研究单元的 key（${aq.resource_name}）。全中心本季度还可换 ${money(room)} ${aq.unit}，换满即止；账上 ${coin(ub.balance)}，这次最多用 ${coin(maxCoins)} 名义币。只能单向兑换。`,
+              fields: [{ name: 'coins', label: '换出的名义币', type: 'number' }], run: (v) => rpc('buy_api_quota', { project: unit.id, coins: v.coins }) })}>换 API 额度</button>}
           </div>
           {uk && <>
             <h3 style={{ marginTop: 18 }}>API key <span className="h3sub">本研究单元一个 key，名单内共用 · 已计入 {money(uk.api_quota)}{uk.api_unit ? ` ${uk.api_unit}` : ''}</span></h3>
@@ -128,14 +128,14 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
           {showKey && <SecretDialog kind="unit" id={unit.id} title={`API key：${unit.name}`} onClose={() => { setShowKey(false); reload(); }} />}
         </>; })()}
       {(recorder || setup) && <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="sm ghost" onClick={() => setAct({ title: `池子上限：${unit.name}`, label: '保存',
-        hint: '按联席会议立项时核定的数填写；超过上限的不计。不设上限请留空。', fields: [{ name: 'cap', label: '上限（名义币）', type: 'number', required: false, value: cap != null ? String(cap) : '' }],
+        hint: '按联席会议立项时核定的数填写；超过上限的不计。不设上限请留空。', fields: [{ name: 'cap', label: '上限（份额）', type: 'number', required: false, value: cap != null ? String(cap) : '' }],
         run: (v) => rpc('set_pool_cap', { project: unit.id, cap: v.cap || null }) })}>{cap != null ? '修改池子上限' : '登记池子上限'}</button></div>}
       {act && <ActionDialog title={act.title} hint={act.hint} fields={act.fields} danger={act.danger} submitLabel={act.label} onSubmit={(v) => act.run(v).then(reload)} onClose={() => setAct(null)} />}
     </section>
   );
 }
 
-// ---------- 预算参数页：本季度预算兑换实际币（0164） ----------
+// ---------- 代币系统：本季度预算兑换名义币（0164、0180） ----------
 // 财务岗每季度开始时公布：本季度全中心可兑换的总额和兑换比例。总额对应的 API 额度从现有库存出；课题兑进来的预算用来买下一季度的 API（兑不满的由谢倩倩老师从自己项目的预算补足），学校执行后能报销多少决定下一期。有人兑换后比例不能改，总额可以追加
 export function CoinQuarterCard({ me }: { me: Me }) {
   const { data, error, reload } = useViews<{ qs: CoinQuarter[]; xs: BudgetCoinExchange[] }>({ qs: ['coin_quarter'], xs: ['budget_coin_exchange'] });
@@ -147,22 +147,22 @@ export function CoinQuarterCard({ me }: { me: Me }) {
   const xs = cur ? data.xs.filter((x) => x.q_start === cur.q_start).sort((a, b) => b.at.localeCompare(a.at)) : [];
   const nf = (name: string, label: string, v?: string): Field => ({ name, label, type: 'number', value: v ?? '' });
   const pub: Act = { title: cur ? '修改本季度的兑换总额和比例' : '公布本季度的兑换总额和比例', label: '公布',
-    hint: '总额是本季度全中心可换 API 额度（按 key 所在资源的汇率折算，从现有库存出），也是课题预算本季度可兑换实际币的上限，换满、兑满即止。课题兑进来的预算作为购买下一季度 API 的预算，兑不满的部分由谢倩倩老师从自己项目的预算补足；学校执行后能报销多少，决定下一期的总额。本季度已有兑换的，比例不能再改，总额只能追加。卡时标价随之更新',
-    fields: [nf('total', '本季度全中心可兑换总额（元）', cur?.total), nf('rate', '1 元预算兑多少实际币', cur?.rate ?? '1'), nf('api_rate', '1 实际币兑多少元 API 额度', cur?.api_rate ?? '1'), nf('gpu_price', '1 卡时多少实际币', cur?.gpu_price ?? '1'), { ...nf('gpu_hours', '本季度集群可供 GPU 卡时（用于通胀监控，可不填）', cur?.gpu_hours ?? ''), required: false },
+    hint: '总额是本季度全中心可换 API 额度（按 key 所在资源的汇率折算，从现有库存出），也是课题预算本季度可兑换名义币的上限，换满、兑满即止。课题兑进来的预算作为购买下一季度 API 的预算，兑不满的部分由谢倩倩老师从自己项目的预算补足；学校执行后能报销多少，决定下一期的总额。本季度已有兑换的，比例不能再改，总额只能追加。卡时标价随之更新',
+    fields: [nf('total', '本季度全中心可兑换总额（元）', cur?.total), nf('rate', '1 元预算兑多少名义币', cur?.rate ?? '1'), nf('api_rate', '1 币兑多少元 API 额度', cur?.api_rate ?? '1'), nf('gpu_price', '1 卡时多少实际币', cur?.gpu_price ?? '1'), { ...nf('gpu_hours', '本季度集群可供 GPU 卡时（用于通胀监控，可不填）', cur?.gpu_hours ?? ''), required: false },
       { name: 'note', label: '说明（选填）', required: false, value: cur?.note ?? '' }],
     run: (v) => rpc('publish_coin_quarter', { total: v.total, rate: v.rate, api_rate: v.api_rate, gpu_price: v.gpu_price, gpu_hours: v.gpu_hours || null, note: v.note || null }) };
   return (
     <section className="card">
-      <h3>预算兑换实际币 <span className="h3sub">{cur ? qname(cur.q_start) : '本季度尚未公布'}</span></h3>
-      <p className="hint">课题把「算力与模型接口」科目的预算兑换成实际币，记入研究单元的账上，再换 API 额度或 GPU 卡时。只能单向兑换；兑换比例每季度公布一次，全中心兑满即止。</p>
+      <h3>预算兑换名义币 <span className="h3sub">{cur ? qname(cur.q_start) : '本季度尚未公布'}</span></h3>
+      <p className="hint">课题把「算力与模型接口」科目的预算兑换成名义币，记入研究单元的账上（当季作废），再换 API 额度或 GPU 卡时。只能单向兑换；兑换比例每季度公布一次，全中心兑满即止。</p>
       {cur ? <table><tbody>
         <tr><th scope="row">可兑换总额</th><td>{money(cur.total)}，已兑 {money(cur.exchanged)}，剩余 <b>{money(num(cur.total) - num(cur.exchanged))}</b></td></tr>
-        <tr><th scope="row">兑换比例</th><td>1 元预算 = {num(cur.rate)} 实际币；1 实际币 = {num(cur.api_rate)} 元 API 额度；1 卡时 = {num(cur.gpu_price)} 实际币</td></tr>
+        <tr><th scope="row">兑换比例</th><td>1 元预算 = {num(cur.rate)} 名义币；1 币 = {num(cur.api_rate)} 元 API 额度；1 卡时 = {num(cur.gpu_price)} 币</td></tr>
         <tr><th scope="row">可供资源</th><td>API：总额 {money(cur.total)} 对应的额度{cur.api_fx != null ? `（约 ${(num(cur.total) / num(cur.api_fx)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })} 美元）` : ''}，从现有库存出；课题兑入的预算买下一季度的 API；GPU：{cur.gpu_hours != null ? `${num(cur.gpu_hours)} 卡时` : '未填'}</td></tr>
         <tr><th scope="row">公布</th><td>{cur.published_by_name ?? '—'} · {day(cur.published_at)}{cur.note && <div className="sub2" style={{ marginLeft: 0 }}>{cur.note}</div>}</td></tr>
       </tbody></table> : <Empty>本季度的兑换总额和比例尚未公布，课题暂不能兑换。</Empty>}
       {xs.length > 0 && <div className="scroll"><table>
-        <thead><tr><th>日期</th><th>课题</th><th>记入研究单元</th><th className="r">兑掉的预算</th><th className="r">实际币</th><th>经办</th></tr></thead>
+        <thead><tr><th>日期</th><th>课题</th><th>记入研究单元</th><th className="r">兑掉的预算</th><th className="r">名义币</th><th>经办</th></tr></thead>
         <tbody>{xs.map((x) => <tr key={x.id}><td>{day(x.at)}</td><td>{x.topic_code} {x.topic_name}</td><td>{x.unit_code} {x.unit_name}</td><td className="r">{money(x.amount)}</td><td className="r">{num(x.coins)}</td><td>{x.by_name ?? '—'}</td></tr>)}</tbody>
       </table></div>}
       {fin && <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="sm" onClick={() => setAct(pub)}>{cur ? '修改本季度' : '公布本季度'}</button></div>}
@@ -172,7 +172,7 @@ export function CoinQuarterCard({ me }: { me: Me }) {
 }
 
 // ---------- 代币系统：发行、兑换、通胀监控（0165） ----------
-// 流通量 = 个人账 + 研究单元账。可兑资源折合实际币 = 总额 ÷ 每币 API 额度 + 可供卡时 × 卡时标价（总额对应的 API 从库存出）。
+// 流通量 = 个人账 + 研究单元账（名义币加实际币）。可兑资源折合币数 = 总额 ÷ 每币 API 额度 + 可供卡时 × 卡时标价（总额对应的 API 从库存出）。
 // 流通量超过可兑资源，就是币多于货：有通胀压力
 export function TokenSystem({ me }: { me: Me }) {
   const { data, error } = useViews<{ flow: CoinFlow[]; now: CoinNow[]; qs: CoinQuarter[]; trules: { code: string; label: string; amount: string; quarter_cap: number | null; streak: Record<string, number> | null; unit: string | null; sort: number; quarter_total_cap: string }[]; tawards: { user_id: string; code: string; amount: string; q_start: string }[] }>({ flow: ['coin_flow'], now: ['coin_now'], qs: ['coin_quarter'], trules: ['coin_task_rule'], tawards: ['coin_task_award'] });
@@ -191,7 +191,7 @@ export function TokenSystem({ me }: { me: Me }) {
   const qname = qLabel;
   const pc = (v: number) => `${(v * 100).toFixed(0)}%`;
   const warn: string[] = [];
-  if (cover != null && cover < 1) warn.push(`流通的实际币（${out.toFixed(0)}）多于本季度可兑的资源（折合 ${(supply(cur) ?? 0).toFixed(0)}），覆盖率 ${pc(cover)}：币多于货，有通胀压力。可以下季度提高标价、减少按期发放，或缩短有效期。`);
+  if (cover != null && cover < 1) warn.push(`流通的代币（${out.toFixed(0)}）多于本季度可兑的资源（折合 ${(supply(cur) ?? 0).toFixed(0)}），覆盖率 ${pc(cover)}：币多于货，有通胀压力。可以下季度提高标价、减少按期发放，或缩短有效期。`);
   if (!cur) warn.push('本季度还没有公布兑换总额和比例，覆盖率无从计算。');
   else if (cur.gpu_hours == null) warn.push('本季度没有填集群可供卡时，覆盖率只算了 API，偏低。');
   if (growth != null && growth > 0.25) warn.push(`流通量比上季度增长 ${pc(growth)}，发得多、用得少。`);
@@ -199,18 +199,18 @@ export function TokenSystem({ me }: { me: Me }) {
   return (
     <>
       <div className="top"><h2>代币系统</h2></div>
-      <p className="lede">实际币的发行、兑换和流通。进：按期发放、成果铸造、课题预算兑换；出：研究单元换 GPU 卡时、换 API 额度、到期作废。投给研究单元只是从个人账转到单元账，总量不变。</p>
+      <p className="lede">名义币和实际币的发行、兑换和流通。名义币当季作废：做任务、按期发放、回应质疑、课题预算兑换得的，以及研究单元账上的；实际币不过期：成果按池子份额铸造，以后可开放兑换绩效。出：研究单元换 GPU 卡时、换 API 额度、到期作废。投给研究单元只是从个人账转到单元账，总量不变。</p>
       <div className="tiles">
         <Tile k="流通量" v={out.toFixed(0)} f={n ? `个人 ${num(n.out_person).toFixed(0)} · 研究单元 ${num(n.out_unit).toFixed(0)}` : ''} />
         <Tile k="本季度新发" v={fc ? issued(fc).toFixed(0) : '0'} f={fc ? `做任务 ${num(fc.issued_task).toFixed(0)} · 发放 ${num(fc.issued_salary).toFixed(0)} · 铸造 ${num(fc.issued_mint).toFixed(0)} · 预算兑换 ${num(fc.issued_budget).toFixed(0)}` : ''} />
         <Tile k="本季度用掉" v={fc ? burned(fc).toFixed(0) : '0'} f={fc ? `换卡时 ${num(fc.spent_compute).toFixed(0)} · 换 API ${num(fc.spent_api).toFixed(0)} · 过期 ${num(fc.expired).toFixed(0)}` : ''} />
-        <Tile k="可兑资源覆盖率" v={cover != null ? pc(cover) : '—'} f="本季度可兑资源折合实际币 ÷ 流通量" tone={cover != null && cover < 1 ? 'warn' : undefined} />
-        <Tile k="三个月内到期" v={n ? num(n.expiring_90d).toFixed(0) : '0'} f={n ? `持币 ${n.holders} 人 · ${n.unit_holders} 个研究单元` : ''} />
+        <Tile k="可兑资源覆盖率" v={cover != null ? pc(cover) : '—'} f="本季度可兑资源折合币数 ÷ 流通量" tone={cover != null && cover < 1 ? 'warn' : undefined} />
+        <Tile k="季末前作废" v={n ? num(n.expiring_90d).toFixed(0) : '0'} f={n ? `持币 ${n.holders} 人 · ${n.unit_holders} 个研究单元` : ''} />
       </div>
       <section className="card">
         <h3>通胀监控 <span className="h3sub">按季度</span></h3>
         {warn.length > 0 ? warn.map((w, i) => <div key={i} className="msg warn" role="status">{w}</div>) : <div className="msg" role="status">流通量在可兑资源之内，发行和消耗大致平衡。</div>}
-        {flow.length === 0 ? <Empty>还没有实际币的流水。</Empty> : <div className="scroll"><table>
+        {flow.length === 0 ? <Empty>还没有代币的流水。</Empty> : <div className="scroll"><table>
           <thead><tr><th>季度</th><th className="r">做任务</th><th className="r">按期发放</th><th className="r">铸造</th><th className="r">预算兑换</th><th className="r">换卡时</th><th className="r">换 API</th><th className="r">过期</th><th className="r">期末流通</th><th className="r">环比</th><th className="r">可兑资源</th><th className="r">覆盖率</th><th>比例（预算·API·卡时）</th></tr></thead>
           <tbody>{flow.map((f, i) => { const q = qOf(f.q_start), s = supply(q), o = endOut(f), p = flow[i + 1]; return (
             <tr key={f.q_start}><td>{qname(f.q_start)}</td><td className="r">{num(f.issued_task).toFixed(0)}</td><td className="r">{num(f.issued_salary).toFixed(0)}</td><td className="r">{num(f.issued_mint).toFixed(0)}</td><td className="r">{num(f.issued_budget).toFixed(0)}</td>
@@ -226,7 +226,7 @@ export function TokenSystem({ me }: { me: Me }) {
         const rules = [...data.trules].sort((a, b) => a.sort - b.sort);
         return <section className="card">
           <h3>做任务换币 <span className="h3sub">本季度已发 {total.toFixed(0)}，{people} 人；每人每季度合计最多 {num(rules[0]?.quarter_total_cap ?? 3000).toFixed(0)}</span></h3>
-          <p className="hint">按在正则上的操作自动发实际币到个人，当季有效、季末作废；只算上线之后的操作，同一件事只发一次。回应质疑另记名义币进研究单元池子，成果解锁后铸造。</p>
+          <p className="hint">按在正则上的操作自动发名义币到个人，当季有效、季末作废；只算上线之后的操作，同一件事只发一次。回应质疑同时记入研究单元池子的份额，成果解锁后按份额铸造实际币。</p>
           <div className="scroll"><table>
             <thead><tr><th>行为</th><th className="r">每次</th><th>上限</th><th className="r">本季度次数</th><th className="r">本季度发出</th></tr></thead>
             <tbody>{rules.map((r) => { const b = by.get(r.code); return <tr key={r.code}><td>{r.label}</td>
@@ -257,27 +257,27 @@ export function TokenParams({ me }: { me: Me }) {
   const fold = (v: number) => `${['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'][Math.round(v * 10)] ?? v}折`;
   const nf = (name: string, label: string, v: number): Field => ({ name, label, type: 'number', value: String(v) });
   const rows: [string, string, string, Act][] = [
-    ['一级（公开发布）铸造系数', `按名义币的 ${lv.r1 ?? 1} 倍乘挂牌铸造率`, '研究单元第一个外部成果核对通过时，按各人在池子里的名义币铸造实际币到个人。',
+    ['一级（公开发布）铸造系数', `按份额的 ${lv.r1 ?? 1} 倍乘挂牌铸造率`, '研究单元第一个外部成果核对通过时，按各人在池子里的份额铸造实际币到个人（不过期）。',
       { title: '一级的铸造系数', label: '保存', fields: [nf('r1', '一级', lv.r1 ?? 1)], run: (v) => set('levels', { ...lv, r1: Number(v.r1) }) }],
     ['二、三、四级追加', `加 ${lv.l2 ?? 0} 倍、加 ${lv.l3 ?? 0} 倍、加 ${lv.l4 ?? 0} 倍`, '在一级之上逐级追加。四级（同行认可）是主要收益。',
       { title: '二、三、四级的追加倍数', label: '保存', fields: [nf('l2', '二级 · 完整发布', lv.l2 ?? 0), nf('l3', '三级 · 外部反响', lv.l3 ?? 0), nf('l4', '四级 · 同行认可', lv.l4 ?? 0)],
         run: (v) => set('levels', { ...lv, l2: Number(v.l2), l3: Number(v.l3), l4: Number(v.l4) }) }],
-    ['挂牌铸造率', rate == null ? '未挂牌：暂不铸造' : `每 1 名义币铸 ${rate} 实际币`, '研究单元的成果核对通过后，按各人在池子里的名义币乘以这个数铸造；二、三、四级按上面的系数追加。',
+    ['挂牌铸造率', rate == null ? '未挂牌：暂不铸造' : `每 1 份额铸 ${rate} 实际币`, '研究单元的成果核对通过后，按各人在池子里的份额乘以这个数铸造；二、三、四级按上面的系数追加。',
       { title: '挂牌铸造率', label: '保存', hint: '留空表示暂不铸造。', fields: [{ name: 'v', label: '每 1 点铸多少实际币', type: 'number', required: false, value: rate == null ? '' : String(rate) }], run: (v) => set('rate', v.v ? Number(v.v) : null) }],
-    ['各身份每期发放的实际币', RK.map(([k, n]) => `${n} ${sal[k] ?? '未定'}`).join('，'), '每两周按身份发到个人账户，各身份都有；个人只能投给研究单元。未定的不发。',
-      { title: '各身份每期发放的实际币', label: '保存', hint: '每两周发放到个人，当季有效、季末作废；个人只能投给研究单元。留空表示这一身份暂不发放。', fields: RK.map(([k, n]) => ({ name: k, label: n, type: 'number', required: false, value: sal[k] != null ? String(sal[k]) : '' })),
+    ['各身份每期发放的名义币', RK.map(([k, n]) => `${n} ${sal[k] ?? '未定'}`).join('，'), '每两周按身份发到个人账户，各身份都有；个人只能投给研究单元。未定的不发。',
+      { title: '各身份每期发放的名义币', label: '保存', hint: '每两周发放到个人，当季有效、季末作废；个人只能投给研究单元。留空表示这一身份暂不发放。', fields: RK.map(([k, n]) => ({ name: k, label: n, type: 'number', required: false, value: sal[k] != null ? String(sal[k]) : '' })),
         run: (v) => set('salary', Object.fromEntries(RK.map(([k]) => [k, v[k] === '' ? null : Number(v[k])]))) }],
-    ['卡时标价', price == null ? '未定：暂不能换卡时' : `每卡时 ${price} 实际币`, '研究单元的负责人用研究单元账上的实际币换 GPU 卡时，集群按换得的卡时设定额度。',
-      { title: '卡时标价', label: '保存', hint: '每卡时多少实际币。留空表示暂不开放兑换。', fields: [{ name: 'v', label: '每卡时的实际币', type: 'number', required: false, value: price == null ? '' : String(price) }], run: (v) => set('price', v.v ? Number(v.v) : null) }],
+    ['卡时标价', price == null ? '未定：暂不能换卡时' : `每卡时 ${price} 币`, '研究单元的负责人用研究单元账上的名义币换 GPU 卡时，集群按换得的卡时设定额度。',
+      { title: '卡时标价', label: '保存', hint: '每卡时多少币。留空表示暂不开放兑换。', fields: [{ name: 'v', label: '每卡时的币数', type: 'number', required: false, value: price == null ? '' : String(price) }], run: (v) => set('price', v.v ? Number(v.v) : null) }],
     ['卡时的有效期', `${hd} 天`, '研究单元换得的 GPU 卡时，买后这些天内有效；报给集群的剩余卡时扣掉过期的部分。',
       { title: '卡时的有效期', label: '保存', fields: [nf('v', '天数', hd)], run: (v) => set('hours_days', Math.round(Number(v.v))) }],
-    ['铸造所得的有效期', `${valid} 个月`, '成果铸造的实际币，过期作废。',
+    ['铸造所得的有效期', '不过期', '成果铸造的实际币不过期（0180），以后可开放兑换绩效；此参数已不使用。',
       { title: '铸造所得的有效期', label: '保存', fields: [nf('v', '月数', valid)], run: (v) => set('valid', Math.round(Number(v.v))) }],
   ];
   return (
     <section className="card">
-      <h3>代币参数 <span className="h3sub">名义币来自回应质疑；实际币按期发放、按成果铸造，用来换卡时</span></h3>
-      <p className="hint">名义币来自回应质疑，一个名义币等于一小时，每回应一条记 16 名义币，进入研究单元的池子，不能换资源；实际币代表资源使用权，来自按期发放、成果铸造和课题预算兑换（只能单向兑换，不能兑回预算或人民币），用来换 API 额度和 GPU 卡时。下面与铸造有关的参数在转入市场经济时期后才起作用，现在先定下来供大家查看。</p>
+      <h3>代币参数 <span className="h3sub">名义币会过期，实际币不过期</span></h3>
+      <p className="hint">名义币来自做任务、按期发放、回应质疑和课题预算兑换，当季作废；投给研究单元后由负责人换 API 额度和 GPU 卡时。实际币由成果按池子份额铸造，不过期，以后可开放兑换绩效；要换资源时先投给研究单元，投入后成为名义币。回应质疑另记池子份额，每条 16。代币只能单向兑换，不能兑回预算或人民币。下面与铸造有关的参数在转入市场经济时期后才起作用，现在先定下来供大家查看。</p>
       <div className="scroll"><table>
         <thead><tr><th style={{ width: '18%' }}>参数</th><th style={{ width: '34%' }}>现行</th><th>说明</th>{director && <th />}</tr></thead>
         <tbody>{rows.map(([name, val, note, a]) => <tr key={name}><td>{name}</td><td className="wrap">{val}</td><td className="wrap"><span className="sub2">{note}</span></td>
