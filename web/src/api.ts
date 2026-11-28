@@ -65,8 +65,10 @@ export const rpc = (fn: string, args: Record<string, unknown>) =>
 
 // 密钥单独走这两个接口：保存时由服务端加密，取用时记一条取用记录；页面不缓存明文
 const post = (path: string, body: unknown) => send(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((b) => b.result);
-export const secretSet = (kind: 'resource' | 'allocation', id: string, secret: string): Promise<string | null> => post('/api/secret/set', { kind, id, secret });
-export const secretGet = (kind: 'resource' | 'allocation', id: string): Promise<string> => post('/api/secret/get', { kind, id });
+// 密钥归属：账号共用、发给个人、研究单元（研究单元的 API key，名单内共用）
+export type SecretKind = 'resource' | 'allocation' | 'unit';
+export const secretSet = (kind: SecretKind, id: string, secret: string): Promise<string | null> => post('/api/secret/set', { kind, id, secret });
+export const secretGet = (kind: SecretKind, id: string): Promise<string> => post('/api/secret/get', { kind, id });
 
 // 接口目录：全部视图和操作的名称、列和参数，只有结构，不含数据
 export interface ApiMeta { tools: { name: string; description: string }[]; views: { view: string; columns: string[] }[]; actions: { action: string; params: string[] }[] }
@@ -213,11 +215,15 @@ export type ResReqStatus = 'pending' | 'reviewed' | 'approved' | 'fulfilled' | '
 export interface ResourceRequest { id: string; kind: 'api' | 'asset'; resource_id: string | null; resource_name: string | null; unit: string | null; project_id: string | null; project_code: string | null; project_name: string | null;
   requested_by: string; requester_name: string; amount: string; period: string | null; purpose: string; usage_note: string | null; urgent: boolean; status: ResReqStatus;
   reviewed_at: string | null; reviewed_by_name: string | null; approved_amount: string | null; decided_at: string | null; decided_by_name: string | null; decide_note: string | null; fulfilled_at: string | null; created_at: string; my_project: boolean;
-  budget_line_id: string | null; line_purpose: string | null; plan_qty: string | null; priority: boolean ; plan_add?: string | null;
-  via_coin?: boolean }   // 研究单元用实际币换来分给成员的 API 额度，不挂预算行（0167）
+  budget_line_id: string; line_purpose: string | null; plan_qty: string | null; priority: boolean ; plan_add?: string | null }
 export interface ResourceStock { id: string; resource_id: string; kind: 'api' | 'asset'; resource_name: string; unit: string | null; qty: string; unit_price: string | null; supplier: string | null; note: string | null;
   received_on: string; expense_request_id: string | null; created_by_name: string | null; project_id: string | null; project_name: string | null; line_purpose: string | null }
-export interface SecretAccess { id: string; owner_kind: 'resource' | 'allocation'; owner_id: string; at: string; user_name: string; resource_name: string; holder_name: string | null }
+export interface SecretAccess { id: string; owner_kind: SecretKind; owner_id: string; at: string; user_name: string; resource_name: string; holder_name: string | null }
+// 实际币换 API 额度（0169）：本季度上限、研究单元的 key、key 的取用记录
+export interface ApiQuarter { q_start: string; total: string; api_rate: string; api_stock: string | null; bought: string; room: string }
+export interface UnitApiKey { project_id: string; project_code: string; project_name: string; owner_name: string | null; api_quota: string; last_bought_at: string | null;
+  has_key: boolean; key_hint: string | null; key_set_at: string | null; rotate_since: string | null; rotate_who: string | null; can_get: boolean }
+export interface UnitKeyAccess { id: string; project_id: string; at: string; user_name: string | null }
 export interface PettyCash { id: string; requested_by: string; requester_name: string; amount: string; purpose: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'settled';
   decided_at: string | null; decided_by_name: string | null; decide_note: string | null; spent: string | null; settled_on: string | null; settle_note: string | null; expense_request_id: string | null; created_at: string;
   project_id: string; project_code: string | null; project_name: string | null; budget_line_id: string; line_purpose: string | null }
