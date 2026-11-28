@@ -14,7 +14,7 @@ export function ResourceOne({ me, id }: { me: Me; id: string }) {
   const r = data.res[0];
   if (!r) return <><div className="top"><h2>资源</h2></div><Empty>该资源不存在或无权查看。<a href="#/s-res">返回资源汇总</a></Empty></>;
   const staff = can(me, 'read.resource');
-  const total = r.total != null ? num(r.total) : null, given = num(r.allocated ?? 0), used = num(r.used ?? 0);
+  const total = r.total != null ? num(r.total) : null, given = num(r.allocated ?? 0) + num(r.unit_granted ?? 0), used = num(r.used ?? 0);
   const cur = data.allocs.filter((a) => a.current).sort((a, b) => a.user_name.localeCompare(b.user_name, 'zh'));
   const past = data.allocs.filter((a) => !a.current).sort((a, b) => (b.returned_on ?? b.to_date ?? '').localeCompare(a.returned_on ?? a.to_date ?? ''));
   const stock = [...data.stock].sort((a, b) => b.received_on.localeCompare(a.received_on));
@@ -31,7 +31,7 @@ export function ResourceOne({ me, id }: { me: Me; id: string }) {
           { cls: 'sa big', value: Math.min(given, total), text: `已分配 ${qty(given, r.unit)}`, tip: `已分配 ${qty(given, r.unit)}` },
           { cls: 'sr big', value: Math.max(total - given, 0), text: `未分配 ${qty(total - given, r.unit)}`, tip: `未分配 ${qty(total - given, r.unit)}` }]} />
           : <Empty>该资源未设总量，按实际分配记录。</Empty>}
-        facts={[['总量', total != null ? qty(total, r.unit) : '未设'], ['已分配', qty(given, r.unit)], ['当前持有', `${cur.length} 人`], ...(r.kind === 'api' ? [['已使用', qty(used, r.unit)] as [string, string]] : []),
+        facts={[['总量', total != null ? qty(total, r.unit) : '未设'], ['已分配', qty(given, r.unit)], ...(num(r.unit_granted) > 0 ? [['其中换给研究单元', qty(r.unit_granted ?? null, r.unit)] as [string, string]] : []), ['当前持有', `${cur.length} 人`], ...(r.kind === 'api' ? [['已使用', qty(used, r.unit)] as [string, string]] : []),
           ...(r.balance != null ? [['账户余额', `${num(r.balance).toLocaleString('zh-CN')}${r.currency ? ` ${r.currency}` : ''}${r.balance_on ? `（${day(r.balance_on)}）` : ''}`] as [string, string]] : []),
           ...(r.fx_rate != null ? [['折算汇率', `1 ${r.unit} = ${num(r.fx_rate)} 元${r.fx_on ? `（${day(r.fx_on)}）` : ''}`] as [string, string]] : []),
           ...(r.unit_price != null ? [['单价', money(r.unit_price)] as [string, string]] : []), ...(r.location ? [['存放地点', r.location] as [string, string]] : [])]} />

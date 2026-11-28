@@ -4395,6 +4395,10 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   k = await uk();
   ok(k.key_hint === 'sk-…u2' && k.rotate_who === null, '换了新 key 后不再标注待换', JSON.stringify(k));
   ok(await outbox('%研究单元「换密钥测试研究单元」的 API key 已更换，旧 key 作废%') > 0, '换 key 后通知名单内成员');
+  // 0172：代币系统的流量计入换 API 用掉的实际币；资源账把换给研究单元的额度算作已发出
+  await as(U.fin, DQ);
+  ok((await q(`select spent_api from api.coin_flow`)).some((f) => Number(f.spent_api) > 0), '代币系统的流量计入研究单元换 API 额度用掉的实际币');
+  ok(Number((await one(`select unit_granted from api.resource where id = $1`, [RX])).unit_granted) > 0, '资源账把换给研究单元的额度算作已发出');
   await as(U.dir);
 }
 

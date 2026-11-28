@@ -204,7 +204,7 @@ export interface Quota { id: string; leader_id: string; leader_name: string; yea
 export interface QuotaPick { id: string; leader_name: string; year: number }
 export interface Resource { id: string; kind: 'api' | 'asset'; name: string; ref: string | null; total: string | null; unit: string | null; note: string | null; active: boolean; allocated: string; holders: number;
   provider: string | null; model: string | null; currency: string | null; balance: string | null; balance_on: string | null; category: string | null; spec: string | null;
-  unit_price: string | null; bundle: string | null; location: string | null; used: string; asked: string; has_secret: boolean; secret_hint: string | null ; fx_rate?: string | null; fx_on?: string | null }
+  unit_price: string | null; bundle: string | null; location: string | null; used: string; asked: string; has_secret: boolean; secret_hint: string | null ; fx_rate?: string | null; fx_on?: string | null ; unit_granted?: string }
 export interface Allocation { id: string; resource_id: string; kind: 'api' | 'asset'; resource_name: string; ref: string | null; unit: string | null; user_id: string; user_name: string;
   quota: string | null; from_date: string; to_date: string | null; note: string | null; returned_on: string | null; current: boolean;
   used: string | null; used_on: string | null; asset_no: string | null; location: string | null; request_id: string | null; spec: string | null; model: string | null; provider: string | null;
@@ -266,7 +266,7 @@ export interface BudgetCategory { id: string; code: string; name: string; labor:
 // 课题预算兑换实际币（0164）：财务岗每季度公布全中心可兑换总额和兑换比例；兑满即止
 export interface CoinQuarter { q_start: string; total: string; rate: string; api_rate: string; gpu_price: string; note: string | null; published_at: string; published_by_name: string | null; exchanged: string; current: boolean; gpu_hours: string | null }
 // 代币系统：按季度的流量与期末流通量；当前概况
-export interface CoinFlow { q_start: string; issued_salary: string; issued_mint: string; issued_budget: string; adjusted: string; spent_compute: string; expired: string; out_person: string; out_unit: string }
+export interface CoinFlow { q_start: string; issued_salary: string; issued_mint: string; issued_budget: string; adjusted: string; spent_compute: string; expired: string; out_person: string; out_unit: string; spent_api?: string }
 export interface CoinNow { out_person: string; out_unit: string; expiring_90d: string; holders: number; unit_holders: number }
 export interface BudgetCoinExchange { id: string; q_start: string; line_id: string; line_purpose: string; topic_id: string; topic_code: string; topic_name: string; unit_id: string; unit_code: string; unit_name: string; amount: string; coins: string; rate: string; by_name: string | null; at: string }
 export interface BudgetYear { year: number; due_date: string; stage: BudgetStage; applied_on: string | null; granted_on: string | null; approved_at: string | null; approved_by_name: string | null;

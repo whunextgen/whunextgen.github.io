@@ -176,7 +176,7 @@ export function TokenSystem({ me }: { me: Me }) {
   const flow = [...data.flow].sort((a, b) => b.q_start.localeCompare(a.q_start));
   const qOf = (d: string) => data.qs.find((q) => q.q_start === d);
   const issued = (f: CoinFlow) => num(f.issued_salary) + num(f.issued_mint) + num(f.issued_budget) + num(f.adjusted);
-  const burned = (f: CoinFlow) => num(f.spent_compute) + num(f.expired);
+  const burned = (f: CoinFlow) => num(f.spent_compute) + num(f.spent_api) + num(f.expired);
   const endOut = (f: CoinFlow) => num(f.out_person) + num(f.out_unit);
   const cur = data.qs.find((q) => q.current), fc = flow[0], prev = flow[1];
   const supply = (q?: CoinQuarter) => q ? num(q.total) / num(q.api_rate) + (q.gpu_hours != null ? num(q.gpu_hours) * num(q.gpu_price) : 0) : null;
@@ -197,7 +197,7 @@ export function TokenSystem({ me }: { me: Me }) {
       <div className="tiles">
         <Tile k="流通量" v={out.toFixed(0)} f={n ? `个人 ${num(n.out_person).toFixed(0)} · 研究单元 ${num(n.out_unit).toFixed(0)}` : ''} />
         <Tile k="本季度新发" v={fc ? issued(fc).toFixed(0) : '0'} f={fc ? `发放 ${num(fc.issued_salary).toFixed(0)} · 铸造 ${num(fc.issued_mint).toFixed(0)} · 预算兑换 ${num(fc.issued_budget).toFixed(0)}` : ''} />
-        <Tile k="本季度用掉" v={fc ? burned(fc).toFixed(0) : '0'} f={fc ? `换卡时 ${num(fc.spent_compute).toFixed(0)} · 过期 ${num(fc.expired).toFixed(0)}` : ''} />
+        <Tile k="本季度用掉" v={fc ? burned(fc).toFixed(0) : '0'} f={fc ? `换卡时 ${num(fc.spent_compute).toFixed(0)} · 换 API ${num(fc.spent_api).toFixed(0)} · 过期 ${num(fc.expired).toFixed(0)}` : ''} />
         <Tile k="可兑资源覆盖率" v={cover != null ? pc(cover) : '—'} f="本季度可兑资源折合实际币 ÷ 流通量" tone={cover != null && cover < 1 ? 'warn' : undefined} />
         <Tile k="三个月内到期" v={n ? num(n.expiring_90d).toFixed(0) : '0'} f={n ? `持币 ${n.holders} 人 · ${n.unit_holders} 个研究单元` : ''} />
       </div>
@@ -205,10 +205,10 @@ export function TokenSystem({ me }: { me: Me }) {
         <h3>通胀监控 <span className="h3sub">按季度</span></h3>
         {warn.length > 0 ? warn.map((w, i) => <div key={i} className="msg warn" role="status">{w}</div>) : <div className="msg" role="status">流通量在可兑资源之内，发行和消耗大致平衡。</div>}
         {flow.length === 0 ? <Empty>还没有实际币的流水。</Empty> : <div className="scroll"><table>
-          <thead><tr><th>季度</th><th className="r">按期发放</th><th className="r">铸造</th><th className="r">预算兑换</th><th className="r">换卡时</th><th className="r">过期</th><th className="r">期末流通</th><th className="r">环比</th><th className="r">可兑资源</th><th className="r">覆盖率</th><th>比例（预算·API·卡时）</th></tr></thead>
+          <thead><tr><th>季度</th><th className="r">按期发放</th><th className="r">铸造</th><th className="r">预算兑换</th><th className="r">换卡时</th><th className="r">换 API</th><th className="r">过期</th><th className="r">期末流通</th><th className="r">环比</th><th className="r">可兑资源</th><th className="r">覆盖率</th><th>比例（预算·API·卡时）</th></tr></thead>
           <tbody>{flow.map((f, i) => { const q = qOf(f.q_start), s = supply(q), o = endOut(f), p = flow[i + 1]; return (
             <tr key={f.q_start}><td>{qname(f.q_start)}</td><td className="r">{num(f.issued_salary).toFixed(0)}</td><td className="r">{num(f.issued_mint).toFixed(0)}</td><td className="r">{num(f.issued_budget).toFixed(0)}</td>
-              <td className="r">{num(f.spent_compute).toFixed(0)}</td><td className="r">{num(f.expired).toFixed(0)}</td><td className="r">{o.toFixed(0)}</td>
+              <td className="r">{num(f.spent_compute).toFixed(0)}</td><td className="r">{num(f.spent_api).toFixed(0)}</td><td className="r">{num(f.expired).toFixed(0)}</td><td className="r">{o.toFixed(0)}</td>
               <td className="r">{p && endOut(p) > 0 ? pc(o / endOut(p) - 1) : '—'}</td><td className="r">{s != null ? s.toFixed(0) : '—'}</td>
               <td className={`r ${s != null && o > 0 && s / o < 1 ? 'neg' : ''}`}>{s != null && o > 0 ? pc(s / o) : '—'}</td>
               <td>{q ? `${num(q.rate)} · ${num(q.api_rate)} · ${num(q.gpu_price)}` : '未公布'}</td></tr>); })}</tbody>
