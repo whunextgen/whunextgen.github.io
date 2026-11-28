@@ -4220,7 +4220,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.mem2, DQ);
   await raises('成员不能公布季度兑换', /需要权限|当前角色/, `select publish_coin_quarter(2500, 1, 1, 1)`);
   await as(U.fin, DQ);
-  ok((await one(`select publish_coin_quarter(2500, 1, 1, 1, '首季') v`)).v === '2027-07-01' || true, '财务岗公布本季度总额和比例');
+  ok((await one(`select publish_coin_quarter(2500, 1, 1, 1, 400, '首季') v`)).v === '2027-07-01' || true, '财务岗公布本季度总额和比例');
   const CQ = await one(`select total, rate, current from api.coin_quarter where current`);
   ok(Number(CQ.total) === 2500 && Number(CQ.rate) === 1, '本季度的总额和比例所有人可见');
   await db.exec(`reset role`);
@@ -4244,6 +4244,15 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(LX.owner_id, DQ);
   await q(XB, [LX.id, UNIT, 1000]);
   eq(await bal(), 3000, '财务岗追加总额后可以接着兑');
+  // 代币系统：按季度的流量和流通量（0165）
+  await as(U.fin, DQ);
+  const FQ = (await q(`select * from api.coin_flow`)).find((x) => Number(x.issued_budget) > 0);   // 流量按记账时间归季度
+  ok(FQ && Number(FQ.issued_budget) === 3000, '流量表按季度记预算兑换的实际币', JSON.stringify(FQ));
+  const NOW = await one(`select * from api.coin_now`);
+  ok(Number(NOW.out_unit) >= 3000 && Number((await one(`select gpu_hours from api.coin_quarter where current`)).gpu_hours) === 400, '概况给出流通量，季度公布带可供卡时');
+  await as(U.mem2, DQ);
+  eq((await q(`select 1 from api.coin_flow`)).length, 0, '成员看不到代币系统的流量');
+  await as(LX.owner_id, DQ);
   await db.exec(`reset role`);
   await q(`update budget_year set stage = $1 where year = $2`, [Y0.stage, Y0.year]);
   await db.exec(`set role app_api`);

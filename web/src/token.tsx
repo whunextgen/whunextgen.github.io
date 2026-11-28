@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { rpc, useViews, type BudgetCoinExchange, type CoinQuarter, type Me, type Project } from './api';
-import { ActionDialog, Badge, Empty, Loading, can, day, money, num, type Field } from './ui';
+import { rpc, useViews, type BudgetCoinExchange, type CoinFlow, type CoinNow, type CoinQuarter, type Me, type Project } from './api';
+import { ActionDialog, Badge, Empty, Loading, Tile, can, day, money, num, type Field } from './ui';
 
 // 代币：只用名义币、实际币两个叫法。名义币来自回应质疑，进入研究单元的池子；实际币代表资源使用权。
 // 代币不另设页面，加在已有的对象上：首页的我的事项、研究单元页、档次表、预算参数。
@@ -123,9 +123,9 @@ export function CoinQuarterCard({ me }: { me: Me }) {
   const nf = (name: string, label: string, v?: string): Field => ({ name, label, type: 'number', value: v ?? '' });
   const pub: Act = { title: cur ? '修改本季度的兑换总额和比例' : '公布本季度的兑换总额和比例', label: '公布',
     hint: '总额填下季度 API 充值中能经学校报销的金额，全中心兑满即止；财务岗照计划直接充值，没兑满的部分由谢倩倩老师兜底。本季度已有兑换的，比例不能再改，总额只能追加。卡时标价随之更新。',
-    fields: [nf('total', '本季度全中心可兑换总额（元）', cur?.total), nf('rate', '1 元预算兑多少实际币', cur?.rate ?? '1'), nf('api_rate', '1 实际币兑多少元 API 额度', cur?.api_rate ?? '1'), nf('gpu_price', '1 卡时多少实际币', cur?.gpu_price ?? '1'),
+    fields: [nf('total', '本季度全中心可兑换总额（元）', cur?.total), nf('rate', '1 元预算兑多少实际币', cur?.rate ?? '1'), nf('api_rate', '1 实际币兑多少元 API 额度', cur?.api_rate ?? '1'), nf('gpu_price', '1 卡时多少实际币', cur?.gpu_price ?? '1'), { ...nf('gpu_hours', '本季度集群可供 GPU 卡时（用于通胀监控，可不填）', cur?.gpu_hours ?? ''), required: false },
       { name: 'note', label: '说明（选填）', required: false, value: cur?.note ?? '' }],
-    run: (v) => rpc('publish_coin_quarter', { total: v.total, rate: v.rate, api_rate: v.api_rate, gpu_price: v.gpu_price, note: v.note || null }) };
+    run: (v) => rpc('publish_coin_quarter', { total: v.total, rate: v.rate, api_rate: v.api_rate, gpu_price: v.gpu_price, gpu_hours: v.gpu_hours || null, note: v.note || null }) };
   return (
     <section className="card">
       <h3>预算兑换实际币 <span className="h3sub">{cur ? qname(cur.q_start) : '本季度尚未公布'}</span></h3>
@@ -133,6 +133,7 @@ export function CoinQuarterCard({ me }: { me: Me }) {
       {cur ? <table><tbody>
         <tr><th scope="row">可兑换总额</th><td>{money(cur.total)}，已兑 {money(cur.exchanged)}，剩余 <b>{money(num(cur.total) - num(cur.exchanged))}</b></td></tr>
         <tr><th scope="row">兑换比例</th><td>1 元预算 = {num(cur.rate)} 实际币；1 实际币 = {num(cur.api_rate)} 元 API 额度；1 卡时 = {num(cur.gpu_price)} 实际币</td></tr>
+        <tr><th scope="row">可供资源</th><td>API：下季度充值 {money(cur.total)}；GPU：{cur.gpu_hours != null ? `${num(cur.gpu_hours)} 卡时` : '未填'}</td></tr>
         <tr><th scope="row">公布</th><td>{cur.published_by_name ?? '—'} · {day(cur.published_at)}{cur.note && <div className="sub2" style={{ marginLeft: 0 }}>{cur.note}</div>}</td></tr>
       </tbody></table> : <Empty>本季度的兑换总额和比例尚未公布，课题暂不能兑换。</Empty>}
       {xs.length > 0 && <div className="scroll"><table>
@@ -145,7 +146,62 @@ export function CoinQuarterCard({ me }: { me: Me }) {
   );
 }
 
-// ---------- 预算参数页：代币参数 ----------
+// ---------- 代币系统：发行、兑换、通胀监控（0165） ----------
+// 流通量 = 个人账 + 研究单元账。可兑资源折合实际币 = 下季度 API 充值 ÷ 每币 API 额度 + 可供卡时 × 卡时标价。
+// 流通量超过可兑资源，就是币多于货：有通胀压力
+export function TokenSystem({ me }: { me: Me }) {
+  const { data, error } = useViews<{ flow: CoinFlow[]; now: CoinNow[]; qs: CoinQuarter[] }>({ flow: ['coin_flow'], now: ['coin_now'], qs: ['coin_quarter'] });
+  if (!data) return <Loading error={error} />;
+  const n = data.now[0];
+  const out = n ? num(n.out_person) + num(n.out_unit) : 0;
+  const flow = [...data.flow].sort((a, b) => b.q_start.localeCompare(a.q_start));
+  const qOf = (d: string) => data.qs.find((q) => q.q_start === d);
+  const issued = (f: CoinFlow) => num(f.issued_salary) + num(f.issued_mint) + num(f.issued_budget) + num(f.adjusted);
+  const burned = (f: CoinFlow) => num(f.spent_compute) + num(f.expired);
+  const endOut = (f: CoinFlow) => num(f.out_person) + num(f.out_unit);
+  const cur = data.qs.find((q) => q.current), fc = flow[0], prev = flow[1];
+  const supply = (q?: CoinQuarter) => q ? num(q.total) / num(q.api_rate) + (q.gpu_hours != null ? num(q.gpu_hours) * num(q.gpu_price) : 0) : null;
+  const cover = cur && out > 0 ? (supply(cur) ?? 0) / out : null;
+  const growth = fc && prev && endOut(prev) > 0 ? endOut(fc) / endOut(prev) - 1 : null;
+  const qname = (d: string) => `${d.slice(0, 4)} Q${Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1}`;
+  const pc = (v: number) => `${(v * 100).toFixed(0)}%`;
+  const warn: string[] = [];
+  if (cover != null && cover < 1) warn.push(`流通的实际币（${out.toFixed(0)}）多于本季度可兑的资源（折合 ${(supply(cur) ?? 0).toFixed(0)}），覆盖率 ${pc(cover)}：币多于货，有通胀压力。可以下季度提高标价、减少按期发放，或缩短有效期。`);
+  if (!cur) warn.push('本季度还没有公布兑换总额和比例，覆盖率无从计算。');
+  else if (cur.gpu_hours == null) warn.push('本季度没有填集群可供卡时，覆盖率只算了 API，偏低。');
+  if (growth != null && growth > 0.25) warn.push(`流通量比上季度增长 ${pc(growth)}，发得多、用得少。`);
+  if (fc && issued(fc) > 0 && burned(fc) / issued(fc) < 0.3) warn.push(`本季度新发 ${issued(fc).toFixed(0)}，用掉和过期合计 ${burned(fc).toFixed(0)}，不到三成，币在积压。`);
+  return (
+    <>
+      <div className="top"><h2>代币系统</h2></div>
+      <p className="lede">实际币的发行、兑换和流通。进：按期发放、成果铸造、课题预算兑换；出：研究单元换 GPU 卡时、换 API 额度、到期作废。投给研究单元只是从个人账转到单元账，总量不变。</p>
+      <div className="tiles">
+        <Tile k="流通量" v={out.toFixed(0)} f={n ? `个人 ${num(n.out_person).toFixed(0)} · 研究单元 ${num(n.out_unit).toFixed(0)}` : ''} />
+        <Tile k="本季度新发" v={fc ? issued(fc).toFixed(0) : '0'} f={fc ? `发放 ${num(fc.issued_salary).toFixed(0)} · 铸造 ${num(fc.issued_mint).toFixed(0)} · 预算兑换 ${num(fc.issued_budget).toFixed(0)}` : ''} />
+        <Tile k="本季度用掉" v={fc ? burned(fc).toFixed(0) : '0'} f={fc ? `换卡时 ${num(fc.spent_compute).toFixed(0)} · 过期 ${num(fc.expired).toFixed(0)}` : ''} />
+        <Tile k="可兑资源覆盖率" v={cover != null ? pc(cover) : '—'} f="本季度可兑资源折合实际币 ÷ 流通量" tone={cover != null && cover < 1 ? 'warn' : undefined} />
+        <Tile k="三个月内到期" v={n ? num(n.expiring_90d).toFixed(0) : '0'} f={n ? `持币 ${n.holders} 人 · ${n.unit_holders} 个研究单元` : ''} />
+      </div>
+      <section className="card">
+        <h3>通胀监控 <span className="h3sub">按季度</span></h3>
+        {warn.length > 0 ? warn.map((w, i) => <div key={i} className="msg warn" role="status">{w}</div>) : <div className="msg" role="status">流通量在可兑资源之内，发行和消耗大致平衡。</div>}
+        {flow.length === 0 ? <Empty>还没有实际币的流水。</Empty> : <div className="scroll"><table>
+          <thead><tr><th>季度</th><th className="r">按期发放</th><th className="r">铸造</th><th className="r">预算兑换</th><th className="r">换卡时</th><th className="r">过期</th><th className="r">期末流通</th><th className="r">环比</th><th className="r">可兑资源</th><th className="r">覆盖率</th><th>比例（预算·API·卡时）</th></tr></thead>
+          <tbody>{flow.map((f, i) => { const q = qOf(f.q_start), s = supply(q), o = endOut(f), p = flow[i + 1]; return (
+            <tr key={f.q_start}><td>{qname(f.q_start)}</td><td className="r">{num(f.issued_salary).toFixed(0)}</td><td className="r">{num(f.issued_mint).toFixed(0)}</td><td className="r">{num(f.issued_budget).toFixed(0)}</td>
+              <td className="r">{num(f.spent_compute).toFixed(0)}</td><td className="r">{num(f.expired).toFixed(0)}</td><td className="r">{o.toFixed(0)}</td>
+              <td className="r">{p && endOut(p) > 0 ? pc(o / endOut(p) - 1) : '—'}</td><td className="r">{s != null ? s.toFixed(0) : '—'}</td>
+              <td className={`r ${s != null && o > 0 && s / o < 1 ? 'neg' : ''}`}>{s != null && o > 0 ? pc(s / o) : '—'}</td>
+              <td>{q ? `${num(q.rate)} · ${num(q.api_rate)} · ${num(q.gpu_price)}` : '未公布'}</td></tr>); })}</tbody>
+        </table></div>}
+      </section>
+      <CoinQuarterCard me={me} />
+      <TokenParams me={me} />
+    </>
+  );
+}
+
+// ---------- 代币参数 ----------
 type Num = Record<string, number>;
 export function TokenParams({ me }: { me: Me }) {
   const { data, error, reload } = useViews<{ params: TokenParam[] }>({ params: ['token_param'] });
@@ -184,7 +240,7 @@ export function TokenParams({ me }: { me: Me }) {
   return (
     <section className="card">
       <h3>代币参数 <span className="h3sub">名义币来自回应质疑；实际币按期发放、按成果铸造，用来换卡时</span></h3>
-      <p className="hint">名义币来自回应质疑，一个名义币等于一小时，每回应一条记 16 名义币，进入研究单元的池子，不能换资源；实际币代表资源使用权，数量在「总预算与档次」的档次表里填。代币不是钱，不与经费卡和学校账目发生关系。下面与铸造有关的参数在转入市场经济时期后才起作用，现在先定下来供大家查看。</p>
+      <p className="hint">名义币来自回应质疑，一个名义币等于一小时，每回应一条记 16 名义币，进入研究单元的池子，不能换资源；实际币代表资源使用权，来自按期发放、成果铸造和课题预算兑换（只能单向兑换，不能兑回预算或人民币），用来换 API 额度和 GPU 卡时。下面与铸造有关的参数在转入市场经济时期后才起作用，现在先定下来供大家查看。</p>
       <div className="scroll"><table>
         <thead><tr><th style={{ width: '18%' }}>参数</th><th style={{ width: '34%' }}>现行</th><th>说明</th>{director && <th />}</tr></thead>
         <tbody>{rows.map(([name, val, note, a]) => <tr key={name}><td>{name}</td><td className="wrap">{val}</td><td className="wrap"><span className="sub2">{note}</span></td>
