@@ -74,6 +74,10 @@ export function IteratePage({ me }: { me: Me }) {
     return { title: `结束讨论：${x.project_name} 第 ${x.seq} 次快照`, label: '结束讨论',
       hint: `结束后不能再记入。此前提出的 ${earlier.length} 条未回应质疑里，本次无人再提、且有可参与分配队员的 ${settle.length} 条即为已回应，每条 16 名义币由队员平分，进入研究单元的池子。${earlier.length - settle.length > 0 ? `其余 ${earlier.length - settle.length} 条继续留着。` : ''}`,
       fields: [], run: () => rpc('close_pitch', { pitch: x.id }) }; };
+  // 决定点错了可以撤回（#168）：改回投稿待定再重新决定；已接收的只在还没开始讨论时可以撤回
+  const undoAct = (x: Pitch): Act => ({ title: `${x.status === 'accepted' ? '撤回接收' : '撤回不接收'}：${x.project_name} 第 ${x.seq} 次快照`, label: '撤回',
+    hint: '改回投稿待定，再重新决定接收为口头报告、海报或不接收。只限本期；已接收的，记入过质疑、有人交了质疑卡或点过名后不能撤回。投稿人会收到通知。',
+    fields: [], run: () => rpc('undo_pitch_decision', { pitch: x.id }) });
   const teamAct = (q: Query): Act => ({ title: `组队：${q.axis_label} · ${q.body.slice(0, 24)}`, label: '加入队伍',
     hint: '本研究单元的人和其他研究单元的人都可以入队，由负责人加人。新入队的自下一期起参与分配，入队当期的名义币仍由原有成员平分。',
     fields: [{ name: 'user', label: '成员', options: people.filter(([id]) => !q.team.some((m) => m.id === id)) }], run: (v) => rpc('add_query_member', { query: q.id, user: v.user }) });
@@ -164,7 +168,9 @@ export function IteratePage({ me }: { me: Me }) {
                   {x.status === 'accepted' && <><button className="sm" onClick={() => setAct(queryAct(x))}>记入质疑</button>
                     <button className="ghost sm" onClick={() => setAct({ title: `再次提出：${x.project_name}`, label: '下一步', hint: '选出被再次提出的那一条。', fields: [{ name: 'q', label: '原来那一条', options: open.filter((q) => q.project_id === x.project_id && q.period_start < x.period_start).map((q): [string, string] => [q.id, `${q.axis_label}：${q.body.slice(0, 40)}`]) }],
                       run: async (v) => { const p = open.find((q) => q.id === v.q); if (p) setTimeout(() => setAct(queryAct(x, p)), 0); } })}>再次提出</button>
-                    <button className="ghost sm" onClick={() => setAct(closeAct(x))}>结束讨论</button></>}
+                    <button className="ghost sm" onClick={() => setAct(closeAct(x))}>结束讨论</button>
+                    {x.new_queries + x.again_queries === 0 && !x.card_round && <button className="ghost sm" onClick={() => setAct(undoAct(x))}>撤回接收</button>}</>}
+                  {x.status === 'declined' && <button className="ghost sm" onClick={() => setAct(undoAct(x))}>撤回不接收</button>}
                 </div>}</td>
               </tr>))}</tbody>
           </table></div>)}

@@ -137,6 +137,7 @@ export const RPC: Record<string, [string, string][]> = {
   save_snapshot: [['project', 'uuid'], ['link', 'text'], ['note', 'text'], ['authors', 'uuid[]']],
   pitch_snapshot: [['snapshot', 'uuid'], ['seminars', 'text[]']],
   decide_pitch: [['pitch', 'uuid'], ['accept', 'boolean'], ['note', 'text'], ['format', 'text']],
+  undo_pitch_decision: [['pitch', 'uuid']],
   set_seminar_organizers: [['seminar', 'text'], ['users', 'uuid[]']],
   set_seminar_minutes: [['seminar', 'text'], ['oral', 'int'], ['poster', 'int']],
   set_seminar_targets: [['seminar', 'text'], ['oral', 'int'], ['poster', 'int']],

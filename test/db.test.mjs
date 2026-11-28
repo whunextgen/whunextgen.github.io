@@ -2746,6 +2746,20 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const fm = await one(`select format, minutes from api.snapshot_pitch where id = $1`, [pm1]);
   ok(fm.format === 'poster' && fm.minutes === 6, '接收为海报，时长按研讨会的设置', JSON.stringify(fm));
   ok((await one(`select oral_minutes, oral_target, poster_target from api.seminar where code = 'cog'`)).oral_minutes === 10, '口头报告默认 10 分钟');
+  // 接收或不接收之后可以撤回，改回投稿待定（#168）
+  await as(U.mem, A1);
+  await raises('不是组织者不能撤回', /组织者撤回/, `select undo_pitch_decision($1)`, [pm1]);
+  await as(U.lead, A1);
+  await q(`select undo_pitch_decision($1)`, [pm1]);
+  const un = await one(`select status, format, minutes, decided_by_name from api.snapshot_pitch where id = $1`, [pm1]);
+  ok(un.status === 'pending' && un.format === null && un.minutes === null && un.decided_by_name === null, '还没开始讨论的，撤回接收后改回投稿待定', JSON.stringify(un));
+  await raises('待定的没有可撤回的决定', /还没有决定/, `select undo_pitch_decision($1)`, [pm1]);
+  await q(`select decide_pitch($1, false, '点错了')`, [pm1]);
+  await q(`select undo_pitch_decision($1)`, [pm1]);
+  ok((await one(`select status, note from api.snapshot_pitch where id = $1`, [pm1])).status === 'pending', '不接收也可以撤回');
+  await q(`select decide_pitch($1, true, null, 'poster')`, [pm1]);
+  ok((await one(`select status, format from api.snapshot_pitch where id = $1`, [pm1])).format === 'poster', '撤回后可以重新接收');
+  await raises('结束讨论的不能撤回', /已结束讨论/, `select undo_pitch_decision($1)`, [pc1]);
   // 与会者当场提质疑，组织者记入
   await as(U.mem, A1);
   const QD = await val(`select submit_query_draft($1, 'ju', '和已有基准的差别没有讲清') v`, [pm1]);
@@ -2755,6 +2769,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const qd = await one(`select q.raised_by_name, q.axis from api.query_draft d join api.query q on q.body = d.body where d.id = $1`, [QD]);
   ok(qd.axis === 'ju' && qd.raised_by_name != null, '与会者提的质疑经组织者记入，记在提出人名下', JSON.stringify(qd));
   await q(`select remove_query(q.id) from api.query q join api.query_draft d on d.body = q.body where d.id = $1`, [QD]);
+  await raises('已开始讨论的不能撤回接收', /已开始讨论/, `select undo_pitch_decision($1)`, [pm1]);
   // 小队
   await as(U.mem, A1);
   ok((await q(`select 1 from api.query where project_id = $1 and status = 'open'`, [UU])).length === 2, '未回应的质疑全中心公开');

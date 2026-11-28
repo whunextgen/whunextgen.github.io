@@ -107,6 +107,7 @@ export function LivePage({ id }: { id: string; me: Me }) {
               {item.status === 'pending' && live && <div className="ir-acts"><button className="sm" onClick={() => rpc('decide_pitch', { pitch: item.id, accept: true, note: null, format: 'oral' }).then(reload)}>接收为口头报告</button>
                 <button className="sm" onClick={() => rpc('decide_pitch', { pitch: item.id, accept: true, note: null, format: 'poster' }).then(reload)}>接收为海报</button>
                 <button className="ghost sm" onClick={() => rpc('decide_pitch', { pitch: item.id, accept: false, note: null, format: null }).then(reload)}>不接收</button></div>}
+              {item.status === 'accepted' && live && here.length === 0 && !item.card_round && <div className="ir-acts"><button className="ghost sm" onClick={() => rpc('undo_pitch_decision', { pitch: item.id }).then(reload).catch((e) => setMsg((e as Error).message))}>撤回接收，改回待定</button></div>}
               {live && item.status === 'accepted' && <>
                 <h3 style={{ margin: '14px 0 6px', fontSize: 14 }}>写质疑卡 <span className="h3sub">讲完后请到场的每个人在自己的手机或电脑上写一张，同时写、互不影响；收卡后挑几条请汇报人回应</span></h3>
                 <div className="ir-acts" style={{ alignItems: 'center' }}>{item.card_round
