@@ -2977,10 +2977,10 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await q(`select ack_cluster_quota($1, 10, true, '已更新')`, [UU]);
   const cq = await one(`select granted_hours::float g, used_hours::float u, left_hours::float l, members, last_ack from api.cluster_quota where project_id = $1`, [UU]);
   ok(cq.g >= 10 && cq.u === 4 && cq.l === cq.g - 4 && cq.members.some((m) => m.owner) && cq.last_ack.ok === true, '集群读额度、报回用量（同期覆盖）和执行回执', JSON.stringify(cq));
-  // 有效期：按期发放的四周，卡时八周
+  // 有效期：按期发放的到当季最后一天（0177），卡时八周
   await db.exec(`reset role`);
-  const ex = await one(`select (select expires_on - period_start from coin_ledger where kind = 'salary' and user_id = $1 limit 1) s, (select expires_on - $3::date from compute_grant where project_id = $2 limit 1) g`, [U.mem2, UU, D]);
-  ok(ex.s === 27 && ex.g === 56, '按期发放的实际币四周内有效，换得的卡时八周内有效', JSON.stringify(ex));
+  const ex = await one(`select (select (expires_on = coin_quarter_end(period_start))::int from coin_ledger where kind = 'salary' and user_id = $1 limit 1) s, (select expires_on - $3::date from compute_grant where project_id = $2 limit 1) g`, [U.mem2, UU, D]);
+  ok(ex.s === 1 && ex.g === 56, '按期发放的实际币到当季最后一天作废，换得的卡时八周内有效', JSON.stringify(ex));
   await db.exec(`set role app_api`);
   await as(U.dir, await (async () => (await one(`select ($1::date + 70)::text d`, [D])).d)());
   const cx = await one(`select left_hours::float l, expired_hours::float e from api.cluster_quota where project_id = $1`, [UU]);
@@ -4436,7 +4436,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok(aw.some((a) => a.code === 'feedback' && Number(a.amount) === 6), '反馈转成议题 6 实际币');
   const t1 = await got();
   ok(Number((await one(`select coalesce(sum(amount), 0) v from coin_ledger where user_id = $1 and kind = 'task'`, [W.u])).v) === t1, '任务币进个人账，记为 task');
-  ok((await one(`select expires_on - token_period('2027-03-05') v from coin_ledger where user_id = $1 and kind = 'task' limit 1`, [W.u])).v === 27, '任务币和按期发放一样 4 周有效');
+  ok((await one(`select expires_on::text v from coin_ledger where user_id = $1 and kind = 'task' limit 1`, [W.u])).v === '2027-03-31', '任务币和按期发放一样到当季最后一天作废（0177）');
   await q(`select coin_tick()`);
   eq(await got(), t1, '同一件事只发一次');
   // 周末不算断：下周一接着登记，连续第 6 天

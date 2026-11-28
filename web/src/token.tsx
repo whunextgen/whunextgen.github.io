@@ -220,7 +220,7 @@ export function TokenSystem({ me }: { me: Me }) {
         const rules = [...data.trules].sort((a, b) => a.sort - b.sort);
         return <section className="card">
           <h3>做任务换币 <span className="h3sub">本季度已发 {total.toFixed(0)}，{people} 人；每人每季度合计最多 {num(rules[0]?.quarter_total_cap ?? 3000).toFixed(0)}</span></h3>
-          <p className="hint">按在正则上的操作自动发实际币到个人，当期和下一期有效；只算上线之后的操作，同一件事只发一次。回应质疑另记名义币进研究单元池子，成果解锁后铸造。</p>
+          <p className="hint">按在正则上的操作自动发实际币到个人，当季有效、季末作废；只算上线之后的操作，同一件事只发一次。回应质疑另记名义币进研究单元池子，成果解锁后铸造。</p>
           <div className="scroll"><table>
             <thead><tr><th>行为</th><th className="r">每次</th><th>上限</th><th className="r">本季度次数</th><th className="r">本季度发出</th></tr></thead>
             <tbody>{rules.map((r) => { const b = by.get(r.code); return <tr key={r.code}><td>{r.label}</td>
@@ -243,7 +243,7 @@ export function TokenParams({ me }: { me: Me }) {
   const get = (k: string) => data.params.find((p) => p.key === k)?.value;
   const lv = (get('levels') ?? {}) as Num, rs = (get('resubmit') ?? {}) as Num, sp = (get('split') ?? {}) as Num;
   const sal = (get('salary') ?? {}) as Record<string, number | null>, price = get('price') as number | null;
-  const spn = Number(get('salary_periods') ?? 2), hd = Number(get('hours_days') ?? 56);
+  const hd = Number(get('hours_days') ?? 56);
   const phase = get('phase'), reserve = Number(get('reserve') ?? 0), valid = Number(get('valid') ?? 0), rate = get('rate') as number | null;
   const director = can(me, 'budget.approve');
   const set = (key: string, value: unknown) => rpc('set_token_param', { key, value });
@@ -259,12 +259,10 @@ export function TokenParams({ me }: { me: Me }) {
     ['挂牌铸造率', rate == null ? '未挂牌：暂不铸造' : `每 1 名义币铸 ${rate} 实际币`, '研究单元的成果核对通过后，按各人在池子里的名义币乘以这个数铸造；二、三、四级按上面的系数追加。',
       { title: '挂牌铸造率', label: '保存', hint: '留空表示暂不铸造。', fields: [{ name: 'v', label: '每 1 点铸多少实际币', type: 'number', required: false, value: rate == null ? '' : String(rate) }], run: (v) => set('rate', v.v ? Number(v.v) : null) }],
     ['各身份每期发放的实际币', RK.map(([k, n]) => `${n} ${sal[k] ?? '未定'}`).join('，'), '每两周按身份发到个人账户，各身份都有；个人只能投给研究单元。未定的不发。',
-      { title: '各身份每期发放的实际币', label: '保存', hint: '每两周发放到个人，按「按期发放的有效期」作废；个人只能投给研究单元。留空表示这一身份暂不发放。', fields: RK.map(([k, n]) => ({ name: k, label: n, type: 'number', required: false, value: sal[k] != null ? String(sal[k]) : '' })),
+      { title: '各身份每期发放的实际币', label: '保存', hint: '每两周发放到个人，当季有效、季末作废；个人只能投给研究单元。留空表示这一身份暂不发放。', fields: RK.map(([k, n]) => ({ name: k, label: n, type: 'number', required: false, value: sal[k] != null ? String(sal[k]) : '' })),
         run: (v) => set('salary', Object.fromEntries(RK.map(([k]) => [k, v[k] === '' ? null : Number(v[k])]))) }],
     ['卡时标价', price == null ? '未定：暂不能换卡时' : `每卡时 ${price} 实际币`, '研究单元的负责人用研究单元账上的实际币换 GPU 卡时，集群按换得的卡时设定额度。',
       { title: '卡时标价', label: '保存', hint: '每卡时多少实际币。留空表示暂不开放兑换。', fields: [{ name: 'v', label: '每卡时的实际币', type: 'number', required: false, value: price == null ? '' : String(price) }], run: (v) => set('price', v.v ? Number(v.v) : null) }],
-    ['按期发放的有效期', `${spn} 期（${spn * 2} 周）`, '按期发放的实际币只在发放的这一期起若干期内有效，用不掉作废，防止攒起来一次用。',
-      { title: '按期发放的有效期', label: '保存', fields: [nf('v', '期数（每期两周）', spn)], run: (v) => set('salary_periods', Math.round(Number(v.v))) }],
     ['卡时的有效期', `${hd} 天`, '研究单元换得的 GPU 卡时，买后这些天内有效；报给集群的剩余卡时扣掉过期的部分。',
       { title: '卡时的有效期', label: '保存', fields: [nf('v', '天数', hd)], run: (v) => set('hours_days', Math.round(Number(v.v))) }],
     ['铸造所得的有效期', `${valid} 个月`, '成果铸造的实际币，过期作废。',

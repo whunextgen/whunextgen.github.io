@@ -218,7 +218,7 @@ export function MyCard({ me, todoCount, todo, register, requests, petty, initiat
             return rules.length > 0 && <details className="ir-hint" style={{ marginTop: 8 }}><summary>做任务换币：本季度已得 <b>{n1(got)}</b> / 上限 {n1(cap)}</summary>
               <ul className="ir-sc">{rules.filter((r) => !r.streak).map((r) => <li key={r.code}><span>{r.label}{r.quarter_cap ? `（每季度最多 ${r.quarter_cap} 次）` : ''}</span><em>+{n1(r.amount)}</em></li>)}
                 {rules.filter((r) => r.streak).map((r) => <li key={r.code}><span>{r.label}：{Object.entries(r.streak ?? {}).map(([k, v]) => `${k}${r.unit === 'workday' ? ' 天' : ' 期'} +${v}`).join('，')}</span><em /></li>)}</ul></details>; })()}
-          <p className="ir-hint">代币不是经费。在正则上做事（组织研讨会、提质疑、签到、写点评、登记双周表和日常等）就发实际币，连续做还有奖励；按期发放的和做任务得的都在当期和下一期有效，用不掉作废；成果铸造的 12 个月有效。实际币只能投给研究单元，由研究单元换 GPU 卡时（买后 {hoursValid(data.tp)}内有效），以后也可以换别的资源。投出时先扣先到期的。</p>
+          <p className="ir-hint">代币不是经费。在正则上做事（组织研讨会、提质疑、签到、写点评、登记双周表和日常等）就发实际币，连续做还有奖励；按期发放的和做任务得的当季有效，季末（3、6、9、12 月最后一天）作废；成果铸造的 12 个月有效。实际币只能投给研究单元，由研究单元换 GPU 卡时（买后 {hoursValid(data.tp)}内有效），以后也可以换别的资源。投出时先扣先到期的。</p>
         </section>
         <section className="ir-t ir-third">
           <div className="ir-mono"><span>嘉许 · 每期限两次</span><span>本期尚可给出 {Math.max(0, 2 - gaveNow)} 次</span></div>
