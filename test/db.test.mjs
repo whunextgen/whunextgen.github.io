@@ -3582,6 +3582,10 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('指导人须申报没有私人关系', /没有私人关系/, `select start_trial($1, $2, $3, app_today() + 30, '整理基准', '把三个基准整理成统一格式', app_today() + 10, false)`, [W.id, U.mem, U.lead]);
   await raises('试做期不超过一个月', /一个月以内/, `select start_trial($1, $2, $3, app_today() + 40, '整理基准', '内容', app_today() + 10, true)`, [W.id, U.mem, U.lead]);
   await raises('指导人须 Researcher 及以上', /Researcher 及以上/, `select start_trial($1, $2, $2, app_today() + 30, '整理基准', '内容', app_today() + 10, true)`, [W.id, U.mem]);
+  // #165：小任务写长了，说明是哪一项、限多少字，不只返回约束错误（前端显示为「数据不合法」）
+  await raises('小任务「做什么」超长时说明限 80 字', /「做什么」不超过 80 字（现在 81 字）/, `select start_trial($1, $2, $3, app_today() + 30, repeat('整', 81), '内容', app_today() + 10, true)`, [W.id, U.mem, U.lead]);
+  await raises('小任务「交付什么」超长时说明限 1000 字', /「交付什么」不超过 1000 字/, `select start_trial($1, $2, $3, app_today() + 30, '整理基准', repeat('交', 1001), app_today() + 10, true)`, [W.id, U.mem, U.lead]);
+  await raises('小任务不能只填空白', /写明首个小任务/, `select start_trial($1, $2, $3, app_today() + 30, '   ', '内容', app_today() + 10, true)`, [W.id, U.mem, U.lead]);
   const TR = await val(`select start_trial($1, $2, $3, app_today() + 30, '整理基准', '把三个基准整理成统一格式', app_today() + 10, true) v`, [W.id, U.mem, U.lead]);
   await db.exec(`reset role`);
   ok((await one(`select count(*)::int n from project_member where project_id = $1 and user_id = $2 and left_on is null`, [W.id, U.mem])).n === 1, '开试做期时一并加入成员名单');

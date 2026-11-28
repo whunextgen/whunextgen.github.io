@@ -38,7 +38,7 @@ export function SelectPage({ me }: { me: Me }) {
   const trialAct = (r: Recruit, who?: string): Act => ({ title: `加入并开始试做：${r.name}`, label: '开始',
     hint: <>成员加入名单，同时开试做期（一个月，可延长一次）。适用于 Intern 和 Assistant；已在名单中的成员不重新试做。{STANDARD}</>,
     fields: [{ name: 'user', label: '成员', options: people, value: who ?? '' }, { name: 'mentor', label: '指导人（Researcher 及以上）', options: people, value: me.id },
-      { name: 'end', label: '试做期至', type: 'date', value: plus(30) }, { name: 'title', label: '首个小任务：做什么' }, { name: 'detail', label: '交付什么', type: 'area' },
+      { name: 'end', label: '试做期至', type: 'date', value: plus(30) }, { name: 'title', label: '首个小任务：做什么（一句话，不超过 80 字）' }, { name: 'detail', label: '交付什么（不超过 1000 字）', type: 'area' },
       { name: 'due', label: '何时提交', type: 'date', value: plus(10) }, { name: 'ok', label: '指导人与该成员没有私人关系', type: 'check', value: 'false' }],
     run: (v) => rpc('start_trial', { project: r.id, user: v.user, mentor: v.mentor, end: v.end, task_title: v.title, task_detail: v.detail, task_due: v.due, no_conflict: v.ok === 'true' }) });
   const TrialCard = ({ t }: { t: Trial }) => (
