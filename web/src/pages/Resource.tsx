@@ -473,14 +473,15 @@ export function StockPage() {
         <section className="card wide">
           <h3>研究单元 API key <span className="h3sub">研究单元用名义币换的 API 额度，一个研究单元一个 key，名单内共用</span></h3>
           <p className="hint">研究单元负责人用名义币换得的额度计入这个研究单元的 key：请在服务商处为研究单元开 key 并把额度加上，在此加密保存，名单内成员在研究单元页取用，每次取用均有记录。成员移出名单后标「待换 key」：在服务商处作废旧 key，再在此保存新 key。</p>
-          {aq ? <p>{aq.resource_id ? <>key 开在「{aq.resource_name}」，额度按{aq.unit}记{aq.fx_rate != null && `（1 ${aq.unit} = ${num(aq.fx_rate)} 元）`}。本季度全中心可换 {money(num(aq.total_fx) + num(aq.api_stock))} {aq.unit}（充值额 {money(aq.total)} 元{aq.fx_rate != null && ` 折 ${money(aq.total_fx)} ${aq.unit}`} 加库存 {aq.api_stock != null ? money(aq.api_stock) : '未登记'}），已换 {money(aq.bought)}，剩余 <b>{money(aq.room)}</b>，换满即止。</>
+          {aq ? <p>{aq.resource_id ? <>key 开在「{aq.resource_name}」，额度按{aq.unit}记{aq.fx_rate != null && `（1 ${aq.unit} = ${num(aq.fx_rate)} 元）`}。本季度全中心可换 {money(aq.cap)} {aq.unit}（总额 {money(aq.total)} 元{aq.fx_rate != null && '按汇率折算'}），已换 {money(aq.bought)}，剩余 <b>{money(aq.room)}</b>，换满即止；库存 {aq.api_stock != null ? `${money(aq.api_stock)} ${aq.unit}` : '未登记'}，只做对账，不计入可换额度。这是全中心的季度上限，不是给哪个研究单元的额度：研究单元负责人在研究单元页换了额度才列入下表，发放 key 之后名单内成员才能取用。</>
               : <Badge tone="warn">尚未指定研究单元的 key 开在哪个接口资源上，研究单元暂不能换 API 额度</Badge>}
             <button className="sm ghost" style={{ marginLeft: 8 }} onClick={() => setAct({ label: '登记', title: '登记 key 所在的接口资源和本季度的 API 库存',
-              hint: `研究单元的 key 都开在这个接口资源上，换得的额度按它的计价单位记：额度 = 名义币 × 本季度比例（1 币兑 ${num(aq.api_rate)} 元）÷ 资源的折算汇率，人民币计价的不折算。库存按这个资源的计价单位填本季度充值额之外还能用来兑换的 API 额度，例如服务商账户里尚未分出的余额。本季度已换出 ${money(aq.bought)} ${aq.unit}，充值额折算后加库存不能低于该数；本季度已换过的，不能改到另一个资源。`,
+              hint: `研究单元的 key 都开在这个接口资源上，换得的额度按它的计价单位记：额度 = 名义币 × 本季度比例（1 币兑 ${num(aq.api_rate)} 元）÷ 资源的折算汇率，人民币计价的不折算。库存按这个资源的计价单位填服务商账户里的余额。库存只做对账，不计入可换额度（可换额度是本季度公布的总额按汇率折算）。本季度已换过的，不能改到另一个资源。`,
               fields: [{ name: 'resource', label: '接口资源', value: aq.resource_id ?? '', options: apis.map((r): [string, string] => [r.id, `${r.name}（${r.unit ?? '元'}）`]) },
                 { name: 'stock', label: '库存（按该资源的计价单位）', type: 'number', value: aq.api_stock != null ? String(num(aq.api_stock)) : '0' }],
               run: (v) => rpc('set_api_stock', { stock: v.stock, resource: v.resource }) })}>{aq.resource_id ? '登记库存' : '指定资源'}</button></p>
             : <Empty>本季度的兑换总额和比例尚未公布，研究单元暂不能换 API 额度。</Empty>}
+          {ukeys.some((u) => !u.has_key) && <div className="msg warn" role="status">{ukeys.filter((u) => !u.has_key).length} 个研究单元已换额度、尚未发放 key，名单内成员暂时取不到：请在服务商处开 key 并加上额度，再点「发放 key」。</div>}
           {ukeys.length === 0 ? <Empty>还没有研究单元换 API 额度。</Empty> : (
             <div className="scroll"><table>
               <thead><tr><th>研究单元</th><th>负责人</th><th className="r">换得的额度</th><th>最近一次换</th><th>key</th><th /></tr></thead>

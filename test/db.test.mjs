@@ -4354,7 +4354,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const BUY = `select buy_api_quota($1, $2) v`;
   const STOCK = `select set_api_stock($1, $2)`;
   const ub = async () => one(`select balance, api_quota, api_unit from api.unit_coin_balance where project_id = $1`, [UNIT]);
-  const aq = async () => one(`select total, total_fx, api_stock, bought, room, unit, fx_rate, resource_id from api.api_quarter`);
+  const aq = async () => one(`select total, total_fx, cap, api_stock, bought, room, unit, fx_rate, resource_id from api.api_quarter`);
   const uk = async () => one(`select api_quota, api_unit, has_key, key_hint, rotate_who, can_get from api.unit_api_key where project_id = $1`, [UNIT]);
   await as(U.mem2, DQ);
   await raises('本季度比例没公布不能换 API 额度', /兑换比例尚未公布/, BUY, [UNIT, 10]);
@@ -4368,6 +4368,8 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await q(STOCK, [20, RX]);   // 库存只做登记，上限是总额折美元（0175）
   await as(U.mem, DQ);
   await raises('成员不能用研究单元的实际币换 API 额度', /由研究单元的负责人办理/, BUY, [UNIT, 10]);
+  ok((await q(`select 1 from api.unit_api_key where project_id = $1`, [UNIT])).length === 0 && Number((await ub()).api_quota) === 0,
+    '研究单元还没换额度时没有 key 可取，研究单元页据此提示由负责人先换（#182）');
   await as(U.mem2, DQ);
   await raises('研究单元的名义币不够不能换', /名义币不足/, BUY, [UNIT, 300]);
   await q(BUY, [UNIT, 30]);
@@ -4379,6 +4381,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   let a = await aq();
   ok(Number(a.total_fx) === 20 && Number(a.bought) === 12 && Number(a.room) === 8 && Number(a.api_stock) === 20 && a.unit === '美元' && Number(a.fx_rate) === 5,
     '本季度上限就是总额对应的额度：100 元折 20 美元，减已换；库存只做登记', JSON.stringify(a));
+  ok(Number(a.cap) === 20 && Number(a.cap) === Number(a.bought) + Number(a.room), '视图给出的可换额度就是总额折算，等于已换加剩余，页面按它显示（#182）', JSON.stringify(a));
   await raises('全中心本季度换满即止，按美元提示剩余可换多少', /剩余 8\.00.*最多还能用 20/, BUY, [UNIT, 30]);
   ok(await outbox('%研究单元「换密钥测试研究单元」用名义币换了 12.00 美元 API 额度（换额度测试平台）%还没有 key%') > 0, '换了 API 额度通知财务岗计入研究单元的 key');
   await raises('研究单元负责人不能登记库存', /需要权限/, STOCK, [50, RX]);
@@ -4386,7 +4389,8 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('库存不能为负', /库存不能为负/, STOCK, [-1, RX]);
   await raises('本季度已在一个平台上换过额度的，不能改到另一个平台', /另一个接口资源/, STOCK, [50, RY]);
   await q(STOCK, [50, RX]);
-  eq((await aq()).room, 8, '库存只做登记，不改变上限');
+  a = await aq();
+  ok(Number(a.room) === 8 && Number(a.cap) === 20 && Number(a.api_stock) === 50, '库存只做登记，不改变上限，可换额度不加库存（#182）', JSON.stringify(a));
   await as(U.mem2, DQ);
   await raises('总额对应的额度换满即止', /剩余 8\.00/, BUY, [UNIT, 30]);
   await q(BUY, [UNIT, 20]);
