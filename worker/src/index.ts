@@ -38,7 +38,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'palette_option', 'me'
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
   'arr_cycle', 'arr_sponsor', 'arr_claim', 'path_tracker', 'path_person', 'rank_change',
   'seminar', 'snapshot', 'snapshot_pitch', 'query', 'person_attr', 'daily_mine', 'attend_event', 'assessment', 'merit', 'path_alert',
-  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order', 'meeting_transcript', 'council_motion', 'council_ballot', 'council_speech', 'council_info', 'council_rep', 'council_rep_pick', 'council_meeting', 'fixed_change', 'period_report', 'path_council', 'council_targets', 'council_people', 'selection_roster', 'recruit', 'recruit_interest', 'trial', 'trial_filing', 'feedback', 'admission_quota', 'admission', 'newcomer', 'term_review', 'term_record', 'special_approval', 'special_targets', 'special_budget_open', 'topic_issue', 'request_live', 'coin_quarter', 'budget_coin_exchange', 'coin_flow', 'coin_now', 'coin_task_rule', 'coin_task_award', 'api_grant', 'api_quarter', 'unit_api_key', 'unit_key_access',
+  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order', 'meeting_transcript', 'council_motion', 'council_ballot', 'council_speech', 'council_info', 'council_rep', 'council_rep_pick', 'council_meeting', 'fixed_change', 'period_report', 'path_council', 'council_targets', 'council_people', 'selection_roster', 'recruit', 'recruit_interest', 'trial', 'trial_filing', 'feedback', 'admission_quota', 'admission', 'newcomer', 'term_review', 'term_record', 'special_approval', 'special_targets', 'special_budget_open', 'topic_issue', 'request_live', 'coin_quarter', 'budget_coin_exchange', 'coin_flow', 'coin_now', 'coin_task_rule', 'coin_task_award', 'feedback_route', 'api_grant', 'api_quarter', 'unit_api_key', 'unit_key_access',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -244,6 +244,7 @@ export const RPC: Record<string, [string, string][]> = {
   confirm_time_logs: [['project', 'uuid'], ['period', 'date']],
   save_biweekly_report: [['project', 'uuid'], ['period', 'date'], ['stage', 'text'], ['question', 'text'], ['done', 'text'], ['changed', 'text'], ['issues', 'text'], ['division', 'text'], ['next', 'text']],
   set_pool_cap: [['project', 'uuid'], ['cap', 'numeric']],
+  set_feedback_route: [['page', 'text'], ['owner', 'uuid']],
   submit_outcome: [['project', 'uuid'], ['level', 'int'], ['link', 'text'], ['venue', 'text'], ['note', 'text']],
   check_outcome: [['id', 'uuid'], ['ok', 'boolean'], ['note', 'text']],
   set_token_param: [['key', 'text'], ['value', 'jsonb']],
@@ -866,6 +867,7 @@ export type NoticeBody = { text?: string; by?: string | null; at?: string | null
   done?: string | null;                            // 已在卡片上办完：这句话替换掉按钮
   img?: string | null; img_key?: string | null; img_note?: string | null;
   mention?: string[] | null;                       // 群通知里要 @ 的人（姓名），发出前按群成员换成飞书编号
+  fallback?: string | null;                        // 反馈分工的兜底人（0184）：要 @ 的人不在群里时改 @ 他
   mention_ids?: { id: string; name: string }[] | null };   // 通报带的图：img 是图的 base64（PNG），发出前换成 img_key；img_note 是图下的小字
 // 通知的内容：归类、标题、分项、正文、按钮。卡片和测试都从这里取
 export function noticeView(body: NoticeBody, origin: string, appId?: string) {
@@ -1395,6 +1397,14 @@ export default {
           const mr = await feishu(`/im/v1/chats/${encodeURIComponent(to)}/members?member_id_type=open_id&page_size=100${pt ? `&page_token=${encodeURIComponent(pt)}` : ''}`, { headers: { authorization: `Bearer ${tok.tenant_access_token}` } }).catch(() => null);
           for (const it of (mr?.data?.items ?? []) as { member_id?: string; name?: string }[]) if (it.member_id && it.name) names.set(it.name, it.member_id);
           if (!mr?.data?.has_more || !mr?.data?.page_token) break; pt = String(mr.data.page_token);
+        }
+        // 反馈分工（0184）：读得到群成员名单、要 @ 的人却不在群里（已离岗退群）的，改 @ 兜底人，正文里的「负责：某某」一并改掉
+        if (names.size > 0 && typeof body.fallback === 'string' && body.fallback) {
+          const gone = (body.mention as string[]).filter((n) => !names.has(n));
+          if (gone.length) {
+            body.mention = [...new Set((body.mention as string[]).map((n) => (gone.includes(n) ? body.fallback : n)))];
+            if (typeof body.text === 'string') for (const g of gone) body.text = body.text.split(`负责：${g}`).join(`负责：${body.fallback}`);
+          }
         }
         // 群成员名单读不到（应用没有读群成员的权限）或对不上的，用本人登录正则时记下的 open_id
         const left = (body.mention as string[]).filter((n) => !names.has(n));

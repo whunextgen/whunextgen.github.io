@@ -4121,6 +4121,9 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
 // ---------- 快照草稿打不开时提醒作者（#167） ----------
 {
   await db.exec(`reset role`);
+  // 反馈分工在测试库里按 0184 的分工补上负责人（迁移时这几个账号还不存在）
+  for (const n of ['况紫嫣', '张睿宇', '曲保杰', '王菲']) if (!(await q(`select 1 from app_user where name = $1`, [n])).length) await q(`insert into app_user (name, role, feishu_open_id) values ($1, 'member', $2)`, [n, 'ou_route_' + n.charCodeAt(0)]);
+  await q(`update feedback_route r set owner_id = u.id from app_user u where u.name = case when r.page in ('resource','res','pool','stock','s-res','token') then '张睿宇' when r.page in ('live','seminar','council','iterate','snapshot','query','courses','path','palette','naming') then '曲保杰' when r.page in ('requests','req','petty','rules','ask','school','settle','procure','cards','card','funds','fund','ledger','s-fund','s-spend','track','history') then '王菲' else '况紫嫣' end`);
   const SN = await one(`select s.id, a.user_id from snapshot s join snapshot_author a on a.snapshot_id = s.id join app_user u on u.id = a.user_id where u.active and (u.feishu_union_id is not null or u.feishu_open_id is not null) limit 1`);
   const RD = await id(`insert into app_user (name, role, feishu_open_id) values ('读者己', 'member', 'ou_reader_f')`);
   ok((await one(`select feedback_owner('#/seminar/med') o`)).o === '曲保杰', '主题研讨会页的反馈归曲保杰');
@@ -4140,7 +4143,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await db.exec(`reset role`);
   ok((await one(`select feedback_owner('#/budget/2027') a, feedback_owner('#/resource') b, feedback_owner('#/select') c, feedback_owner('#/') d`)).a === '况紫嫣', '预算编制归况紫嫣');
   const fo = await one(`select feedback_owner('#/resource') b, feedback_owner('#/select') c, feedback_owner('#/') d`);
-  ok(fo.b === '张睿宇' && fo.c === '肖梦溪' && fo.d === null, '资源归张睿宇、双选归肖梦溪、其他不分派', JSON.stringify(fo));
+  ok(fo.b === '张睿宇' && fo.c === '况紫嫣' && fo.d === null, '资源归张睿宇、双选归况紫嫣（0184 重新分工）、其他不分派', JSON.stringify(fo));
   const FU = await id(`insert into app_user (name, role, feishu_open_id) values ('反馈戊', 'member', 'ou_fb_e')`);
   const FB = await one(`insert into feedback (user_id, body, page) values ($1, '资源申领按钮灰了', '#/resource') returning id, seq`, [FU]);
   await q(`select set_config('app.uid', '', false)`);
@@ -4511,6 +4514,24 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await q(`update budget_year set stage = 'fixed' where year = $1`, [Y.year]);
   ok(fr !== 'finance' || (await cnt('%个课题的明细已提交，可以逐个审核下达%')) === m0 + 1, '年度核定时，已提交未下达的课题合并提醒财务岗');
   await q(`select set_config('app.uid', '', false)`);
+  await db.exec(`set role app_api`); await as(U.dir);
+}
+
+// 反馈分工放进正则（0184）：按页面分给负责人，中心负责人可改；负责人停用的改兜底人；不在表里的不分
+{ await as(U.mem);
+  await raises('成员不能改反馈分工', /需要权限|当前角色|权限/, `select set_feedback_route('budget', $1)`, [U.mem]);
+  await as(U.dir);
+  await q(`select set_feedback_route('*', $1)`, [U.dir]);
+  await q(`select set_feedback_route('budget', $1)`, [U.lead]);
+  ok((await q(`select page from api.feedback_route`)).length > 40, '反馈分工表全中心可见');
+  await db.exec(`reset role`);
+  const ln = (await one(`select name from app_user where id = $1`, [U.lead])).name, dn = (await one(`select name from app_user where id = $1`, [U.dir])).name;
+  eq((await one(`select (feedback_owner('#/budget/2027') = $1)::int v`, [ln])).v, 1, '按页面第一段找负责人');
+  ok((await one(`select feedback_owner('#/guide') v`)).v === null, '不在表里的页面不分给人');
+  await q(`update app_user set active = false where id = $1`, [U.lead]);
+  eq((await one(`select (feedback_owner('#/budget') = $1)::int v`, [dn])).v, 1, '负责人停用的，改给兜底人');
+  eq((await one(`select (feedback_fallback() = $1)::int v`, [dn])).v, 1, '兜底人随通报带上，不在群里时 @ 兜底人');
+  await q(`update app_user set active = true where id = $1`, [U.lead]);
   await db.exec(`set role app_api`); await as(U.dir);
 }
 
