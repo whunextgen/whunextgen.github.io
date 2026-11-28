@@ -38,7 +38,7 @@ export const VIEWS = new Set(['name_option', 'name_poll', 'palette_option', 'me'
   'biweekly_report', 'biweekly_status', 'submission', 'submission_review', 'review_point', 'review_thread', 'review_summary',
   'arr_cycle', 'arr_sponsor', 'arr_claim', 'path_tracker', 'path_person', 'rank_change',
   'seminar', 'snapshot', 'snapshot_pitch', 'query', 'person_attr', 'daily_mine', 'attend_event', 'assessment', 'merit', 'path_alert',
-  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order', 'meeting_transcript', 'council_motion', 'council_ballot', 'council_speech', 'council_info', 'council_rep', 'council_rep_pick', 'council_meeting', 'fixed_change', 'period_report', 'path_council', 'council_targets', 'council_people', 'selection_roster', 'recruit', 'recruit_interest', 'trial', 'trial_filing', 'feedback', 'admission_quota', 'admission', 'newcomer', 'term_review', 'term_record', 'special_approval', 'special_targets', 'special_budget_open', 'topic_issue', 'request_live', 'coin_quarter', 'budget_coin_exchange', 'coin_flow', 'coin_now',
+  'today_mine', 'review_note', 'praise_mine', 'challenge_mine', 'title_mine', 'coin_mine', 'coin_ledger', 'compute_grant', 'period_record', 'unit_coin', 'unit_coin_balance', 'cluster_quota', 'cluster_usage', 'course', 'unit_status', 'meeting', 'leave_mine', 'meeting_sync', 'center_calendar', 'query_draft', 'speak_order', 'meeting_transcript', 'council_motion', 'council_ballot', 'council_speech', 'council_info', 'council_rep', 'council_rep_pick', 'council_meeting', 'fixed_change', 'period_report', 'path_council', 'council_targets', 'council_people', 'selection_roster', 'recruit', 'recruit_interest', 'trial', 'trial_filing', 'feedback', 'admission_quota', 'admission', 'newcomer', 'term_review', 'term_record', 'special_approval', 'special_targets', 'special_budget_open', 'topic_issue', 'request_live', 'coin_quarter', 'budget_coin_exchange', 'coin_flow', 'coin_now', 'api_grant', 'api_quarter', 'unit_api_key', 'unit_key_access',
   'category_subject', 'budget_alloc', 'line_exec', 'line_pick', 'budget_revision', 'budget_review',
   'resource_pick', 'resource_plan', 'resource_request', 'resource_stock', 'secret_access', 'petty_cash',
   'perm', 'role', 'role_grant', 'rbac_log',
@@ -233,6 +233,8 @@ export const RPC: Record<string, [string, string][]> = {
   report_cluster_usage: [['project', 'uuid'], ['period', 'date'], ['hours', 'numeric']],
   ack_cluster_quota: [['project', 'uuid'], ['hours', 'numeric'], ['ok', 'boolean'], ['note', 'text']],
   buy_compute: [['project', 'uuid'], ['hours', 'numeric']],
+  buy_api_quota: [['project', 'uuid'], ['coins', 'numeric']],
+  set_api_stock: [['stock', 'numeric'], ['resource', 'uuid']],
   rename_project: [['id', 'uuid'], ['name', 'text']],
   approve_unit: [['unit', 'uuid']],
   confirm_unit: [['unit', 'uuid']],
@@ -1283,7 +1285,7 @@ export default {
         if (!env.VAULT_KEY) return json({ error: '尚未配置加密口令，暂不可保存或查看密钥' }, 503, cors);
         const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
         const kind = String(body.kind ?? ''), id = String(body.id ?? '');
-        if (!['resource', 'allocation'].includes(kind) || !/^[0-9a-f-]{36}$/.test(id)) return json({ error: '参数有误' }, 400, cors);
+        if (!['resource', 'allocation', 'unit'].includes(kind) || !/^[0-9a-f-]{36}$/.test(id)) return json({ error: '参数有误' }, 400, cors);
         const noStore = { ...cors, 'cache-control': 'no-store' };
         if (sec === 'set') {
           const plain = typeof body.secret === 'string' ? body.secret.trim() : '';

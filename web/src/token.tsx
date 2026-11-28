@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { rpc, useViews, type BudgetCoinExchange, type CoinFlow, type CoinNow, type CoinQuarter, type Me, type Project } from './api';
+import { rpc, useViews, type ApiQuarter, type BudgetCoinExchange, type CoinFlow, type CoinNow, type CoinQuarter, type Me, type Project, type UnitApiKey, type UnitKeyAccess } from './api';
 import { ActionDialog, Badge, Empty, Loading, Tile, can, day, money, num, type Field } from './ui';
+import { SecretDialog } from './pages/Resource';
 
 // 代币：只用名义币、实际币两个叫法。名义币来自回应质疑，进入研究单元的池子；实际币代表资源使用权。
 // 代币不另设页面，加在已有的对象上：首页的我的事项、研究单元页、档次表、预算参数。
@@ -50,11 +51,14 @@ export function TokenMine({ me }: { me: Me }) {
 // ---------- 研究单元页：池子与成果 ----------
 export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
   const { data, error, reload } = useViews<{ tp: { key: string; value: unknown }[]; pools: UnitPool[]; shares: UnitShare[]; outs: Outcome[]; grants: { id: string; project_id: string; hours: string; coins: string; bought_by_name: string | null; bought_at: string }[];
-    ucoin: { id: string; kind: 'invest' | 'compute'; amount: string; user_name: string | null; note: string | null; created_at: string }[]; ubal: { project_id: string; balance: string; hours: string; can_buy: boolean }[]; cm: { balance: string; price: string | null }[] }>({ tp: ['token_param'],
+    ucoin: { id: string; kind: 'invest' | 'compute' | 'budget' | 'api'; amount: string; user_name: string | null; note: string | null; created_at: string }[]; ubal: { project_id: string; balance: string; hours: string; can_buy: boolean; api_quota: string; api_unit: string | null }[]; cm: { balance: string; price: string | null }[];
+    aq: ApiQuarter[]; ukey: UnitApiKey[]; kacc: UnitKeyAccess[] }>({ tp: ['token_param'],
     pools: ['unit_pool'], shares: ['unit_share'], outs: ['outcome'], grants: ['compute_grant', { project_id: unit.id }],
     ucoin: ['unit_coin', { project_id: unit.id }], ubal: ['unit_coin_balance', { project_id: unit.id }], cm: ['coin_mine'],
+    aq: ['api_quarter'], ukey: ['unit_api_key', { project_id: unit.id }], kacc: ['unit_key_access', { project_id: unit.id }],
   }, unit.id);
   const [act, setAct] = useState<Act | null>(null);
+  const [showKey, setShowKey] = useState(false);
   if (!data) return <Loading error={error} />;
   const pool = data.pools.find((p) => p.project_id === unit.id);
   if (!pool) return null;
@@ -92,15 +96,30 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
           <tbody>{shares.map((s) => <tr key={s.user_id}><td>{s.user_name}</td><td className="r">{coin(s.coins)}</td><td className="r">{pctOf(s.share)}</td></tr>)}</tbody>
         </table></div>)}
       {(() => { const ub = data.ubal[0]; const price = data.cm[0]?.price != null ? num(data.cm[0].price) : null; const mine = num(data.cm[0]?.balance);
-        const inv = data.ucoin.filter((c) => c.kind === 'invest');
+        // 实际币兑换 API key（0171）：按本季度公布的比例换 API 额度，折成 key 所在资源的计价单位（如美元），全中心本季度换满即止；额度计入研究单元的 key，名单内成员在这里取用
+        const aq = data.aq[0], uk = data.ukey[0], room = aq ? Math.max(num(aq.room), 0) : 0;
+        const fx = aq?.fx_rate != null ? num(aq.fx_rate) : 1, perCoin = aq ? num(aq.api_rate) / fx : 0;
+        const maxCoins = aq ? Math.min(num(ub?.balance ?? 0), Math.floor(room / perCoin * 100) / 100) : 0;
         return <>
-          <h3 style={{ marginTop: 18 }}>实际币 <span className="h3sub">账上 {coin(ub?.balance ?? 0)} · 已换 GPU 卡时 {coin(ub?.hours ?? 0)}{price ? ` · 标价每卡时 ${coin(price)}` : ' · 卡时标价未定'}</span></h3>
-          <p className="hint">代币不是经费。任何人都可以把自己的实际币投给研究单元，由负责人换 GPU 卡时，买后 {hoursValid(data.tp)}内有效，以后也可以换别的资源；换得的卡时集群按此设定额度。</p>
-          {inv.length > 0 && <ul className="path-hist">{[...data.ucoin].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8).map((c) => <li key={c.id}>{day(c.created_at)} {c.kind === 'invest' ? `${c.user_name ?? ''} 投入 ${coin(c.amount)}` : `${c.user_name ?? ''} ${c.note ?? '换卡时'}，用去 ${coin(-num(c.amount))}`}{c.kind === 'invest' && c.note ? `：${c.note}` : ''}</li>)}</ul>}
+          <h3 style={{ marginTop: 18 }}>实际币 <span className="h3sub">账上 {coin(ub?.balance ?? 0)} · 已换 GPU 卡时 {coin(ub?.hours ?? 0)}{price ? ` · 标价每卡时 ${coin(price)}` : ' · 卡时标价未定'} · 已换 API 额度 {money(ub?.api_quota ?? 0)}{ub?.api_unit ? ` ${ub.api_unit}` : ''}</span></h3>
+          <p className="hint">代币不是经费。任何人都可以把自己的实际币投给研究单元，课题也可以把「算力与模型接口」的预算兑成实际币记入研究单元的账上；由负责人按标价换 GPU 卡时（买后 {hoursValid(data.tp)}内有效，集群按此设定额度）或 API 额度。API 额度计入本研究单元的 key，名单内成员共用，在这里取用。</p>
+          {data.ucoin.length > 0 && <ul className="path-hist">{[...data.ucoin].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8).map((c) => <li key={c.id}>{day(c.created_at)} {c.kind === 'invest' ? `${c.user_name ?? ''} 投入 ${coin(c.amount)}` : c.kind === 'budget' ? `课题预算兑入 ${coin(c.amount)}` : `${c.user_name ?? ''} ${c.note ?? '换卡时'}，用去 ${coin(-num(c.amount))}`}{c.kind === 'invest' && c.note ? `：${c.note}` : ''}</li>)}</ul>}
           <div className="actions" style={{ justifyContent: 'flex-start' }}>
             {mine > 0 && <button className="sm ghost" onClick={() => setAct({ title: `投给研究单元：${unit.name}`, label: '投入', hint: `本人余额 ${coin(mine)} 实际币，先扣先到期的。`, fields: [{ name: 'amount', label: '实际币', type: 'number' }, { name: 'note', label: '说明（选填）', required: false }], run: (v) => rpc('invest_coins', { project: unit.id, amount: v.amount, note: v.note || null }) })}>投入实际币</button>}
             {ub?.can_buy && price && num(ub.balance) >= price && <button className="sm" onClick={() => setAct({ title: `换 GPU 卡时：${unit.name}`, label: '换', hint: `按标价每卡时 ${coin(price)} 实际币，从研究单元的账上扣；账上 ${coin(ub.balance)}，最多可换 ${Math.floor(num(ub.balance) / price)} 卡时。`, fields: [{ name: 'hours', label: '卡时', type: 'number' }], run: (v) => rpc('buy_compute', { project: unit.id, hours: v.hours }) })}>换 GPU 卡时</button>}
+            {ub?.can_buy && num(ub.balance) > 0 && <button className="sm" disabled={!aq || !aq.resource_id || room <= 0} title={!aq ? '本季度的兑换比例尚未公布' : !aq.resource_id ? '财务岗尚未指定研究单元的 key 开在哪个接口资源上' : room <= 0 ? '本季度全中心可换的 API 额度已换满' : undefined} onClick={() => aq && setAct({ title: `换 API 额度：${unit.name}`, label: '换',
+              hint: `本季度 1 实际币兑 ${num(aq.api_rate)} 元 API 额度${aq.fx_rate != null ? `，按 1 ${aq.unit} = ${num(aq.fx_rate)} 元折成 ${Math.round(perCoin * 10000) / 10000} ${aq.unit}` : ''}，从研究单元的账上扣，计入本研究单元的 key（${aq.resource_name}）。全中心本季度还可换 ${money(room)} ${aq.unit}，换满即止；账上 ${coin(ub.balance)}，这次最多用 ${coin(maxCoins)} 实际币。只能单向兑换。`,
+              fields: [{ name: 'coins', label: '换出的实际币', type: 'number' }], run: (v) => rpc('buy_api_quota', { project: unit.id, coins: v.coins }) })}>换 API 额度</button>}
           </div>
+          {uk && <>
+            <h3 style={{ marginTop: 18 }}>API key <span className="h3sub">本研究单元一个 key，名单内共用 · 已计入 {money(uk.api_quota)}{uk.api_unit ? ` ${uk.api_unit}` : ''}</span></h3>
+            {uk.rotate_since && <div className="msg warn" role="status">{uk.rotate_who} 已移出名单，财务岗将更换 key，旧 key 届时作废。</div>}
+            {!uk.has_key ? <Empty>财务岗尚未发放 key。发放后通知名单内成员，在这里取用。</Empty>
+              : <p>key <span className="code">{uk.key_hint ?? '已保存'}</span>{uk.key_set_at && <span className="sub2"> · {day(uk.key_set_at)} 发放</span>}
+                {uk.can_get && <button className="sm" style={{ marginLeft: 8 }} onClick={() => setShowKey(true)}>取用 key</button>}</p>}
+            {data.kacc.length > 0 && <ul className="path-hist">{[...data.kacc].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8).map((x) => <li key={x.id}>{x.at.slice(0, 16).replace('T', ' ')} {x.user_name ?? '系统'} 取用</li>)}</ul>}
+          </>}
+          {showKey && <SecretDialog kind="unit" id={unit.id} title={`API key：${unit.name}`} onClose={() => { setShowKey(false); reload(); }} />}
         </>; })()}
       {(recorder || setup) && <div className="actions" style={{ justifyContent: 'flex-start' }}><button className="sm ghost" onClick={() => setAct({ title: `池子上限：${unit.name}`, label: '保存',
         hint: '按联席会议立项时核定的数填写；超过上限的不计。不设上限请留空。', fields: [{ name: 'cap', label: '上限（名义币）', type: 'number', required: false, value: cap != null ? String(cap) : '' }],

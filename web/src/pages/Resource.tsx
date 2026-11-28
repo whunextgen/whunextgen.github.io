@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { rpc, secretGet, secretSet, useViews, type Allocation, type Me, type Project, type ProjectTag, type Req, type Resource, type ResourcePick, type ResourcePlan, type ResourceRequest, type ResourceStock, type YearCheck, type ResReqStatus,
-  type SecretAccess, type User, type LinePick } from '../api';
+  type SecretAccess, type SecretKind, type User, type LinePick, type ApiQuarter, type UnitApiKey } from '../api';
 import { ActionDialog, Badge, Empty, Loading, can, PERSON, Tile, canPublic, day, money, num, today, type Field } from '../ui';
 
 export interface Act { label: string; title: string; hint?: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
@@ -14,7 +14,7 @@ const monthEnd = (d: string) => { const [y, m] = d.split('-').map(Number); retur
 const soon = (d: string | null) => d != null && day(d) >= today() && day(d) <= new Date(Date.now() + 38 * 86400e3).toISOString().slice(0, 10);
 
 // 查看密钥：点了才取，取一次记一次；关掉就从页面上清掉
-function SecretDialog({ kind, id, title, onClose }: { kind: 'resource' | 'allocation'; id: string; title: string; onClose: () => void }) {
+export function SecretDialog({ kind, id, title, onClose }: { kind: SecretKind; id: string; title: string; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [plain, setPlain] = useState('');
   const [busy, setBusy] = useState(false);
@@ -23,7 +23,8 @@ function SecretDialog({ kind, id, title, onClose }: { kind: 'resource' | 'alloca
   return (
     <dialog ref={ref} onClose={onClose}>
       <h3>{title}</h3>
-      <p className="hint">密钥加密保存于中台，仅持有人和财务岗可取用，每次取用均记录在案。不得转发他人或写入代码仓库；归还或到期后，该密钥自本人名下撤销。</p>
+      <p className="hint">{kind === 'unit' ? '研究单元的 API key 加密保存于中台，仅本研究单元名单内成员和财务岗可取用，每次取用均记录在案。不得转发名单外的人或写入代码仓库；有成员移出名单后，财务岗会更换 key，旧 key 作废。'
+        : '密钥加密保存于中台，仅持有人和财务岗可取用，每次取用均记录在案。不得转发他人或写入代码仓库；归还或到期后，该密钥自本人名下撤销。'}</p>
       {plain ? <p className="secret"><code>{plain}</code></p> : <p className="empty">尚未显示。</p>}
       {msg && <div className={`msg ${msg === '已复制' ? '' : 'bad'}`} role="status">{msg}</div>}
       <div className="actions">
@@ -36,9 +37,11 @@ function SecretDialog({ kind, id, title, onClose }: { kind: 'resource' | 'alloca
   );
 }
 
-const keyAct = (kind: 'resource' | 'allocation', id: string, name: string, has: boolean): Act => ({
+const keyAct = (kind: SecretKind, id: string, name: string, has: boolean): Act => ({
   label: '保存', title: `${has ? '更换' : '保存'}密钥：${name}`,
-  hint: `密钥经服务端加密后保存，页面仅显示掩码。${kind === 'resource' ? '此为账号共用密钥，仅财务岗可取用；发放给个人的密钥请在额度台账中单独保存。' : '此为发放给该持有人的密钥，持有人可在「资源申领」中自行取用，收回时自动删除。'}${has ? '留空保存即删除现有密钥。' : ''}`,
+  hint: `密钥经服务端加密后保存，页面仅显示掩码。${kind === 'resource' ? '此为账号共用密钥，仅财务岗可取用；发放给个人的密钥请在额度台账中单独保存。'
+    : kind === 'unit' ? '此为研究单元的 API key，名单内成员在研究单元页自行取用；保存后通知名单内成员。更换前须在服务商处作废旧 key。'
+    : '此为发放给该持有人的密钥，持有人可在「资源申领」中自行取用，收回时自动删除。'}${has ? '留空保存即删除现有密钥。' : ''}`,
   fields: [{ name: 'secret', label: '密钥', required: !has }],
   run: (v) => secretSet(kind, id, v.secret.trim()),
 });
@@ -310,11 +313,12 @@ export function PoolPage({ me }: { me: Me }) {
 
 // ---------- 资源池与库存：财务岗、中心负责人 ----------
 export function StockPage() {
-  const { data, error, reload } = useViews<{ resources: Resource[]; allocs: Allocation[]; users: User[]; stock: ResourceStock[]; access: SecretAccess[]; reqs: Req[]; checks: YearCheck[] }>({
+  const { data, error, reload } = useViews<{ resources: Resource[]; allocs: Allocation[]; users: User[]; stock: ResourceStock[]; access: SecretAccess[]; reqs: Req[]; checks: YearCheck[]; aq: ApiQuarter[]; ukeys: UnitApiKey[] }>({
     resources: ['resource'], allocs: ['allocation'], users: ['users'], stock: ['resource_stock'], access: ['secret_access'], reqs: ['request'], checks: ['year_check'],
+    aq: ['api_quarter'], ukeys: ['unit_api_key'],
   });
   const [act, setAct] = useState<Act | null>(null);
-  const [key, setKey] = useState<{ kind: 'resource' | 'allocation'; id: string; name: string } | null>(null);
+  const [key, setKey] = useState<{ kind: SecretKind; id: string; name: string } | null>(null);
   const [tab, setTab] = useState<'api' | 'asset'>('api');
   const [past, setPast] = useState(false);
   const [yr, setYr] = useState(0);
@@ -463,6 +467,34 @@ export function StockPage() {
         )}
       </section>
 
+      {tab === 'api' && (() => { const aq = data.aq[0];
+        const ukeys = [...data.ukeys].sort((a, b) => Number(!!b.rotate_since) - Number(!!a.rotate_since) || Number(a.has_key) - Number(b.has_key) || a.project_code.localeCompare(b.project_code));
+        return (
+        <section className="card wide">
+          <h3>研究单元 API key <span className="h3sub">研究单元用实际币换的 API 额度，一个研究单元一个 key，名单内共用</span></h3>
+          <p className="hint">研究单元负责人用实际币换得的额度计入这个研究单元的 key：请在服务商处为研究单元开 key 并把额度加上，在此加密保存，名单内成员在研究单元页取用，每次取用均有记录。成员移出名单后标「待换 key」：在服务商处作废旧 key，再在此保存新 key。</p>
+          {aq ? <p>{aq.resource_id ? <>key 开在「{aq.resource_name}」，额度按{aq.unit}记{aq.fx_rate != null && `（1 ${aq.unit} = ${num(aq.fx_rate)} 元）`}。本季度全中心可换 {money(num(aq.total_fx) + num(aq.api_stock))} {aq.unit}（充值额 {money(aq.total)} 元{aq.fx_rate != null && ` 折 ${money(aq.total_fx)} ${aq.unit}`} 加库存 {aq.api_stock != null ? money(aq.api_stock) : '未登记'}），已换 {money(aq.bought)}，剩余 <b>{money(aq.room)}</b>，换满即止。</>
+              : <Badge tone="warn">尚未指定研究单元的 key 开在哪个接口资源上，研究单元暂不能换 API 额度</Badge>}
+            <button className="sm ghost" style={{ marginLeft: 8 }} onClick={() => setAct({ label: '登记', title: '登记 key 所在的接口资源和本季度的 API 库存',
+              hint: `研究单元的 key 都开在这个接口资源上，换得的额度按它的计价单位记：额度 = 实际币 × 本季度比例（1 实际币兑 ${num(aq.api_rate)} 元）÷ 资源的折算汇率，人民币计价的不折算。库存按这个资源的计价单位填本季度充值额之外还能用来兑换的 API 额度，例如服务商账户里尚未分出的余额。本季度已换出 ${money(aq.bought)} ${aq.unit}，充值额折算后加库存不能低于该数；本季度已换过的，不能改到另一个资源。`,
+              fields: [{ name: 'resource', label: '接口资源', value: aq.resource_id ?? '', options: apis.map((r): [string, string] => [r.id, `${r.name}（${r.unit ?? '元'}）`]) },
+                { name: 'stock', label: '库存（按该资源的计价单位）', type: 'number', value: aq.api_stock != null ? String(num(aq.api_stock)) : '0' }],
+              run: (v) => rpc('set_api_stock', { stock: v.stock, resource: v.resource }) })}>{aq.resource_id ? '登记库存' : '指定资源'}</button></p>
+            : <Empty>本季度的兑换总额和比例尚未公布，研究单元暂不能换 API 额度。</Empty>}
+          {ukeys.length === 0 ? <Empty>还没有研究单元换 API 额度。</Empty> : (
+            <div className="scroll"><table>
+              <thead><tr><th>研究单元</th><th>负责人</th><th className="r">换得的额度</th><th>最近一次换</th><th>key</th><th /></tr></thead>
+              <tbody>{ukeys.map((u) => (
+                <tr key={u.project_id}><td>{u.project_code} {u.project_name}</td><td>{u.owner_name ?? '—'}</td><td className="r">{money(u.api_quota)} {u.api_unit ?? ''}</td><td>{u.last_bought_at ? day(u.last_bought_at) : '—'}</td>
+                  <td>{u.has_key ? <span className="code">{u.key_hint ?? '已保存'}</span> : <Badge tone="warn">未发放</Badge>}
+                    {u.rotate_since && <div><Badge tone="bad">待换 key</Badge><span className="sub2">{u.rotate_who} 已移出名单</span></div>}</td>
+                  <td><div className="acts">{u.has_key && <button className="sm ghost" onClick={() => setKey({ kind: 'unit', id: u.project_id, name: `${u.project_code} ${u.project_name}` })}>查看</button>}
+                    <button className="sm ghost" onClick={() => setAct(keyAct('unit', u.project_id, `${u.project_code} ${u.project_name}`, u.has_key))}>{u.has_key ? '更换 key' : '发放 key'}</button></div></td></tr>
+              ))}</tbody>
+            </table></div>
+          )}
+        </section>); })()}
+
       <section className="card">
         <h3>{tab === 'api' ? '充值记录' : '入库记录'}</h3>
         {stock.length === 0 ? <Empty>暂无{tab === 'api' ? '充值' : '入库'}记录。</Empty> : (
@@ -503,7 +535,7 @@ export function StockPage() {
             <div className="scroll"><table>
               <thead><tr><th>时间</th><th>取用人</th><th>接口</th><th>密钥归属</th></tr></thead>
               <tbody>{[...data.access].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 50).map((s) => (
-                <tr key={s.id}><td>{s.at.slice(0, 16).replace('T', ' ')}</td><td>{s.user_name}</td><td>{s.resource_name}</td><td>{s.owner_kind === 'resource' ? '账号共用' : s.holder_name ?? '—'}</td></tr>
+                <tr key={s.id}><td>{s.at.slice(0, 16).replace('T', ' ')}</td><td>{s.user_name}</td><td>{s.resource_name}</td><td>{s.owner_kind === 'resource' ? '账号共用' : s.owner_kind === 'unit' ? `研究单元 ${s.holder_name ?? ''}` : s.holder_name ?? '—'}</td></tr>
               ))}</tbody>
             </table></div>
           )}
