@@ -130,7 +130,7 @@ export function UnitToken({ me, unit }: { me: Me; unit: Project }) {
 }
 
 // ---------- 预算参数页：本季度预算兑换实际币（0164） ----------
-// 财务岗每季度开始时公布：本季度全中心可兑换的总额和兑换比例。总额对应的 API 额度从现有库存出；课题兑进来的预算补回库存，兑不满的由谢倩倩老师从自己项目的预算补足。有人兑换后比例不能改，总额可以追加
+// 财务岗每季度开始时公布：本季度全中心可兑换的总额和兑换比例。总额对应的 API 额度从现有库存出；课题兑进来的预算用来买下一季度的 API（兑不满的由谢倩倩老师从自己项目的预算补足），学校执行后能报销多少决定下一期。有人兑换后比例不能改，总额可以追加
 export function CoinQuarterCard({ me }: { me: Me }) {
   const { data, error, reload } = useViews<{ qs: CoinQuarter[]; xs: BudgetCoinExchange[] }>({ qs: ['coin_quarter'], xs: ['budget_coin_exchange'] });
   const [act, setAct] = useState<Act | null>(null);
@@ -141,7 +141,7 @@ export function CoinQuarterCard({ me }: { me: Me }) {
   const xs = cur ? data.xs.filter((x) => x.q_start === cur.q_start).sort((a, b) => b.at.localeCompare(a.at)) : [];
   const nf = (name: string, label: string, v?: string): Field => ({ name, label, type: 'number', value: v ?? '' });
   const pub: Act = { title: cur ? '修改本季度的兑换总额和比例' : '公布本季度的兑换总额和比例', label: '公布',
-    hint: '总额是本季度全中心可换 API 额度（按 key 所在资源的汇率折算，从现有库存出），也是课题预算本季度可兑换实际币的上限，换满、兑满即止。课题兑进来的预算用来补回库存；兑不满的部分由谢倩倩老师从自己项目的预算补足。本季度已有兑换的，比例不能再改，总额只能追加。卡时标价随之更新',
+    hint: '总额是本季度全中心可换 API 额度（按 key 所在资源的汇率折算，从现有库存出），也是课题预算本季度可兑换实际币的上限，换满、兑满即止。课题兑进来的预算作为购买下一季度 API 的预算，兑不满的部分由谢倩倩老师从自己项目的预算补足；学校执行后能报销多少，决定下一期的总额。本季度已有兑换的，比例不能再改，总额只能追加。卡时标价随之更新',
     fields: [nf('total', '本季度全中心可兑换总额（元）', cur?.total), nf('rate', '1 元预算兑多少实际币', cur?.rate ?? '1'), nf('api_rate', '1 实际币兑多少元 API 额度', cur?.api_rate ?? '1'), nf('gpu_price', '1 卡时多少实际币', cur?.gpu_price ?? '1'), { ...nf('gpu_hours', '本季度集群可供 GPU 卡时（用于通胀监控，可不填）', cur?.gpu_hours ?? ''), required: false },
       { name: 'note', label: '说明（选填）', required: false, value: cur?.note ?? '' }],
     run: (v) => rpc('publish_coin_quarter', { total: v.total, rate: v.rate, api_rate: v.api_rate, gpu_price: v.gpu_price, gpu_hours: v.gpu_hours || null, note: v.note || null }) };
@@ -152,7 +152,7 @@ export function CoinQuarterCard({ me }: { me: Me }) {
       {cur ? <table><tbody>
         <tr><th scope="row">可兑换总额</th><td>{money(cur.total)}，已兑 {money(cur.exchanged)}，剩余 <b>{money(num(cur.total) - num(cur.exchanged))}</b></td></tr>
         <tr><th scope="row">兑换比例</th><td>1 元预算 = {num(cur.rate)} 实际币；1 实际币 = {num(cur.api_rate)} 元 API 额度；1 卡时 = {num(cur.gpu_price)} 实际币</td></tr>
-        <tr><th scope="row">可供资源</th><td>API：总额 {money(cur.total)} 对应的额度{cur.api_fx != null ? `（约 ${(num(cur.total) / num(cur.api_fx)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })} 美元）` : ''}，从现有库存出，课题预算兑换补回；GPU：{cur.gpu_hours != null ? `${num(cur.gpu_hours)} 卡时` : '未填'}</td></tr>
+        <tr><th scope="row">可供资源</th><td>API：总额 {money(cur.total)} 对应的额度{cur.api_fx != null ? `（约 ${(num(cur.total) / num(cur.api_fx)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })} 美元）` : ''}，从现有库存出；课题兑入的预算买下一季度的 API；GPU：{cur.gpu_hours != null ? `${num(cur.gpu_hours)} 卡时` : '未填'}</td></tr>
         <tr><th scope="row">公布</th><td>{cur.published_by_name ?? '—'} · {day(cur.published_at)}{cur.note && <div className="sub2" style={{ marginLeft: 0 }}>{cur.note}</div>}</td></tr>
       </tbody></table> : <Empty>本季度的兑换总额和比例尚未公布，课题暂不能兑换。</Empty>}
       {xs.length > 0 && <div className="scroll"><table>
