@@ -25,11 +25,14 @@ export const addDays = (d: string, n: number) => { const x = new Date(`${day(d)}
 
 interface Act { title: string; hint?: string; label: string; fields: Field[]; danger?: boolean; run: (v: Record<string, string>) => Promise<unknown> }
 
-// 中心季度：11–1 月、2–4 月、5–7 月、8–10 月（0178）。centerQ 给出所在季度第一天，qLabel 写成「2026 年 11 月–2027 年 1 月」
+// 中心季度：11–1 月、2–4 月、5–7 月、8–10 月（0178）。centerQ 给出所在季度第一天，qLabel 写成「2027 年第 1 季度（2026 年 11 月–2027 年 1 月）」
 export const centerQ = (d: Date = new Date()) => { const t = new Date(d.getFullYear(), d.getMonth() - 1, 1); const m = Math.floor(t.getMonth() / 3) * 3 + 1;
   const s = new Date(t.getFullYear(), m, 1); return `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-01`; };
+// 年度编号跟年度预算走：11–1 月是下一年度第 1 季度（0181 coin_fy / coin_fq）
+export const qFY = (start: string) => { const y = Number(start.slice(0, 4)), m = Number(start.slice(5, 7)); return m >= 11 ? y + 1 : y; };
+export const qNo = (start: string) => Math.floor(((Number(start.slice(5, 7)) + 1) % 12) / 3) + 1;
 export const qLabel = (start: string) => { const y = Number(start.slice(0, 4)), m = Number(start.slice(5, 7)); const em = (m + 1) % 12 + 1, ey = m + 2 > 12 ? y + 1 : y;
-  return `${y} 年 ${m} 月–${ey === y ? '' : `${ey} 年 `}${em} 月`; };
+  return `${qFY(start)} 年第 ${qNo(start)} 季度（${y} 年 ${m} 月–${ey === y ? '' : `${ey} 年 `}${em} 月）`; };
 
 // ---------- 首页 · 我的事项：我在各研究单元池子里的份额 ----------
 // 回应质疑记入研究单元池子的份额（不能花，成果解锁时按份额铸造实际币），同时按同样的数发可花的名义币

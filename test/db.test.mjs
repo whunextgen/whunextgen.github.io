@@ -2942,13 +2942,13 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   const cm = await one(`select balance::float b, salary::float s from api.coin_mine`);
   ok(cm.b === cm.s && cm.s > 0, '按身份发到本人账户', JSON.stringify(cm));
   await raises('只能投给研究单元', /只能投给已成立的研究单元/, `select invest_coins((select parent_id from api.project where id = $1), 10)`, [UU]);
-  await raises('余额不足', /实际币不足/, `select invest_coins($1, 100000)`, [UU]);
+  await raises('余额不足', /代币不足/, `select invest_coins($1, 100000)`, [UU]);
   await q(`select invest_coins($1, 30, '补实验')`, [UU]);
   ok((await one(`select balance::float b from api.coin_mine`)).b === cm.b - 30, '投给研究单元，从个人账上扣');
   await raises('成员不能换卡时', /负责人办理/, `select buy_compute($1, 10)`, [UU]);
   await as(own, D);
   await raises('卡时须为整数', /卡时须为正整数/, `select buy_compute($1, 1.5)`, [UU]);
-  await raises('研究单元的实际币不足', /研究单元的实际币不足/, `select buy_compute($1, 1000)`, [UU]);
+  await raises('研究单元的名义币不足', /研究单元的名义币不足/, `select buy_compute($1, 1000)`, [UU]);
   await q(`select buy_compute($1, 10)`, [UU]);
   const ub = await one(`select balance::float b, hours::float h from api.unit_coin_balance where project_id = $1`, [UU]);
   ok(ub.b === 10 && ub.h >= 10, '负责人用研究单元的实际币按标价换卡时，集群一侧可读', JSON.stringify(ub));
@@ -2964,7 +2964,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
     eq(Number((await one(`select unit_coin_balance($1) v`, [UU])).v), 0, '过了到期日，研究单元账上的这笔不再计入余额');
     ok((await val(`select unit_coin_expire_tick() v`)) >= 1, '到期的作废');
     ok(Number((await one(`select sum(amount) v from unit_coin where project_id = $1 and kind = 'expire'`, [UU])).v) === -10, '作废记一笔「过期」，计入代币系统的过期');
-    await raises('过期的不能再花', /研究单元的实际币不足/, `insert into unit_coin (project_id, kind, amount, user_id) values ($1, 'compute', -5, $2)`, [UU, own]);
+    await raises('过期的不能再花', /研究单元的名义币不足/, `insert into unit_coin (project_id, kind, amount, user_id) values ($1, 'compute', -5, $2)`, [UU, own]);
     await db.exec(`set role app_api`); await as(own, D); }
   await as(U.mem, D);
   ok((await q(`select 1 from api.unit_coin where project_id = $1`, [UU])).length >= 2, '研究单元的实际币账全中心看得到');
@@ -4269,7 +4269,11 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await raises('研究单元负责人不能兑课题的预算', /由课题负责人办理/, XB, [LX.id, UNIT, 1000]);
   await as(LX.owner_id, DQ);
   if (NL) await raises('其他科目不能兑换', /只有「算力与模型接口」科目/, XB, [NL.id, UNIT, 100]);
-  await raises('算力与模型接口不再走支出申请', /用于兑换实际币，不走支出申请/, `select submit_project_request($1, $2, '买卡时', 100, '2027-07-30')`, [LX.id, TY['耗材']]);
+  await raises('算力与模型接口不再走支出申请', /用于兑换名义币，不走支出申请/, `select submit_project_request($1, $2, '买卡时', 100, '2027-07-30')`, [LX.id, TY['耗材']]);
+  { await db.exec(`reset role`);
+    const FY = await q(`select d, coin_fy(d::date) y, coin_fq(d::date) n from unnest(array['2026-11-01','2027-01-31','2027-02-01','2027-05-10','2027-10-31','2027-11-01']) d`);
+    ok(FY.map((r) => `${r.y}Q${r.n}`).join(',') === '2027Q1,2027Q1,2027Q2,2027Q3,2027Q4,2028Q1', '中心季度按年度预算编号：11–1 月是下一年度第 1 季度（0181）');
+    await db.exec(`set role app_api`); await as(LX.owner_id, DQ); }
   ok(Number((await one(XB, [LX.id, UNIT, 2000])).v) === 2000, '课题负责人把预算兑成实际币');
   eq(await bal(), 2000, '实际币记入研究单元的账上');
   { await db.exec(`reset role`); ok((await one(`select (expires_on = coin_quarter_end($2::date))::int v from unit_coin where project_id = $1 and kind = 'budget' limit 1`, [UNIT, DQ])).v === 1, '课题预算兑入研究单元的是名义币，当季最后一天作废（0180）'); await db.exec(`set role app_api`); await as(LX.owner_id, DQ); }
@@ -4356,7 +4360,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   await as(U.mem, DQ);
   await raises('成员不能用研究单元的实际币换 API 额度', /由研究单元的负责人办理/, BUY, [UNIT, 10]);
   await as(U.mem2, DQ);
-  await raises('研究单元的实际币不够不能换', /实际币不足/, BUY, [UNIT, 300]);
+  await raises('研究单元的名义币不够不能换', /名义币不足/, BUY, [UNIT, 300]);
   await q(BUY, [UNIT, 30]);
   let b = await ub();
   ok(Number(b.balance) === 170 && Number(b.api_quota) === 12 && b.api_unit === '美元', '额度 = 实际币 × 比例 ÷ 汇率，按美元记，从研究单元的账上扣实际币', JSON.stringify(b));
@@ -4367,7 +4371,7 @@ ok((await one(`select count(*) v from audit_log where table_name = 'fund_project
   ok(Number(a.total_fx) === 20 && Number(a.bought) === 12 && Number(a.room) === 8 && Number(a.api_stock) === 20 && a.unit === '美元' && Number(a.fx_rate) === 5,
     '本季度上限就是总额对应的额度：100 元折 20 美元，减已换；库存只做登记', JSON.stringify(a));
   await raises('全中心本季度换满即止，按美元提示剩余可换多少', /剩余 8\.00.*最多还能用 20/, BUY, [UNIT, 30]);
-  ok(await outbox('%研究单元「换密钥测试研究单元」用实际币换了 12.00 美元 API 额度（换额度测试平台）%还没有 key%') > 0, '换了 API 额度通知财务岗计入研究单元的 key');
+  ok(await outbox('%研究单元「换密钥测试研究单元」用名义币换了 12.00 美元 API 额度（换额度测试平台）%还没有 key%') > 0, '换了 API 额度通知财务岗计入研究单元的 key');
   await raises('研究单元负责人不能登记库存', /需要权限/, STOCK, [50, RX]);
   await as(U.fin, DQ);
   await raises('库存不能为负', /库存不能为负/, STOCK, [-1, RX]);

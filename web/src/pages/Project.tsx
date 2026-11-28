@@ -6,7 +6,7 @@ import { ActionDialog, Badge, Empty, Loading, Scholar, Tile, can, day, money, nu
 import { KIND, STAGE_TEXT } from './Budget';
 import { CapReqTable, askAct, capAct, capped, type Act } from './Caps';
 import { RequestTable } from './Requests';
-import { UnitToken, type UnitShare } from '../token';
+import { UnitToken, qFY, qLabel, type UnitShare } from '../token';
 import { UnitIterate } from '../iterate';
 import { UnitArr } from '../arr';
 import { UnitReviews } from '../review';
@@ -118,10 +118,10 @@ export function ProjectPage({ me, id, start }: { me: Me; id: string; start: stri
   const cqLeft = cq ? num(cq.total) - num(cq.exchanged) : 0;
   const coinUnits = kids.filter((k) => k.active && !data.tags.some((t) => t.id === k.id && t.proposed));
   const myX = data.cxs.filter((x) => x.topic_id === r.id || x.unit_id === r.id).sort((a, b) => b.at.localeCompare(a.at));
-  const canX = (l: LineExec) => !isUnit && r.mine && run && !!y && y.stage !== 'closed' && coinCats.has(l.category_id) && num(l.fixed) - num(l.used) > 0 && coinUnits.length > 0;
+  const canX = (l: LineExec) => !isUnit && r.mine && run && !!y && y.stage !== 'closed' && (!cq || y.year === qFY(cq.q_start)) && coinCats.has(l.category_id) && num(l.fixed) - num(l.used) > 0 && coinUnits.length > 0;
   const xAct = (l: LineExec): Act => ({ title: `兑换名义币：${l.purpose}`, submitLabel: '兑换',
     hint: !cq ? '本季度的兑换总额和比例尚未公布，请等财务岗公布。'
-      : `本季度 1 元预算兑 ${num(cq.rate)} 名义币，全中心还可兑 ${money(cqLeft)}，兑满即止。这一行还可兑 ${money(num(l.fixed) - num(l.used))}。兑得的名义币记入所选研究单元的账上，由研究单元负责人换 API 额度或 GPU 卡时；只能单向兑换，不能兑回预算。`,
+      : `本季度是 ${qLabel(cq.q_start)}，兑的是 ${qFY(cq.q_start)} 年度预算。1 元预算兑 ${num(cq.rate)} 名义币，全中心还可兑 ${money(cqLeft)}，兑满即止。这一行还可兑 ${money(num(l.fixed) - num(l.used))}。兑得的名义币记入所选研究单元的账上，由研究单元负责人换 API 额度或 GPU 卡时；只能单向兑换，不能兑回预算。`,
     fields: [{ name: 'unit_id', label: '记入研究单元', options: coinUnits.map((k): [string, string] => [k.id, `${k.code} ${k.name}`]) }, { name: 'amount', label: '兑掉的预算（元）', type: 'number' }],
     run: (v) => rpc('exchange_budget', { line_id: l.id, unit_id: v.unit_id, amount: v.amount }) });
   return (
